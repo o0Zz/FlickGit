@@ -17,6 +17,11 @@
     <AssemblyName>flick</AssemblyName>
     <Description>FlickGit CLI stub. Forwards a verb to the resident FlickGit process.</Description>
 
+    <!-- The same icon as the resident app, referenced across the project boundary rather
+         than copied: two .ico files would drift, and the stub is the process Task Manager
+         and the "Open with" list show when Explorer runs a context-menu verb. -->
+    <ApplicationIcon>..\FlickGit.App\Resources\flickgit.ico</ApplicationIcon>
+
     <!-- Native AOT. CLAUDE.md, "Process split rationale": "flick.exe **must** remain Native
          AOT. A framework-dependent .NET stub costs 50-100 ms of CLR startup on its own,
          which defeats the purpose of the resident service. Target: process start to exit
