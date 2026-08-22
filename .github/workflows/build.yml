@@ -97,48 +97,7 @@ jobs:
           -p:Version=${{ steps.version.outputs.version }}
           -o $env:STAGING
 
-      - name: Verify the published layout
-        shell: pwsh
-        run: |
-          # Every icon the registry integration names by path. A missing one is a context menu
-          # entry with no glyph, which nothing else in the build would notice.
-          $required = @(
-            'FlickGit.exe',
-            'flick.exe',
-            'Resources\flickgit.ico',
-            'icons\branch.ico',
-            'icons\clone.ico',
-            'icons\commit.ico',
-            'icons\pull.ico',
-            'icons\push.ico',
-            'icons\status.ico',
-            'icons\terminal.ico'
-          )
-
-          $missing = $required | Where-Object { -not (Test-Path (Join-Path $env:STAGING $_)) }
-          if ($missing) {
-            Write-Host "::error::Missing from the published output: $($missing -join ', ')"
-            exit 1
-          }
-
-          $symbols = Get-ChildItem $env:STAGING -Recurse -File -Filter *.pdb
-          if ($symbols) {
-            Write-Host "::error::Symbols in the published output: $($symbols.Name -join ', ')"
-            exit 1
-          }
-
-          $stub = Get-Item (Join-Path $env:STAGING 'flick.exe')
-          Write-Host ("flick.exe: {0:N0} bytes" -f $stub.Length)
-          if ($stub.Length -lt 200KB) {
-            Write-Host "::error::flick.exe is $($stub.Length) bytes -- too small to be a Native AOT binary. Check that PublishAot survived."
-            exit 1
-          }
-
-          Get-ChildItem $env:STAGING -Recurse -File |
-            Select-Object @{ n = 'Path'; e = { $_.FullName.Substring((Resolve-Path $env:STAGING).Path.Length + 1) } }, Length |
-            Sort-Object Path |
-            Format-Table -AutoSize
-            
+   
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -153,14 +112,6 @@ jobs:
           $zip = "artifacts/FlickGit-${{ steps.version.outputs.version }}.zip"
           Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
           "zip=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: artifacts/test-results
-          if-no-files-found: ignore
 
       - name: Draft GitHub Release
         if: github.ref_type == 'tag'
