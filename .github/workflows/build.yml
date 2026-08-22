@@ -40,23 +40,29 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            # Tag builds carry a real version derived from the tag: v1.2.3-4-gabc1234 becomes
-            # 1.2.3.4, so the fourth field counts commits since the tag.
-            $describe = git describe --tags --long --match 'v*' 2>$null
-            if ($LASTEXITCODE -ne 0 -or -not $describe) {
-              $version = "0.0.0.0"
-            } elseif ($describe -match '^v(\d+\.\d+\.\d+)-(\d+)-g[0-9a-f]+$') {
-              $version = "{0}.{1}" -f $matches[1], $matches[2]
-            } else {
-              $version = "0.0.0.0"
-            }
+          # The fourth field always counts commits, so every build is distinguishable from
+          # every other one and a dev build is ordered after the release it follows. The
+          # first three fields say which release that is, and are 0.0.0 until there is one.
+          #
+          #   at tag v1.2.3          -> 1.2.3.0
+          #   4 commits past it      -> 1.2.3.4
+          #   no tag in the history  -> 0.0.0.<commits since the root>
+          #
+          # Tag and branch builds run the same computation on purpose: `git describe` reads
+          # HEAD either way, so a tag build is just the case where the count happens to be 0.
+          $describe = git describe --tags --long --match 'v*' 2>$null
+
+          if ($LASTEXITCODE -eq 0 -and $describe -match '^v(\d+\.\d+\.\d+)-(\d+)-g[0-9a-f]+$') {
+            $version = "{0}.{1}" -f $matches[1], $matches[2]
           } else {
-            # main and manual builds are unreleased -> pin to 0.0.0.0, so a build that was
-            # never tagged cannot be mistaken for a release.
-            $version = "0.0.0.0"
+            # No v* tag reachable from HEAD -- the repository has never been released, or
+            # this branch predates the first tag. Count from the root instead, which is the
+            # same rule with an implied v0.0.0 at the beginning of history.
+            $commits = (git rev-list --count HEAD).Trim()
+            $version = "0.0.0.$commits"
           }
-          Write-Host "Computed version: $version"
+
+          Write-Host "Computed version: $version (git describe: $(if ($describe) { $describe } else { 'none' }))"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Restore
@@ -97,6 +103,7 @@ jobs:
           -r win-x64
           --self-contained false
           -p:PublishSingleFile=true
+          -p:DebugType=none
           -p:AssemblyVersion=${{ steps.version.outputs.version }}
           -p:FileVersion=${{ steps.version.outputs.version }}
           -p:Version=${{ steps.version.outputs.version }}
@@ -109,6 +116,7 @@ jobs:
           dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj
           -c $env:CONFIGURATION
           -r win-x64
+          -p:DebugType=none
           -p:AssemblyVersion=${{ steps.version.outputs.version }}
           -p:FileVersion=${{ steps.version.outputs.version }}
           -p:Version=${{ steps.version.outputs.version }}
@@ -141,6 +149,15 @@ jobs:
             exit 1
           }
 
+          # Both publishes pass DebugType=none. Symbols are not part of the install, and a
+          # released zip that carries them ships source paths and private type layout in
+          # exchange for nothing the user can do with them.
+          $symbols = Get-ChildItem $env:STAGING -Recurse -File -Filter *.pdb
+          if ($symbols) {
+            Write-Host "::error::Symbols in the published output: $($symbols.Name -join ', ')"
+            exit 1
+          }
+
           # The AOT stub is the whole reason for the two-process split. A framework-dependent
           # build of it would still run, and would still be 50-100 ms slower on every
           # right-click, which is exactly the regression nobody would notice by hand.
@@ -156,19 +173,26 @@ jobs:
             Sort-Object Path |
             Format-Table -AutoSize
 
-      - name: Package
+      # The published layout, not an archive of it. actions/upload-artifact always zips what
+      # it is handed, so handing it a .zip is what produced a zip inside a zip -- give it the
+      # directory and the download is the layout, one level down.
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlickGit-${{ steps.version.outputs.version }}
+          path: ${{ env.STAGING }}
+          if-no-files-found: error
+
+      # A release asset is a file rather than an upload-artifact upload, so this archive is a
+      # real one and nothing zips it a second time. Tag builds only -- it exists for the
+      # release step below and has no other consumer.
+      - name: Package the release asset
+        if: github.ref_type == 'tag'
         shell: pwsh
         run: |
           $zip = "artifacts/FlickGit-${{ steps.version.outputs.version }}.zip"
           Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
           "zip=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: FlickGit-${{ steps.version.outputs.version }}
-          path: ${{ env.zip }}
-          if-no-files-found: error
 
       - name: Upload test results
         if: always()
