@@ -30,13 +30,16 @@ folder you are browsing.
 On Windows 11 the entries live under **Show more options** (Shift+F10). That is a limitation of
 registry context menus, not a setting: the Windows 11 top-level menu needs a signed package.
 
-- **Commit / Push…** — the commit window.
-- **Pull (rebase)** — plus a submodule update when the repository has a `.gitmodules`.
-- **More** — Switch branch…, Push, Repository status, Open terminal here, and any action you
-  added yourself.
+- **Commit / Push…** and **Pull (rebase)** are entries in the menu itself, at the bottom, one
+  click from the right-click. Pull runs a submodule update afterwards when the repository has a
+  `.gitmodules`.
+- **FlickGit ▸** holds the rest: Switch branch…, Tags…, Push, Clone…, Repository status, Open
+  terminal here, and any action you added yourself.
 
-Outside a repository the only entry is **Clone…**, which prefills the URL from your clipboard
-when what you copied really is a remote URL.
+**Clone…** lives in that submenu rather than replacing the menu outside a repository: a registry
+entry is written once and shown on every folder, so it cannot tell where you clicked. It prefills
+the URL from your clipboard when what you copied really is a remote URL, and the entries that need
+a repository say so when there is none.
 
 ## The commit window
 
@@ -85,10 +88,11 @@ Everything in the menus is also a verb. `<path>` defaults to the current directo
 
 ```
 flick commit <path>              flick switch <path> [branch]
-flick quick-commit <path>        flick status <path>
-flick pull-rebase <path>         flick clone <path> [url]
-flick push <path>                flick palette
-flick run <id> [path]            flick settings
+flick quick-commit <path>        flick tag <path> [name]
+flick pull-rebase <path>         flick status <path>
+flick push <path>                flick clone <path> [url]
+flick palette                    flick terminal <path>
+flick settings                   flick run <id> [path]
 
 flick install-shell              register the context menu
 flick uninstall-shell            remove it

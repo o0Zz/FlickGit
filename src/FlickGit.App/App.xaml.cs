@@ -311,7 +311,6 @@ public partial class App : Application
 
         ServiceProvider services = _services!;
         var recent = services.GetRequiredService<RecentRepositories>();
-        var shell = services.GetRequiredService<ShellIntegration>();
         VerbOutput output = VerbOutput.Direct();
 
         _trayIcon = TrayIconFactory.Create(
@@ -321,10 +320,6 @@ public partial class App : Application
             recent: () => recent.Paths,
             onOpenRecent: path => _ = RunTrayVerbAsync(new Verb(VerbKind.Commit, path, null)),
 
-            //"Paused" is the honest state rather than a flag: the registry keys are gone, so the
-            //menu entries really are absent. Resuming writes them back.
-            shellPaused: () => !shell.IsInstalled(),
-            onToggleShell: () => ToggleContextMenu(shell, output),
             //The same window `flick settings` opens, through the same verb.
             onSettings: () => _ = RunTrayVerbAsync(new Verb(VerbKind.Settings, null, null)),
 
@@ -406,18 +401,6 @@ public partial class App : Application
                 palette.Warm();
             },
             DispatcherPriority.ApplicationIdle);
-    }
-
-    /// <summary>
-    /// Removes or restores the Explorer context menu, for the tray's pause item.
-    ///
-    /// A real unregister rather than a "pretend" flag: the point of pausing is that the entries stop
-    /// appearing, and a flag checked inside the verbs would leave them there doing nothing.
-    /// </summary>
-    private static void ToggleContextMenu(ShellIntegration shell, VerbOutput output)
-    {
-        InstallResult result = shell.IsInstalled() ? shell.Uninstall() : shell.Install();
-        output.Notice(Strings.Get("app.name"), result.Message, compact: result.Succeeded);
     }
 
     /// <summary>

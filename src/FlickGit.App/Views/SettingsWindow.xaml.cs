@@ -112,8 +112,9 @@ public partial class SettingsWindow : Window
     /// The current state of everything the window can change.
     ///
     /// Read from the source of truth in each case — the registry for the context menu, the Task
-    /// Scheduler for autostart — never from a remembered flag. A menu removed by the tray's Pause
-    /// item, or a task deleted outside FlickGit, has to show here as what it actually is.
+    /// Scheduler for autostart — never from a remembered flag. A menu removed by
+    /// `flick uninstall-shell`, or a task deleted outside FlickGit, has to show here as what it
+    /// actually is.
     /// </summary>
     private void LoadValues()
     {

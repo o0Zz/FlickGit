@@ -22,13 +22,10 @@ public static class TrayIconFactory
 {
     /// <param name="recent">The MRU list, re-read each time the menu opens.</param>
     /// <param name="onOpenRecent">Opens the commit window on one of them.</param>
-    /// <param name="shellPaused">Whether the context menu is currently unregistered.</param>
     public static TaskbarIcon Create(
         Action onQuickCommit,
         Func<IReadOnlyList<string>> recent,
         Action<string> onOpenRecent,
-        Func<bool> shellPaused,
-        Action onToggleShell,
         Action onSettings,
         Action onAbout,
         Action onExit)
@@ -41,9 +38,6 @@ public static class TrayIconFactory
         menu.Items.Add(recentMenu);
 
         menu.Items.Add(new Separator());
-
-        var pauseItem = MenuItem(Strings.Get("tray.pause"), onToggleShell);
-        menu.Items.Add(pauseItem);
 
         menu.Items.Add(MenuItem(Strings.Get("tray.settings"), onSettings));
         menu.Items.Add(MenuItem(Strings.Get("tray.about"), onAbout));
@@ -79,10 +73,6 @@ public static class TrayIconFactory
                         () => onOpenRecent(captured)));
                 }
             }
-
-            pauseItem.Header = shellPaused()
-                ? Strings.Get("tray.resume")
-                : Strings.Get("tray.pause");
         };
 
         var icon = new TaskbarIcon

@@ -1,82 +1,65 @@
 # ⚡ FlickGit
 
-**Fast Git actions from Windows Explorer.** Right-click, review, commit — without opening a
-full Git client.
+**Fast Git actions, right from Windows Explorer.**
+Right-click, review, commit — without opening a full Git client.
 
-FlickGit is for the developer who works across five to ten repositories a day and switches
-between them constantly. The bottleneck it removes is *not* the commit dialog — it is the cost
-of getting to the right repository and back out again.
-
-> Status: **Phase 5, in progress**. Press `Ctrl+Alt+R` for the repository palette. Press `Ctrl+Alt+G` anywhere and a popup opens on the repository Explorer
-> is showing, with an AI-written commit message streaming into it. Enter commits and pushes.
-> See [Roadmap](#roadmap) for what is built and what is not.
+FlickGit is built for developers who work across multiple repositories and switch between them constantly. It keeps the Git actions you use every day fast, lightweight, and instantly accessible — directly from Explorer.
 
 ---
 
-## What works today
+## Features
 
-- **Explorer context menu** — Commit / Push…, Pull (rebase), and under *More*: Switch
-  branch…, Push, Clone…, Repository status, Open terminal here. Per-user install, no
-  administrator rights.
-- **Commit window** — TortoiseGit-style file list with status letters and `+added / -removed`
-  line counts, tick boxes that decide the commit, and a side-by-side diff beside it.
-- **Branch selector** — an editable ComboBox in the commit window. Typing an existing branch
-  switches to it before committing; typing a new name creates it; the hint beside it says
-  which, before you press anything. There is no separate "commit to a new branch" action
-  because this is it.
-- **Push, with guardrails** — a new branch asks once per repository before creating an
-  upstream, being behind offers pull-then-push, and a **diverged branch is refused**. Force
-  push is never offered.
-- **Live-editable diff** — the right pane is a real editor. `Ctrl+S` writes the file back with
-  its **original encoding, BOM and line endings**, atomically, and refuses if something else
-  changed it since you opened it. A staged file shows a strip with one-click restage.
-- **Switch branch** — fuzzy filter over local and remote branches. If Git refuses because of
-  local changes, it says which files and offers stash-switch-restore as an explicit choice —
-  it never stashes on your behalf, and it only ever restores the stash it created.
-- **Clone** — clipboard prefill when what you copied really is a remote URL, a determinate
-  progress bar parsed from Git's own output, and a cancel that removes the partial directory.
-- **Safe staging defaults** — tracked changes ticked, **untracked files unticked**, files
-  matching secret patterns unticked and flagged. This is the rule that keeps `.env`,
-  `appsettings.Development.json`, `bin/` and stray dumps out of a hurried commit.
-- **Pull (rebase)** — with `git submodule update` afterwards, but only when the repository
-  actually has a `.gitmodules`.
-- **A real CLI** — every action is reachable as `flick <verb>`, so it works from a terminal,
-  a script, or a keyboard launcher just as well as from Explorer.
-- **Quick commit** — `Ctrl+Alt+G` opens a small popup at the cursor, on the repository the
-  foreground Explorer window is showing. Enter commits and pushes, `Shift+Enter` commits,
-  `Details…` hands the already-computed status to the full window without re-running Git, and
-  clicking away dismisses it. A folder that is not a repository gets the clone dialog instead.
-- **AI commit messages** — Anthropic or OpenAI, streamed into the box as they arrive. Press Enter
-  before the message lands and the commit is *queued*: it fires the moment the text does. The diff
-  is capped, lock files and generated code are excluded, secret-matching paths never leave the
-  machine and anything that looks like a credential is redacted. The API key lives in Windows
-  Credential Manager, never in a settings file. If any of it fails the box is an ordinary editable
-  field with a one-line notice, and committing still works.
-- **Resident service** — a tray process that pays WPF's startup cost once at logon and keeps
-  the commit window and the popup pre-warmed. `flick.exe` forwards the verb over a per-user named pipe and
-  exits; the window is on screen in **~25 ms** and populated in **~100 ms**, against ~900 ms
-  for the same command with the service stopped. It is an optimisation, never a dependency:
-  with nothing listening, the stub launches the app directly and everything still works.
-- **Tray menu** — recent repositories, pause and resume the context menu, settings, quit.
-  `flick autostart on` registers a logon task with a 45-second delay, so FlickGit never shows
-  up in Windows' startup-impact list.
-- **Settings window** (`flick settings`, or the tray) — the switches worth clicking rather than
-  looking up: the Explorer context menu on or off, start with Windows, the three commit
-  switches, and the interface language. Everything else stays in `settings.json` and
-  `actions.json`, and the window says where they are. Beside it, a **Help** tab that renders
-  `Help.md` from next to the exe — edit that file in any editor and press Reload — and an
-  **About** tab.
+- [x] **Explorer context menu** — Commit / Push… and Pull (rebase) as entries of their own at the
+      bottom of the menu, the rest in the *FlickGit* submenu. Per-user, no administrator rights.
+- [x] **Quick commit** — `Ctrl+Alt+G` anywhere opens a popup on the repository the front Explorer
+      window is showing. Enter commits and pushes, `Shift+Enter` commits, `Details…` hands off to
+      the full window without re-running Git.
+- [x] **Repository palette** — `Ctrl+Alt+R`, repositories with something to do listed first, fuzzy
+      filter, action mode, `Ctrl+Enter` to pull every repository that is behind.
+- [x] **Commit window** — file list with status letters and `+added / -removed` counts, and tick
+      boxes that are the only thing deciding what is committed.
+- [x] **Safe staging defaults** — tracked changes ticked, **untracked files unticked**, anything
+      matching a secret pattern unticked and flagged.
+- [x] **Branch box** — type an existing branch to switch before committing, a new name to create
+      it; the hint beside it says which before you press anything.
+- [x] **Side-by-side diff, live-editable** — `Ctrl+S` writes the file back with its original
+      encoding, BOM and line endings, atomically, and refuses if something else changed it.
+- [x] **Line and hunk staging** — stage or unstage a whole hunk, or just the lines you select.
+- [x] **AI commit messages** — Anthropic or OpenAI, streamed as they arrive. Enter before the
+      message lands queues the commit. Capped diff, secrets redacted, key in Credential Manager.
+- [x] **Push with guardrails** — asks once per repository before creating an upstream, offers
+      pull-then-push when behind, and **refuses a diverged push**. Force push is never offered.
+- [x] **Switch branch** — fuzzy filter over local and remote branches. If Git refuses, it names
+      the files and offers stash-switch-restore as an explicit choice.
+- [x] **Tags** — list, create, publish and delete in one window. Nothing is forced, and deleting
+      always asks first.
+- [x] **Clone** — clipboard prefill when what you copied really is a remote URL, determinate
+      progress, and a cancel that removes the partial directory.
+- [x] **Pull (rebase)** — with `git submodule update` afterwards, but only when the repository
+      actually has a `.gitmodules`.
+- [x] **Resident service** — a tray process that pays WPF startup once at logon and keeps the
+      windows pre-warmed: **~25 ms** to on screen against ~900 ms cold. An optimisation, never a
+      dependency — with it stopped, everything still works.
+- [x] **Custom actions** — `actions.json` adds entries to the context menu, the palette and the
+      CLI at once, and hides, relabels or reorders the built-in ones.
+- [x] **Settings window** — `flick settings`: the switches whose JSON key nobody can guess before
+      finding the file, plus a Help tab rendering an editable `Help.md`, and About.
+- [x] **A real CLI** — every action is `flick <verb>`, with real exit codes, so scripts and
+      keyboard launchers reach it as easily as Explorer does.
+- [x] **Six interface languages** — English, German, Spanish, French, Italian, Portuguese.
+- [ ] **Windows 11 primary menu** — needs `IExplorerCommand` and a signed sparse MSIX package.
+      Until there is a code-signing certificate the entries live under *Show more options*.
+- [ ] **Explorer-only key or mouse trigger** — an input hook that fires only over Explorer, so a
+      key like F12 keeps working everywhere else. The global hotkey is the shipped default.
+- [ ] **Ollama, and speculative generation with it** — *not planned.* Anthropic and OpenAI cover
+      the feature, and speculative generation may only run against a local provider.
+- [ ] **Status overlay icons** — *not planned.* Registration is machine-wide, Windows loads only
+      about fifteen handlers, and doing it properly needs a per-file status cache that would make
+      Explorer slow.
 
-## What it deliberately does not do
-
-FlickGit is not trying to replace a full Git client. It will never automatically run
-`git reset --hard`, `git clean -fd`, `git checkout -- .`, `git branch -D` or
-`git push --force`. It does not discard uncommitted work, and it does not rewrite a file's
+**What it will never do:** run `git reset --hard`, `git clean -fd`, `git checkout -- .`,
+`git branch -D` or `git push --force` on its own, discard uncommitted work, or rewrite a file's
 encoding or line endings.
-
-Status overlay icons (the green tick badges) are out of scope through Phase 6 — the
-registration is machine-wide, Windows loads only about fifteen handlers, and doing it properly
-needs a per-file status cache that would make Explorer slow.
 
 ---
 
@@ -86,8 +69,8 @@ needs a per-file status cache that would make Explorer slow.
 the [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
 
 1. Download the release archive and extract it anywhere — `%LOCALAPPDATA%\Programs\FlickGit`
-   is a good choice. Keep `FlickGit.exe`, `flick.exe`, `Resources\` and `icons\` together;
-   the layout matters.
+   is a good choice. Keep the whole layout together: `FlickGit.exe`, `flick.exe`, `Help.md`,
+   `Resources\` and `icons\`. The registry entries name `flick.exe` and `icons\*.ico` by path.
 2. Register the context menu:
 
    ```powershell
@@ -100,7 +83,7 @@ the [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
 4. Start the resident service, so windows open instantly:
 
    ```powershell
-   .lick.exe autostart on     # at every logon, 45 s after sign-in
+   .\flick.exe autostart on     # at every logon, 45 s after sign-in
    .\FlickGit.exe tray          # or just for this session
    ```
 
@@ -126,14 +109,18 @@ assumed.
 
 ```text
 flick commit <path>                 commit window
+flick quick-commit <path>           quick-commit popup
+flick pull-rebase <path>            pull --rebase (+ submodules when present)
+flick pull-rebase-autostash <path>
 flick push <path>                   with the guardrails; exit 5 if refused
 flick switch <path> [branch]        picker when omitted, direct switch when named
 flick tag <path> [name]             tag window when omitted, creates it when named
-flick clone <path> [url]            clone into a subdirectory of <path>
-flick pull-rebase <path>            pull --rebase (+ submodules when present)
-flick pull-rebase-autostash <path>
 flick status <path>
 flick terminal <path>               open a terminal there
+flick clone <path> [url]            clone into a subdirectory of <path>
+flick run <id> [path]               run a catalog action by id
+flick palette                       repository palette
+flick settings                      settings, help and about
 flick install-shell                 register the Explorer context menu
 flick uninstall-shell
 flick autostart [on|off]            start the resident service at logon
@@ -145,8 +132,8 @@ flick diag timings                  recent latency measurements
 flick help
 ```
 
-`<path>` defaults to the current directory. Verbs declared but not yet implemented
-(`quick-commit`, `palette`, `settings`) say so rather than failing obscurely.
+`<path>` defaults to the current directory. `flick tray` starts the resident service in the
+foreground and `flick version` prints the build; neither is worth a menu entry.
 
 `push`, `status`, `switch <branch>` and the `diag` commands are text commands: run from a
 terminal they print and set a real exit code, and run from Explorer they say the same thing in
@@ -159,8 +146,9 @@ a window.
 
 ## Settings
 
-`%LOCALAPPDATA%\FlickGit\settings.json`, written the first time it is needed. A settings
-window arrives in Phase 5; until then this file is the interface.
+`%LOCALAPPDATA%\FlickGit\settings.json`, written the first time it is needed. `flick settings`
+covers the handful of switches whose JSON key nobody can guess before they have found the file;
+everything below is the file itself.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -177,6 +165,15 @@ window arrives in Phase 5; until then this file is the interface.
 | `hotkeyGesture` | `Ctrl+Alt+G` | At least one modifier is required. An unparseable value falls back to the default and is logged. |
 | `paletteHotkeyGesture` | `Ctrl+Alt+R` | Opens the repository palette. Not `Ctrl+Alt+G`: one combination cannot be registered twice, and the quick-commit trigger has it. |
 | `paletteScanRoots` | `[]` | Folders the palette searches for repositories, three levels deep. Empty is fine — the palette also lists the ones you have already used. |
+| `aiProvider` | `anthropic` | `anthropic`, `openai` or `disabled`. Inert until `aiAllowDiffsToLeaveMachine` is true. |
+| `aiModel` | *(empty)* | Empty means the provider's default. |
+| `aiReasoningEffort` | `none` | OpenAI only: `none`, `low` or `medium`. `none` is the latency baseline, which is the point of the tier. |
+| `aiMaxDiffBytes` | `12288` | Above this the payload becomes a file summary plus 40 lines per file. |
+| `aiConventionalCommits` | `false` | On requires Conventional Commits; off leaves it to the model. |
+| `aiAllowDiffsToLeaveMachine` | `false` | **Nothing is sent until this is true.** Asked once, on first use. |
+| `showSuccessNotification` | `true` | The toast after a commit, a pull or a push. |
+
+API keys are never written here — Windows Credential Manager or DPAPI only.
 
 ### Custom actions
 
@@ -221,13 +218,6 @@ once. It is hand-edited: the settings window covers the common switches, not the
   forced to ask, showing the exact expanded command first.
 - A bad entry is skipped with the reason logged and named in `flick diag doctor`; the built-ins keep
   working.
-| `aiProvider` | `anthropic` | `anthropic`, `openai` or `disabled`. Inert until `aiAllowDiffsToLeaveMachine` is true. |
-| `aiModel` | *(empty)* | Empty means the provider's default. |
-| `aiMaxDiffBytes` | `12288` | Above this the payload becomes a file summary plus 40 lines per file. |
-| `aiConventionalCommits` | `false` | On requires Conventional Commits; off leaves it to the model. |
-| `aiAllowDiffsToLeaveMachine` | `false` | **Nothing is sent until this is true.** Asked once, on first use. |
-
-API keys are never written here — Windows Credential Manager or DPAPI only, from Phase 4.
 
 Logs: `%LOCALAPPDATA%\FlickGit\Logs\flickgit.log`, rotated at 2 MB with one generation kept.
 They record Git command names, durations and exit codes — never diffs, file contents, commit
@@ -293,11 +283,9 @@ dependencies as typed constructor parameters so that stays a choice rather than 
 | **1** | The commit path | ✅ Repository detection · Git runner · registry menu · commit window · file list with line counts · stage/unstage · side-by-side diff · commit · pull --rebase · error handling · logging |
 | **2** | Branches, push, live editing | ✅ Branch ComboBox with switch/create · branch validation · push with upstream handling and divergence refusal · Switch branch with stash-switch-restore · Clone with clipboard prefill and progress · **editable right pane** with encoding and line-ending preservation · atomic save · external-modification detection · restage prompt |
 | **3** | Speed | ✅ Resident service with tray menu and MRU · named-pipe IPC with direct-launch fallback · pre-warmed windows · foreground activation · logon task · diff prefetch cache · notifications |
-| **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. *Windows 11 primary menu (`IExplorerCommand` + sparse MSIX) skipped: it needs a signing certificate.* |
-| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands. A small settings window (`flick settings`) for the context menu, autostart, the commit switches and the language, with a Help tab rendering an editable `Help.md` and an About tab. *The full drag-and-drop action editor was skipped by choice — `actions.json` is the interface for that. Ollama, and with it speculative generation, deliberately skipped.* |
-| **4** | Quick commit and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · cursor-anchored quick-commit popup · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *Explorer-scoped input hooks still to come; they fall back to the hotkey.* |
-| **5** | Customisation | Action Catalog · settings window · menu customisation · repository palette · Ollama · `diag` expansion |
-| **6** | Deep shell integration | Sparse MSIX · `IExplorerCommand` for the Windows 11 primary menu · repository-aware `GetState` · line and hunk staging |
+| **4** | Quick commit and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · cursor-anchored quick-commit popup · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *The Explorer-scoped input hooks — a key or a mouse side button swallowed only over Explorer — are still open; the setting falls back to the global hotkey and says so in `diag doctor`.* |
+| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) with a Help tab rendering an editable `Help.md` and an About tab. *Three items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface), the Ollama provider, and with it speculative generation — which by its own safety rule may only run against a local provider.* |
+| **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. *The Windows 11 primary menu (`IExplorerCommand` + sparse MSIX) is the one thing still open: it needs package identity and a code-signing certificate.* |
 
 Design decisions, performance budgets and the reasoning behind them live in
 [CLAUDE.md](CLAUDE.md).

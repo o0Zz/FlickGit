@@ -866,8 +866,10 @@ A background process cannot steal focus. Without this, the window opens behind E
 - Single instance via named mutex; a second launch forwards to the first
 - Autostart via a Scheduled Task at logon with a 30–60 s delay, so the tool never appears in
   boot-impact measurements. `HKCU\...\CurrentVersion\Run` is an acceptable fallback.
-- Tray menu: Quick commit, Repository palette, Recent repositories, Settings, Pause shell
-  integration, Quit
+- Tray menu: Quick commit, Recent repositories, Settings, About, Exit. **No "Pause shell
+  integration".** It wrote the same registry keys the Settings window's context-menu checkbox
+  writes, permanently, under a word that promises it comes back on its own -- a mislabelled
+  duplicate of one boolean, not a second feature. The checkbox is the only surface for it.
 - Idle working set target **80 MB**. Do not call `SetProcessWorkingSetSize` to fake a lower
   number — the pages return on first use and the window becomes slow again, which is the
   exact opposite of the goal.
@@ -1712,8 +1714,8 @@ one. Three tabs and nothing else:
 │                                                          │
 │  ┌────────────────────────────────────────────────────┐  │
 │  │ Everything else is configured in these two files:  │  │
-│  │ %LOCALAPPDATA%\FlickGit\settings.json               │  │
-│  │ %LOCALAPPDATA%\FlickGitctions.json                │  │
+│  │ %LOCALAPPDATA%\FlickGit\settings.json              │  │
+│  │ %LOCALAPPDATA%\FlickGit\actions.json               │  │
 │  │ [ Open configuration folder ]                      │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
@@ -1735,8 +1737,9 @@ where it lives and stops.
 Rules the window follows:
 
 - **Every value is read from its source of truth on open** — the registry for the context menu,
-  the Task Scheduler for autostart. Never from a remembered flag: the tray's Pause item removes
-  the menu, and a checkbox that disagreed with the registry would be worse than no checkbox.
+  the Task Scheduler for autostart. Never from a remembered flag: `flick uninstall-shell`, a task
+  deleted in the Scheduler, or a hand-edited registry all happen outside this window, and a
+  checkbox that disagreed with the registry would be worse than no checkbox.
 - **Nothing is applied until Save**, and Save touches the registry or the Task Scheduler only
   when the answer actually changed.
 - **The window stays open when there is something left to say** — a failure, or a language
