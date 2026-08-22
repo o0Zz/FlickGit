@@ -1,4 +1,4 @@
-using FlickGit.App.Localization;
+﻿using FlickGit.App.Localization;
 using FlickGit.App.Resident;
 using FlickGit.App.Settings;
 using FlickGit.Ai;
@@ -195,6 +195,82 @@ public sealed class EnvironmentVerbs(
         return VerbResult.Exit(ExitCodes.Success);
     }
 
+    /// <summary>
+    /// `flick language` — what the interface languages are, and which one is in use.
+    /// `flick language fr` switches to one; `flick language auto` goes back to following Windows.
+    ///
+    /// A verb rather than a settings window, for the same reason as `flick autostart` and
+    /// `flick ai key`: CLAUDE.md Phase 5 dropped the window, so the settings files are the
+    /// interface and a verb is what answers "where do I change this?" in one command. This one
+    /// earns its place over hand-editing <c>settings.json</c> because the user has to know the
+    /// code before they can type it, and only the exe knows which files are embedded.
+    /// </summary>
+    public VerbResult Language(VerbOutput output, string? code)
+    {
+        string requested = code?.Trim() ?? string.Empty;
+
+        if (requested.Length == 0)
+        {
+            ListLanguages(output);
+            return VerbResult.Exit(ExitCodes.Success);
+        }
+
+        //"auto" is the empty setting spelled out. A user cannot type nothing on a command line, and
+        //`flick language ""` is not a thing anyone would guess.
+        bool automatic = requested.Equals("auto", StringComparison.OrdinalIgnoreCase);
+
+        if (!automatic && !Strings.Has(requested))
+        {
+            output.Fail(Strings.Get("app.name"), Strings.Get("language.unknown", requested));
+            output.Line();
+            ListLanguages(output);
+            return VerbResult.Exit(ExitCodes.ConfigurationError);
+        }
+
+        settings.Language = automatic ? string.Empty : requested.ToLowerInvariant();
+        settings.Save();
+
+        //The applied name, not the requested code: "auto" has to resolve through Windows to say
+        //anything useful, and an embedded file is the only place the name lives.
+        Strings.Use(settings.Language);
+
+        //A struct, so FirstOrDefault cannot answer "not found" with null -- the pattern is what
+        //distinguishes a real row from the default one.
+        string name = Strings.Available.FirstOrDefault(language => language.Code == Strings.CurrentCode)
+            is { Name.Length: > 0 } found
+                ? found.Name
+                : Strings.CurrentCode;
+
+        output.Line(Strings.Get("language.set", name));
+        output.Line(Strings.Get("language.restart"));
+
+        return VerbResult.Exit(ExitCodes.Success);
+    }
+
+    /// <summary>
+    /// The embedded languages, one per line, with the one in use marked.
+    ///
+    /// Names are shown as each language writes its own, never translated: someone looking for their
+    /// language in an interface they cannot read is looking for "Français", not for "French".
+    /// </summary>
+    private void ListLanguages(VerbOutput output)
+    {
+        bool following = settings.Language.Length == 0;
+
+        foreach (Strings.Language language in Strings.Available)
+        {
+            bool inUse = language.Code == Strings.CurrentCode;
+
+            string marker = inUse ? "*" : " ";
+            string note = inUse && following ? $"  ({Strings.Get("language.auto")})" : string.Empty;
+
+            output.Line($"{marker} {language.Code,-4} {language.Name}{note}");
+        }
+
+        output.Line();
+        output.Line(Strings.Get("language.usage"));
+    }
+
     /// <summary>`flick diag doctor` — what is installed, and where things live.</summary>
     public async Task<VerbResult> DoctorAsync(VerbOutput output)
     {
@@ -224,6 +300,7 @@ public sealed class EnvironmentVerbs(
         output.Line($"palette roots    {DescribeScanRoots()}");
         output.Line($"actions          {DescribeActions()}");
         output.Line($"ai               {DescribeAi()}");
+        output.Line($"language         {DescribeLanguage()}");
         output.Line($"settings         {FlickSettings.FilePath}");
         output.Line($"logs             {FileLog.DefaultDirectory}");
         output.Line();
@@ -281,6 +358,25 @@ public sealed class EnvironmentVerbs(
         return ai.DiffsMayLeave ? $"{name} ({ai.Options.ResolvedModel})" : $"{name} (diffs not allowed to leave)";
     }
 
+    /// <summary>
+    /// The language in use, for `diag doctor`.
+    ///
+    /// Names the requested code when it is not the one in use, because "I set it to sv and nothing
+    /// changed" is otherwise unanswerable: there is no sv.lang, and this is the line that says so.
+    /// </summary>
+    private string DescribeLanguage()
+    {
+        string requested = settings.Language.Trim();
+        string current = Strings.CurrentCode;
+
+        if (requested.Length == 0)
+            return $"{current} (following Windows)";
+
+        return requested.Equals(current, StringComparison.OrdinalIgnoreCase)
+            ? current
+            : $"{current} - no language file for '{requested}'";
+    }
+
     /// <summary>`flick diag timings` — recent latency measurements.</summary>
     public VerbResult Timings(VerbOutput output)
     {
@@ -322,6 +418,7 @@ public sealed class EnvironmentVerbs(
         output.Line($"  {FlickSettings.ActionsFilePath}");
         output.Line();
         output.Line(Strings.Get("settings.reload"));
+        output.Line(Strings.Get("settings.language"));
 
         try
         {

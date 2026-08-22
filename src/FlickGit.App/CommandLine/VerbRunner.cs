@@ -1,4 +1,4 @@
-using FlickGit.Actions;
+﻿using FlickGit.Actions;
 using FlickGit.App.Localization;
 using FlickGit.App.Resident;
 using FlickGit.Cli;
@@ -150,6 +150,7 @@ public sealed class VerbRunner(
             VerbKind.DiagDoctor => await environmentVerbs.DoctorAsync(output).ConfigureAwait(true),
             VerbKind.DiagTimings => environmentVerbs.Timings(output),
             VerbKind.Settings => environmentVerbs.Settings(output),
+            VerbKind.Language => environmentVerbs.Language(output, verb.Path),
 
             VerbKind.Commit => await windowVerbs.CommitAsync(output, repository!).ConfigureAwait(true),
             VerbKind.QuickCommit => await windowVerbs.QuickCommitAsync(output, repository!).ConfigureAwait(true),

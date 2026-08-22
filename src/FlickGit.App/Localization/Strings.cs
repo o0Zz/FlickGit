@@ -12,11 +12,13 @@ namespace FlickGit.App.Localization;
 /// something a translator can open without Visual Studio and send back as a diff.
 ///
 /// <c>en.lang</c> is the master and the per-key fallback, so a half-finished translation
-/// shows English rather than raw key names. Only <c>en.lang</c> ships today — the loader
-/// is here so that adding <c>fr.lang</c> is adding a file, not a refactor.
+/// shows English rather than raw key names. Adding a language is adding a file: the csproj
+/// embeds <c>Languages/*.lang</c> by wildcard and nothing here names them one by one.
 ///
-/// There is deliberately no "list the available languages" method: nothing asks for one until the
-/// settings window exists, and enumerating the embedded resources is four lines to write then.
+/// <see cref="Available"/> enumerates what is embedded, which is what <c>flick language</c>
+/// prints. It reads every file once at first use -- five small text files, on a verb that is not
+/// on any latency path -- rather than keeping a second list of codes that could disagree with the
+/// files actually shipped.
 /// </summary>
 public static class Strings
 {
@@ -34,6 +36,34 @@ public static class Strings
     private static Dictionary<string, string> _current = English;
 
     /// <summary>
+    /// The language actually in use, as a two-letter code.
+    ///
+    /// Not what the settings file asked for: an unknown code falls back to English, and this says
+    /// so. <c>flick language</c> prints it, so a typo in <c>settings.json</c> is answerable.
+    /// </summary>
+    public static string CurrentCode { get; private set; } = FallbackCode;
+
+    /// <summary>An embedded language: its two-letter code, and its name for itself.</summary>
+    /// <param name="Code">The value that goes in <c>settings.json</c>.</param>
+    /// <param name="Name">
+    /// <c>@name</c> from the file, never translated -- someone looking for their language in an
+    /// interface they cannot read is looking for the word "Français", not for "French".
+    /// </param>
+    public readonly record struct Language(string Code, string Name);
+
+    /// <summary>
+    /// Every language embedded in the exe, English first and the rest by name.
+    ///
+    /// Discovered from the manifest resources rather than declared, so adding a language stays
+    /// "add a file to Languages/" -- the csproj embeds them by wildcard for the same reason.
+    /// </summary>
+    public static IReadOnlyList<Language> Available { get; } = Discover();
+
+    /// <summary>True when <paramref name="code"/> names a language that is actually embedded.</summary>
+    public static bool Has(string code) =>
+        Available.Any(language => language.Code.Equals(code.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Switches language. Pass null or empty to follow Windows; an unknown code falls
     /// back to English rather than failing.
     ///
@@ -47,7 +77,10 @@ public static class Strings
             ? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
             : code.Trim();
 
-        _current = Load(resolved) ?? English;
+        Dictionary<string, string>? table = Load(resolved);
+
+        _current = table ?? English;
+        CurrentCode = table is null ? FallbackCode : resolved.ToLowerInvariant();
     }
 
     /// <summary>
@@ -113,5 +146,34 @@ public static class Strings
         }
 
         return table;
+    }
+
+    private static IReadOnlyList<Language> Discover()
+    {
+        Assembly assembly = typeof(Strings).Assembly;
+
+        var found = new List<Language>();
+
+        foreach (string resource in assembly.GetManifestResourceNames())
+        {
+            if (!resource.StartsWith(ResourcePrefix, StringComparison.Ordinal) ||
+                !resource.EndsWith(ResourceSuffix, StringComparison.Ordinal))
+                continue;
+
+            string code = resource[ResourcePrefix.Length..^ResourceSuffix.Length];
+
+            //The code, not the name, when a file forgot its @name line: a picker listing a blank
+            //row is worse than one listing "pt".
+            string name = Load(code)?.GetValueOrDefault("@name") is { Length: > 0 } declared
+                ? declared
+                : code;
+
+            found.Add(new Language(code.ToLowerInvariant(), name));
+        }
+
+        return found
+            .OrderByDescending(language => language.Code == FallbackCode)
+            .ThenBy(language => language.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

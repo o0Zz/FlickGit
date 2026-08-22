@@ -323,6 +323,7 @@ flick uninstall-shell
 flick autostart [on|off]             logon task for the resident service
 flick ai                             what the AI is configured to do
 flick ai key [set|clear]             store or remove the API key
+flick language [code|auto]           interface language; lists them when omitted
 flick diag timings                   recent latency measurements
 flick diag doctor                    environment and integration health check
 ```
@@ -1624,7 +1625,7 @@ Every string the windows show comes from one `key = value` file per language, em
 `FlickGit.exe`:
 
 ```text
-src/FlickGit.App/Languages/en.lang
+src/FlickGit.App/Languages/en.lang     de.lang  es.lang  fr.lang  it.lang  pt.lang
 ```
 
 **Not `.resx`.** Satellite assemblies are DLLs in per-culture subdirectories, which is the
@@ -1645,8 +1646,22 @@ something a translator can open without Visual Studio and send back as a diff.
   its text on construction and the resident service keeps instances alive for the whole
   session, so a language applied later never reaches them.
 
-Only `en.lang` ships today. The loader is there so that adding the second language is not a
-refactor.
+## Choosing one
+
+`flick language` lists what is embedded and marks the one in use; `flick language fr` switches;
+`flick language auto` goes back to following Windows. It writes `language` in `settings.json` and
+says to restart, because `Strings.Use` runs once before the first window and the resident service
+keeps those windows for the session -- a language applied to a live process would reach nothing.
+
+A verb rather than a settings window, for the reason Phase 5 gives for every other one: the
+settings files are the interface. This one still earns a verb over hand-editing the file, because
+the user has to know the code before they can type it and only the exe knows which files it was
+built with -- `Strings.Available` enumerates the manifest resources rather than keeping a second
+list that could disagree with them.
+
+An unknown code is refused with exit code 4 and the list, never silently ignored;
+`diag doctor` names the requested code alongside the one actually in use, so "I set it to sv and
+nothing changed" is answerable.
 
 ---
 

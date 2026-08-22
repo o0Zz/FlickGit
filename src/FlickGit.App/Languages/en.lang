@@ -152,13 +152,10 @@ ai.nokey = No API key is stored. Add one with `flick ai key set`.
 ai.notallowed = Diffs are not allowed to leave this machine.
 ai.empty = The provider returned nothing. Type a message instead.
 # {0} the failure threshold, {1} the last reason
-ai.degraded = Commit messages have failed {0} times in a row.
-
-{1}
+ai.degraded = Commit messages have failed {0} times in a row.\n\n{1}
 ai.usage = Usage: flick ai  |  flick ai key [set|clear]
 # {0} the settings file path
-ai.disabled.hint = Set "aiProvider" to "anthropic" or "openai" in:
-{0}
+ai.disabled.hint = Set "aiProvider" to "anthropic" or "openai" in:\n\n{0}
 
 # {0} provider name
 ai.key.title = {0} API key
@@ -234,14 +231,24 @@ palette.confirms = asks first
 # --- hunk staging ------------------------------------------------------------
 hunk.stage = Stage hunk
 hunk.unstage = Unstage hunk
-hunk.savefirst = Save your edits first \u2014 the diff on screen is not what is on disk.
+hunk.savefirst = Save your edits first — the diff on screen is not what is on disk.
 hunk.untracked = This file is untracked, so there is nothing to stage part of. Tick the file instead.
 hunk.nothing = Put the caret in a change, or select lines, to stage part of this file.
 hunk.staged = Staged {0} line(s). This file will be committed from the index.
 hunk.unstaged = Unstaged {0} line(s).
 hunk.failed = The patch did not apply
 
+# --- interface language -------------------------------------------------------
+language.usage = Usage: flick language [code|auto]   —   auto follows Windows
+language.auto = following Windows
+# {0} the language's own name for itself
+language.set = Interface language set to {0}.
+language.restart = Restart FlickGit for it to take effect: the windows read their text once, when they are built.
+# {0} the code that was asked for
+language.unknown = There is no language file for '{0}'. The languages built into this copy of FlickGit are:
+
 # --- settings, which are files rather than a window ---------------------------
 settings.location = FlickGit is configured by editing these files:
 settings.reload = settings.json is read at startup; actions.json is read at startup too. Restart FlickGit after editing.
 settings.openfailed = The folder could not be opened: {0}
+settings.language = Interface language: flick language [code|auto]

@@ -1,4 +1,4 @@
-using FlickGit.Cli;
+﻿using FlickGit.Cli;
 using Xunit;
 
 namespace FlickGit.Tests;
@@ -49,6 +49,7 @@ public class VerbTests
     [InlineData("install-shell")]
     [InlineData("uninstall-shell")]
     [InlineData("autostart")]
+    [InlineData("language")]
     [InlineData("version")]
     [InlineData("help")]
     public void Path_less_verbs_ignore_the_working_directory(string head)
@@ -112,6 +113,25 @@ public class VerbTests
         Verb set = Verb.Parse(["ai", "key", "set"], @"C:\dev");
         Assert.Equal("key", set.Path);
         Assert.Equal("set", set.Argument);
+    }
+
+    /// <summary>
+    /// <c>flick language fr</c> puts the code where a path normally goes.
+    ///
+    /// The same positional trick as <c>autostart on</c>, and pinned for the same reason: the verb
+    /// reads args[1] itself, so a "path" that is really a language code must not be turned into a
+    /// directory -- which would make `flick language fr` typed in a repository set the language to
+    /// that repository's path.
+    /// </summary>
+    [Theory]
+    [InlineData("fr")]
+    [InlineData("auto")]
+    public void Language_carries_its_code_as_the_path_token(string code)
+    {
+        Verb verb = Verb.Parse(["language", code], @"C:\dev\FlickGit");
+
+        Assert.Equal(VerbKind.Language, verb.Kind);
+        Assert.Equal(code, verb.Path);
     }
 
     /// <summary>
@@ -191,20 +211,24 @@ public class VerbTests
     [Fact]
     public void Run_takes_an_action_id_then_a_path()
     {
-        Verb verb = Verb.Parse(["run", "custom.fetch-prune", @"C:\devepo"], @"C:\elsewhere");
+        Verb verb = Verb.Parse(["run", "custom.fetch-prune", @"C:\dev
+epo"], @"C:\elsewhere");
 
         Assert.Equal(VerbKind.RunAction, verb.Kind);
         Assert.Equal("custom.fetch-prune", verb.Argument);
-        Assert.Equal(@"C:\devepo", verb.Path);
+        Assert.Equal(@"C:\dev
+epo", verb.Path);
     }
 
     /// <summary>The path still defaults, so `flick run x` in a repository means that repository.</summary>
     [Fact]
     public void Run_defaults_its_path_to_the_working_directory()
     {
-        Verb verb = Verb.Parse(["run", "custom.fetch-prune"], @"C:\devepo");
+        Verb verb = Verb.Parse(["run", "custom.fetch-prune"], @"C:\dev
+epo");
 
-        Assert.Equal(@"C:\devepo", verb.Path);
+        Assert.Equal(@"C:\dev
+epo", verb.Path);
     }
 
     /// <summary>
@@ -213,7 +237,8 @@ public class VerbTests
     [Fact]
     public void Run_without_an_id_is_refused_with_a_reason()
     {
-        Verb verb = Verb.Parse(["run"], @"C:\devepo");
+        Verb verb = Verb.Parse(["run"], @"C:\dev
+epo");
 
         Assert.Equal(VerbKind.Help, verb.Kind);
         Assert.NotNull(verb.Error);

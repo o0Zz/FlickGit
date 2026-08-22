@@ -46,6 +46,9 @@ public enum VerbKind
 
     /// <summary>Reports the AI configuration, or stores and clears the API key.</summary>
     Ai,
+
+    /// <summary>Lists the interface languages, or switches to one.</summary>
+    Language,
     /// <summary>
     /// Runs a catalog action by id: <c>flick run custom.fetch-prune &lt;path&gt;</c>.
     ///
@@ -140,6 +143,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "uninstall-shell" => VerbKind.UninstallShell,
             "autostart" => VerbKind.Autostart,
             "ai" => VerbKind.Ai,
+            "language" => VerbKind.Language,
             "tray" => VerbKind.Tray,
             "help" or "--help" or "-h" or "/?" => VerbKind.Help,
             "version" or "--version" or "-v" => VerbKind.Version,
@@ -171,7 +175,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             //`flick settings` look like it applies to a repository.
             VerbKind.Tray or VerbKind.Palette or VerbKind.Settings or VerbKind.Help
                 or VerbKind.Version or VerbKind.InstallShell or VerbKind.UninstallShell
-                or VerbKind.Autostart or VerbKind.Ai
+                or VerbKind.Autostart or VerbKind.Ai or VerbKind.Language
                 or VerbKind.DiagTimings or VerbKind.DiagDoctor => null,
 
             _ => fallbackPath,
@@ -198,6 +202,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick autostart [on|off]            start the resident service at logon
           flick ai                            what the AI is configured to do
           flick ai key [set|clear]            store or remove the API key
+          flick language [code|auto]          interface language; lists them when omitted
           flick diag timings                  recent latency measurements
           flick diag doctor                   environment health check
 

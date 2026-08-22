@@ -132,6 +132,7 @@ flick uninstall-shell
 flick autostart [on|off]            start the resident service at logon
 flick ai                            what the AI is configured to do
 flick ai key [set|clear]            store or remove the API key
+flick language [code|auto]          interface language; lists them when omitted
 flick diag doctor                   environment health check
 flick diag timings                  recent latency measurements
 flick help
@@ -160,7 +161,7 @@ window arrives in Phase 5; until then this file is the interface.
 | `primaryBranch` | *(empty)* | Empty resolves per repository: the remote's HEAD, then `main`, then `master`. |
 | `warnWhenCommittingToPrimaryBranch` | `true` | Shows the warning strip in the commit window. |
 | `closeCommitWindowAfterSuccess` | `true` | |
-| `language` | *(empty)* | Two-letter code. Empty follows Windows. |
+| `language` | *(empty)* | Interface language: `en`, `de`, `es`, `fr`, `it` or `pt`. Empty follows Windows. Set it with `flick language <code>` rather than by hand — the verb lists what is embedded and refuses a code that is not. A code with no language file falls back to English, and `flick diag doctor` says so. |
 | `diffFontFamily` | `Cascadia Mono, Consolas, Courier New` | Must be monospaced, or the panes stop aligning. |
 | `diffFontSize` | `12.5` | |
 | `verboseLogging` | `false` | Adds per-command Git timings to the log. |

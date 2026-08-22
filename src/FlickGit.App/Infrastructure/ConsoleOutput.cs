@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Runtime.InteropServices;
 
 namespace FlickGit.App.Infrastructure;
@@ -103,6 +103,22 @@ public static partial class ConsoleOutput
         bool attached = AttachConsole(AttachParentProcess);
 
         _usable = attached || HasRealStandardOutput();
+
+        if (!attached)
+            return;
+
+        //The same code page fix the stub applies to its own console, for the direct-launch path
+        //where there is no stub. Everything written here is UTF-8, and a console left on the ANSI
+        //code page renders "Espanol" and "Francais" -- the two language names `flick language` is
+        //there to show -- as mojibake.
+        try
+        {
+            Console.OutputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        }
+        catch (IOException)
+        {
+            //A console that refuses the code page change is still a console worth writing to.
+        }
     }
 
     /// <summary>

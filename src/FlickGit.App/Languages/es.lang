@@ -1,0 +1,226 @@
+# FlickGit — Español. Traducción de en.lang, que sigue siendo el archivo maestro: cualquier
+# línea que falte aquí se muestra en inglés en lugar de mostrar su clave.
+#
+# Formato: un par "clave = valor" por línea, # para un comentario, \n para un salto de
+# línea. Todo lo que sigue al primer = es el texto, así que = no necesita escaparse.
+# @name es el nombre del idioma en ese idioma, nunca se traduce.
+
+@name = Español
+
+app.name = FlickGit
+
+# ---- icono de la bandeja ----
+tray.commit = Commit rápido…
+tray.recent = Repositorios recientes
+tray.recent.none = (ninguno todavía)
+tray.pause = Pausar la integración con el Explorador
+tray.resume = Reanudar la integración con el Explorador
+tray.settings = Configuración
+tray.about = Acerca de
+tray.exit = Salir
+tray.tooltip = FlickGit
+
+# ---- ventana de commit ----
+commit.title = {0} — FlickGit
+commit.files.header = Archivos modificados
+commit.message.header = Mensaje del commit
+commit.button.commit = Commit
+commit.button.commitpush = Commit y push
+commit.button.cancel = Cancelar
+commit.button.refresh = Actualizar
+commit.selectall = Todos
+commit.selectnone = Ninguno
+
+commit.summary.selected = {0} seleccionados
+commit.summary.counts = {0} cambiados · {1} sin seguimiento (excluidos)
+commit.summary.binary = bin
+commit.success = Commit {0}  {1}
+commit.empty.selection = Marque al menos un archivo antes de hacer commit.
+commit.warn.primary = Está haciendo commit en {0}.
+commit.warn.secret = Este archivo coincide con un patrón de secreto: revíselo antes de hacer commit.
+commit.warn.conflict = Este repositorio tiene conflictos sin resolver. Resuélvalos antes de hacer commit.
+
+# ---- ventana emergente de commit rápido ----
+quick.details = Detalles…
+quick.hint = ⏎ commit y push   ⇧⏎ commit   ⇥ editar   esc cerrar
+quick.fallback = repositorio más reciente
+quick.norecent = Aún no se ha abierto ningún repositorio. Haga clic derecho en una carpeta, o ejecute `flick quick-commit`.
+quick.queued = Se hará commit en cuanto llegue el mensaje…
+quick.committing = Haciendo commit…
+quick.foreground.refused = Windows no permitió traer la ventana al frente, así que se retiró. Use el icono de la bandeja.
+
+# ---- lista de archivos ----
+files.tooltip.split = Preparado +{0} -{1} · Copia de trabajo +{2} -{3}
+files.tooltip.untracked = Sin seguimiento: Git no lo cuenta; las líneas se cuentan desde el disco.
+files.tooltip.binary = Archivo binario: sin recuento de líneas y sin diff de texto.
+files.tooltip.renamed = Renombrado desde {1}
+
+# ---- visor de diferencias ----
+diff.mode.head = Copia de trabajo ↔ HEAD
+diff.mode.index = Copia de trabajo ↔ Índice
+diff.left.readonly = ← solo lectura
+diff.right.readonly = solo lectura →
+diff.select.prompt = Seleccione un archivo para ver su diff.
+diff.loading = Cargando…
+
+# ---- pull ----
+pull.title = Pull (rebase) — {0}
+pull.success = El pull se completó correctamente.
+pull.conflict = El rebase se detuvo por conflictos.
+pull.submodule.failed = El pull funcionó, pero los submódulos están desactualizados.
+
+# ---- selector de rama ----
+branch.label = Rama
+branch.current = actual
+branch.willswitch = existente: se cambiará a ella
+branch.willcreate = nueva: se creará
+branch.invalid = nombre de rama no válido
+branch.switched = Se cambió a {0}.
+branch.blocked = No se puede cambiar de rama: estos archivos se sobrescribirían:\n\n{0}
+branch.blocked.hint = No se modificó ni descartó nada. Haga commit primero, o use Cambiar de rama para guardarlos en el stash.
+switch.blocked.hint = No se modificó ni descartó nada. Haga commit primero, o guárdelos en el stash abajo.
+branch.aborted = El cambio de rama modificó archivos que había seleccionado:\n\n{0}\n\nLa lista se ha actualizado. No se hizo ningún commit.
+
+# ---- ventana Cambiar de rama ----
+switch.title = Cambiar de rama — {0}
+switch.local = Locales
+switch.remote = Remotas
+switch.button = Cambiar
+switch.stash = Stash, cambiar, restaurar
+switch.none = Ninguna rama coincide.
+switch.stashkept = Sus cambios siguen en el stash. Recupérelos con:\n\ngit stash pop {0}
+
+# ---- push ----
+push.button = Push
+push.success = Se envió {0} a {1}.
+push.upstream.title = ¿Crear una rama upstream?
+push.upstream.ask = {0} no tiene upstream. ¿Enviarla a {1} y hacer seguimiento a partir de ahora?\nLa respuesta se recuerda para este repositorio.
+push.upstream.yes = Enviar y hacer seguimiento
+push.upstream.no = Cancelar
+push.pullfirst.title = Por detrás del remoto
+push.pullfirst.ask = {0} está por detrás de {1}. ¿Hacer pull con rebase y luego push?
+push.pullfirst.yes = Pull (rebase) y push
+push.refused.title = Push rechazado
+
+# ---- clonar ----
+clone.title = Clonar en {0}
+clone.into = En
+clone.submodules = Inicializar submódulos
+clone.shallow = Clon superficial (--depth 1)
+clone.button = Clonar
+clone.cancel = Cancelar
+clone.close = Cerrar
+clone.success = Clonado en {0}
+clone.cancelled = Clonación cancelada. Se eliminó el directorio parcial.
+clone.open = Abrir la ventana de commit
+
+# ---- edición de la copia de trabajo ----
+edit.save = Guardar (Ctrl+S)
+edit.saved = Guardado.
+edit.right.editable = editable — Ctrl+S para guardar →
+edit.restage = Volver a preparar
+edit.restaged = Vuelto a preparar.
+edit.staged.notice = Este archivo está preparado. Su edición todavía no está en el commit:
+edit.close.dirty = {0} tiene cambios sin guardar. ¿Guardarlos antes de cerrar?
+edit.close.save = Guardar
+edit.close.discard = Descartar
+edit.external.title = Cambió en el disco
+edit.external.reload = Recargar desde el disco
+edit.external.overwrite = Sobrescribir
+
+# ---- mensajes de commit con IA ----
+ai.generating = Escribiendo un mensaje…
+ai.disabled = No hay ningún proveedor de IA configurado.
+ai.nokey = No hay ninguna clave de API guardada. Añada una con `flick ai key set`.
+ai.notallowed = Los diffs no tienen permiso para salir de esta máquina.
+ai.empty = El proveedor no devolvió nada. Escriba un mensaje usted mismo.
+ai.degraded = Los mensajes de commit han fallado {0} veces seguidas.\n\n{1}
+ai.usage = Uso: flick ai  |  flick ai key [set|clear]
+ai.disabled.hint = Ponga "aiProvider" en "anthropic" u "openai" en:\n\n{0}
+
+ai.key.title = Clave de API de {0}
+ai.key.prompt = FlickGit necesita una clave de API para escribir sus mensajes de commit. Se guarda en el Administrador de credenciales de Windows, nunca en un archivo de configuración, y nunca se le vuelve a mostrar.
+ai.key.target = Guardada como: {0}
+ai.key.save = Guardar
+ai.key.stored = Hay una clave guardada para {0} ({1}).
+ai.key.missing = No hay ninguna clave guardada para {0}. Añada una con `flick ai key set`.
+ai.key.saved = Se guardó la clave de API de {0}.
+ai.key.cleared = Se eliminó la clave de API de {0}.
+ai.key.cancelled = No se guardó ninguna clave.
+ai.key.failed = La clave no se pudo guardar en el Administrador de credenciales de Windows.
+ai.key.noprovider = No hay ningún proveedor de IA configurado, así que no hay clave que guardar.
+
+ai.consent.title = ¿Enviar los diffs a {0}?
+ai.consent.ask = Para escribir un mensaje de commit, FlickGit envía a {0} el diff de los archivos que va a confirmar.\n\nEso significa que su código fuente sale de esta máquina. Se excluyen los archivos de bloqueo, el código generado y todo lo que coincida con un patrón de secreto, y el diff está limitado.\n\nEsto se pregunta una sola vez.
+ai.consent.yes = Enviar los diffs
+ai.consent.no = Mantener todo en local
+
+# ---- errores ----
+error.title = FlickGit
+error.notarepository = {0} no está dentro de un repositorio Git.
+error.bare = {0} es un repositorio vacío (bare): no hay copia de trabajo que confirmar.
+error.gitmissing = No se encontró git.exe. Instale Git para Windows, o indique la ruta en la configuración de FlickGit.
+error.repositorypath = Repositorio: {0}
+
+# ---- integración con el Explorador ----
+autostart.enabled = Iniciar al iniciar sesión: activado
+autostart.disabled = Iniciar al iniciar sesión: desactivado
+autostart.usage = Uso: flick autostart [on|off]
+
+shell.installed = Se instalaron las entradas del menú contextual de FlickGit.
+shell.removed = Se eliminaron las entradas del menú contextual de FlickGit.
+shell.menu.root = FlickGit
+shell.menu.more = Más
+
+# --- paleta de repositorios ---------------------------------------------------
+palette.hints = ⏎ ejecutar   ⇥ completar   ctrl+⏎ pull --rebase en todo lo atrasado   esc cerrar
+palette.clean = limpio
+palette.modified = {0} modificados
+palette.untrackedonly = {0} sin seguimiento
+palette.unreadable = no se pudo leer
+palette.nothingbehind = Ningún repositorio está por detrás de su remoto.
+palette.empty.nomatch = No hay coincidencias. Retroceso para ampliar la búsqueda, esc para cerrar.
+palette.empty.norepos = Todavía no hay repositorios. Haga commit una vez desde el Explorador y esta lista se llenará sola, o añada raíces de búsqueda a "paletteScanRoots" en:\n{0}
+
+# --- acciones -----------------------------------------------------------------
+action.commit = Commit / Push…
+action.quick-commit = Commit rápido
+action.pull-rebase = Pull (rebase)
+action.pull-rebase-autostash = Pull (rebase, autostash)
+action.push = Push
+action.switch = Cambiar de rama…
+action.status = Estado del repositorio…
+action.clone = Clonar…
+action.terminal = Abrir un terminal aquí
+
+action.confirm.title = ¿Ejecutar esta acción?
+action.confirm.destructive = {0}\n\nEsto ejecuta:\n{1}\n\nPuede descartar trabajo que no esté confirmado.
+action.confirm.process = {0}\n\nEsto inicia un programa fuera de FlickGit:\n{1}
+action.confirm.yes = Ejecutar
+action.confirm.no = Cancelar
+action.ran = {0} terminó.
+action.failed = {0} falló.
+palette.confirms = pide confirmación
+
+# --- preparación por bloques --------------------------------------------------
+hunk.stage = Preparar el bloque
+hunk.unstage = Quitar el bloque
+hunk.savefirst = Guarde primero sus ediciones: el diff en pantalla no es lo que hay en el disco.
+hunk.untracked = Este archivo no tiene seguimiento, así que no hay nada de lo que preparar una parte. Marque el archivo entero.
+hunk.nothing = Ponga el cursor en un cambio, o seleccione líneas, para preparar solo una parte de este archivo.
+hunk.staged = {0} línea(s) preparada(s). Este archivo se confirmará desde el índice.
+hunk.unstaged = {0} línea(s) quitada(s) del índice.
+hunk.failed = El parche no se pudo aplicar
+
+# --- idioma de la interfaz ----------------------------------------------------
+language.usage = Uso: flick language [code|auto]   —   auto sigue a Windows
+language.auto = sigue a Windows
+language.set = Idioma de la interfaz: {0}.
+language.restart = Reinicie FlickGit para que surta efecto: las ventanas leen su texto una sola vez, al crearse.
+language.unknown = No hay archivo de idioma para «{0}». Los idiomas incluidos en esta copia de FlickGit son:
+
+# --- la configuración son archivos, no una ventana ----------------------------
+settings.location = FlickGit se configura editando estos archivos:
+settings.reload = settings.json y actions.json se leen al arrancar. Reinicie FlickGit después de editarlos.
+settings.openfailed = No se pudo abrir la carpeta: {0}
+settings.language = Idioma de la interfaz: flick language [code|auto]
