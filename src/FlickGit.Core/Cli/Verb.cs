@@ -196,7 +196,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick clone <path> [url]
           flick run <id> [path]               run a catalog action by id
           flick palette                       repository palette
-          flick settings
+          flick settings                      settings, help and about
           flick install-shell                 register the Explorer context menu
           flick uninstall-shell
           flick autostart [on|off]            start the resident service at logon

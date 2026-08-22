@@ -323,13 +323,14 @@ public partial class App : Application
             //menu entries really are absent. Resuming writes them back.
             shellPaused: () => !shell.IsInstalled(),
             onToggleShell: () => ToggleContextMenu(shell, output),
-            //The same answer as `flick settings`: the files are the interface, so show where they
-            //are and open the folder.
+            //The same window `flick settings` opens, through the same verb.
             onSettings: () => _ = RunTrayVerbAsync(new Verb(VerbKind.Settings, null, null)),
-            onAbout: () => output.Notice(
-                Strings.Get("app.name"),
-                $"FlickGit {Version}\n\nFast Git actions from Windows Explorer.",
-                compact: false),
+
+            //About is a tab of that window rather than a notice of its own, so there is one place
+            //the version, the help page and the repository link live. Straight to the verb class
+            //because the tab is not something a command line can name -- and nothing else would be
+            //served by inventing a verb for it.
+            onAbout: () => services.GetRequiredService<EnvironmentVerbs>().Settings(output, SettingsTab.About),
             onExit: () => Shutdown(ExitCodes.Success));
 
         //The pipe before the pre-warm, so a right-click arriving during it is served rather than

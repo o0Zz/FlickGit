@@ -6,7 +6,7 @@ using FlickGit.App.Ai;
 using FlickGit.App.Shell;
 using FlickGit.Actions;
 using FlickGit.App.Trigger;
-using System.Diagnostics;
+using System.Windows;
 using FlickGit.App.Views;
 using FlickGit.Cli;
 using FlickGit.Diagnostics;
@@ -38,6 +38,12 @@ public sealed class EnvironmentVerbs(
     FlickSettings settings,
     OperationTimings timings)
 {
+    /// <summary>
+    /// The settings window while it is open, so a second request activates it rather than opening
+    /// a second one. Null whenever there is none — the Closed handler is what keeps that true.
+    /// </summary>
+    private SettingsWindow? _settingsWindow;
+
     public VerbResult Help(VerbOutput output)
     {
         output.Line(Verb.HelpText);
@@ -60,9 +66,8 @@ public sealed class EnvironmentVerbs(
     /// <summary>
     /// `flick autostart [on|off]` — the logon task, and what it currently is.
     ///
-    /// A verb rather than a settings row, because there is no settings window at all
-    /// and a logon task registered silently by some other command would be exactly the kind of
-    /// surprise this product should not spring.
+    /// A verb as well as the settings window's checkbox, because a logon task is something a script
+    /// and an unattended install both want to set, and neither has a window to tick.
     /// </summary>
     public VerbResult Autostart(VerbOutput output, string? switchTo)
     {
@@ -199,11 +204,9 @@ public sealed class EnvironmentVerbs(
     /// `flick language` — what the interface languages are, and which one is in use.
     /// `flick language fr` switches to one; `flick language auto` goes back to following Windows.
     ///
-    /// A verb rather than a settings window, for the same reason as `flick autostart` and
-    /// `flick ai key`: CLAUDE.md Phase 5 dropped the window, so the settings files are the
-    /// interface and a verb is what answers "where do I change this?" in one command. This one
-    /// earns its place over hand-editing <c>settings.json</c> because the user has to know the
-    /// code before they can type it, and only the exe knows which files are embedded.
+    /// The settings window has the same picker, and this stays for the same reason `flick autostart`
+    /// does: a script has no window to click in. Both read <see cref="Strings.Available"/> rather
+    /// than a list of codes, so neither can offer a language the exe was not built with.
     /// </summary>
     public VerbResult Language(VerbOutput output, string? code)
     {
@@ -403,42 +406,43 @@ public sealed class EnvironmentVerbs(
     }
 
     /// <summary>
-    /// `flick settings`. Reports where the two files are, and opens the folder holding them.
+    /// `flick settings`, and the tray's Settings and About entries.
     ///
-    /// <b>There is no settings window, by choice</b> — see CLAUDE.md, Phase 5. Its largest section
-    /// would have been a graphical front end for a file that is documented and hand-editable, so
-    /// <c>settings.json</c> and <c>actions.json</c> are the interface. This verb is what makes that a
-    /// decision rather than a gap: it answers "where do I change this?" in one command.
+    /// A window, and a deliberately small one — see <see cref="SettingsWindow"/> for what is in it
+    /// and why the rest is not. The file paths are still printed when there is a console, because a
+    /// terminal invocation is usually someone looking for exactly that.
     /// </summary>
-    public VerbResult Settings(VerbOutput output)
+    /// <param name="tab">Which tab to open on. The tray's About entry is the only caller that picks.</param>
+    public VerbResult Settings(VerbOutput output, SettingsTab tab = SettingsTab.General)
     {
-        output.Line(Strings.Get("settings.location"));
-        output.Line();
-        output.Line($"  {FlickSettings.FilePath}");
-        output.Line($"  {FlickSettings.ActionsFilePath}");
-        output.Line();
-        output.Line(Strings.Get("settings.reload"));
-        output.Line(Strings.Get("settings.language"));
-
-        try
+        if (output.HasConsole)
         {
-            //The folder rather than either file: a .json with no handler registered would fail, and
-            //explorer.exe opening a directory always works.
-            using Process? opened = Process.Start(new ProcessStartInfo
-            {
-                FileName = FlickSettings.DirectoryPath,
-                UseShellExecute = true,
-            });
-
-            _ = opened;
-        }
-        catch (Exception ex)
-        {
-            //The paths are already printed, which is the part that answers the question.
+            output.Line(Strings.Get("settings.location"));
             output.Line();
-            output.Line(Strings.Get("settings.openfailed", ex.Message));
+            output.Line($"  {FlickSettings.FilePath}");
+            output.Line($"  {FlickSettings.ActionsFilePath}");
         }
 
-        return VerbResult.Exit(ExitCodes.Success);
+        //One window, reused while it is open. A second Settings click — from the tray, from a
+        //terminal, from the context menu — has to reach the one already on screen, or the user ends
+        //up with two of them disagreeing about what the checkboxes say.
+        if (_settingsWindow is null)
+        {
+            _settingsWindow = new SettingsWindow(settings, shell, autostart);
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow.Show();
+        }
+        else if (_settingsWindow.WindowState == WindowState.Minimized)
+        {
+            _settingsWindow.WindowState = WindowState.Normal;
+        }
+
+        _settingsWindow.Select(tab);
+
+        //The stub granted this process foreground rights before sending the request; without this
+        //the window comes up behind whatever the user was looking at.
+        _settingsWindow.Activate();
+
+        return VerbResult.Stay();
     }
 }

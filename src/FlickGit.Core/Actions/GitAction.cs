@@ -1,4 +1,4 @@
-namespace FlickGit.Actions;
+﻿namespace FlickGit.Actions;
 
 /// <summary>
 /// Which surfaces an action appears on.
@@ -70,12 +70,14 @@ public enum ActionOutput
 /// anything <see cref="ActionSafety"/> recognises as destructive, whatever the file said.
 /// </param>
 /// <param name="MenuOrder">
-/// The numeric stride Explorer sorts submenu keys by. Strided in tens so inserting between two
-/// entries needs no other key rewritten.
+/// The numeric stride Explorer sorts keys by, on both levels. Strided in tens so inserting between
+/// two entries needs no other key rewritten.
 /// </param>
 /// <param name="InMoreSubmenu">
-/// False for the two everyday entries. Windows 11 accepts only one level of submenu, so this is a
-/// flag rather than a tree: the catalog has to stay projectable onto the stricter surface.
+/// False means a root verb: an entry of its own in the folder context menu, one click from the
+/// right-click. True means inside the FlickGit submenu. Windows 11 accepts only one level of
+/// submenu, so this is a flag rather than a tree: the catalog has to stay projectable onto the
+/// stricter surface.
 /// </param>
 public sealed record GitAction
 {

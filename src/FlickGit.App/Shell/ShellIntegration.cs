@@ -12,16 +12,24 @@ namespace FlickGit.App.Shell;
 /// Every entry is a thin trigger: it launches <c>flick.exe</c> with a verb and a path, and
 /// contains no logic of any kind. CLAUDE.md, "Shell Integration".
 ///
-/// Two structural constraints shape the layout written here:
+/// The layout is TortoiseGit's, and for TortoiseGit's reason: the operations performed all day are
+/// <b>root</b> verbs in the folder's context menu, and everything else is one submenu below them. A
+/// submenu costs a hover and a second aim, so putting Commit behind one taxes the most frequent
+/// action in the product in order to tidy up the least frequent ones.
+///
+/// Three structural constraints shape what is written here:
 ///
 /// <list type="bullet">
 /// <item><description><b><c>ExtendedSubCommandsKey</c> resolves relative to
 /// <c>HKCR</c></b>, so the submenu definition has to live under
 /// <c>HKCU\Software\Classes\FlickGit.Menu</c> rather than beside the verb.</description></item>
-/// <item><description><b>Submenu entries are ordered alphabetically by key name</b>, not
-/// by any position value. Hence the numeric stride (<c>10</c>, <c>20</c>, <c>30</c>):
-/// inserting an entry between two others must not mean rewriting every key after
-/// it.</description></item>
+/// <item><description><b>Entries are ordered alphabetically by key name</b> — the root verbs as
+/// much as the submenu items — not by any position value. Hence the numeric stride (<c>10</c>,
+/// <c>20</c>, <c>30</c>): inserting an entry between two others must not mean rewriting every key
+/// after it.</description></item>
+/// <item><description><b>Every key this tool creates is named <c>FlickGit.*</c></b>, which is what
+/// lets an uninstall find its own root verbs — now several keys rather than one — without ever
+/// reaching a neighbouring shell extension's.</description></item>
 /// </list>
 ///
 /// On Windows 11 these appear under "Show more options" (Shift+F10). That is a limitation
@@ -30,13 +38,25 @@ namespace FlickGit.App.Shell;
 /// </summary>
 public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 {
-    /// <summary>The one root key name this tool owns. Nothing outside it is ever touched.</summary>
-    private const string RootKeyName = "FlickGit";
+    /// <summary>
+    /// The prefix on every key this tool creates under a <c>shell</c> parent.
+    ///
+    /// Load-bearing for <see cref="Uninstall"/>: the root entries are several keys now, so removal
+    /// finds them by this prefix. Nothing else on a Windows machine uses it, so "keys the tool did
+    /// not create" stay outside the filter by construction.
+    /// </summary>
+    private const string KeyPrefix = "FlickGit.";
 
     /// <summary>The submenu definition, referenced by <c>ExtendedSubCommandsKey</c>.</summary>
     private const string MenuKeyName = "FlickGit.Menu";
 
-    private const string MoreMenuKeyName = "FlickGit.Menu.More";
+    /// <summary>
+    /// The submenu's own key name under each parent.
+    ///
+    /// <c>zz</c> rather than a number, so it sorts after every root verb whatever stride the catalog
+    /// gave them — including a user action that fell back to the default order of 900.
+    /// </summary>
+    private const string MenuVerbKeyName = KeyPrefix + "zz.menu";
 
     private const string ClassesPath = @"Software\Classes";
 
@@ -59,6 +79,16 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         //machines that keep a work drive, and "Directory" does not cover it.
         @"Drive\shell",
     ];
+
+    /// <summary>
+    /// Class-level keys this tool creates, deleted by name because enumerating
+    /// <c>Software\Classes</c> to find them would mean walking every file association on the machine.
+    ///
+    /// <c>FlickGit.Menu.More</c> is no longer written — the submenu <i>is</i> the former More list,
+    /// now that the everyday actions are root verbs — and is named here only so that an install
+    /// which created it does not leave it behind.
+    /// </summary>
+    private static readonly string[] ClassKeyNames = [MenuKeyName, "FlickGit.Menu.More"];
 
     /// <summary>
     /// The menu, projected from the Action Catalog.
@@ -106,16 +136,26 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
             IReadOnlyList<GitAction> actions = MenuActions();
 
-            WriteSubmenu(classes, MenuKeyName, cliPath, appPath, actions.Where(a => !a.InMoreSubmenu), withMoreEntry: true);
-            WriteSubmenu(classes, MoreMenuKeyName, cliPath, appPath, actions.Where(a => a.InMoreSubmenu), withMoreEntry: false);
+            GitAction[] rootActions = [.. actions.Where(a => !a.InMoreSubmenu)];
+            GitAction[] submenuActions = [.. actions.Where(a => a.InMoreSubmenu)];
+
+            WriteSubmenu(classes, cliPath, submenuActions);
 
             foreach (string parent in VerbParents)
-                WriteRootVerb(classes, parent, appPath);
+            {
+                foreach (GitAction action in rootActions)
+                    WriteRootVerb(classes, parent, cliPath, action);
+
+                //Only when there is something behind it. CLAUDE.md: "Do not show a submenu with a
+                //single item" -- an empty one is worse still.
+                if (submenuActions.Length > 0)
+                    WriteMenuVerb(classes, parent, appPath);
+            }
 
             //Read back what was written. CLAUDE.md, "Registry synchronisation" step 4:
             //"Verify by reading back; report failures in the UI." A registry write that
             //silently did nothing (policy, a locked hive) must not be reported as success.
-            string? verification = Verify(cliPath);
+            string? verification = Verify(cliPath, rootActions, submenuActions);
             if (verification is not null)
                 return new InstallResult(false, verification);
 
@@ -132,9 +172,10 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// <summary>
     /// Removes exactly the keys this tool created, and nothing else.
     ///
-    /// CLAUDE.md: "Never enumerate or modify registry keys the tool did not create." Every
-    /// path deleted here ends in a FlickGit-owned key name, so there is no code path that
-    /// can walk into a neighbouring shell extension's keys.
+    /// CLAUDE.md: "Never enumerate or modify registry keys the tool did not create." The root
+    /// entries are several keys now, so they are found by enumeration rather than by name — but the
+    /// filter is <see cref="KeyPrefix"/>, so nothing without FlickGit's own name in it is reachable
+    /// from here.
     /// </summary>
     public InstallResult Uninstall()
     {
@@ -147,11 +188,15 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             foreach (string parent in VerbParents)
             {
                 using RegistryKey? shell = classes.OpenSubKey(parent, writable: true);
-                shell?.DeleteSubKeyTree(RootKeyName, throwOnMissingSubKey: false);
+                if (shell is null)
+                    continue;
+
+                foreach (string name in OwnedKeyNames(shell))
+                    shell.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
             }
 
-            classes.DeleteSubKeyTree(MenuKeyName, throwOnMissingSubKey: false);
-            classes.DeleteSubKeyTree(MoreMenuKeyName, throwOnMissingSubKey: false);
+            foreach (string name in ClassKeyNames)
+                classes.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
 
             log.Info("Shell integration removed.");
             return new InstallResult(true, Strings.Get("shell.removed"));
@@ -164,6 +209,17 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     }
 
     /// <summary>
+    /// FlickGit's own keys under one <c>shell</c> parent.
+    ///
+    /// The bare name "FlickGit" matches as well as the prefix, so the single submenu verb written by
+    /// the layout this replaced is removed rather than left sitting beside the new root entries.
+    /// </summary>
+    private static string[] OwnedKeyNames(RegistryKey shell) =>
+        [.. shell.GetSubKeyNames()
+            .Where(n => n.StartsWith(KeyPrefix, StringComparison.OrdinalIgnoreCase)
+                        || n.Equals("FlickGit", StringComparison.OrdinalIgnoreCase))];
+
+    /// <summary>
     /// Where flick.exe, FlickGit.exe and <c>icons\</c> live: beside the running module.
     ///
     /// Resolved from the module rather than the working directory, because Explorer sets the
@@ -173,52 +229,65 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     private static string InstallDirectory =>
         Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
 
-    /// <summary>True when the root verb is present. Asked by `flick diag doctor` and by the tray.</summary>
+    /// <summary>True when any FlickGit entry is present. Asked by `flick diag doctor` and by the tray.</summary>
     public bool IsInstalled()
     {
-        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(
-            $@"{ClassesPath}\{VerbParents[0]}\{RootKeyName}", writable: false);
+        using RegistryKey? shell = Registry.CurrentUser.OpenSubKey(
+            $@"{ClassesPath}\{VerbParents[0]}", writable: false);
 
-        return key is not null;
+        return shell is not null && OwnedKeyNames(shell).Length > 0;
     }
 
-    private static void WriteRootVerb(RegistryKey classes, string parent, string appPath)
+    /// <summary>
+    /// One root-level entry: a verb of its own in the folder's context menu rather than a submenu
+    /// item. This is the whole point of the layout — Commit and Pull are one click from the
+    /// right-click, the way they are in TortoiseGit.
+    /// </summary>
+    private static void WriteRootVerb(RegistryKey classes, string parent, string cliPath, GitAction action)
     {
-        using RegistryKey verb = classes.CreateSubKey($@"{parent}\{RootKeyName}", writable: true)
-                                 ?? throw new InvalidOperationException($@"Could not create {parent}\{RootKeyName}.");
+        using RegistryKey verb = classes.CreateSubKey($@"{parent}\{RootKeyName(action)}", writable: true)
+                                 ?? throw new InvalidOperationException($"Could not create the {action.Id} verb.");
+
+        verb.SetValue("MUIVerb", action.Label, RegistryValueKind.String);
+        SetIcon(verb, cliPath, action.IconFileName);
+
+        //Bottom, so the entries land with the other tools' verbs at the end of the menu instead of
+        //above Explorer's own "Open". That is where the hand already goes looking for them.
+        verb.SetValue("Position", "Bottom", RegistryValueKind.String);
+
+        using RegistryKey commandKey = verb.CreateSubKey("command", writable: true)
+                                       ?? throw new InvalidOperationException($"Could not create command for {action.Id}.");
+
+        commandKey.SetValue(string.Empty, CommandLine(cliPath, action), RegistryValueKind.String);
+    }
+
+    /// <summary>The "FlickGit" submenu, carrying everything not worth a root entry.</summary>
+    private static void WriteMenuVerb(RegistryKey classes, string parent, string appPath)
+    {
+        using RegistryKey verb = classes.CreateSubKey($@"{parent}\{MenuVerbKeyName}", writable: true)
+                                 ?? throw new InvalidOperationException($@"Could not create {parent}\{MenuVerbKeyName}.");
 
         verb.SetValue("MUIVerb", Strings.Get("shell.menu.root"), RegistryValueKind.String);
 
-        //The exe's own first icon, so the root entry is branded even before the icons\
+        //The exe's own first icon, so the submenu is branded even before the icons\
         //directory is consulted.
         verb.SetValue("Icon", $"{appPath},0", RegistryValueKind.String);
 
         //Resolved relative to HKCR, i.e. HKCU\Software\Classes\FlickGit.Menu.
         verb.SetValue("ExtendedSubCommandsKey", MenuKeyName, RegistryValueKind.String);
-        verb.SetValue("Position", "Top", RegistryValueKind.String);
+        verb.SetValue("Position", "Bottom", RegistryValueKind.String);
     }
 
-    private void WriteSubmenu(
-        RegistryKey classes,
-        string menuKeyName,
-        string cliPath,
-        string appPath,
-        IEnumerable<GitAction> entries,
-        bool withMoreEntry)
+    private static void WriteSubmenu(RegistryKey classes, string cliPath, IReadOnlyList<GitAction> entries)
     {
-        using RegistryKey menu = classes.CreateSubKey($@"{menuKeyName}\shell", writable: true)
-                                 ?? throw new InvalidOperationException($"Could not create {menuKeyName}.");
+        if (entries.Count == 0)
+            return;
 
-        string iconDirectory = Path.Combine(Path.GetDirectoryName(cliPath) ?? string.Empty, "icons");
+        using RegistryKey menu = classes.CreateSubKey($@"{MenuKeyName}\shell", writable: true)
+                                 ?? throw new InvalidOperationException($"Could not create {MenuKeyName}.");
 
         foreach (GitAction entry in entries)
         {
-            //A built-in is its own verb; a user action is reached by id through `flick run`. Both are
-            //command lines flick.exe accepts, which is all a registry verb can be.
-            string command = entry.Cli is { Length: > 0 } cli
-                ? $"{cli} \"%V\""
-                : $"run {entry.Id} \"%V\"";
-
             //The stride is in the key name because that is what Explorer sorts on. "120push" sorts
             //after "110switch" and before "130clone", and a new entry at 115 needs no other key
             //touched. Explorer sorts these as strings, which is why every entry within one submenu
@@ -227,49 +296,75 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
                                      ?? throw new InvalidOperationException($"Could not create menu entry {entry.Id}.");
 
             item.SetValue("MUIVerb", entry.Label, RegistryValueKind.String);
-
-            if (entry.IconFileName is { Length: > 0 } iconName)
-            {
-                string icon = Path.Combine(iconDirectory, iconName);
-                if (File.Exists(icon))
-                    item.SetValue("Icon", icon, RegistryValueKind.String);
-            }
+            SetIcon(item, cliPath, entry.IconFileName);
 
             using RegistryKey commandKey = item.CreateSubKey("command", writable: true)
                                            ?? throw new InvalidOperationException($"Could not create command for {entry.Id}.");
 
-            //%V, quoted. The quotes are what make a path containing a space work, and
-            //Explorer substitutes inside them.
-            commandKey.SetValue(string.Empty, $"\"{cliPath}\" {command}", RegistryValueKind.String);
+            commandKey.SetValue(string.Empty, CommandLine(cliPath, entry), RegistryValueKind.String);
         }
-
-        if (!withMoreEntry)
-            return;
-
-        //"More" is itself a submenu entry pointing at a second ExtendedSubCommandsKey.
-        //Sorted last by giving it the highest stride, and it carries no command of its own.
-        using RegistryKey more = menu.CreateSubKey("90more", writable: true)
-                                 ?? throw new InvalidOperationException("Could not create the More submenu.");
-
-        more.SetValue("MUIVerb", Strings.Get("shell.menu.more"), RegistryValueKind.String);
-        more.SetValue("ExtendedSubCommandsKey", MoreMenuKeyName, RegistryValueKind.String);
-
-        //A separator above More, so the two everyday entries read as a group. This is the
-        //"──────" row in the CLAUDE.md layout.
-        more.SetValue("CommandFlags", 0x20, RegistryValueKind.DWord);
-
-        //Windows 11 accepts only one level of submenu under IExplorerCommand (Phase 6), so
-        //More must never grow a submenu of its own. Registry verbs would allow it; the
-        //catalog must stay projectable onto the stricter surface.
-        _ = appPath;
     }
 
-    private static string? Verify(string expectedCliPath)
+    /// <summary>
+    /// The key name a root entry gets, strided like the submenu's because top-level verbs are
+    /// enumerated alphabetically too.
+    /// </summary>
+    private static string RootKeyName(GitAction action) => $"{KeyPrefix}{action.MenuOrder}.{action.Id}";
+
+    /// <summary>
+    /// What Explorer runs. A built-in is its own verb; a user action is reached by id through
+    /// <c>flick run</c>. Both are command lines flick.exe accepts, which is all a registry verb can
+    /// be.
+    ///
+    /// <c>%V</c>, quoted. The quotes are what make a path containing a space work, and Explorer
+    /// substitutes inside them.
+    /// </summary>
+    private static string CommandLine(string cliPath, GitAction action)
     {
-        //The commit entry, by name. It is the first built-in and the one the catalog cannot be
-        //without, so it is the honest thing to read back.
-        using RegistryKey? command = Registry.CurrentUser.OpenSubKey(
-            $@"{ClassesPath}\{MenuKeyName}\shell\10commit\command", writable: false);
+        string verb = action.Cli is { Length: > 0 } cli ? cli : $"run {action.Id}";
+        return $"\"{cliPath}\" {verb} \"%V\"";
+    }
+
+    private static void SetIcon(RegistryKey key, string cliPath, string? iconFileName)
+    {
+        if (iconFileName is not { Length: > 0 } name)
+            return;
+
+        string icon = Path.Combine(Path.GetDirectoryName(cliPath) ?? string.Empty, "icons", name);
+
+        if (File.Exists(icon))
+            key.SetValue("Icon", icon, RegistryValueKind.String);
+    }
+
+    /// <summary>
+    /// Reads one command back out of the registry.
+    ///
+    /// The entry checked is whichever the catalog put first, rather than "commit" by name: the
+    /// catalog can hide or move any built-in, and verifying a key this run was never going to write
+    /// would report a working install as broken.
+    /// </summary>
+    private static string? Verify(
+        string expectedCliPath,
+        IReadOnlyList<GitAction> rootActions,
+        IReadOnlyList<GitAction> submenuActions)
+    {
+        string path;
+
+        if (rootActions.Count > 0)
+        {
+            path = $@"{ClassesPath}\{VerbParents[0]}\{RootKeyName(rootActions[0])}\command";
+        }
+        else if (submenuActions.Count > 0)
+        {
+            GitAction first = submenuActions[0];
+            path = $@"{ClassesPath}\{MenuKeyName}\shell\{first.MenuOrder}{first.Id}\command";
+        }
+        else
+        {
+            return "Every menu action is hidden, so there was nothing to register.";
+        }
+
+        using RegistryKey? command = Registry.CurrentUser.OpenSubKey(path, writable: false);
 
         string? value = command?.GetValue(string.Empty) as string;
 

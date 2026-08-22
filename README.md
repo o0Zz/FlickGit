@@ -60,6 +60,12 @@ of getting to the right repository and back out again.
 - **Tray menu** — recent repositories, pause and resume the context menu, settings, quit.
   `flick autostart on` registers a logon task with a 45-second delay, so FlickGit never shows
   up in Windows' startup-impact list.
+- **Settings window** (`flick settings`, or the tray) — the switches worth clicking rather than
+  looking up: the Explorer context menu on or off, start with Windows, the three commit
+  switches, and the interface language. Everything else stays in `settings.json` and
+  `actions.json`, and the window says where they are. Beside it, a **Help** tab that renders
+  `Help.md` from next to the exe — edit that file in any editor and press Reload — and an
+  **About** tab.
 
 ## What it deliberately does not do
 
@@ -174,7 +180,7 @@ window arrives in Phase 5; until then this file is the interface.
 ### Custom actions
 
 `%LOCALAPPDATA%\FlickGit\actions.json` adds entries to the context menu, the palette and the CLI at
-once. It is hand-edited until the settings window arrives.
+once. It is hand-edited: the settings window covers the common switches, not the action list.
 
 ```json
 {
@@ -231,6 +237,7 @@ message bodies or credentials.
 ## Building
 
 ```powershell
+winget install Microsoft.DotNet.SDK.9
 dotnet build FlickGit.sln
 dotnet test
 ```
@@ -241,13 +248,6 @@ MSVC linker, because `flick.exe` is compiled with Native AOT:
 ```powershell
 dotnet publish src/FlickGit.App/FlickGit.App.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o artifacts/FlickGit
 dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj -c Release -r win-x64 -o artifacts/FlickGit
-```
-
-Icons are generated rather than committed as opaque binaries, so a change to a glyph is a
-diff someone can review:
-
-```powershell
-pwsh tools/make-icons.ps1
 ```
 
 ### Layout
@@ -293,7 +293,7 @@ dependencies as typed constructor parameters so that stays a choice rather than 
 | **2** | Branches, push, live editing | ✅ Branch ComboBox with switch/create · branch validation · push with upstream handling and divergence refusal · Switch branch with stash-switch-restore · Clone with clipboard prefill and progress · **editable right pane** with encoding and line-ending preservation · atomic save · external-modification detection · restage prompt |
 | **3** | Speed | ✅ Resident service with tray menu and MRU · named-pipe IPC with direct-launch fallback · pre-warmed windows · foreground activation · logon task · diff prefetch cache · notifications |
 | **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. *Windows 11 primary menu (`IExplorerCommand` + sparse MSIX) skipped: it needs a signing certificate.* |
-| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands. *No settings window by choice — `settings.json` and `actions.json` are the interface. Ollama, and with it speculative generation, deliberately skipped.* |
+| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands. A small settings window (`flick settings`) for the context menu, autostart, the commit switches and the language, with a Help tab rendering an editable `Help.md` and an About tab. *The full drag-and-drop action editor was skipped by choice — `actions.json` is the interface for that. Ollama, and with it speculative generation, deliberately skipped.* |
 | **4** | Quick commit and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · cursor-anchored quick-commit popup · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *Explorer-scoped input hooks still to come; they fall back to the hotkey.* |
 | **5** | Customisation | Action Catalog · settings window · menu customisation · repository palette · Ollama · `diag` expansion |
 | **6** | Deep shell integration | Sparse MSIX · `IExplorerCommand` for the Windows 11 primary menu · repository-aware `GetState` · line and hunk staging |

@@ -170,7 +170,6 @@ autostart.usage = Utilização: flick autostart [on|off]
 shell.installed = As entradas de menu de contexto do FlickGit foram instaladas.
 shell.removed = As entradas de menu de contexto do FlickGit foram removidas.
 shell.menu.root = FlickGit
-shell.menu.more = Mais
 
 # --- paleta de repositórios ---------------------------------------------------
 palette.hints = ⏎ executar   ⇥ completar   ctrl+⏎ pull --rebase em tudo o que está atrasado   esc fechar
@@ -219,8 +218,42 @@ language.set = Idioma da interface: {0}.
 language.restart = Reinicie o FlickGit para ter efeito: as janelas leem o seu texto uma só vez, quando são criadas.
 language.unknown = Não existe ficheiro de idioma para «{0}». Os idiomas incluídos nesta cópia do FlickGit são:
 
-# --- as definições são ficheiros, não uma janela ------------------------------
+# --- janela de definições -----------------------------------------------------
+settings.title = FlickGit — Definições
+settings.tab.general = Definições
+settings.tab.help = Ajuda
+settings.tab.about = Acerca
+
+settings.section.explorer = Explorador
+settings.contextmenu = Mostrar o FlickGit no menu de contexto do Explorador
+settings.contextmenu.hint = O Windows 11 mantém-no em «Mostrar mais opções» (Shift+F10).
+settings.autostart = Iniciar o FlickGit com o Windows
+settings.autostart.hint = Uma tarefa de início de sessão, 45 segundos depois de entrar, para não atrasar o arranque.
+
+settings.section.commit = Commit
+settings.warnprimary = Avisar ao fazer commit no ramo principal
+settings.closeafter = Fechar a janela de commit após um commit bem-sucedido
+settings.notify = Mostrar uma notificação após um commit bem-sucedido
+
+settings.section.language = Idioma
+settings.language.auto = Automático (seguir o Windows)
+settings.language.hint = As janelas leem o seu texto uma só vez, ao serem criadas: o novo idioma aparece depois de reiniciar.
+settings.language.restart = Guardado. Reinicie o FlickGit para ver o novo idioma.
+
+settings.advanced = Tudo o resto configura-se nestes dois ficheiros:
+settings.advanced.open = Abrir a pasta de configuração
+settings.save = Guardar
+settings.savefailed = Não foi possível escrever o settings.json: {0}
+settings.openfailed = Não foi possível abrir: {0}
 settings.location = O FlickGit configura-se editando estes ficheiros:
-settings.reload = O settings.json e o actions.json são lidos no arranque. Reinicie o FlickGit depois de os editar.
-settings.openfailed = Não foi possível abrir a pasta: {0}
-settings.language = Idioma da interface: flick language [code|auto]
+
+# --- ajuda: Help.md, ao lado do executável ------------------------------------
+settings.help.edit = Editar o Help.md
+settings.help.reload = Recarregar
+settings.help.missing = # Sem ficheiro de ajuda\n\nO Help.md era esperado ao lado do FlickGit.exe:\n\n`{0}`\n\nCrie-o e prima **Recarregar**. É Markdown normal.
+settings.help.unreadable = # Não foi possível ler a ajuda\n\n`{0}`
+
+# --- acerca -------------------------------------------------------------------
+settings.about.version = Versão {0}
+settings.about.tagline = Ações Git rápidas a partir do Explorador do Windows: clique com o botão direito, reveja, faça commit, sem nunca abrir um cliente Git completo.
+settings.about.author = por o0Zz

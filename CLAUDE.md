@@ -1346,24 +1346,42 @@ Surfaces can be added or removed without touching anything else.
 
 ## 1. Registry verbs — classic menu (Phase 1)
 
+The everyday actions are **root verbs**, not submenu items. TortoiseGit's layout, for
+TortoiseGit's reason: a submenu costs a hover and a second aim, and paying that on the action
+performed all day in order to tidy up the seven that are not is the wrong trade.
+
 ```text
-HKCU\Software\Classes\Directory\shell\FlickGit
+HKCU\Software\Classes\Directory\shell\FlickGit.10.commit
+    MUIVerb                = "Commit / Push..."
+    Icon                   = "<install>\icons\commit.ico"
+    Position               = "Bottom"
+    \command  (default)    = "<install>\flick.exe" commit "%V"
+
+HKCU\Software\Classes\Directory\shell\FlickGit.zz.menu
     MUIVerb                = "FlickGit"
     Icon                   = "<install>\FlickGit.exe,0"
     ExtendedSubCommandsKey = "FlickGit.Menu"
-    Position               = "Top"
+    Position               = "Bottom"
 
-HKCU\Software\Classes\FlickGit.Menu\shell\10commit
-    MUIVerb                = "Commit..."
-    Icon                   = "<install>\icons\commit.ico"
-    \command  (default)    = "<install>\flick.exe" commit "%V"
+HKCU\Software\Classes\FlickGit.Menu\shell\110switch
+    MUIVerb                = "Switch branch..."
+    Icon                   = "<install>\icons\branch.ico"
+    \command  (default)    = "<install>\flick.exe" switch "%V"
 ```
 
 - Per-user install only. No administrator rights.
 - Register both `Directory\shell` and `Directory\Background\shell`. Background uses `%V`.
 - `ExtendedSubCommandsKey` resolves relative to `HKCR`, i.e. `HKCU\Software\Classes\FlickGit.Menu`
-- Submenu entries are ordered **alphabetically by key name**. Prefix with a numeric stride
-  (`10`, `20`, `30`) so reordering does not require rewriting every key.
+- **`Position = "Bottom"`.** These entries belong with the other tools' verbs at the end of the
+  menu rather than above Explorer's own `Open`. That is where the hand already goes looking for
+  them, and it is where TortoiseGit is.
+- Entries are ordered **alphabetically by key name**, on both levels. Prefix with a numeric
+  stride (`10`, `20`, `30`) so reordering does not require rewriting every key. The submenu's
+  own verb is `zz.menu` rather than a number, so it sorts after every root entry whatever
+  stride the catalog gave one.
+- **Every key the tool creates is named `FlickGit.*`.** The root entries are several keys now,
+  so an uninstall finds them by enumerating that one prefix -- which is what keeps "never
+  modify keys the tool did not create" structural rather than a promise.
 - Ship `.ico` files with 16, 20, 24, 32 and 48 px frames; Explorer picks by DPI
 - Classic menu icons are **not** theme-aware. Use mid-tone outline glyphs that read on light
   and dark rather than shipping two sets.
@@ -1583,35 +1601,38 @@ settings; this is the shipped default, not a fixed structure.
 
 **Folder not inside a repository** (`requires: notRepo`):
 
-```text
-FlickGit
-└── Clone…
-```
-
-One entry. Do not show a submenu with a single item — promote `Clone…` to the root with the
-FlickGit icon.
+Nothing distinguishes this case on this surface. A registry verb is written once and shown on
+every folder, so the same entries appear and the ones needing a repository refuse with a
+reason when clicked. `Clone…` sits in the submenu for exactly that reason: there is nothing
+here that could promote it. Repository-aware visibility needs `IExplorerCommand::GetState`,
+which is Phase 6.
 
 **Folder inside a repository** (`requires: repo`):
 
 ```text
-FlickGit
-├── Commit / Push…
-├── Pull (rebase)                      ← + submodule update when .gitmodules exists
-├── ──────────────
-└── More
-    ├── Switch branch…
-    ├── Push
-    ├── Fetch (prune)
-    ├── Repository status…
-    └── Open terminal here
+… the rest of the Explorer context menu …
+─────────────────────────────────────────
+Commit / Push…
+Pull (rebase)                       ← + submodule update when .gitmodules exists
+FlickGit                          ▸
+      ├── Switch branch…
+      ├── Push
+      ├── Clone…
+      ├── Fetch (prune)
+      ├── Repository status…
+      └── Open terminal here
 ```
 
-Two entries at the top level, because those are the two the user performs all day. Everything
-else goes under **More**.
+Two entries in the context menu itself, because those are the two the user performs all day.
+One click, from wherever the pointer already is. Everything else is one hover away inside the
+**FlickGit** submenu, which sorts after them.
 
-Windows 11's `IExplorerCommand` accepts only one level of submenu (Phase 6), so **More** must
-flatten with a separator there rather than nesting a third level. Design the catalog so that
-constraint is satisfiable: never more than two levels.
+There is **no "More" entry** any more. It was a third level in all but name — a FlickGit root
+entry, a submenu, and More inside that. Now the root entries *are* the menu and the submenu
+*is* the overflow: one hop shorter for the frequent actions, the same for the rare ones.
+
+Windows 11's `IExplorerCommand` accepts only one level of submenu (Phase 6), so the catalog
+stays a flag (`InMoreSubmenu`) rather than a tree: never more than two levels.
 
 `Commit / Push…` is a single entry, not two. The commit surface carries both buttons and the
 branch ComboBox, so there is nothing left for a separate "commit in new branch" or "commit to
@@ -1653,11 +1674,10 @@ something a translator can open without Visual Studio and send back as a diff.
 says to restart, because `Strings.Use` runs once before the first window and the resident service
 keeps those windows for the session -- a language applied to a live process would reach nothing.
 
-A verb rather than a settings window, for the reason Phase 5 gives for every other one: the
-settings files are the interface. This one still earns a verb over hand-editing the file, because
-the user has to know the code before they can type it and only the exe knows which files it was
-built with -- `Strings.Available` enumerates the manifest resources rather than keeping a second
-list that could disagree with them.
+The settings window carries the same picker, and the verb stays for the reason `flick autostart`
+does: a script has no window to click in. Both read `Strings.Available`, which enumerates the
+manifest resources rather than keeping a second list that could disagree with the files actually
+shipped -- so neither surface can offer a language the exe was not built with.
 
 An unknown code is refused with exit code 4 and the list, never silently ignored;
 `diag doctor` names the requested code alongside the one actually in use, so "I set it to sv and
@@ -1667,66 +1687,82 @@ nothing changed" is answerable.
 
 # Settings
 
-Windowed settings app (`flick settings`).
+`flick settings` opens a small window, and the tray's Settings and About entries open the same
+one. Three tabs and nothing else:
 
 ```text
-General
--------
-Default main branch: Auto / main / master / custom
-Close commit window after success
-Show success notification
-Warn when committing to main                        (default: on)
-Start resident service with Windows
-
-Trigger
--------
-( ) Global hotkey            [ Ctrl+Alt+G ]
-(•) Explorer-only key        [ F12 ]           (uses an input hook)
-( ) Explorer-only mouse      [ Side button 1 ]
-
-Context Menu
-------------
-[drag-and-drop list, two groups: root and More]
-  root
-    ☑ ⣿ Clone…                       (icon) (edit)   [notRepo]
-    ☑ ⣿ Commit / Push…               (icon) (edit)
-    ☑ ⣿ Pull (rebase)                (icon) (edit)
-  More
-    ☑ ⣿ Switch branch…               (icon) (edit)
-    ☑ ⣿ Push                         (icon) (edit)
-    ☑ ⣿ Fetch (prune)         [user] (icon) (edit) (delete)
-    ☑ ⣿ Repository status…           (icon) (edit)
-    ☑ ⣿ Open terminal here           (icon) (edit)
-  [ + Add action ]
-
-Layout: Submenu "FlickGit" / Flat at root
-Show icons in menu · Root position: Top / Bottom / Default
-Update submodules after pull            (default: on when .gitmodules exists)
-[ Re-apply shell integration ]   [ Remove shell integration ]
-
-Diff
-----
-Font · tab width · word-level diff threshold
-Side-by-side size limit
-Confirm before overwriting externally modified files   (always on, not editable)
-
-AI
---
-Provider:          Anthropic / OpenAI / Ollama / Disabled
-Model:             claude-haiku-4-5-20251001
-Reasoning effort:  (OpenAI only) none / low / medium
-Max diff size:     12 KB
-Conventional Commits mode
-API key                                        → Credential Manager / DPAPI
-Allow source-code diffs to leave this machine  [ ]
-Speculative generation                         [ ]
-
-Git
----
-Path to git.exe (auto-detected, override)
-Default remote: origin
-Repository scan roots (for the palette)
+┌─ FlickGit — Settings ────────────────────────────────────┐
+│ [ Settings ] [ Help ] [ About ]                          │
+│                                                          │
+│  EXPLORER                                                │
+│  ☑ Show FlickGit in the Explorer context menu            │
+│     Windows 11 keeps it under "Show more options".       │
+│  ☐ Start FlickGit with Windows                           │
+│     A logon task, 45 s after sign-in.                    │
+│                                                          │
+│  COMMIT                                                  │
+│  ☑ Warn when committing to the primary branch            │
+│  ☑ Close the commit window after a successful commit     │
+│  ☑ Show a notification after a successful commit         │
+│                                                          │
+│  LANGUAGE                                                │
+│  [ English                                          ▾ ]  │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ Everything else is configured in these two files:  │  │
+│  │ %LOCALAPPDATA%\FlickGit\settings.json               │  │
+│  │ %LOCALAPPDATA%\FlickGitctions.json                │  │
+│  │ [ Open configuration folder ]                      │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+│                              [ Save ]      [ Cancel ]    │
+└──────────────────────────────────────────────────────────┘
 ```
+
+**This is not the settings app this section used to specify**, and the reason the old one was
+dropped still holds: its largest section was a drag-and-drop action list with per-row icon
+pickers and an inline editor — more UI than Phases 1 to 4 together, and a graphical front end
+for a file that is documented and hand-editable. `actions.json` remains the way to customise
+the menu.
+
+What that reasoning never covered is the handful of switches whose JSON key nobody can guess
+before they have found the file: whether the Explorer menu is registered at all, whether the
+tool starts with Windows, and which language this is. Those are worth a window. The rest says
+where it lives and stops.
+
+Rules the window follows:
+
+- **Every value is read from its source of truth on open** — the registry for the context menu,
+  the Task Scheduler for autostart. Never from a remembered flag: the tray's Pause item removes
+  the menu, and a checkbox that disagreed with the registry would be worse than no checkbox.
+- **Nothing is applied until Save**, and Save touches the registry or the Task Scheduler only
+  when the answer actually changed.
+- **The window stays open when there is something left to say** — a failure, or a language
+  change, which needs a restart before it shows. Otherwise it closes.
+- Its state is not reused between sessions: it is constructed on demand, not pre-warmed. It is
+  the one window in the product with no latency target.
+
+## Help
+
+The Help tab renders `Help.md`, a Markdown file shipped **beside `FlickGit.exe`** rather than
+embedded. That is the whole point of it: the file can be opened in any editor, changed, and
+reloaded from the tab without a build. **Edit Help.md** opens it in whatever handles `.md`;
+**Reload** re-reads it.
+
+The renderer is ours, some three hundred lines: headings, paragraphs with soft wrap, lists,
+quotes, rules, fenced code, and `**bold**` / `*italic*` / `` `code` `` / `[text](url)`. Not a
+Markdown library — CLAUDE.md fixes the dependency list at three MIT packages, and a fourth for
+one tab rendering one file we ship ourselves is not that trade. Anything the renderer does not
+understand shows as its own source text, which for a help page is a legible failure.
+
+A missing or unreadable file is reported *as the page*, with the path, because "where would I
+put one?" is the only question that follows.
+
+## About
+
+The icon, the version, one sentence about what the tool is, `by o0Zz`, and a link to
+<https://github.com/o0Zz/FlickGit/>. The tray's About entry opens this tab rather than a notice
+of its own, so the version, the help page and the repository link live in one place.
 
 ## Persistence
 
@@ -1959,15 +1995,20 @@ Everything still goes through `Verb` and `VerbRunner`. CLAUDE.md requires the fa
 "shortcuts around these rules", and having exactly one route to Git is the only way to make that
 structural rather than a promise.
 
-**Phase 5 is complete.** Three of the items it lists were dropped rather than built, and this is the
+**Phase 5 is complete.** Two of the items it lists were dropped rather than built, and this is the
 record of why so they are not proposed again:
 
-- **The settings window is not being built.** Its largest section is a drag-and-drop reorderable
-  action list with per-row icon pickers and an inline action editor -- more UI than Phases 1 to 4 put
-  together, and almost all of it a graphical front end for a file that is already documented and
-  hand-editable. `settings.json` and `actions.json` are the interface. `flick diag doctor` reports
-  what they resolved to and names the reason when an entry is refused, which is the part a user
-  actually needs.
+- **The full settings app was not built, and will not be.** Its largest section is a drag-and-drop
+  reorderable action list with per-row icon pickers and an inline action editor -- more UI than
+  Phases 1 to 4 put together, and almost all of it a graphical front end for a file that is already
+  documented and hand-editable. `actions.json` is the interface for the menu, and
+  `flick diag doctor` reports what it resolved to and names the reason when an entry is refused.
+
+  What did get built, afterwards, is the **small window** in the "Settings" section above: the
+  context menu on or off, start with Windows, three commit switches, the language picker, a Help
+  tab rendering `Help.md`, and an About tab. Those are the settings whose JSON key nobody can guess
+  before they have found the file, which is a different argument from the one that killed the
+  action editor -- and the window is one screen with a Save button, not a second interface.
 - **The Ollama provider is not being built.** Anthropic and OpenAI cover the feature.
 - **Speculative generation is therefore not being built either.** This section requires it be
   "automatically disabled when the provider is not local", and Ollama was the only local provider --

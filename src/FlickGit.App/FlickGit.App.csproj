@@ -79,6 +79,12 @@
          icons itself, from the path written into the registry, so they have to exist as
          files on disk. -->
     <Content Include="Resources\flickgit.ico" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- The Help tab's page, beside the exe rather than embedded, and that is the whole point of
+         it: the user can open Help.md in any editor, change it, and press Reload. Embedding it
+         would need a build to fix a typo. -->
+    <Content Include="Resources\Help.md" CopyToOutputDirectory="PreserveNewest"
+             TargetPath="Help.md" />
     <Content Include="Resources\icons\*.ico" CopyToOutputDirectory="PreserveNewest"
              TargetPath="icons\%(Filename)%(Extension)" />
   </ItemGroup>

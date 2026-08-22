@@ -193,7 +193,6 @@ autostart.usage = Usage: flick autostart [on|off]
 shell.installed = FlickGit context menu entries installed.
 shell.removed = FlickGit context menu entries removed.
 shell.menu.root = FlickGit
-shell.menu.more = More
 
 # --- repository palette -------------------------------------------------------
 palette.hints = ⏎ run   ⇥ complete   ctrl+⏎ pull --rebase everything behind   esc dismiss
@@ -247,8 +246,47 @@ language.restart = Restart FlickGit for it to take effect: the windows read thei
 # {0} the code that was asked for
 language.unknown = There is no language file for '{0}'. The languages built into this copy of FlickGit are:
 
-# --- settings, which are files rather than a window ---------------------------
+# --- settings window ----------------------------------------------------------
+settings.title = FlickGit — Settings
+settings.tab.general = Settings
+settings.tab.help = Help
+settings.tab.about = About
+
+settings.section.explorer = Explorer
+settings.contextmenu = Show FlickGit in the Explorer context menu
+settings.contextmenu.hint = Windows 11 keeps it under "Show more options" (Shift+F10).
+settings.autostart = Start FlickGit with Windows
+settings.autostart.hint = A logon task, 45 seconds after sign-in, so startup is not slowed down.
+
+settings.section.commit = Commit
+settings.warnprimary = Warn when committing to the primary branch
+settings.closeafter = Close the commit window after a successful commit
+settings.notify = Show a notification after a successful commit
+
+settings.section.language = Language
+settings.language.auto = Automatic (follow Windows)
+settings.language.hint = Windows read their text once, when they are built, so a new language shows after a restart.
+settings.language.restart = Saved. Restart FlickGit to see the new language.
+
+settings.advanced = Everything else is configured in these two files:
+settings.advanced.open = Open configuration folder
+settings.save = Save
+# {0} why the file could not be written
+settings.savefailed = settings.json could not be written: {0}
+# {0} the error
+settings.openfailed = It could not be opened: {0}
 settings.location = FlickGit is configured by editing these files:
-settings.reload = settings.json is read at startup; actions.json is read at startup too. Restart FlickGit after editing.
-settings.openfailed = The folder could not be opened: {0}
-settings.language = Interface language: flick language [code|auto]
+
+# --- help tab: Help.md, beside the exe ----------------------------------------
+settings.help.edit = Edit Help.md
+settings.help.reload = Reload
+# {0} where the file was expected. Shown as Markdown -- this text is the page itself.
+settings.help.missing = # No help file\n\nHelp.md was expected beside FlickGit.exe:\n\n`{0}`\n\nCreate it and press **Reload**. It is ordinary Markdown.
+# {0} the error
+settings.help.unreadable = # Help could not be read\n\n`{0}`
+
+# --- about tab ----------------------------------------------------------------
+# {0} the version
+settings.about.version = Version {0}
+settings.about.tagline = Fast Git actions from Windows Explorer — right-click, review, commit, without ever opening a full Git client.
+settings.about.author = by o0Zz
