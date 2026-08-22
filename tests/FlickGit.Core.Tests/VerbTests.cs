@@ -166,6 +166,26 @@ public class VerbTests
     }
 
     /// <summary>
+    /// `tag` reads its name as the second positional slot, the way `switch` reads a branch.
+    ///
+    /// Bare it is the picker, so the argument stays null rather than becoming the empty string --
+    /// which is the distinction the runner branches on.
+    /// </summary>
+    [Fact]
+    public void Tag_carries_its_name_as_the_argument()
+    {
+        Verb bare = Verb.Parse(["tag", @"C:\dev\repo"], @"C:\dev");
+
+        Assert.Equal(VerbKind.Tag, bare.Kind);
+        Assert.Equal(@"C:\dev\repo", bare.Path);
+        Assert.Null(bare.Argument);
+
+        Verb named = Verb.Parse(["tag", @"C:\dev\repo", "v1.4.0"], @"C:\dev");
+
+        Assert.Equal("v1.4.0", named.Argument);
+    }
+
+    /// <summary>
     /// Every verb the help text advertises parses to something other than an error.
     ///
     /// Cheap, and it catches the failure mode where a verb is documented, wired into the registry

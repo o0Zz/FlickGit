@@ -30,6 +30,7 @@ using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Repositories;
 using FlickGit.Status;
+using FlickGit.Tags;
 using H.NotifyIcon;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -163,6 +164,7 @@ public partial class App : Application
         services.AddSingleton<PullService>();
         services.AddSingleton<SwitchService>();
         services.AddSingleton<PushService>();
+        services.AddSingleton<TagService>();
         services.AddSingleton<CloneService>();
 
         //The two that touch the working tree, and the one that sizes an untracked file. Instances
@@ -363,8 +365,8 @@ public partial class App : Application
         actions.RunVerb = (verb, output) => services.GetRequiredService<VerbRunner>().RunAsync(verb, output);
 
         var palette = services.GetRequiredService<PaletteWindowHost>();
-        palette.OnAction = (action, repository) =>
-            _ = actions.RunAsync(action, repository, VerbOutput.Direct());
+        palette.OnAction = (action, repository, argument) =>
+            _ = actions.RunAsync(action, repository, VerbOutput.Direct(), argument);
 
         TriggerStartup trigger = _trigger.Start(
             foreground => _ = services.GetRequiredService<QuickCommitLauncher>().LaunchAsync(foreground),

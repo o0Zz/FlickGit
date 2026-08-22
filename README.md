@@ -128,6 +128,7 @@ assumed.
 flick commit <path>                 commit window
 flick push <path>                   with the guardrails; exit 5 if refused
 flick switch <path> [branch]        picker when omitted, direct switch when named
+flick tag <path> [name]             tag window when omitted, creates it when named
 flick clone <path> [url]            clone into a subdirectory of <path>
 flick pull-rebase <path>            pull --rebase (+ submodules when present)
 flick pull-rebase-autostash <path>

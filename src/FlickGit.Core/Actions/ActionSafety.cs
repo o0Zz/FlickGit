@@ -58,6 +58,19 @@ public static class ActionSafety
         new("branch", "-D"),
         new("branch", "--delete"),
 
+        //Tag deletion, which CLAUDE.md's list does not name -- and this class is otherwise a reading
+        //of that list rather than an improvement on it. The exception is argued because the asymmetry
+        //this class already relies on decides it: a tag is the only ref in Git with no reflog, so
+        //`tag -d` is the one delete that leaves nothing at all behind to recover from. `branch -D` is
+        //on the list and it is strictly the *less* final of the two.
+        new("tag", "-d"),
+        new("tag", "--delete"),
+
+        //Deleting any ref on a remote. Not force-push, but it removes something other people have
+        //already fetched, which is the harm `push --force` is on the list for.
+        new("push", "--delete"),
+        new("push", "-d"),
+
         //--force-with-lease is safer than --force and still overwrites a branch somebody else may be
         //standing on.
         new("push", "--force"),

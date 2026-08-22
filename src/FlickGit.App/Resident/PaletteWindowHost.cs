@@ -32,7 +32,7 @@ public sealed class PaletteWindowHost(
     /// <c>ActionRunner</c>. Injecting the runner instead would close a cycle — it opens windows
     /// through the verb runner, and this is one of the windows that can be opened.
     /// </summary>
-    public Action<GitAction, RepositoryInfo>? OnAction { get; set; }
+    public Action<GitAction, RepositoryInfo, string?>? OnAction { get; set; }
 
     /// <summary>Builds the palette and lays it out, without showing it. See <see cref="ResidentWindow"/>.</summary>
     public void Warm()
@@ -86,7 +86,7 @@ public sealed class PaletteWindowHost(
 
         //Straight through to the composition root. The palette deliberately has no other way to
         //reach Git -- CLAUDE.md: it is "not a shortcut around these rules".
-        viewModel.ActionRequested += (action, repository) => OnAction?.Invoke(action, repository);
+        viewModel.ActionRequested += (action, repository, argument) => OnAction?.Invoke(action, repository, argument);
 
         return new PaletteWindow
         {

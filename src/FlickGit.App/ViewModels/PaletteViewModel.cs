@@ -10,6 +10,7 @@ using FlickGit.Logging;
 using FlickGit.Matching;
 using FlickGit.Models;
 using FlickGit.Palette;
+using FlickGit.Tags;
 
 namespace FlickGit.App.ViewModels;
 
@@ -62,8 +63,14 @@ public sealed class PaletteViewModel(
     /// A <see cref="GitAction"/> rather than a <see cref="Verb"/>: a user action from
     /// <c>actions.json</c> is a Git argument list or an external program, and only the built-ins have
     /// a verb at all. <c>ActionRunner</c> is what knows the difference.
+    ///
+    /// The third value is the action's second token when it declares one — the branch to switch to,
+    /// the tag to create — and null when it does not. It is carried rather than dropped, which is
+    /// what turned the branch completion from a list that looked like it did something into one that
+    /// does: before <c>ActionRunner</c> could be handed an argument, choosing a branch here opened the
+    /// picker with the branch thrown away.
     /// </summary>
-    public event Action<GitAction, RepositoryInfo>? ActionRequested;
+    public event Action<GitAction, RepositoryInfo, string?>? ActionRequested;
 
     /// <summary>Raised when the palette is done and should close.</summary>
     public event Action? CloseRequested;
@@ -235,9 +242,9 @@ public sealed class PaletteViewModel(
 
         if (_selectedRow.Action is { } action)
         {
-            //An action needing a branch is not runnable without one. Choosing it types it into the
-            //query instead, which brings up the completions -- so Enter always advances.
-            if (action.Parameter == ActionParameter.Branch)
+            //An action needing an argument is not runnable without one. Choosing it types it into
+            //the query instead, which brings up the completions -- so Enter always advances.
+            if (action.Parameter != ActionParameter.None)
             {
                 Query = $"{QueryBeforeSeparator()} {action.Cli} ";
                 return;
@@ -247,8 +254,9 @@ public sealed class PaletteViewModel(
             return;
         }
 
-        if (_selectedRow.Parameter is { Length: > 0 } && CurrentAction is { } pending)
-            Run(pending, _pinned.Repository);
+        //A completion row: the action was chosen a keystroke ago and this row is its argument.
+        if (_selectedRow.Parameter is { Length: > 0 } parameter && CurrentAction is { } pending)
+            Run(pending, _pinned.Repository, parameter);
     }
 
     /// <summary>
@@ -273,7 +281,7 @@ public sealed class PaletteViewModel(
             return;
 
         foreach (RepositoryOverview overview in behind)
-            ActionRequested?.Invoke(pull, overview.Repository);
+            ActionRequested?.Invoke(pull, overview.Repository, null);
 
         CloseRequested?.Invoke();
     }
@@ -314,9 +322,9 @@ public sealed class PaletteViewModel(
     private IReadOnlyList<GitAction> Available() =>
         _pinned is null ? [] : catalog.For(ActionSurfaces.Palette);
 
-    private void Run(GitAction action, RepositoryInfo repository)
+    private void Run(GitAction action, RepositoryInfo repository, string? argument = null)
     {
-        ActionRequested?.Invoke(action, repository);
+        ActionRequested?.Invoke(action, repository, argument);
         CloseRequested?.Invoke();
     }
 
@@ -461,6 +469,12 @@ public sealed class PaletteViewModel(
             return;
         }
 
+        if (choosingParameter && CurrentAction is { Parameter: ActionParameter.Tag } tagAction)
+        {
+            BuildNewTagRow(tagAction, tokens.Length > 1 ? tokens[1] : string.Empty);
+            return;
+        }
+
         string actionPattern = tokens.Length > 0 ? tokens[0] : string.Empty;
 
         //Keyed by the search text: the CLI spelling for a built-in, the label for a user action that
@@ -491,6 +505,37 @@ public sealed class PaletteViewModel(
                 CommandLine(candidate, _pinned!, null),
                 Action: candidate));
         }
+    }
+
+    /// <summary>
+    /// The single row for a tag name being typed.
+    ///
+    /// <b>Always exactly one row, runnable or not.</b> There is nothing to complete against — see
+    /// <see cref="ActionParameter.Tag"/> — so this is the branch ComboBox's inline resolution rather
+    /// than a completion list: the row says what will happen to what was typed, and only carries a
+    /// <c>Parameter</c> when there is something Enter may actually do. A row with none is a row Enter
+    /// ignores, which is how an invalid name is refused before any Git command runs.
+    /// </summary>
+    private void BuildNewTagRow(GitAction action, string typed)
+    {
+        if (typed.Length == 0)
+        {
+            Rows.Add(new PaletteRow(Strings.Get("palette.tag.prompt"), action.Label, string.Empty));
+            return;
+        }
+
+        if (!TagService.LooksValid(typed))
+        {
+            Rows.Add(new PaletteRow(typed, Strings.Get("tag.invalid"), string.Empty));
+            return;
+        }
+
+        Rows.Add(new PaletteRow(
+            typed,
+            Strings.Get("palette.tag.willcreate"),
+            string.Empty,
+            CommandLine(action, _pinned!, typed),
+            Parameter: typed));
     }
 
     private PaletteRow ToRow(RepositoryOverview overview)

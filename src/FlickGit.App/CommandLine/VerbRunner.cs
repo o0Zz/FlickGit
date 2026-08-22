@@ -54,7 +54,7 @@ public sealed class VerbRunner(
     /// </summary>
     private static bool NeedsRepository(VerbKind kind) =>
         kind is VerbKind.Commit or VerbKind.QuickCommit or VerbKind.Status or VerbKind.PullRebase
-            or VerbKind.PullRebaseAutostash or VerbKind.Switch or VerbKind.Push;
+            or VerbKind.PullRebaseAutostash or VerbKind.Switch or VerbKind.Push or VerbKind.Tag;
 
     /// <summary>
     /// Runs a catalog action by id.
@@ -176,6 +176,12 @@ public sealed class VerbRunner(
             VerbKind.Switch => string.IsNullOrWhiteSpace(verb.Argument)
                 ? await windowVerbs.SwitchPickerAsync(repository!).ConfigureAwait(true)
                 : await repositoryVerbs.SwitchAsync(output, repository!, verb.Argument).ConfigureAwait(true),
+
+            //`tag` reads the same way `switch` does: a name given is a script's command and answers
+            //with an exit code, bare it is the picker.
+            VerbKind.Tag => string.IsNullOrWhiteSpace(verb.Argument)
+                ? windowVerbs.TagPicker(repository!)
+                : await repositoryVerbs.TagAsync(output, repository!, verb.Argument).ConfigureAwait(true),
 
             VerbKind.Push => await repositoryVerbs.PushAsync(output, repository!).ConfigureAwait(true),
 

@@ -6,6 +6,7 @@ using FlickGit.Cli;
 using FlickGit.Models;
 using FlickGit.Remotes;
 using FlickGit.Status;
+using FlickGit.Tags;
 
 namespace FlickGit.App.CommandLine;
 
@@ -26,6 +27,7 @@ public sealed class RepositoryVerbs(
     StatusService status,
     SwitchService switches,
     PushService pushes,
+    TagService tags,
     FlickSettings settings)
 {
     /// <summary>`flick status` — the file list as text.</summary>
@@ -101,6 +103,34 @@ public sealed class RepositoryVerbs(
                 + "\n\n" + Strings.Get("branch.blocked.hint"));
 
             return VerbResult.Exit(ExitCodes.RefusedForSafety);
+        }
+
+        output.Fail(title, outcome.GitError ?? string.Empty);
+        return VerbResult.Exit(ExitCodes.GitError);
+    }
+
+    /// <summary>
+    /// `flick tag &lt;path&gt; &lt;name&gt;` — creates that tag on HEAD.
+    ///
+    /// Create and nothing else. The window is where deletion lives, because there is no `--force`
+    /// under this and so nothing here can overwrite anything, whereas deleting a published tag is
+    /// exactly the "explicit user intent, expressed in the moment" that a script flag is not.
+    /// </summary>
+    public async Task<VerbResult> TagAsync(VerbOutput output, RepositoryInfo repository, string name)
+    {
+        string title = Strings.Get("tag.create");
+
+        //Lightweight: a message would have to come from somewhere, and a second positional argument
+        //that is sometimes a message is a grammar nobody can remember. `git tag -a` is right there
+        //for anyone who wants one from a script.
+        TagOutcome outcome = await tags
+            .CreateAsync(repository, name, null, null, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (outcome.Succeeded)
+        {
+            output.Say(title, Strings.Get("tag.created", name.Trim()));
+            return VerbResult.Exit(ExitCodes.Success);
         }
 
         output.Fail(title, outcome.GitError ?? string.Empty);

@@ -314,6 +314,7 @@ flick pull-rebase <path>             + submodule update when applicable
 flick pull-rebase-autostash <path>
 flick push <path>
 flick switch <path> [branch]         branch picker when omitted
+flick tag <path> [name]              tag window when omitted; creates it when named
 flick status <path>
 flick run <id> [path]                run a catalog action by id
 flick palette                        global repository palette
@@ -1616,6 +1617,7 @@ Commit / Push…
 Pull (rebase)                       ← + submodule update when .gitmodules exists
 FlickGit                          ▸
       ├── Switch branch…
+      ├── Tags…
       ├── Push
       ├── Clone…
       ├── Fetch (prune)
@@ -2018,8 +2020,20 @@ record of why so they are not proposed again:
 The context menu is still customisable, just not by clicking: `builtIns` in `actions.json` hides,
 relabels and reorders any built-in, and user actions add to every surface at once.
 
-Second-token completion comes from `ActionParameter`, which declares only `Branch`: the tags, remotes
-and stashes kinds have no action that takes one yet.
+Second-token completion comes from `ActionParameter`, which declares `Branch` and `Tag`. The remotes
+and stashes kinds are still absent, because nothing takes one.
+
+`Tag` is the odd one and it is worth saying why: it is the only parameter kind with **no completion
+source**. The second token after `tag` is a tag being *created*, so the repository's existing tags are
+the one set of values it will never be — completing from them would steer the user towards the only
+answer Git is certain to refuse. The palette validates what was typed instead and shows the
+consequence inline, which is what the branch ComboBox already does for a new branch name.
+
+Making that work exposed a latent bug worth recording: the parameter was being **dropped**.
+`PaletteViewModel` collected it, built a row from it, and then raised `ActionRequested` without it, so
+choosing a branch in the palette opened the Switch picker with the branch thrown away. `ActionRunner`
+now takes an argument and passes it into the `Verb` a `WindowRun` builds, so both kinds reach the verb
+that was always ready to receive one.
 
 ## Phase 6 — Deep shell integration
 

@@ -50,7 +50,17 @@ public sealed class ActionRunner(
     /// Never throws: a user action is user input, and a bad one has to report rather than take the
     /// resident service down with it.
     /// </summary>
-    public async Task RunAsync(GitAction action, RepositoryInfo repository, VerbOutput output)
+    /// <param name="argument">
+    /// The action's second token, when a surface collected one: the branch the palette highlighted,
+    /// the tag name it typed. Only a <see cref="WindowRun"/> reads it, because that is the only
+    /// variant whose target has a place to put one — a <c>GitRun</c> already carries its whole
+    /// argument list and expands its placeholders from the repository.
+    /// </param>
+    public async Task RunAsync(
+        GitAction action,
+        RepositoryInfo repository,
+        VerbOutput output,
+        string? argument = null)
     {
         try
         {
@@ -68,7 +78,7 @@ public sealed class ActionRunner(
                 //Through the verb runner, so the repository is resolved, the bare-repository guard
                 //applies, and the window is the pre-warmed one.
                 if (RunVerb is not null)
-                    await RunVerb(new Verb(window.Verb, repository.Root, null), output).ConfigureAwait(true);
+                    await RunVerb(new Verb(window.Verb, repository.Root, argument), output).ConfigureAwait(true);
 
                 return;
             }

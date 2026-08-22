@@ -23,6 +23,13 @@ public class ActionSafetyTests
     [InlineData("branch", "-D")]
     [InlineData("push", "--force")]
     [InlineData("push", "--force-with-lease")]
+    //Not on CLAUDE.md's list, and argued in ActionSafety itself: a tag is the only ref with no
+    //reflog, so `tag -d` is strictly more final than the `branch -D` that is on the list.
+    [InlineData("tag", "-d")]
+    [InlineData("tag", "--delete")]
+    //Removing a ref other people have already fetched, which is the harm --force is listed for.
+    [InlineData("push", "--delete")]
+    [InlineData("push", "-d")]
     public void Destructive_git_arguments_are_recognised(string command, string flag)
     {
         Assert.True(ActionSafety.IsDestructive(new GitRun([command, flag])));

@@ -90,6 +90,33 @@ switch.stash = Stash, cambia, ripristina
 switch.none = Nessun ramo corrisponde.
 switch.stashkept = Le modifiche sono ancora nello stash. Recuperarle con:\n\ngit stash pop {0}
 
+# ---- finestra dei tag ----
+tag.title = Tag — {0}
+tag.new = Nuovo tag
+tag.create = Crea
+tag.push = Invia al remoto
+tag.delete = Elimina in locale
+tag.deleteremote = Elimina qui e sul remoto
+tag.close = Chiudi
+tag.message.hint = Un messaggio lo rende un tag annotato. Lasciare vuoto per uno leggero.
+tag.none = Non ci sono ancora tag in questo repository.
+tag.nomatch = Nessun tag corrisponde.
+tag.count = {0} tag
+tag.lightweight = leggero
+tag.invalid = non è un nome di tag valido
+tag.exists = {0} esiste già. FlickGit non sposta mai un tag: eliminarlo prima.
+tag.willcreate = nuovo — sarà creato su HEAD
+tag.willannotate = nuovo — sarà creato su HEAD, annotato
+tag.created = {0} creato.
+tag.pushed = {0} inviato a {1}.
+tag.deleted = {0} eliminato.
+tag.deleted.remote = {0} eliminato, qui e su {1}.
+tag.delete.failed = Non è stato eliminato nulla.
+tag.confirm.title = Eliminare questo tag?
+tag.confirm.local = Eliminare il tag {0} da questo repository?\n\nUn tag non ha reflog, quindi da qui non si può annullare.
+tag.confirm.remote = Eliminare il tag {0} da questo repository e da {1}?\n\nChi lo ha già scaricato conserva la sua copia, e un tag non ha reflog: da qui non si può annullare.
+tag.confirm.yes = Elimina
+
 # ---- push ----
 push.button = Push
 push.success = {0} inviato a {1}.
@@ -188,6 +215,7 @@ action.pull-rebase = Pull (rebase)
 action.pull-rebase-autostash = Pull (rebase, autostash)
 action.push = Push
 action.switch = Cambia ramo…
+action.tag = Tag…
 action.status = Stato del repository…
 action.clone = Clona…
 action.terminal = Apri un terminale qui
@@ -200,6 +228,8 @@ action.confirm.no = Annulla
 action.ran = {0} terminato.
 action.failed = {0} non è riuscito.
 palette.confirms = chiede conferma
+palette.tag.prompt = Digitare un nuovo nome di tag…
+palette.tag.willcreate = sarà creato su HEAD
 
 # --- stage per blocchi --------------------------------------------------------
 hunk.stage = Metti il blocco in stage

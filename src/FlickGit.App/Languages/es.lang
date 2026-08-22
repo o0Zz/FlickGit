@@ -90,6 +90,33 @@ switch.stash = Stash, cambiar, restaurar
 switch.none = Ninguna rama coincide.
 switch.stashkept = Sus cambios siguen en el stash. Recupérelos con:\n\ngit stash pop {0}
 
+# ---- ventana de etiquetas ----
+tag.title = Etiquetas — {0}
+tag.new = Nueva etiqueta
+tag.create = Crear
+tag.push = Enviar al remoto
+tag.delete = Eliminar en local
+tag.deleteremote = Eliminar aquí y en el remoto
+tag.close = Cerrar
+tag.message.hint = Un mensaje la convierte en una etiqueta anotada. Déjelo vacío para una ligera.
+tag.none = Todavía no hay etiquetas en este repositorio.
+tag.nomatch = Ninguna etiqueta coincide.
+tag.count = {0} etiqueta(s)
+tag.lightweight = ligera
+tag.invalid = no es un nombre de etiqueta válido
+tag.exists = {0} ya existe. FlickGit nunca mueve una etiqueta: elimínela primero.
+tag.willcreate = nueva — se creará en HEAD
+tag.willannotate = nueva — se creará en HEAD, anotada
+tag.created = {0} creada.
+tag.pushed = {0} enviada a {1}.
+tag.deleted = {0} eliminada.
+tag.deleted.remote = {0} eliminada, aquí y en {1}.
+tag.delete.failed = No se eliminó nada.
+tag.confirm.title = ¿Eliminar esta etiqueta?
+tag.confirm.local = ¿Eliminar la etiqueta {0} de este repositorio?\n\nUna etiqueta no tiene reflog, así que esto no se puede deshacer desde aquí.
+tag.confirm.remote = ¿Eliminar la etiqueta {0} de este repositorio y de {1}?\n\nQuien ya la haya obtenido conserva su copia, y una etiqueta no tiene reflog: esto no se puede deshacer desde aquí.
+tag.confirm.yes = Eliminar
+
 # ---- push ----
 push.button = Push
 push.success = Se envió {0} a {1}.
@@ -188,6 +215,7 @@ action.pull-rebase = Pull (rebase)
 action.pull-rebase-autostash = Pull (rebase, autostash)
 action.push = Push
 action.switch = Cambiar de rama…
+action.tag = Etiquetas…
 action.status = Estado del repositorio…
 action.clone = Clonar…
 action.terminal = Abrir un terminal aquí
@@ -200,6 +228,8 @@ action.confirm.no = Cancelar
 action.ran = {0} terminó.
 action.failed = {0} falló.
 palette.confirms = pide confirmación
+palette.tag.prompt = Escriba un nombre de etiqueta nuevo…
+palette.tag.willcreate = se creará en HEAD
 
 # --- preparación por bloques --------------------------------------------------
 hunk.stage = Preparar el bloque

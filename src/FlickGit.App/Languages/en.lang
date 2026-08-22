@@ -105,6 +105,38 @@ switch.none = No branch matches.
 # {0} stash reference
 switch.stashkept = Your changes are still in the stash. Recover them with:\n\ngit stash pop {0}
 
+# ---- tags window ----
+# {0} repository name
+tag.title = Tags — {0}
+tag.new = New tag
+tag.create = Create
+tag.push = Push to remote
+tag.delete = Delete locally
+tag.deleteremote = Delete here and on remote
+tag.close = Close
+tag.message.hint = A message makes it an annotated tag. Leave it empty for a lightweight one.
+tag.none = No tags in this repository yet.
+tag.nomatch = No tag matches.
+# {0} number of tags
+tag.count = {0} tag(s)
+tag.lightweight = lightweight
+tag.invalid = not a valid tag name
+# {0} the tag that is already there
+tag.exists = {0} already exists. FlickGit never moves a tag — delete it first.
+tag.willcreate = new — will be created on HEAD
+tag.willannotate = new — will be created on HEAD, annotated
+# {0} the tag
+tag.created = Created {0}.
+# {0} the tag, {1} the remote
+tag.pushed = Pushed {0} to {1}.
+tag.deleted = Deleted {0}.
+tag.deleted.remote = Deleted {0}, here and on {1}.
+tag.delete.failed = Nothing was deleted.
+tag.confirm.title = Delete this tag?
+tag.confirm.local = Delete the tag {0} from this repository?\n\nA tag has no reflog, so this cannot be undone from here.
+tag.confirm.remote = Delete the tag {0} from this repository and from {1}?\n\nAnyone who has already fetched it keeps their copy, and a tag has no reflog — this cannot be undone from here.
+tag.confirm.yes = Delete
+
 # ---- push ----
 push.button = Push
 push.success = Pushed {0} to {1}.
@@ -213,6 +245,7 @@ action.pull-rebase = Pull (rebase)
 action.pull-rebase-autostash = Pull (rebase, autostash)
 action.push = Push
 action.switch = Switch branch…
+action.tag = Tags…
 action.status = Repository status…
 action.clone = Clone…
 action.terminal = Open terminal here
@@ -226,6 +259,8 @@ action.confirm.no = Cancel
 action.ran = {0} finished.
 action.failed = {0} failed.
 palette.confirms = asks first
+palette.tag.prompt = Type a new tag name…
+palette.tag.willcreate = will be created on HEAD
 
 # --- hunk staging ------------------------------------------------------------
 hunk.stage = Stage hunk

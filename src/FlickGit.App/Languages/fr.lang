@@ -90,6 +90,33 @@ switch.stash = Remiser, basculer, restaurer
 switch.none = Aucune branche ne correspond.
 switch.stashkept = Vos modifications sont toujours dans la remise. Récupérez-les avec :\n\ngit stash pop {0}
 
+# ---- fenêtre des étiquettes ----
+tag.title = Étiquettes — {0}
+tag.new = Nouvelle étiquette
+tag.create = Créer
+tag.push = Pousser vers le distant
+tag.delete = Supprimer en local
+tag.deleteremote = Supprimer ici et sur le distant
+tag.close = Fermer
+tag.message.hint = Un message en fait une étiquette annotée. Laissez vide pour une étiquette légère.
+tag.none = Aucune étiquette dans ce dépôt pour l'instant.
+tag.nomatch = Aucune étiquette ne correspond.
+tag.count = {0} étiquette(s)
+tag.lightweight = légère
+tag.invalid = nom d'étiquette invalide
+tag.exists = {0} existe déjà. FlickGit ne déplace jamais une étiquette : supprimez-la d'abord.
+tag.willcreate = nouvelle — sera créée sur HEAD
+tag.willannotate = nouvelle — sera créée sur HEAD, annotée
+tag.created = {0} créée.
+tag.pushed = {0} poussée vers {1}.
+tag.deleted = {0} supprimée.
+tag.deleted.remote = {0} supprimée, ici et sur {1}.
+tag.delete.failed = Rien n'a été supprimé.
+tag.confirm.title = Supprimer cette étiquette ?
+tag.confirm.local = Supprimer l'étiquette {0} de ce dépôt ?\n\nUne étiquette n'a pas de reflog : impossible de revenir en arrière depuis ici.
+tag.confirm.remote = Supprimer l'étiquette {0} de ce dépôt et de {1} ?\n\nCeux qui l'ont déjà récupérée gardent leur copie, et une étiquette n'a pas de reflog : impossible de revenir en arrière depuis ici.
+tag.confirm.yes = Supprimer
+
 # ---- push ----
 push.button = Push
 push.success = {0} poussée vers {1}.
@@ -188,6 +215,7 @@ action.pull-rebase = Pull (rebase)
 action.pull-rebase-autostash = Pull (rebase, autostash)
 action.push = Push
 action.switch = Changer de branche…
+action.tag = Étiquettes…
 action.status = État du dépôt…
 action.clone = Cloner…
 action.terminal = Ouvrir un terminal ici
@@ -200,6 +228,8 @@ action.confirm.no = Annuler
 action.ran = {0} terminé.
 action.failed = {0} a échoué.
 palette.confirms = demande confirmation
+palette.tag.prompt = Saisissez un nom d'étiquette…
+palette.tag.willcreate = sera créée sur HEAD
 
 # --- indexation par section ---------------------------------------------------
 hunk.stage = Indexer la section

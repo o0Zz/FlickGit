@@ -34,6 +34,17 @@ public enum VerbKind
     Status,
     Clone,
 
+    /// <summary>
+    /// Tags: the picker when no name is given, otherwise create that one.
+    ///
+    /// <b>Deletion has no command-line spelling on purpose.</b> `flick tag &lt;path&gt; v1.0` creates,
+    /// which cannot overwrite anything — there is no `--force` anywhere in <c>TagService</c>. Deleting
+    /// a published tag is on the far side of CLAUDE.md's "any destructive operation requires explicit
+    /// user intent, expressed in the moment", and a flag in a script is the opposite of in the moment.
+    /// The window asks, so the window is where it lives.
+    /// </summary>
+    Tag,
+
     /// <summary>Opens a terminal at the folder. Present in the menu since Phase 1.</summary>
     Terminal,
     Palette,
@@ -134,6 +145,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "pull-rebase-autostash" => VerbKind.PullRebaseAutostash,
             "push" => VerbKind.Push,
             "switch" => VerbKind.Switch,
+            "tag" => VerbKind.Tag,
             "status" => VerbKind.Status,
             "terminal" => VerbKind.Terminal,
             "clone" => VerbKind.Clone,
@@ -191,6 +203,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick pull-rebase-autostash <path>
           flick push <path>
           flick switch <path> [branch]        branch picker when omitted
+          flick tag <path> [name]             tag picker when omitted, else creates it
           flick status <path>
           flick terminal <path>               open a terminal there
           flick clone <path> [url]

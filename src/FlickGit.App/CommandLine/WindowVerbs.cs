@@ -12,6 +12,7 @@ using FlickGit.Models;
 using FlickGit.Pulls;
 using FlickGit.Repositories;
 using FlickGit.Status;
+using FlickGit.Tags;
 
 namespace FlickGit.App.CommandLine;
 
@@ -35,6 +36,7 @@ public sealed class WindowVerbs(
     SwitchService switches,
     PullService pulls,
     CloneService clones,
+    TagService tags,
     RepositoryService repositories,
     ILog log)
 {
@@ -138,6 +140,26 @@ public sealed class WindowVerbs(
         //The stub granted this process foreground rights before sending the request; without this
         //the picker comes up behind Explorer.
         picker.Activate();
+
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// The tag window, for `flick tag` with no name given.
+    ///
+    /// Constructed per call rather than pre-warmed, for the same reason the settings window is: it is
+    /// not on any latency budget in CLAUDE.md's table, and a window kept alive for the session is a
+    /// window whose state has to be provably reset between two uses.
+    /// </summary>
+    public VerbResult TagPicker(RepositoryInfo repository)
+    {
+        var window = new TagsWindow(repository, tags);
+
+        window.Show();
+
+        //The stub granted this process foreground rights before sending the request; without this the
+        //window comes up behind Explorer.
+        window.Activate();
 
         return VerbResult.Stay();
     }

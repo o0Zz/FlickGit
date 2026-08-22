@@ -351,6 +351,12 @@ public sealed class ActionCatalog
         new("switch", "switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Branch),
 
+        //Beside switch, because both are "go somewhere in the ref graph" and that is where the hand
+        //will look. Its parameter is a *new* tag name, which is why the kind is Tag rather than
+        //Branch: see ActionParameter.
+        new("tag", "tag", VerbKind.Tag, 115, ActionSurfaces.All, "tag.ico", InMore: true,
+            NeedsRepository: true, Parameter: ActionParameter.Tag),
+
         new("push", "push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
 
         new("pull-rebase-autostash", "pull-rebase-autostash", VerbKind.PullRebaseAutostash, 130,

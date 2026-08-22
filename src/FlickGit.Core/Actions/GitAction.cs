@@ -30,6 +30,17 @@ public enum ActionParameter
 
     /// <summary>A branch, completed from the repository's own refs.</summary>
     Branch,
+
+    /// <summary>
+    /// A tag name, typed rather than completed.
+    ///
+    /// <b>The one parameter kind with no completion source, and that is the point.</b> The second
+    /// token after <c>tag</c> is a tag being <i>created</i>, so the repository's existing tags are the
+    /// one set of values it will never be — offering them would complete the user towards the only
+    /// answer Git is certain to refuse. The palette validates what was typed instead, which is the
+    /// same live feedback the branch ComboBox gives for a new branch name.
+    /// </summary>
+    Tag,
 }
 
 /// <summary>
