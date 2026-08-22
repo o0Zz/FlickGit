@@ -1,0 +1,64 @@
+<Window x:Class="FlickGit.App.Views.NoticeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlickGit"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="{StaticResource Surface}">
+
+    <!-- Deliberately not a MessageBox. A MessageBox is modal to the calling thread, which
+         in resident mode also runs the tray icon and the pipe listener, so
+         one unattended error dialog would freeze every surface at once.
+
+         Two shapes, chosen by the caller: compact for a one-liner such as "not a
+         repository", which CLAUDE.md says must never open a full window, and the taller
+         form for a Git failure, where the whole point is to show Git's own words. -->
+
+    <Border Padding="18,16" MinWidth="320" MaxWidth="640">
+        <StackPanel>
+            <TextBlock x:Name="TitleText"
+                       Style="{StaticResource HeaderTitle}"
+                       Margin="0,0,0,8"
+                       Text="FlickGit" />
+
+            <TextBlock x:Name="MessageText"
+                       TextWrapping="Wrap"
+                       MaxWidth="600"
+                       LineHeight="18" />
+
+            <!-- Git's stderr, when there is any, in the monospaced face it was written for:
+                 error output is column-aligned and full of paths, and reflowing it in a
+                 proportional font makes it harder to read than the terminal it came from. -->
+            <Border x:Name="DetailBox"
+                    Visibility="Collapsed"
+                    Margin="0,12,0,0"
+                    Padding="10,8"
+                    Background="{StaticResource SurfaceAlt}"
+                    BorderBrush="{StaticResource Border}"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                    <TextBox x:Name="DetailText"
+                             IsReadOnly="True"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             TextWrapping="Wrap"
+                             FontFamily="Cascadia Mono, Consolas, Courier New"
+                             FontSize="11.5" />
+                </ScrollViewer>
+            </Border>
+
+            <Button x:Name="CloseButton"
+                    Content="Close"
+                    Style="{StaticResource PrimaryButton}"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0"
+                    IsDefault="True"
+                    IsCancel="True"
+                    Click="OnClose" />
+        </StackPanel>
+    </Border>
+</Window>

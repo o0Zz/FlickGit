@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>FlickGit.Tests</RootNamespace>
+
+    <!-- The only test project, and there will not be a second one: Hard Requirement 4 keeps
+         FlickGit.App out of the suite entirely. This one references FlickGit.Core and nothing
+         else, which is what makes that structural rather than a review convention.
+
+         The parsers under test are fed hand-written NUL streams containing paths with spaces,
+         Unicode and a literal "=>", so the sources are full of escape sequences that would
+         otherwise trip the analyser's string checks. -->
+    <NoWarn>$(NoWarn);xUnit1004</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FlickGit.Core\FlickGit.Core.csproj" />
+  </ItemGroup>
+
+</Project>

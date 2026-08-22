@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+
+    <!-- Never UseWindowsForms. CLAUDE.md picks H.NotifyIcon precisely so the tray icon
+         does not drag System.Windows.Forms into a WPF process: that assembly costs load
+         time at startup, brings a second message loop and a second DPI model, and the
+         resident service's whole job is to have paid its startup cost already. -->
+    <UseWindowsForms>false</UseWindowsForms>
+
+    <RootNamespace>FlickGit.App</RootNamespace>
+    <AssemblyName>FlickGit</AssemblyName>
+    <Description>FlickGit — fast Git actions from Windows Explorer. Resident app: commit window, diff viewer, tray icon.</Description>
+
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Resources\flickgit.ico</ApplicationIcon>
+
+    <!-- Framework-dependent, unlike the CLI stub. This process pays WPF startup once at
+         logon and then stays resident, so a self-contained copy of the runtime would buy
+         nothing at the only moment that matters. Never PublishAot here: WPF cannot be
+         AOT-compiled. -->
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishAot>false</PublishAot>
+
+    <!-- Required by LibraryImport: the source generator emits unsafe marshalling code. Set
+         here rather than in Directory.Build.props on purpose — FlickGit.Core does no P/Invoke
+         and must never need this switch, and a repository-wide setting would hide the day it
+         started to. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The three MIT dependencies named in CLAUDE.md, "Technical Direction", and nothing
+         else. AvalonEdit is the editor control behind both diff panes; H.NotifyIcon is the
+         tray icon without WinForms. -->
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.3.0" />
+
+    <!-- "A minimal Microsoft.Extensions.DependencyInjection container is fine." Used for
+         constructor injection and single-instance lifetimes only — no scanning, no
+         interceptors, nothing that would show up in startup time. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlickGit.Core\FlickGit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The pipe protocol, compiled in rather than referenced. Both processes need the same wire
+         format and the stub is not allowed a project reference, so the source is shared and each
+         assembly compiles its own copy. Two hand-maintained copies would drift. -->
+    <Compile Include="..\Shared\IpcMessages.cs" Link="Ipc\IpcMessages.cs" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <!-- Interface languages, one file each, embedded. A wildcard rather than a list:
+         adding a language is adding a file to Languages/, and Strings finds it by
+         enumerating what is embedded.
+
+         WithCulture=false is load-bearing. Without it, MSBuild reads "en.lang" and
+         "fr.lang" as culture-specific resources and builds them into satellite
+         assemblies in per-culture subdirectories — which would not be found at run
+         time, because Strings reads them as manifest resource streams. -->
+    <EmbeddedResource Include="Languages\*.lang">
+      <!-- Must match Strings.ResourcePrefix. -->
+      <LogicalName>FlickGit.Languages.%(Filename)%(Extension)</LogicalName>
+      <WithCulture>false</WithCulture>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shipped beside the exe rather than embedded: Explorer reads the context-menu
+         icons itself, from the path written into the registry, so they have to exist as
+         files on disk. -->
+    <Content Include="Resources\flickgit.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Resources\icons\*.ico" CopyToOutputDirectory="PreserveNewest"
+             TargetPath="icons\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,174 @@
+<UserControl x:Class="FlickGit.App.Views.DiffPane"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit">
+
+    <Grid Background="{StaticResource SurfaceSunken}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- The comparison mode, permanently visible. CLAUDE.md, "The staged-versus-worktree
+             trap": this label is the user's only signal about whether an edit in the right pane
+             lands in the commit, so it is a header, not a tooltip. -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,0,0,1"
+                Padding="10,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="ModeText" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+
+                <TextBlock x:Name="NoticeText"
+                           Grid.Column="1"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           Margin="10,0"
+                           Style="{StaticResource Muted}"
+                           FontSize="11" />
+
+                <!-- The editing bar. Hidden entirely when the pane is read-only, so a file that
+                     cannot be edited does not offer a Save button that would do nothing. -->
+                <StackPanel x:Name="EditingBar"
+                            Grid.Column="2"
+                            Orientation="Horizontal"
+                            Visibility="Collapsed">
+                    <TextBlock x:Name="DirtyText"
+                               Text="unsaved changes"
+                               Visibility="Collapsed"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource DangerText}" />
+
+                    <TextBlock x:Name="SavedText"
+                               Text="Saved."
+                               Visibility="Collapsed"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               FontSize="11"
+                               Style="{StaticResource Muted}" />
+
+                    <!-- Hunk staging. Beside Save rather than in a context menu because it is
+                         the reason the pane exists in the commit window, and because a disabled
+                         button with a tooltip explains itself where a missing menu item cannot. -->
+                    <Button x:Name="StageHunkButton"
+                            MinWidth="86"
+                            Padding="8,2"
+                            Margin="0,0,6,0"
+                            IsEnabled="False"
+                            Click="OnStageHunk" />
+
+                    <Button x:Name="UnstageHunkButton"
+                            MinWidth="94"
+                            Padding="8,2"
+                            Margin="0,0,6,0"
+                            IsEnabled="False"
+                            Click="OnUnstageHunk" />
+
+                    <Button x:Name="SaveButton"
+                            Content="Save"
+                            MinWidth="56"
+                            Padding="8,2"
+                            IsEnabled="False"
+                            Click="OnSave" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- The staged-file strip, with the one-click restage CLAUDE.md asks for. -->
+        <Border x:Name="StagedStrip"
+                Grid.Row="1"
+                Visibility="Collapsed"
+                Background="{StaticResource WarnBackground}"
+                BorderBrush="{StaticResource WarnBorder}"
+                BorderThickness="0,0,0,1"
+                Padding="10,5">
+            <Grid>
+                <TextBlock x:Name="StagedStripText"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,0,80,0"
+                           FontSize="11.5" />
+
+                <Button Content="Restage"
+                        HorizontalAlignment="Right"
+                        MinWidth="70"
+                        Padding="8,2"
+                        Click="OnRestage" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <avalon:TextEditor x:Name="LeftEditor"
+                               IsReadOnly="True"
+                               ShowLineNumbers="False"
+                               WordWrap="False"
+                               HorizontalScrollBarVisibility="Auto"
+                               VerticalScrollBarVisibility="Auto"
+                               BorderThickness="0"
+                               Background="{StaticResource SurfaceSunken}" />
+
+            <!-- One visual for the whole strip, not one per changed block. CLAUDE.md: "The
+                 connector strip between panes drawn as a single visual." -->
+            <ContentControl x:Name="ConnectorHost" Grid.Column="1" />
+
+            <!-- Editable. IsReadOnly is set in code per file: binary files, oversized
+                 files and unresolved conflicts stay read-only. -->
+            <avalon:TextEditor x:Name="RightEditor"
+                               Grid.Column="2"
+                               IsReadOnly="True"
+                               ShowLineNumbers="False"
+                               WordWrap="False"
+                               HorizontalScrollBarVisibility="Auto"
+                               VerticalScrollBarVisibility="Auto"
+                               BorderThickness="0"
+                               Background="{StaticResource SurfaceSunken}" />
+
+            <!-- Shown when the file is binary, too large, or nothing is selected. Covers the panes
+                 rather than replacing them, so switching files does not rebuild the editors: they
+                 are the expensive part of this control. -->
+            <Border x:Name="Placeholder"
+                    Grid.ColumnSpan="3"
+                    Background="{StaticResource SurfaceSunken}">
+                <TextBlock x:Name="PlaceholderText"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource Muted}"
+                           TextWrapping="Wrap"
+                           MaxWidth="360"
+                           TextAlignment="Center" />
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="3"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,1,0,0"
+                Padding="10,4">
+            <Grid>
+                <TextBlock x:Name="LeftLabel" Style="{StaticResource Muted}" FontSize="11" />
+                <TextBlock x:Name="RightLabel"
+                           HorizontalAlignment="Right"
+                           Style="{StaticResource Muted}"
+                           FontSize="11" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

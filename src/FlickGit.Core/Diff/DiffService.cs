@@ -1,0 +1,301 @@
+using DiffPlex;
+using DiffPlex.DiffBuilder;
+using DiffPlex.DiffBuilder.Model;
+using FlickGit.Git;
+using FlickGit.Models;
+
+namespace FlickGit.Diff;
+
+/// <summary>
+/// Produces the side-by-side diff the viewer renders.
+///
+/// The architecture-deciding constraint, from CLAUDE.md, "Diff Viewer": the right pane is
+/// editable, so <b>`git diff` output cannot be the rendering source</b> — the moment the
+/// user types a character, any hunk list Git produced is stale. This service therefore
+/// diffs two in-memory buffers, and an edit re-runs exactly the same call on a debounce
+/// while the user edits.
+///
+/// The left-hand base comes from Git; the right-hand side comes from disk:
+/// <code>
+/// git show HEAD:&lt;path&gt;    working tree vs HEAD
+/// git show :&lt;path&gt;        working tree vs index
+/// </code>
+/// </summary>
+public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
+{
+    /// <summary>Above this, keep side-by-side but drop the word-level pass. CLAUDE.md: 500 KB.</summary>
+    private const long WordDiffCeilingBytes = 500 * 1024;
+
+    /// <summary>Above either of these, fall back to a read-only unified view. CLAUDE.md: 2 MB / 50,000 lines.</summary>
+    private const long SideBySideCeilingBytes = 2 * 1024 * 1024;
+    private const int SideBySideCeilingLines = 50_000;
+
+    private static readonly SideBySideDiffBuilder Builder = new(new Differ());
+
+    public async Task<SideBySideDiff> ComputeAsync(
+        RepositoryInfo repository,
+        GitFileChange file,
+        DiffComparisonMode mode,
+        CancellationToken cancellationToken)
+    {
+        string absolutePath = Path.Combine(
+            repository.Root,
+            file.Path.Replace('/', Path.DirectorySeparatorChar));
+
+        //Both sides fetched concurrently. The left is a process start, the right is a file
+        //read; serialising them would add the whole `git show` latency to the click-to-
+        //rendered budget for nothing.
+        Task<FileText> leftTask = LoadBaseAsync(repository, file, mode, cancellationToken);
+        Task<FileText> rightTask = LoadWorkingCopyAsync(absolutePath, file, cancellationToken);
+
+        FileText left = await leftTask.ConfigureAwait(false);
+        FileText right = await rightTask.ConfigureAwait(false);
+
+        if (file.IsBinary || left.IsBinary || right.IsBinary)
+        {
+            return new SideBySideDiff
+            {
+                Path = file.Path,
+                ComparisonMode = mode,
+                RenderMode = DiffRenderMode.Binary,
+                Left = left,
+                Right = right,
+                Notice = "Binary file — no text diff.",
+            };
+        }
+
+        long largest = Math.Max(left.SizeInBytes, right.SizeInBytes);
+        int lines = Math.Max(left.LineCount, right.LineCount);
+
+        if (largest > SideBySideCeilingBytes || lines > SideBySideCeilingLines)
+        {
+            //Read-only unified, and say so. Live re-diff at this size cannot be made to
+            //feel instant, and pretending otherwise would give the user an editor that
+            //stutters on every keystroke.
+            string unified = await LoadUnifiedAsync(repository, file, mode, cancellationToken).ConfigureAwait(false);
+
+            return new SideBySideDiff
+            {
+                Path = file.Path,
+                ComparisonMode = mode,
+                RenderMode = DiffRenderMode.UnifiedReadOnly,
+                Left = left,
+                Right = right,
+                UnifiedText = unified,
+                Notice = largest > SideBySideCeilingBytes
+                    ? $"{largest / (1024 * 1024)} MB file — read-only unified view."
+                    : $"{lines:N0} lines — read-only unified view.",
+            };
+        }
+
+        bool wordLevel = largest <= WordDiffCeilingBytes;
+
+        //The diff itself runs off the caller's thread. On a 2,000-line file this is a few
+        //milliseconds, but the same call is re-issued on a 200 ms debounce while the user
+        //types, and the UI thread must never be the one doing it.
+        IReadOnlyList<DiffRow> rows = await Task.Run(
+            () => BuildRows(left.Text, right.Text, wordLevel),
+            cancellationToken).ConfigureAwait(false);
+
+        return new SideBySideDiff
+        {
+            Path = file.Path,
+            ComparisonMode = mode,
+            RenderMode = wordLevel ? DiffRenderMode.SideBySideWithWordDiff : DiffRenderMode.SideBySideLinesOnly,
+            Rows = rows,
+            Left = left,
+            Right = right,
+            Notice = wordLevel ? null : "Large file — line-level diff only.",
+        };
+    }
+
+    /// <summary>
+    /// Re-diffs two buffers with no Git call at all. This is the live-edit path, and it
+    /// is the reason the rendering source is a pair of buffers rather than `git diff`
+    /// output.
+    /// </summary>
+    public static IReadOnlyList<DiffRow> Rediff(string leftText, string rightText, bool wordLevel) =>
+        BuildRows(leftText, rightText, wordLevel);
+
+    private async Task<FileText> LoadBaseAsync(
+        RepositoryInfo repository,
+        GitFileChange file,
+        DiffComparisonMode mode,
+        CancellationToken cancellationToken)
+    {
+        //An untracked file has no base by definition, and an added-in-the-index file has
+        //no HEAD blob. Both are a legitimately empty left pane, not an error.
+        if (file.IsUntracked)
+            return FileText.Empty;
+
+        //The old path for a rename: the base blob lives under the name it had, and asking
+        //for HEAD:<newPath> would report "does not exist in HEAD" on every renamed file.
+        string basePath = mode == DiffComparisonMode.WorkingTreeVsHead && file.OldPath is { Length: > 0 }
+            ? file.OldPath
+            : file.Path;
+
+        string spec = mode == DiffComparisonMode.WorkingTreeVsHead
+            ? $"HEAD:{basePath}"
+            : $":{basePath}";
+
+        GitResult result = await git.ReadAsync(
+            repository.Root,
+            ["show", spec],
+            cancellationToken).ConfigureAwait(false);
+
+        if (!result.Succeeded)
+            return FileText.Empty;
+
+        //Re-encoded to bytes so one detection path serves both sides. `git show` hands
+        //back the blob's bytes, which were already decoded as UTF-8 by the process runner;
+        //round-tripping keeps the size and hash fields meaningful for the left pane too.
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(result.StdOut);
+        return files.FromBytes(bytes);
+    }
+
+    private async Task<FileText> LoadWorkingCopyAsync(
+        string absolutePath,
+        GitFileChange file,
+        CancellationToken cancellationToken)
+    {
+        //A deleted file has no working copy. The right pane is empty and the diff is the
+        //whole file removed, which is exactly what should be shown.
+        if (!File.Exists(absolutePath))
+            return FileText.Empty;
+
+        try
+        {
+            return await files.LoadAsync(absolutePath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            //Locked by another process. An empty right pane with the left intact reads as
+            //"everything removed", which would be a lie -- so mark it binary, which is the
+            //state that suppresses the text diff entirely.
+            return FileText.Empty with { IsBinary = true };
+        }
+    }
+
+    private async Task<string> LoadUnifiedAsync(
+        RepositoryInfo repository,
+        GitFileChange file,
+        DiffComparisonMode mode,
+        CancellationToken cancellationToken)
+    {
+        var args = new List<string> { "diff" };
+
+        if (mode == DiffComparisonMode.WorkingTreeVsIndex)
+        {
+            //Working tree against the index is plain `git diff`; against HEAD needs HEAD
+            //named explicitly, or staged changes would be invisible in the output.
+        }
+        else
+        {
+            args.Add("HEAD");
+        }
+
+        args.Add("--");
+        args.Add(file.Path);
+
+        GitResult result = await git.ReadAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
+        return result.Succeeded ? result.StdOut : result.ErrorText;
+    }
+
+    /// <summary>
+    /// Turns DiffPlex's model into aligned rows.
+    ///
+    /// DiffPlex is used rather than a hand-rolled Myers implementation — CLAUDE.md says so
+    /// outright — but its model is not exposed beyond this method. The App renders
+    /// <see cref="DiffRow"/>, so the diff library is replaceable and the renderers are
+    /// testable without it.
+    /// </summary>
+    private static IReadOnlyList<DiffRow> BuildRows(string leftText, string rightText, bool wordLevel)
+    {
+        SideBySideDiffModel model = Builder.BuildDiffModel(leftText, rightText, ignoreWhitespace: false);
+
+        //DiffPlex pads both panes to equal length with "imaginary" lines, which is the
+        //alignment this whole viewer depends on: row N is row N in both editors, so
+        //synchronised scrolling is index-based and cannot drift.
+        int count = Math.Max(model.OldText.Lines.Count, model.NewText.Lines.Count);
+        var rows = new List<DiffRow>(count);
+
+        for (int i = 0; i < count; i++)
+        {
+            DiffPiece? oldPiece = i < model.OldText.Lines.Count ? model.OldText.Lines[i] : null;
+            DiffPiece? newPiece = i < model.NewText.Lines.Count ? model.NewText.Lines[i] : null;
+
+            DiffLineKind kind = Classify(oldPiece, newPiece);
+            bool wantSpans = wordLevel && kind == DiffLineKind.Modified;
+
+            rows.Add(new DiffRow(
+                kind,
+                ToSide(oldPiece, wantSpans),
+                ToSide(newPiece, wantSpans)));
+        }
+
+        return rows;
+    }
+
+    private static DiffLineKind Classify(DiffPiece? left, DiffPiece? right)
+    {
+        ChangeType leftType = left?.Type ?? ChangeType.Imaginary;
+        ChangeType rightType = right?.Type ?? ChangeType.Imaginary;
+
+        if (leftType == ChangeType.Imaginary && rightType == ChangeType.Imaginary)
+            return DiffLineKind.Filler;
+
+        if (leftType == ChangeType.Imaginary)
+            return DiffLineKind.Inserted;
+
+        if (rightType == ChangeType.Imaginary)
+            return DiffLineKind.Deleted;
+
+        if (leftType == ChangeType.Unchanged && rightType == ChangeType.Unchanged)
+            return DiffLineKind.Unchanged;
+
+        return DiffLineKind.Modified;
+    }
+
+    private static DiffSide ToSide(DiffPiece? piece, bool wantSpans)
+    {
+        if (piece is null || piece.Type == ChangeType.Imaginary)
+            return new DiffSide(null, string.Empty, []);
+
+        string text = piece.Text ?? string.Empty;
+        return new DiffSide(piece.Position, text, wantSpans ? ChangedSpans(piece) : []);
+    }
+
+    /// <summary>
+    /// Character ranges inside a modified line, from DiffPlex's sub-pieces.
+    ///
+    /// The offsets have to be accumulated: sub-pieces carry text but not position, so the
+    /// only way to know where a changed word sits in the rendered line is to walk them in
+    /// order. Adjacent changed pieces are merged, or a renderer would draw two abutting
+    /// highlights with a seam between them.
+    /// </summary>
+    private static IReadOnlyList<DiffSpan> ChangedSpans(DiffPiece piece)
+    {
+        if (piece.SubPieces.Count == 0)
+            return [];
+
+        var spans = new List<DiffSpan>();
+        int offset = 0;
+
+        foreach (DiffPiece sub in piece.SubPieces)
+        {
+            string text = sub.Text ?? string.Empty;
+
+            if (sub.Type is not (ChangeType.Unchanged or ChangeType.Imaginary) && text.Length > 0)
+            {
+                if (spans.Count > 0 && spans[^1].Start + spans[^1].Length == offset)
+                    spans[^1] = new DiffSpan(spans[^1].Start, spans[^1].Length + text.Length);
+                else
+                    spans.Add(new DiffSpan(offset, text.Length));
+            }
+
+            offset += text.Length;
+        }
+
+        return spans;
+    }
+}

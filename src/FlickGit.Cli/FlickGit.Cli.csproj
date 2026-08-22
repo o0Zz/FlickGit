@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- WinExe, not Exe, and this is the load-bearing choice in this file.
+
+         Explorer runs this executable from a context menu. A console-subsystem process
+         flashes a black window on every right-click action, which is precisely the
+         experience the product exists to avoid. WinExe allocates no console — and
+         Program.cs borrows the parent's with AttachConsole when there is one, so
+         `flick status` in a terminal still prints. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+
+    <RootNamespace>FlickGit.Cli</RootNamespace>
+
+    <!-- The command users type, and the command written into every registry verb. -->
+    <AssemblyName>flick</AssemblyName>
+    <Description>FlickGit CLI stub. Forwards a verb to the resident FlickGit process.</Description>
+
+    <!-- Native AOT. CLAUDE.md, "Process split rationale": "flick.exe **must** remain Native
+         AOT. A framework-dependent .NET stub costs 50-100 ms of CLR startup on its own,
+         which defeats the purpose of the resident service. Target: process start to exit
+         under 30 ms."
+
+         Publishing this requires the MSVC linker (the Desktop C++ workload, or Build Tools
+         for Visual Studio). `dotnet build` does not — AOT only applies on publish — so the
+         repository still builds on a machine without it. -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <StackTraceSupport>false</StackTraceSupport>
+
+    <!-- Every byte and every millisecond here is on the critical path of a right-click. -->
+    <OptimizationPreference>Size</OptimizationPreference>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+
+    <!-- No project reference to FlickGit.Core, and that is a rule rather than an omission:
+         the stub must contain no Git logic and no dependency that could grow into any. It
+         parses a command line and starts a process. -->
+    <NoWarn>$(NoWarn);IL2026</NoWarn>
+
+    <!-- Required by LibraryImport: the source generator emits unsafe marshalling code. Set
+         here rather than in Directory.Build.props on purpose — FlickGit.Core does no P/Invoke
+         and must never need this switch, and a repository-wide setting would hide the day it
+         started to. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- Deliberately no PackageReference and no ProjectReference. If this file ever needs one, that
+       is a sign the logic has drifted into the wrong process. The one Compile item below is shared
+       source, not a dependency. -->
+
+  <ItemGroup>
+    <!-- The pipe protocol, compiled in rather than referenced. Both processes need the same wire
+         format and the stub is not allowed a project reference, so the source is shared and each
+         assembly compiles its own copy. Two hand-maintained copies would drift. -->
+    <Compile Include="..\Shared\IpcMessages.cs" Link="Ipc\IpcMessages.cs" />
+  </ItemGroup>
+
+</Project>

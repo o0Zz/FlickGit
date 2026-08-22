@@ -1,0 +1,59 @@
+<Window x:Class="FlickGit.App.Views.ApiKeyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlickGit"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="{StaticResource Surface}">
+
+    <!-- A window rather than a command-line argument, and that is the whole reason it exists.
+         `flick ai key set <key>` would put the key in the shell's history and in the process list
+         where any other process on the machine can read it. Reading stdin instead would work only
+         when the stub launched the app directly: over the named pipe the resident service has no
+         access to the stub's console, so the command would behave differently depending on whether
+         the service happened to be running.
+
+         A PasswordBox also gets echo-free entry for nothing, and the key never touches a command
+         line, a pipe message, a log or settings.json. -->
+
+    <Border Padding="18,16" MinWidth="420" MaxWidth="520">
+        <StackPanel>
+            <TextBlock x:Name="TitleText" Style="{StaticResource HeaderTitle}" Margin="0,0,0,8" />
+
+            <TextBlock x:Name="PromptText"
+                       TextWrapping="Wrap"
+                       MaxWidth="480"
+                       LineHeight="18"
+                       Margin="0,0,0,10" />
+
+            <PasswordBox x:Name="KeyBox"
+                         Padding="6,4"
+                         FontFamily="Cascadia Mono, Consolas, Courier New"
+                         Background="{StaticResource SurfaceSunken}"
+                         BorderBrush="{StaticResource Border}"
+                         BorderThickness="1" />
+
+            <TextBlock x:Name="TargetText"
+                       Style="{StaticResource Muted}"
+                       FontSize="11"
+                       Margin="0,8,0,0"
+                       TextWrapping="Wrap" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button x:Name="SaveButton"
+                        Style="{StaticResource PrimaryButton}"
+                        MinWidth="100"
+                        IsDefault="True"
+                        Click="OnSave" />
+                <Button x:Name="CancelButton"
+                        MinWidth="90"
+                        Margin="8,0,0,0"
+                        IsCancel="True"
+                        Click="OnCancel" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

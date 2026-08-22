@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+
+    <RootNamespace>FlickGit</RootNamespace>
+    <AssemblyName>FlickGit.Core</AssemblyName>
+    <Description>Repository detection, Git process execution, status parsing and diff for FlickGit. No UI dependencies.</Description>
+
+    <!-- net9.0, not net9.0-windows. Nothing in Core touches a Windows API: git.exe
+         is located by probing PATH and well-known paths, the registry is the App's
+         business, and every test in tests/FlickGit.Core.Tests runs against a temp
+         repository. Keeping the TFM OS-agnostic makes the "no UI" rule below
+         structural rather than a review convention. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The line and word diff. MIT, no UI dependency, and CLAUDE.md is explicit that
+         it is used rather than hand-rolled: "Do not write a Myers implementation."
+
+         It lives in Core, not App, because the diff is computed and tested here and only
+         rendered there — DiffService turns DiffPlex's model into FlickGit's own DiffRow
+         so the library stays replaceable and the renderers are testable without it. -->
+    <PackageReference Include="DiffPlex" Version="1.7.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The parsers and the path normaliser are internal on purpose: they are
+         implementation details of the services, not API. But CLAUDE.md, "Testing" requires
+         tests for argument construction, root normalisation and line-ending detection
+         specifically, and testing those through a public service would mean starting real
+         git processes to assert a string transformation. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>FlickGit.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <!--
+    CLAUDE.md, "Coding Guidelines": "Strict separation between UI and Git logic —
+    FlickGit.Core references no UI assembly."
+
+    That is a rule a reviewer has to remember, so make the build remember it. The
+    working-tree editing and diff code is the most dangerous part of this product
+    and it must stay testable without a message pump; one MessageBox call inside
+    Core is how that stops being true.
+  -->
+  <Target Name="GuardCoreHasNoUiDependencies" BeforeTargets="CoreCompile">
+
+    <ItemGroup>
+      <!-- PackageReference, ProjectReference and FrameworkReference only. @(Reference) is
+           deliberately excluded: by CoreCompile the SDK has expanded it to every assembly in
+           the targeting pack, System.Drawing.dll and WindowsBase.dll among them, so matching
+           it would fail on a project that references nothing at all. Those are also not a
+           route into Core on modern .NET: UI arrives through UseWPF, UseWindowsForms, a
+           FrameworkReference, or a package, and all four are checked. -->
+      <_FlickRefCandidate Include="@(PackageReference);@(ProjectReference);@(FrameworkReference)" />
+      <_FlickForbiddenUiRef Include="@(_FlickRefCandidate)"
+                            Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(Identity)', '(?i)(System\.Windows\.Forms|System\.Drawing|WinForms|WindowsForms|PresentationFramework|PresentationCore|WindowsBase|AvalonEdit|NotifyIcon|Avalonia|Microsoft\.Maui|Microsoft\.WindowsDesktop)'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(_FlickForbiddenUiRef)' != ''"
+           Code="FLICK0001"
+           Text="FlickGit.Core must have zero UI dependencies, but references: @(_FlickForbiddenUiRef, ', '). See CLAUDE.md, 'Coding Guidelines'." />
+
+    <Error Condition="'$(UseWindowsForms)' == 'true' or '$(UseWPF)' == 'true'"
+           Code="FLICK0002"
+           Text="FlickGit.Core must not set UseWindowsForms or UseWPF. See CLAUDE.md, 'Coding Guidelines'." />
+
+  </Target>
+
+</Project>

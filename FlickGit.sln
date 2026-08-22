@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33213.308
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlickGit.Core", "src\FlickGit.Core\FlickGit.Core.csproj", "{1B0E4C21-7F3A-4D58-9C11-5E7A2D0B4411}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlickGit.App", "src\FlickGit.App\FlickGit.App.csproj", "{2C1F5D32-8A4B-4E69-AD22-6F8B3E1C5522}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlickGit.Cli", "src\FlickGit.Cli\FlickGit.Cli.csproj", "{3D2A6E43-9B5C-4F7A-BE33-7A9C4F2D6633}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{4E3B7F54-AC6D-4A8B-CF44-8BAD5A3E7744}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlickGit.Core.Tests", "tests\FlickGit.Core.Tests\FlickGit.Core.Tests.csproj", "{5F4C8A65-BD7E-4B9C-DA55-9CBE6B4F8855}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1B0E4C21-7F3A-4D58-9C11-5E7A2D0B4411}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1B0E4C21-7F3A-4D58-9C11-5E7A2D0B4411}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1B0E4C21-7F3A-4D58-9C11-5E7A2D0B4411}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1B0E4C21-7F3A-4D58-9C11-5E7A2D0B4411}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2C1F5D32-8A4B-4E69-AD22-6F8B3E1C5522}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C1F5D32-8A4B-4E69-AD22-6F8B3E1C5522}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C1F5D32-8A4B-4E69-AD22-6F8B3E1C5522}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C1F5D32-8A4B-4E69-AD22-6F8B3E1C5522}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D2A6E43-9B5C-4F7A-BE33-7A9C4F2D6633}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D2A6E43-9B5C-4F7A-BE33-7A9C4F2D6633}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D2A6E43-9B5C-4F7A-BE33-7A9C4F2D6633}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D2A6E43-9B5C-4F7A-BE33-7A9C4F2D6633}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F4C8A65-BD7E-4B9C-DA55-9CBE6B4F8855}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F4C8A65-BD7E-4B9C-DA55-9CBE6B4F8855}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F4C8A65-BD7E-4B9C-DA55-9CBE6B4F8855}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F4C8A65-BD7E-4B9C-DA55-9CBE6B4F8855}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5F4C8A65-BD7E-4B9C-DA55-9CBE6B4F8855} = {4E3B7F54-AC6D-4A8B-CF44-8BAD5A3E7744}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A7E1C9D2-4B83-4F16-8E5A-2D6C71B94F08}
+	EndGlobalSection
+EndGlobal

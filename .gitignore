@@ -1,0 +1,33 @@
+## Build output
+bin/
+obj/
+artifacts/
+publish/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+## Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+
+## Test output
+TestResults/
+*.trx
+*.coverage
+*.coverlet.json
+
+## Native AOT publish intermediates. ILC leaves these beside the linked binary and they are
+## large enough to be worth naming explicitly rather than relying on obj/ alone.
+*.ilk
+*.pdb.map

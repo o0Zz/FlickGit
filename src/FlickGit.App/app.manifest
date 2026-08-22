@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="FlickGit.app" />
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Declared explicitly. Without these, Windows applies compatibility shims that
+           lie to the process about the OS version and about DPI. -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" /><!-- Windows 10 / 11 -->
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- Per-monitor v2, and on WPF-on-.NET this is the whole of it: unlike .NET
+           Framework, no app.config switch is needed alongside. (Written without angle
+           brackets on purpose: the Windows activation-context parser is a limited XML
+           reader and rejects a markup-looking token even inside a comment, which fails
+           the whole manifest with "side-by-side configuration is incorrect".)
+
+           It matters more here than in most apps. The diff viewer renders monospaced text
+           in two panes with a hand-drawn connector strip between them; a process that
+           declares no awareness is laid out at 96 DPI and bitmap-stretched to the display
+           scale, which resamples every glyph. On a 150% laptop panel — the common case —
+           that is the difference between crisp code and blurred code. -->
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+
+      <!-- Long paths. A repository nested under a deep node_modules or a build tree can
+           exceed 260 characters, and a Git front-end that cannot open those files is not
+           much of a Git front-end. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <!-- asInvoker, never requireAdministrator. Everything FlickGit writes is per-user:
+             HKCU\Software\Classes for the context menu, %LOCALAPPDATA% for settings and
+             logs. CLAUDE.md, "Shell Integration": "Per-user install only. No administrator
+             rights."
+
+             It is also a correctness requirement, not just a preference. An elevated
+             process cannot be launched from a logon task without a UAC prompt every time,
+             and an elevated Git would write index and object files owned by the wrong
+             account into the user's own repositories. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>

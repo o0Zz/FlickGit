@@ -1,0 +1,48 @@
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>13.0</LangVersion>
+
+    <!-- .NET 9, per CLAUDE.md "Technical Direction". Unlike a tray-only utility,
+         FlickGit needs WPF-on-modern-.NET (AvalonEdit's current builds, the diff
+         renderers) and Native AOT for the CLI stub, neither of which net48 can
+         give. TargetFramework is per-project rather than set here: Core and the
+         tests are plain net9.0 so they stay OS-agnostic and fast to test, while
+         App and Cli are net9.0-windows.
+
+         Never set PublishAot on anything but FlickGit.Cli — WPF cannot be
+         AOT-compiled, and the whole point of the split is that only the stub
+         pays for AOT. -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- CLAUDE.md, "Coding Guidelines": nullable enabled, warnings as errors.
+         A nullability warning here is a NullReferenceException in a tool that
+         edits the user's working tree, so it is not a style preference. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningLevel>9999</WarningLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+
+    <Product>FlickGit</Product>
+    <Company>o0Zz</Company>
+    <Copyright>Copyright (c) o0Zz</Copyright>
+    <NeutralLanguage>en</NeutralLanguage>
+    <Authors>o0Zz</Authors>
+    <RepositoryUrl>https://github.com/o0Zz/FlickGit</RepositoryUrl>
+
+    <!-- Unreleased default. CI overrides all three from `git describe` on a tag
+         build (-p:Version=… -p:AssemblyVersion=… -p:FileVersion=…). The About box
+         and `flick version` print AssemblyVersion, so that is the one that must
+         be patched. -->
+    <Version>0.0.0</Version>
+    <AssemblyVersion>0.0.0.0</AssemblyVersion>
+    <FileVersion>0.0.0.0</FileVersion>
+
+    <!-- Reproducible builds. ContinuousIntegrationBuild is switched on by the
+         workflow, not here, because it rewrites source paths in the PDB and that
+         breaks local step-into debugging. -->
+    <Deterministic>true</Deterministic>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>

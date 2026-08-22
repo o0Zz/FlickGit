@@ -1,0 +1,188 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    env:
+      SOLUTION: FlickGit.sln
+      CONFIGURATION: Release
+      STAGING: artifacts/FlickGit
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Unshallow: the version below comes from `git describe`, which needs the tags and
+          # the commits between them.
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Compute version from git
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            # Tag builds carry a real version derived from the tag: v1.2.3-4-gabc1234 becomes
+            # 1.2.3.4, so the fourth field counts commits since the tag.
+            $describe = git describe --tags --long --match 'v*' 2>$null
+            if ($LASTEXITCODE -ne 0 -or -not $describe) {
+              $version = "0.0.0.0"
+            } elseif ($describe -match '^v(\d+\.\d+\.\d+)-(\d+)-g[0-9a-f]+$') {
+              $version = "{0}.{1}" -f $matches[1], $matches[2]
+            } else {
+              $version = "0.0.0.0"
+            }
+          } else {
+            # main and manual builds are unreleased -> pin to 0.0.0.0, so a build that was
+            # never tagged cannot be mistaken for a release.
+            $version = "0.0.0.0"
+          }
+          Write-Host "Computed version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Restore
+        run: dotnet restore $env:SOLUTION
+
+      # All three version properties are set: the About box and `flick --version` read
+      # AssemblyVersion, the file properties dialog reads FileVersion, and NuGet-style
+      # tooling reads Version. There is no AssemblyInfo.cs to patch -- the SDK generates the
+      # attributes, so they arrive as properties.
+      - name: Build
+        run: >
+          dotnet build $env:SOLUTION
+          -c $env:CONFIGURATION
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+          -p:AssemblyVersion=${{ steps.version.outputs.version }}
+          -p:FileVersion=${{ steps.version.outputs.version }}
+          -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: >
+          dotnet test tests/FlickGit.Core.Tests/FlickGit.Core.Tests.csproj
+          -c $env:CONFIGURATION
+          --no-build
+          --logger "trx;LogFileName=core-tests.trx"
+          --results-directory artifacts/test-results
+
+      # Two publishes into one directory, because the product is two executables that have to
+      # sit beside each other: ShellIntegration writes "<install>\flick.exe" into the registry
+      # and flick.exe looks for FlickGit.exe next to itself.
+      #
+      # The App is framework-dependent: it pays WPF startup once at logon and stays resident,
+      # so bundling a copy of the runtime would buy nothing at the only moment that matters.
+      - name: Publish FlickGit.exe (WPF app)
+        run: >
+          dotnet publish src/FlickGit.App/FlickGit.App.csproj
+          -c $env:CONFIGURATION
+          -r win-x64
+          --self-contained false
+          -p:PublishSingleFile=true
+          -p:AssemblyVersion=${{ steps.version.outputs.version }}
+          -p:FileVersion=${{ steps.version.outputs.version }}
+          -p:Version=${{ steps.version.outputs.version }}
+          -o $env:STAGING
+
+      # Native AOT. windows-latest carries the MSVC toolchain the ILC linker needs; a machine
+      # without it can still `dotnet build` the repo, it just cannot produce this binary.
+      - name: Publish flick.exe (Native AOT stub)
+        run: >
+          dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj
+          -c $env:CONFIGURATION
+          -r win-x64
+          -p:AssemblyVersion=${{ steps.version.outputs.version }}
+          -p:FileVersion=${{ steps.version.outputs.version }}
+          -p:Version=${{ steps.version.outputs.version }}
+          -o $env:STAGING
+
+      # The layout is a contract, not a convention: the registry command lines point at
+      # flick.exe by path and at icons\*.ico by path, so a publish that renamed or nested
+      # either one would install a context menu whose entries silently do nothing.
+      - name: Verify the published layout
+        shell: pwsh
+        run: |
+          # Every icon the registry integration names by path. A missing one is a context menu
+          # entry with no glyph, which nothing else in the build would notice.
+          $required = @(
+            'FlickGit.exe',
+            'flick.exe',
+            'Resources\flickgit.ico',
+            'icons\branch.ico',
+            'icons\clone.ico',
+            'icons\commit.ico',
+            'icons\pull.ico',
+            'icons\push.ico',
+            'icons\status.ico',
+            'icons\terminal.ico'
+          )
+
+          $missing = $required | Where-Object { -not (Test-Path (Join-Path $env:STAGING $_)) }
+          if ($missing) {
+            Write-Host "::error::Missing from the published output: $($missing -join ', ')"
+            exit 1
+          }
+
+          # The AOT stub is the whole reason for the two-process split. A framework-dependent
+          # build of it would still run, and would still be 50-100 ms slower on every
+          # right-click, which is exactly the regression nobody would notice by hand.
+          $stub = Get-Item (Join-Path $env:STAGING 'flick.exe')
+          Write-Host ("flick.exe: {0:N0} bytes" -f $stub.Length)
+          if ($stub.Length -lt 200KB) {
+            Write-Host "::error::flick.exe is $($stub.Length) bytes -- too small to be a Native AOT binary. Check that PublishAot survived."
+            exit 1
+          }
+
+          Get-ChildItem $env:STAGING -Recurse -File |
+            Select-Object @{ n = 'Path'; e = { $_.FullName.Substring((Resolve-Path $env:STAGING).Path.Length + 1) } }, Length |
+            Sort-Object Path |
+            Format-Table -AutoSize
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $zip = "artifacts/FlickGit-${{ steps.version.outputs.version }}.zip"
+          Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
+          "zip=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlickGit-${{ steps.version.outputs.version }}
+          path: ${{ env.zip }}
+          if-no-files-found: error
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+      - name: Draft GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          files: ${{ env.zip }}

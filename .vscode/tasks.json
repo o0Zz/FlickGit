@@ -1,0 +1,81 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // The whole solution. Everything here is SDK-style and targets .NET 9, so the plain
+      // .NET SDK builds it -- no Visual Studio, no MSBuild install, no nuget.exe.
+      //
+      // Note that `build` does not exercise Native AOT: PublishAot only applies on publish.
+      // That is deliberate, so the repository builds on a machine without the MSVC linker.
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}\\FlickGit.sln",
+        "-v:m",
+        "-nologo"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build (Release)",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}\\FlickGit.sln",
+        "-c",
+        "Release",
+        "-v:m",
+        "-nologo"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}\\tests\\FlickGit.Core.Tests\\FlickGit.Core.Tests.csproj",
+        "-v:m",
+        "-nologo"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      // The full release layout, both executables side by side, which is the only form the
+      // registry integration works in: flick.exe looks for FlickGit.exe beside itself and the
+      // menu icons are read from icons\ by path.
+      //
+      // Requires the MSVC linker for the AOT stub. Install "Desktop development with C++"
+      // (or Build Tools for Visual Studio) if this step fails in ILC.
+      "label": "publish (release layout)",
+      "type": "shell",
+      "command": "dotnet publish src/FlickGit.App/FlickGit.App.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o artifacts/FlickGit ; dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj -c Release -r win-x64 -o artifacts/FlickGit",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "regenerate icons",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\make-icons.ps1"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+<Window x:Class="FlickGit.App.Views.ConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlickGit"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource Surface}">
+
+    <!-- A two-choice question, with both choices named after what they do rather than "OK" and
+         "Cancel". Every question this window asks is a guardrail — create an upstream, pull before
+         pushing, overwrite a file that changed on disk — and a user answering "OK" to a question
+         they skim-read is precisely the failure the guardrail exists to prevent. -->
+
+    <Border Padding="18,16" MinWidth="360" MaxWidth="560">
+        <StackPanel>
+            <TextBlock x:Name="TitleText" Style="{StaticResource HeaderTitle}" Margin="0,0,0,8" />
+
+            <TextBlock x:Name="QuestionText"
+                       TextWrapping="Wrap"
+                       MaxWidth="520"
+                       LineHeight="18" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                <!-- The affirmative is not IsDefault. Enter should not commit the user to the
+                     consequential half of a guardrail question they have not read. -->
+                <Button x:Name="YesButton" MinWidth="120" Click="OnYes" />
+                <Button x:Name="NoButton"
+                        MinWidth="100"
+                        Margin="8,0,0,0"
+                        Style="{StaticResource PrimaryButton}"
+                        IsDefault="True"
+                        IsCancel="True"
+                        Click="OnNo" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

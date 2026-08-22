@@ -1,0 +1,70 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // The resident app with no verb: tray icon only, no window. This is what runs at logon.
+      "name": "FlickGit (tray)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      // The commit window against this repository -- the Phase 1 path worth stepping through.
+      // Change the second argument to point somewhere else; it is the same argument Explorer
+      // supplies as %V.
+      "name": "FlickGit commit (this repo)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
+      "args": ["commit", "${workspaceFolder}"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "FlickGit pull-rebase (this repo)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
+      "args": ["pull-rebase", "${workspaceFolder}"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      // `diag doctor` writes to the console. FlickGit.exe is a WinExe, so it borrows the
+      // parent's console with AttachConsole -- "integratedTerminal" is what gives it one to
+      // borrow, and "internalConsole" would show nothing.
+      "name": "FlickGit diag doctor",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
+      "args": ["diag", "doctor"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      // The CLI stub. Debugging it under Debug configuration debugs the managed build, not the
+      // AOT one -- AOT only exists after a publish, and a published AOT binary is debugged
+      // with a native debugger rather than this launcher.
+      "name": "flick stub (commit, this repo)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}\\src\\FlickGit.Cli\\bin\\Debug\\net9.0-windows\\flick.exe",
+      "args": ["commit", "${workspaceFolder}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ]
+}
