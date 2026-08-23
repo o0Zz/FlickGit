@@ -1409,14 +1409,13 @@ performed all day in order to tidy up the seven that are not is the wrong trade.
 HKCU\Software\Classes\Directory\shell\FlickGit.10.commit
     MUIVerb                = "Commit / Push..."
     Icon                   = "<install>\icons\commit.ico"
-    Position               = "Bottom"
+    ExplorerCommandHandler = "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C10}"
     \command  (default)    = "<install>\flick.exe" commit "%V"
 
 HKCU\Software\Classes\Directory\shell\FlickGit.zz.menu
     MUIVerb                = "FlickGit"
     Icon                   = "<install>\FlickGit.exe,0"
     ExtendedSubCommandsKey = "FlickGit.Menu"
-    Position               = "Bottom"
 
 HKCU\Software\Classes\FlickGit.Menu\shell\110switch
     MUIVerb                = "Switch branch..."
@@ -1427,9 +1426,28 @@ HKCU\Software\Classes\FlickGit.Menu\shell\110switch
 - Per-user install only. No administrator rights.
 - Register both `Directory\shell` and `Directory\Background\shell`. Background uses `%V`.
 - `ExtendedSubCommandsKey` resolves relative to `HKCR`, i.e. `HKCU\Software\Classes\FlickGit.Menu`
-- **`Position = "Bottom"`.** These entries belong with the other tools' verbs at the end of the
-  menu rather than above Explorer's own `Open`. That is where the hand already goes looking for
-  them, and it is where TortoiseGit is.
+- **No `Position` value.** This document used to require `Position = "Bottom"`, on the grounds that
+  it put the entries "with the other tools' verbs at the end of the menu" and that it was "where
+  TortoiseGit is". Both halves were wrong, and the registry of any machine with a few developer
+  tools on it says so:
+
+  - **Nothing else sets it.** `git_gui`, `git_shell`, `cmd`, `Powershell`, `WSL`, `vscode` — each
+    registers a plain `Directory\shell` verb with no `Position` at all, and they all land in the
+    block immediately above `New`. `Bottom` is what moved FlickGit *past* `New`, down beside
+    `Properties`, which is further than "the end of the menu" was meant to mean.
+  - **TortoiseGit is not a static verb.** It registers an `IContextMenu` handler under
+    `Directory\Background\shellex\ContextMenuHandlers\TortoiseGit`, which is handed the menu
+    itself and inserts into it at an index of its choosing. That is how it sits immediately above
+    `New`, and no `Position` value can imitate it.
+
+  The risk the value was guarding against — landing above Explorer's own `Open` — does not exist:
+  `Open` is the default verb and is drawn first whatever else is registered. So the default
+  placement is the correct one, and it is the one every other developer tool already uses.
+
+  **Explorer decides the order within that block.** A static verb cannot ask for an exact index, so
+  "immediately before `New`" is where the block happens to be rather than something that is being
+  requested. If it ever has to be exact, the answer is TortoiseGit's — an `IContextMenu` handler on
+  top of the DLL that already exists for `IExplorerCommand` — and not a `Position` value.
 - Entries are ordered **alphabetically by key name**, on both levels. Prefix with a numeric
   stride (`10`, `20`, `30`) so reordering does not require rewriting every key. The submenu's
   own verb is `zz.menu` rather than a number, so it sorts after every root entry whatever

@@ -31,6 +31,18 @@ namespace FlickGit.App.Shell;
 /// <item><description><b>Every key this tool creates is named <c>FlickGit.*</c></b>, which is what
 /// lets an uninstall find its own root verbs — now several keys rather than one — without ever
 /// reaching a neighbouring shell extension's.</description></item>
+/// <item><description><b>No <c>Position</c> value is written, and that is the placement.</b> These
+/// entries used to set <c>Position = "Bottom"</c>, on the stated grounds that it put them "with the
+/// other tools' verbs at the end of the menu" and that it was "where TortoiseGit is". Both halves
+/// were wrong. No other tool sets it — <c>git_gui</c>, <c>git_shell</c>, <c>cmd</c>,
+/// <c>Powershell</c>, <c>WSL</c> and <c>vscode</c> all register a plain verb with no
+/// <c>Position</c>, and they land in the block just above <c>New</c>; <c>Bottom</c> is what moved
+/// FlickGit <i>past</i> <c>New</c> down beside <c>Properties</c>. And TortoiseGit is not a static
+/// verb at all: it registers an <c>IContextMenu</c> handler under
+/// <c>Directory\Background\shellex\ContextMenuHandlers</c>, which is handed the menu and inserts
+/// into it at a chosen index. The default placement is therefore the correct one, and the risk the
+/// value was guarding against — appearing above Explorer's own <c>Open</c> — does not exist, because
+/// <c>Open</c> is the default verb and is drawn first whatever else is registered.</description></item>
 /// </list>
 ///
 /// On Windows 11 these appear under "Show more options" (Shift+F10). That is a limitation
@@ -290,10 +302,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         verb.SetValue("MUIVerb", action.Label, RegistryValueKind.String);
         SetIcon(verb, cliPath, action.IconFileName);
 
-        //Bottom, so the entries land with the other tools' verbs at the end of the menu instead of
-        //above Explorer's own "Open". That is where the hand already goes looking for them.
-        verb.SetValue("Position", "Bottom", RegistryValueKind.String);
-
+        //No Position value: the default placement is what puts this just above New. See the class
+        //remarks -- "Bottom" is what used to push it past New, down beside Properties.
         if (withHandler && ClsidFor(action.Id) is { } clsid)
             verb.SetValue("ExplorerCommandHandler", clsid, RegistryValueKind.String);
 
@@ -393,7 +403,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
         //Resolved relative to HKCR, i.e. HKCU\Software\Classes\FlickGit.Menu.
         verb.SetValue("ExtendedSubCommandsKey", MenuKeyName, RegistryValueKind.String);
-        verb.SetValue("Position", "Bottom", RegistryValueKind.String);
+
+        //No Position, for the reason the root verbs have none. See the class remarks.
     }
 
     private static void WriteSubmenu(RegistryKey classes, string cliPath, IReadOnlyList<GitAction> entries)
