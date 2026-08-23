@@ -305,6 +305,48 @@ Design decisions, performance budgets and the reasoning behind them live in
 
 ---
 
+## Signing
+
+Release binaries are Authenticode-signed when the repository has SignPath credentials configured,
+through the [SignPath Foundation](https://signpath.io/solutions/open-source-community)'s free
+service for open-source projects. Three files are signed: `FlickGit.exe`, `flick.exe`, and
+`FlickGit.Shell.dll` — the last mattering most, because Explorer loads it into itself and an
+unsigned DLL doing that is what an antivirus heuristic reaches for first.
+
+**Nothing signs until it is set up, and the workflow skips itself silently rather than failing.**
+Four repository settings turn it on:
+
+| Setting | Kind | |
+|---|---|---|
+| `SIGNPATH_API_TOKEN` | secret | The only one that gates anything: empty means no signing. |
+| `SIGNPATH_ORGANIZATION_ID` | variable | From the SignPath portal. |
+| `SIGNPATH_PROJECT_SLUG` | variable | |
+| `SIGNPATH_SIGNING_POLICY_SLUG` | variable | `release-signing` for tags. |
+| `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` | variable | Names which files inside the build get signed. |
+
+Signing runs on **tag builds only** — a signing policy is a finite resource and a release is the
+only build anybody downloads. `main` builds stay unsigned deliberately, and say so in the log.
+
+### Downloading an unsigned build
+
+Chrome and SmartScreen warn on an unsigned download from a publisher with no reputation, and
+repackaging as an `.msi` makes that worse rather than better: installers are treated as a more
+dangerous file type than archives. Until signing is live, bypass the browser:
+
+```powershell
+gh release download <tag> --pattern "*.zip"
+Expand-Archive FlickGit-*.zip -DestinationPath FlickGit
+Get-ChildItem FlickGit -Recurse | Unblock-File   # clears Mark-of-the-Web
+```
+
+That last line matters separately from the download warning: Explorer's zip extractor copies
+Mark-of-the-Web onto every extracted file, which produces a second SmartScreen prompt the first
+time `FlickGit.exe` runs.
+
+Building locally avoids all of it, and is what the repository is arranged for.
+
+---
+
 ## Licence
 
 MIT. Third-party dependencies, all MIT: [AvalonEdit](https://github.com/icsharpcode/AvalonEdit)

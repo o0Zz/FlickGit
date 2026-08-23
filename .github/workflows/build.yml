@@ -22,6 +22,13 @@ jobs:
       SOLUTION: FlickGit.sln
       CONFIGURATION: Release
       STAGING: artifacts/FlickGit
+      SIGNED: artifacts/signed
+
+      # Empty until the SignPath Foundation application is approved and the secret is added, which
+      # is what makes every signing step below skip itself. Lifted into env rather than read from
+      # `secrets` at the point of use because the `secrets` context is not available in a step's
+      # `if:` condition and the `env` context is.
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
 
     steps:
       - name: Checkout
@@ -109,12 +116,96 @@ jobs:
           -o $env:STAGING
 
    
+      # The signing input as well as the downloadable build: SignPath fetches this artifact from
+      # GitHub by id rather than having files pushed to it, so it has to exist before signing.
       - name: Upload build artifact
+        id: artifact
         uses: actions/upload-artifact@v4
         with:
           name: FlickGit-${{ steps.version.outputs.version }}
           path: ${{ env.STAGING }}
           if-no-files-found: error
+
+      # ---------------------------------------------------------------------------------------
+      # Code signing, via the SignPath Foundation's free service for open-source projects.
+      #
+      # Why it is worth the step at all: Chrome's download protection and Windows SmartScreen both
+      # key on publisher reputation, and an unsigned download from a new publisher is warned about
+      # whatever it is packaged as -- a .msi is treated worse than a .zip, not better. Signing is
+      # the only thing that removes the warning. It also removes the one real exposure the shell
+      # DLL carries: an unsigned DLL loading into explorer.exe is a textbook malware shape, so it
+      # is what an AV heuristic reaches for first.
+      #
+      # THREE FILES MUST BE SIGNED, and the list lives in the artifact configuration on SignPath's
+      # side rather than here:
+      #
+      #   FlickGit.exe        the resident WPF service
+      #   flick.exe           the Native AOT CLI stub
+      #   FlickGit.Shell.dll  the Native AOT IExplorerCommand handler, which Explorer loads
+      #
+      # Tags only. A signing policy is a finite resource and a release is the only build anybody
+      # downloads; `main` builds stay unsigned on purpose.
+      - name: Submit signing request
+        id: signing
+        if: env.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ env.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: ${{ env.SIGNED }}
+
+      # The signed files come back in the same layout they went up in, so they overwrite the
+      # staging directory and everything downstream packages the signed build without knowing.
+      - name: Adopt the signed binaries
+        if: steps.signing.outcome == 'success'
+        shell: pwsh
+        run: |
+          Copy-Item -Path "$env:SIGNED/*" -Destination $env:STAGING -Recurse -Force
+          Write-Host "Signed binaries copied over the staging directory."
+
+      # Read back what was signed. A signing service that silently returned the input would
+      # otherwise produce a release that looks signed and is not -- the same "verify by reading
+      # back" rule CLAUDE.md applies to the registry.
+      - name: Verify signatures
+        if: steps.signing.outcome == 'success'
+        shell: pwsh
+        run: |
+          $expected = 'FlickGit.exe', 'flick.exe', 'FlickGit.Shell.dll'
+          $failed = @()
+
+          foreach ($name in $expected) {
+            $path = Join-Path $env:STAGING $name
+
+            if (-not (Test-Path $path)) {
+              $failed += "$name is missing from the staging directory"
+              continue
+            }
+
+            $signature = Get-AuthenticodeSignature $path
+            "{0,-22} {1}  {2}" -f $name, $signature.Status, $signature.SignerCertificate.Subject
+
+            if ($signature.Status -ne 'Valid') {
+              $failed += "$name is $($signature.Status)"
+            }
+          }
+
+          if ($failed) {
+            throw "Signing did not produce valid signatures:`n" + ($failed -join "`n")
+          }
+
+      - name: Note that the build is unsigned
+        if: steps.signing.outcome == 'skipped'
+        shell: pwsh
+        run: |
+          Write-Host "::notice::No SIGNPATH_API_TOKEN, or not a tag build - the binaries are unsigned."
+          Write-Host "Chrome and SmartScreen will warn on download. See the Signing section of README.md."
+
+      # ---------------------------------------------------------------------------------------
 
       - name: Package the release asset
         if: github.ref_type == 'tag'

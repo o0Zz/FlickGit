@@ -2388,6 +2388,40 @@ the sparse package is required for the Windows 11 *primary* menu, not for a dyna
 COM registration, so `GetTitle` and `GetState` were reachable all along without package identity or
 a signature.
 
+**The DLL ships unsigned, and that is not a shortcut.** Windows does not check Authenticode when it
+loads an in-process COM server, and the registration is `HKCU` only — so there is nothing to sign
+*for*. TortoiseGit signs its own shell DLL because it ships a public installer, not because the
+shell requires one. Three things are worth knowing before assuming that holds everywhere:
+
+- **Smart App Control** refuses unsigned binaries when it is on. It only enables itself on a clean
+  Windows 11 install, but on such a machine the DLL will not load and the entries fall back to the
+  static verbs — which is why those are still written.
+- **AV and EDR** see an unsigned DLL loading into `explorer.exe`, which is a textbook malware shape.
+  Same exposure this document already notes for the input hook, and most likely to matter to someone
+  who downloaded a release rather than built one.
+- **WDAC policy** can require signing machine-wide.
+
+Signing is therefore a distribution concern, not a functional one — and the pipeline for it is
+built and inert: `build.yml` submits tag builds to the **SignPath Foundation**, whose free tier
+covers open-source projects, and skips every signing step when `SIGNPATH_API_TOKEN` is empty. See
+README's *Signing* section for the four settings that turn it on.
+
+**Azure Trusted Signing was the wrong recommendation for this project**, and the reason is worth
+recording so it is not proposed again: it is limited to organizations in the USA or Canada with
+three or more years of verifiable history. SignPath issues an OV certificate from Sectigo, needs no
+hardware token, and costs nothing for a public repository — the trade being that the publisher shown
+to users is "SignPath Foundation" rather than the project, because verification is against the
+repository rather than a person. That is also why there is a `LICENSE` file: an OSI-approved licence
+is the eligibility requirement, and the README had claimed MIT for some time without one being
+present.
+
+**Repackaging as an `.msi` does not help and was considered.** Chrome's download protection keys on
+publisher reputation and treats installers as a *more* dangerous file type than archives, so an
+unsigned MSI from a new publisher is warned about at least as loudly as a zip — with SmartScreen's
+unknown-publisher wall added when it runs. The container is not what is being objected to.
+
+**The sparse MSIX package remains the only part that cannot work without a certificate at all.**
+
 `FlickGit.Shell.dll` is a Native AOT COM server on the two root verbs. It does two things:
 
 - **`GetTitle` puts the branch in the label** — `Commit / Push (feature/storage-gw)…`, which is what
