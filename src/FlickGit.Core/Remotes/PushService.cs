@@ -15,8 +15,8 @@ namespace FlickGit.Remotes;
 /// asking belongs to the UI, so the plan reports it rather than deciding.</description></item>
 /// <item><description><b>Behind the remote</b> — offer `pull --rebase --autostash` then push as
 /// one button. "Do not push and let it fail."</description></item>
-/// <item><description><b>Diverged</b> — stop. Never offer force-push, and never from the
-/// quick-commit popup.</description></item>
+/// <item><description><b>Diverged</b> — stop. Never offer force-push, from any
+/// surface.</description></item>
 /// </list>
 ///
 /// The plan is a value the UI can render and a test can assert on, which is the point: a

@@ -10,7 +10,6 @@
 app.name = FlickGit
 
 # ---- icona nell'area di notifica ----
-tray.commit = Commit rapido…
 tray.recent = Repository recenti
 tray.recent.none = (nessuno per ora)
 tray.settings = Impostazioni
@@ -28,6 +27,7 @@ commit.button.cancel = Annulla
 commit.button.refresh = Aggiorna
 commit.selectall = Tutti
 commit.selectnone = Nessuno
+commit.button.generate = Genera con l'IA
 
 commit.summary.selected = {0} selezionati
 commit.summary.counts = {0} modificati · {1} non tracciati (esclusi)
@@ -38,14 +38,12 @@ commit.warn.primary = Si sta facendo commit su {0}.
 commit.warn.secret = Questo file corrisponde a un modello di segreto: controllarlo prima del commit.
 commit.warn.conflict = Questo repository ha conflitti non risolti. Risolverli prima del commit.
 
-# ---- popup di commit rapido ----
-quick.details = Dettagli…
-quick.hint = ⏎ commit e push   ⇧⏎ commit   ⇥ modifica   esc chiudi
-quick.fallback = repository più recente
-quick.norecent = Non è ancora stato aperto alcun repository. Fare clic destro su una cartella, oppure eseguire `flick quick-commit`.
-quick.queued = Commit appena arriva il messaggio…
-quick.committing = Commit in corso…
-quick.foreground.refused = Windows non ha permesso di portare la finestra in primo piano, quindi è stata ritirata. Usare l'icona nell'area di notifica.
+# The primary button while an Enter is waiting for the message. This is the whole of the
+# queued-Enter feedback: pressing Enter during generation has to look like it did something.
+commit.queued = Commit appena arriva il messaggio…
+commit.committing = Commit in corso…
+# The keyboard map, shown in the footer until there is an outcome to report in its place.
+commit.hint = ⏎ commit e push   ⇧⏎ nuova riga   ^S salva   esc chiudi
 
 # ---- elenco dei file ----
 files.tooltip.split = In stage +{0} -{1} · Copia di lavoro +{2} -{3}
@@ -208,7 +206,6 @@ palette.empty.norepos = Ancora nessun repository. Fare un commit da Esplora file
 
 # --- azioni -------------------------------------------------------------------
 action.commit = Commit / Push…
-action.quick-commit = Commit rapido
 action.pull-rebase = Pull (rebase)
 action.pull-rebase-autostash = Pull (rebase, autostash)
 action.push = Push
@@ -267,6 +264,18 @@ settings.section.language = Lingua
 settings.language.auto = Automatica (segui Windows)
 settings.language.hint = Le finestre leggono il testo una sola volta, alla creazione: la nuova lingua appare dopo un riavvio.
 settings.language.restart = Salvato. Riavviare FlickGit per vedere la nuova lingua.
+
+settings.section.ai = MESSAGGI DI COMMIT (IA)
+settings.ai.provider = Scritti da
+settings.ai.provider.disabled = Nessuno — li scrivo io
+settings.ai.key = Imposta chiave API…
+settings.ai.key.clear = Rimuovi la chiave
+# {0} provider name
+settings.ai.key.stored = Una chiave è memorizzata per {0}, in Gestione credenziali di Windows.
+# {0} provider name
+settings.ai.key.missing = Nessuna chiave memorizzata per {0}. Senza chiave non verrà generato nulla.
+settings.ai.allow = Consenti l'invio del diff a questo fornitore
+settings.ai.allow.hint = Il codice lascia questa macchina solo mentre questa opzione è attiva. Disattivata per impostazione predefinita.
 
 settings.advanced = Tutto il resto si configura in questi due file:
 settings.advanced.open = Apri la cartella di configurazione

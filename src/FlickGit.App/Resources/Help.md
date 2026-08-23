@@ -10,13 +10,20 @@ and what you wrote is what this tab shows.
 
 ## The fast path
 
-1. Press **Ctrl+Alt+G** anywhere. The popup opens on the repository the front Explorer window
-   is showing.
-2. An AI commit message streams in, if AI is configured.
-3. Press **Enter** to commit and push, or **Shift+Enter** to commit only.
+1. Press **Ctrl+Alt+G** while an Explorer window is in front. The commit window opens on the
+   repository that window is showing, with the caret already in the message box.
+2. An AI commit message streams in, if AI is configured. Or type your own.
+3. Press **Enter** to commit and push.
 
 Pressing Enter before the message has arrived is fine — the commit is queued and fires the
-moment it lands. **Esc** cancels until the commit actually runs.
+moment it lands. **Esc** closes the window at any point up until the commit actually starts
+running, and whatever the AI was doing is abandoned with it.
+
+**Shift+Enter** is a newline, for a commit body. **Ctrl+S** saves an edit in the diff pane, and
+Enter there is an ordinary newline in your file rather than a commit.
+
+If no Explorer window is in front, **nothing happens** — FlickGit will not guess which
+repository you meant. Use **Ctrl+Alt+R**, or the tray icon's Recent list.
 
 **Ctrl+Alt+R** opens the repository palette instead: every repository FlickGit knows about,
 the ones with something to do listed first. Type to filter, type a space to switch to actions,
@@ -69,15 +76,27 @@ The right side is a real editor, not a preview.
 
 Off until you turn it on, because it means a diff leaves your machine.
 
+Everything you need is in **Settings**, under *Commit messages (AI)*:
+
+1. Pick who writes them — **Anthropic** (Claude Haiku 4.5) or **OpenAI** (GPT-5.6 Luna).
+2. Press **Set API key…** and paste your key. It goes into Windows Credential Manager, never
+   into a settings file, and is never shown back to you.
+3. Tick **Allow the diff to be sent to this provider**. Nothing leaves your machine until you do.
+
+Press **Save**. The commit window then grows a **Generate with AI** button, and writes a message
+for you as soon as it opens.
+
+The same thing from a terminal:
+
 ```
 flick ai              what it is configured to do
 flick ai key set      store the API key (Windows Credential Manager)
 flick ai key clear    remove it
 ```
 
-Then set `aiProvider` and `aiAllowDiffsToLeaveMachine` in `settings.json`. The diff is capped
-before it is sent, lock files and generated code are excluded, and anything matching a secret
-pattern is redacted or dropped.
+`aiModel`, `aiMaxDiffBytes` and `aiConventionalCommits` in `settings.json` are the rest of it. The
+diff is capped before it is sent, lock files and generated code are excluded, and anything matching
+a secret pattern is redacted or dropped.
 
 The AI is never a dependency. If it is slow, unreachable or unconfigured, the message box is an
 ordinary text box and every button still works.
@@ -88,11 +107,11 @@ Everything in the menus is also a verb. `<path>` defaults to the current directo
 
 ```
 flick commit <path>              flick switch <path> [branch]
-flick quick-commit <path>        flick tag <path> [name]
-flick pull-rebase <path>         flick status <path>
-flick push <path>                flick clone <path> [url]
-flick palette                    flick terminal <path>
-flick settings                   flick run <id> [path]
+flick pull-rebase <path>         flick tag <path> [name]
+flick push <path>                flick status <path>
+flick palette                    flick clone <path> [url]
+flick settings                   flick terminal <path>
+                                 flick run <id> [path]
 
 flick install-shell              register the context menu
 flick uninstall-shell            remove it
@@ -124,7 +143,7 @@ By design, and not configurable:
 
 - No `reset --hard`, `clean -fd`, `checkout -- .` or `branch -D` without you asking for it in
   the moment.
-- No force push, ever, from the quick-commit popup.
+- No force push, ever, and never as part of a commit.
 - No automatic stash. If a branch switch is blocked, you are told which files block it and
   offered stash-switch-restore as an explicit choice — and only the stash it created is ever
   restored.

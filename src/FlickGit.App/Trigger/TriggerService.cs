@@ -3,7 +3,7 @@ using FlickGit.Logging;
 
 namespace FlickGit.App.Trigger;
 
-/// <summary>Which input opens the quick-commit popup.</summary>
+/// <summary>Which input opens the commit window.</summary>
 public enum TriggerKind
 {
     /// <summary>
@@ -17,13 +17,13 @@ public enum TriggerKind
     None,
 }
 
-/// <param name="QuickCommit">What `flick diag doctor` prints for the quick-commit trigger.</param>
+/// <param name="Commit">What `flick diag doctor` prints for the commit trigger.</param>
 /// <param name="Palette">The same, for the palette's hotkey.</param>
 /// <param name="Error">
 /// Set when something could not be installed. Both reasons when both failed, because a user whose
 /// two hotkeys are both taken needs to be told about both of them once rather than about one twice.
 /// </param>
-public readonly record struct TriggerStartup(string QuickCommit, string Palette, string? Error);
+public readonly record struct TriggerStartup(string Commit, string Palette, string? Error);
 
 public sealed class TriggerService(FlickSettings settings, ILog log) : IDisposable
 {
@@ -36,7 +36,7 @@ public sealed class TriggerService(FlickSettings settings, ILog log) : IDisposab
     /// the user their tray icon, their context menu or their pipe — CLAUDE.md, "Definition of Done":
     /// every feature works with the resident service stopped, so no feature may stop it starting.
     /// </summary>
-    public TriggerStartup Start(Action<nint> onQuickCommit, Action<nint> onPalette)
+    public TriggerStartup Start(Action<nint> onCommit, Action<nint> onPalette)
     {
         try
         {
@@ -44,16 +44,16 @@ public sealed class TriggerService(FlickSettings settings, ILog log) : IDisposab
 
             var errors = new List<string>();
 
-            //Two independent claims. TriggerKind.None turns off the quick-commit trigger, not the
+            //Two independent claims. TriggerKind.None turns off the commit trigger, not the
             //palette: they are separate surfaces, and a user who wants only one should get only one.
-            string quickCommit = settings.Trigger == TriggerKind.None
+            string commit = settings.Trigger == TriggerKind.None
                 ? "none"
-                : Claim(settings.HotkeyGesture, HotkeyGesture.Default, onQuickCommit, errors);
+                : Claim(settings.HotkeyGesture, HotkeyGesture.Default, onCommit, errors);
 
             string palette = Claim(settings.PaletteHotkeyGesture, HotkeyGesture.DefaultPalette, onPalette, errors);
 
             return new TriggerStartup(
-                quickCommit,
+                commit,
                 palette,
                 errors.Count == 0
                     ? null

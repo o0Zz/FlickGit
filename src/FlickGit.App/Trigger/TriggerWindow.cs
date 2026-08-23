@@ -9,7 +9,7 @@ namespace FlickGit.App.Trigger;
 ///
 /// The resident service has no main window — that is the point of it — but <c>RegisterHotKey</c>
 /// needs a window handle and a message pump to deliver to. This is that handle, for however many
-/// hotkeys the product claims: one for the quick-commit trigger, one for the palette.
+/// hotkeys the product claims: one for the commit window, one for the palette.
 ///
 /// <b>A message-only window</b> (<c>HWND_MESSAGE</c> as the parent), so it never appears in Alt+Tab,
 /// never shows on the taskbar, and cannot be activated. Created on the WPF UI thread, so both
@@ -79,9 +79,9 @@ internal sealed partial class TriggerWindow : IDisposable
     /// <summary>
     /// The one message this window cares about.
     ///
-    /// Receiving <c>WM_HOTKEY</c> credits this thread with the input, which is what lets the popup
+    /// Receiving <c>WM_HOTKEY</c> credits this thread with the input, which is what lets the window
     /// call <c>SetForegroundWindow</c> successfully. An Explorer-scoped hook would post its own
-    /// message here and would carry no such credit — see <c>QuickCommitWindowHost.ShowAsync</c>,
+    /// message here and would carry no such credit — see <c>ResidentWindow.Present</c>,
     /// which checks rather than assumes.
     /// </summary>
     private nint OnMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)

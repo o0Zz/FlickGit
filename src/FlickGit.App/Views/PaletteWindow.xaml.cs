@@ -24,7 +24,7 @@ public partial class PaletteWindow : Window
     /// <summary>
     /// Set when Windows refused to give this window the foreground.
     ///
-    /// Same rule as the quick-commit popup: <c>Topmost</c> without keyboard focus is worse than not
+    /// The rule every popup here follows: <c>Topmost</c> without keyboard focus is worse than not
     /// showing at all, because the keys the user types land in whatever is underneath.
     /// </summary>
     private bool _demoted;
@@ -71,7 +71,12 @@ public partial class PaletteWindow : Window
     /// </summary>
     public Task RefreshAsync() => _viewModel?.RefreshAsync() ?? Task.CompletedTask;
 
-    /// <inheritdoc cref="QuickCommitWindow.DemoteFromTopmost"/>
+    /// <summary>
+    /// Turns this into an ordinary window, because Windows would not bring it to the front.
+    ///
+    /// <c>Topmost</c> without keyboard focus is the one configuration worse than no popup at all:
+    /// over another application's window, the user's Enter goes to whatever is underneath.
+    /// </summary>
     public void DemoteFromTopmost()
     {
         _demoted = true;

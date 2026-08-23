@@ -6,10 +6,10 @@ namespace FlickGit.App.CommandLine;
 /// <summary>
 /// Turns a <see cref="CommitFlowResult"/> into the words a user reads.
 ///
-/// There are two commit surfaces now — the commit window and the quick-commit popup — and nine
-/// outcomes to phrase. Two copies of that mapping is two chances to describe the same refusal
-/// differently, which for a guardrail is worse than describing it badly: the user learns what
-/// "blocked" means from whichever surface they happened to use.
+/// Nine outcomes to phrase, and separate from the view model that shows them because the command
+/// line has to phrase the same nine. Two copies of that mapping is two chances to describe the same
+/// refusal differently, which for a guardrail is worse than describing it badly: the user learns
+/// what "blocked" means from whichever surface they happened to use.
 ///
 /// Presentation, so it stays in the App assembly. The decision each outcome describes was already
 /// made in <see cref="CommitFlow"/>, which is where it is tested.

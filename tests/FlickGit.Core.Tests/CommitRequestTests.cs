@@ -8,10 +8,10 @@ namespace FlickGit.Tests;
 /// Turning a status and its ticks into the two path lists <see cref="CommitFlow"/> acts on.
 ///
 /// In scope under Hard Requirement 4 as <b>the safety rules</b> and <b>the commit sequence</b>.
-/// There are two commit surfaces now — the commit window and the quick-commit popup — and both
-/// derive their request here, so this is the one place that decides what gets staged and what comes
-/// back out of the index. Getting <c>PathsToUnstage</c> wrong commits a file the user deliberately
-/// unticked, because `git commit` commits the index and not the selection.
+/// The commit window and the command line both derive their request here, so this is the one place
+/// that decides what gets staged and what comes back out of the index. Getting
+/// <c>PathsToUnstage</c> wrong commits a file the user deliberately unticked, because `git commit`
+/// commits the index and not the selection.
 /// </summary>
 public class CommitRequestTests
 {

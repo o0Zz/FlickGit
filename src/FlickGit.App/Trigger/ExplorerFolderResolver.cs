@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
-using FlickGit.App.Resident;
 using FlickGit.Diagnostics;
 using FlickGit.Logging;
 
@@ -16,14 +15,8 @@ public enum FolderOrigin
     /// <summary>The folder the active Explorer tab is showing.</summary>
     CurrentFolder,
 
-    /// <summary>Another tab of the same Explorer window. Reachable with Ctrl+R.</summary>
+    /// <summary>Another tab of the same Explorer window.</summary>
     ExplorerTab,
-
-    /// <summary>
-    /// The most recently used repository. The user was not looking at this, so the popup has to say
-    /// so — CLAUDE.md: "Never act silently on a repository the user is not looking at."
-    /// </summary>
-    MostRecent,
 }
 
 /// <param name="Path">An absolute folder path. Not necessarily inside a repository.</param>
@@ -32,7 +25,7 @@ public readonly record struct FolderCandidate(string Path, FolderOrigin Origin);
 /// <param name="Ordered">Best guess first.</param>
 /// <param name="Ambiguous">
 /// True when Explorer had several tabs open on one window and there was no way to tell which was
-/// active. The popup then names the repository loudly rather than acting on a guess.
+/// active. Logged, because it is the answer to "why did it open the wrong repository".
 /// </param>
 public readonly record struct FolderCandidates(IReadOnlyList<FolderCandidate> Ordered, bool Ambiguous);
 
@@ -40,8 +33,12 @@ public readonly record struct FolderCandidates(IReadOnlyList<FolderCandidate> Or
 /// Which folder the user was looking at when the trigger fired.
 ///
 /// Asks Explorer through the shell automation surface, in the order CLAUDE.md prescribes: the
-/// selected folder, then the folder the active tab is showing, then the most recently used
-/// repository as a labelled fallback.
+/// selected folder, then the folder the active tab is showing.
+///
+/// <b>There is no most-recently-used fallback.</b> There was one, for the popup, which said so in
+/// its header. A trigger pressed with no Explorer window in front now resolves to nothing and opens
+/// nothing at all — guessing a repository the user is not looking at is the one thing this must not
+/// do, and a window is a worse place to discover the guess was wrong than a popup was.
 ///
 /// <b>On a dedicated STA thread with a deadline.</b> <c>IShellWindows</c> marshals cross-process
 /// into <c>explorer.exe</c>, and a blocking COM call into a hung Explorer made from the WPF UI
@@ -54,14 +51,14 @@ public readonly record struct FolderCandidates(IReadOnlyList<FolderCandidate> Or
 /// case; two tabs on folders with the same leaf name is genuinely undecidable, and then the answer
 /// is to say so rather than to guess.
 /// </summary>
-public sealed partial class ExplorerFolderResolver(RecentRepositories recent, OperationTimings timings, ILog log)
+public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILog log)
 {
     /// <summary>
     /// How long Explorer gets to answer.
     ///
-    /// Inside the 80 ms budget for the popup being painted, because that budget starts before this
-    /// runs. A hung Explorer costs the user the folder resolution and nothing else: the MRU
-    /// fallback is right there.
+    /// Inside the 80 ms budget for the window being painted, because that budget starts before this
+    /// runs. A hung Explorer costs the user this trigger, which is the honest outcome: there is
+    /// nothing to fall back to and nothing worth guessing.
     /// </summary>
     private static readonly TimeSpan Deadline = TimeSpan.FromMilliseconds(120);
 
@@ -82,17 +79,7 @@ public sealed partial class ExplorerFolderResolver(RecentRepositories recent, Op
         bool ambiguous = explorer.Count(c => c.Origin == FolderOrigin.ExplorerTab) > 0
                          && !explorer.Any(c => c.Origin == FolderOrigin.CurrentFolder);
 
-        //The MRU always follows, so a folder that turns out not to be a repository still has
-        //somewhere to fall back to rather than the popup simply refusing.
-        var ordered = new List<FolderCandidate>(explorer);
-
-        foreach (string path in recent.Paths)
-        {
-            if (!ordered.Any(c => string.Equals(c.Path, path, StringComparison.OrdinalIgnoreCase)))
-                ordered.Add(new FolderCandidate(path, FolderOrigin.MostRecent));
-        }
-
-        return new FolderCandidates(ordered, ambiguous);
+        return new FolderCandidates(explorer, ambiguous);
     }
 
     /// <summary>
@@ -140,7 +127,7 @@ public sealed partial class ExplorerFolderResolver(RecentRepositories recent, Op
 
         //The thread is left to finish on its own. A leaked background thread waiting on a hung
         //Explorer is a far better outcome than a frozen tray icon, and it ends when Explorer does.
-        log.Debug($"Explorer did not answer within {Deadline.TotalMilliseconds:F0} ms; using the recent list.");
+        log.Debug($"Explorer did not answer within {Deadline.TotalMilliseconds:F0} ms; the trigger resolves to nothing.");
         return [];
     }
 
@@ -204,8 +191,8 @@ public sealed partial class ExplorerFolderResolver(RecentRepositories recent, Op
             if (tabs.Count == 0)
             {
                 //Not an Explorer window. The tray, another application, or our own popup: all
-                //ordinary, and all answered by the recent list.
-                log.Debug($"None of {seen} Explorer view(s) owns window {foreground:X}; using the recent list.");
+                //ordinary, and all of them mean the trigger has no folder to act on.
+                log.Debug($"None of {seen} Explorer view(s) owns window {foreground:X}; the trigger resolves to nothing.");
                 return candidates;
             }
 

@@ -30,7 +30,6 @@ namespace FlickGit.App.CommandLine;
 /// </summary>
 public sealed class WindowVerbs(
     CommitWindowHost commitWindow,
-    QuickCommitWindowHost quickCommit,
     PaletteWindowHost palette,
     StatusService status,
     SwitchService switches,
@@ -53,28 +52,6 @@ public sealed class WindowVerbs(
         //Through the host, always: it owns the one window and knows whether this process is the
         //resident service (reuse it) or a one-shot launch (build it now).
         await commitWindow.ShowAsync(repository).ConfigureAwait(true);
-
-        return VerbResult.Stay();
-    }
-
-    /// <summary>
-    /// The quick-commit popup, for `flick quick-commit` and the tray.
-    ///
-    /// The same guard as the commit window: a bare repository has no working tree, so there is
-    /// nothing to commit and nothing to show.
-    /// </summary>
-    public async Task<VerbResult> QuickCommitAsync(VerbOutput output, RepositoryInfo repository)
-    {
-        if (repository.IsBare)
-        {
-            output.Say(Strings.Get("app.name"), Strings.Get("error.bare", repository.Root));
-            return VerbResult.Exit(ExitCodes.NotARepository);
-        }
-
-        //isFallback is false here on purpose: a path named on the command line or picked from the
-        //tray *was* chosen by the user, so the "not the folder you are looking at" warning would be
-        //a lie. The trigger path passes true when it had to fall back to the MRU.
-        await quickCommit.ShowAsync(repository, isFallback: false).ConfigureAwait(true);
 
         return VerbResult.Stay();
     }

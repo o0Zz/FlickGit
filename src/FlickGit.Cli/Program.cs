@@ -37,7 +37,7 @@ internal static partial class Program
     /// </summary>
     private static readonly string[] WindowVerbs =
     [
-        "commit", "quick-commit", "pull-rebase", "pull-rebase-autostash",
+        "commit", "pull-rebase", "pull-rebase-autostash",
         "switch", "clone", "palette", "terminal", "tray",
     ];
 

@@ -217,9 +217,7 @@ public partial class App : Application
         services.AddSingleton<UpstreamConsent>();
         services.AddSingleton<CommitViewModelFactory>();
         services.AddSingleton<CommitWindowHost>();
-        services.AddSingleton<QuickCommitViewModelFactory>();
-        services.AddSingleton<QuickCommitWindowHost>();
-        services.AddSingleton<QuickCommitLauncher>();
+        services.AddSingleton<CommitLauncher>();
         services.AddSingleton<PaletteViewModelFactory>();
         services.AddSingleton<PaletteWindowHost>();
         services.AddSingleton<ActionRunner>();
@@ -314,9 +312,6 @@ public partial class App : Application
         VerbOutput output = VerbOutput.Direct();
 
         _trayIcon = TrayIconFactory.Create(
-            //Zero: a tray click has no Explorer window behind it, so the launcher goes straight
-            //to the recent list and the popup says so.
-            onQuickCommit: () => _ = services.GetRequiredService<QuickCommitLauncher>().LaunchAsync(0),
             recent: () => recent.Paths,
             onOpenRecent: path => _ = RunTrayVerbAsync(new Verb(VerbKind.Commit, path, null)),
 
@@ -364,13 +359,13 @@ public partial class App : Application
             _ = actions.RunAsync(action, repository, VerbOutput.Direct(), argument);
 
         TriggerStartup trigger = _trigger.Start(
-            foreground => _ = services.GetRequiredService<QuickCommitLauncher>().LaunchAsync(foreground),
+            foreground => _ = services.GetRequiredService<CommitLauncher>().LaunchAsync(foreground),
 
             //The foreground window is of no interest here: the palette is the surface for when the
             //user is *not* looking at the folder they mean, so there is nothing to resolve from it.
             foreground => _ = palette.ShowAsync());
 
-        _log.Info($"Trigger: {trigger.QuickCommit}   Palette: {trigger.Palette}");
+        _log.Info($"Trigger: {trigger.Commit}   Palette: {trigger.Palette}");
 
         if (trigger.Error is not null)
         {
@@ -394,9 +389,9 @@ public partial class App : Application
         Dispatcher.BeginInvoke(
             () =>
             {
-                //The popup first: it is the primary interaction and the window is the escape hatch,
-                //so if only one of them gets warmed before the user asks, it should be this one.
-                services.GetRequiredService<QuickCommitWindowHost>().Warm();
+                //The commit window first: it is now the only surface the trigger, the context menu
+                //and `flick commit` all land on, so if only one thing gets warmed before the user
+                //asks, it should be this one.
                 services.GetRequiredService<CommitWindowHost>().Warm();
                 palette.Warm();
             },

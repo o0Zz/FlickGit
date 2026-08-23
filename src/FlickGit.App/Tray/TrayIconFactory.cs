@@ -23,7 +23,6 @@ public static class TrayIconFactory
     /// <param name="recent">The MRU list, re-read each time the menu opens.</param>
     /// <param name="onOpenRecent">Opens the commit window on one of them.</param>
     public static TaskbarIcon Create(
-        Action onQuickCommit,
         Func<IReadOnlyList<string>> recent,
         Action<string> onOpenRecent,
         Action onSettings,
@@ -32,8 +31,9 @@ public static class TrayIconFactory
     {
         var menu = new ContextMenu();
 
-        menu.Items.Add(MenuItem(Strings.Get("tray.commit"), onQuickCommit, isDefault: true));
-
+        //No "Quick commit" entry. It launched the popup, which is gone -- and there is nothing to
+        //replace it with: a tray click has no Explorer window behind it, so there is no folder to
+        //resolve and the recent list below is the honest way to name a repository.
         var recentMenu = new MenuItem { Header = Strings.Get("tray.recent") };
         menu.Items.Add(recentMenu);
 
@@ -80,9 +80,10 @@ public static class TrayIconFactory
             ToolTipText = Strings.Get("tray.tooltip"),
             ContextMenu = menu,
 
-            //Left-click opens the same action the menu's default entry does, so the
-            //fast path is one click from the tray as well as from Explorer.
-            LeftClickCommand = new Infrastructure.RelayCommand(onQuickCommit),
+            //Left-click opens the menu, rather than committing something. There is no folder behind
+            //a tray click and therefore no repository to guess, so the menu -- with the recent list
+            //in it -- is the only honest thing one click can do.
+            MenuActivation = H.NotifyIcon.Core.PopupActivationMode.LeftOrRightClick,
             NoLeftClickDelay = true,
         };
 

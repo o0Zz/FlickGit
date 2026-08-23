@@ -1,3 +1,4 @@
+using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Localization;
 using FlickGit.App.Resident;
@@ -15,8 +16,8 @@ namespace FlickGit.App.ViewModels;
 /// Assembles one <see cref="CommitViewModel"/>.
 ///
 /// A view model is not a service — it is per-window state — so it is not registered in the
-/// container. But it needs nine services to exist, and the class that owns the window's lifecycle
-/// should not have to carry all nine just to pass them along. That was the whole justification for
+/// container. But it needs ten services to exist, and the class that owns the window's lifecycle
+/// should not have to carry all ten just to pass them along. That was the whole justification for
 /// handing <see cref="CommitWindowHost"/> an <c>IServiceProvider</c>, which
 /// <b>Hard Requirement 3</b> forbids; this is the honest version of the same thing.
 ///
@@ -33,6 +34,7 @@ public sealed class CommitViewModelFactory(
     UpstreamConsent consent,
     PatchService patches,
     WorkingTreeWriter writer,
+    CommitMessageService messages,
     FlickSettings settings,
     Notifier notifier,
     ILog log)
@@ -51,6 +53,7 @@ public sealed class CommitViewModelFactory(
             consent,
             patches,
             writer,
+            messages,
             settings,
             log);
 

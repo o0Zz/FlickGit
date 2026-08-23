@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using FlickGit.Ai;
+using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
@@ -6,6 +8,7 @@ using FlickGit.App.Settings;
 using FlickGit.Branches;
 using FlickGit.Commits;
 using FlickGit.Diff;
+using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Status;
@@ -15,21 +18,56 @@ namespace FlickGit.App.ViewModels;
 /// <summary>
 /// The commit window's state and behaviour. No Git logic of its own.
 ///
-/// Everything it shares with the quick-commit popup — the branch ComboBox, the warning strip, the
-/// guardrail consent and the commit itself — is <see cref="CommitSurface"/>. What is left here is
-/// what only the window has: the file list, the diff cache and its prefetch, and live editing.
+/// <b>This was two classes and a shared base until the quick-commit popup was removed.</b> The base
+/// existed because the popup and the window did the same things — the same branch resolution, the
+/// same warning rule, the same guardrail consent, the same call into <see cref="CommitFlow"/> — and
+/// having that written twice meant a fix applied to one surface quietly left the other wrong. With
+/// the popup gone it was an abstract class with exactly one subclass, which CLAUDE.md's "Coding
+/// Guidelines" lists under Avoid, so it was folded back in.
+///
+/// The AI generation and the queued Enter came with it. They were the popup's two unique behaviours
+/// and they are the whole of what made the fast path fast, so they belong to the surface that
+/// replaced it — otherwise removing the popup would have removed the only place in the product that
+/// can write a commit message.
+///
+/// <b>Reuse is the correctness risk here.</b> The resident service keeps one instance alive for the
+/// whole session, so <see cref="Reset"/> must leave nothing behind from the previous repository.
+/// Every mutable field declared below is assigned there — one place to look when adding a field. Not
+/// a test: Hard Requirement 4 puts everything in <c>FlickGit.App</c> out of scope. Verified by
+/// running it.
 /// </summary>
-public sealed class CommitViewModel : CommitSurface
+public sealed class CommitViewModel : ObservableObject
 {
     private readonly StatusService _status;
+    private readonly BranchService _branches;
+    private readonly CommitFlow _flow;
+    private readonly UpstreamConsent _consent;
     private readonly DiffCache _diffs;
     private readonly CommitService _commits;
     private readonly PatchService _patches;
     private readonly WorkingTreeWriter _writer;
+    private readonly CommitMessageService _messages;
+    private readonly FlickSettings _settings;
+    private readonly ILog _log;
+
+    private RepositoryInfo _repository;
+    private RepositoryStatus? _currentStatus;
+    private string _message = string.Empty;
+    private string _branchInput = string.Empty;
+    private BranchResolution _branchResolution = new(BranchIntent.Empty, string.Empty);
+    private string? _primaryBranch;
+    private bool _isBusy;
+    private string? _notice;
+    private string? _statusText;
 
     private FileChangeItem? _selectedFile;
     private SideBySideDiff? _currentDiff;
     private bool _isDiffLoading;
+
+    private CommitStage _stage;
+    private bool _queuedPush;
+    private bool _applyingStream;
+    private CancellationTokenSource? _generation;
 
     public CommitViewModel(
         RepositoryInfo repository,
@@ -41,34 +79,240 @@ public sealed class CommitViewModel : CommitSurface
         UpstreamConsent consent,
         PatchService patches,
         WorkingTreeWriter writer,
+        CommitMessageService messages,
         FlickSettings settings,
         ILog log)
-        : base(repository, status, branches, flow, consent, settings, log)
     {
+        _repository = repository;
         _status = status;
         _diffs = diffs;
         _diffs.Reset(repository);
         _commits = commits;
+        _branches = branches;
+        _flow = flow;
+        _consent = consent;
         _patches = patches;
         _writer = writer;
+        _messages = messages;
+        _settings = settings;
+        _log = log;
 
+        CommitCommand = new AsyncCommand(() => CommitAsync(push: false), () => CanCommit, ReportError);
+        CommitAndPushCommand = new AsyncCommand(() => CommitAsync(push: true), () => CanCommit, ReportError);
         RefreshCommand = new AsyncCommand(RefreshAsync, () => !IsBusy, ReportError);
         SelectAllCommand = new RelayCommand(() => SetAllSelected(true));
         SelectNoneCommand = new RelayCommand(() => SetAllSelected(false));
+
+        //Replaces whatever is in the box, unlike the automatic pass when the window opens: the user
+        //pressed a button labelled "generate", so overwriting their text is what they asked for.
+        GenerateCommand = new RelayCommand(() => BeginGeneration(force: true), () => CanGenerate);
     }
 
+    public AsyncCommand CommitCommand { get; }
+    public AsyncCommand CommitAndPushCommand { get; }
     public AsyncCommand RefreshCommand { get; }
     public RelayCommand SelectAllCommand { get; }
     public RelayCommand SelectNoneCommand { get; }
+    public RelayCommand GenerateCommand { get; }
 
     public ObservableCollection<FileChangeItem> Files { get; } = [];
 
-    public string Title => Strings.Get("commit.title", Repository.Name);
+    /// <summary>Local branches, current first, for the ComboBox drop-down.</summary>
+    public ObservableCollection<string> Branches { get; } = [];
+
+    /// <summary>Raised when the commit succeeded, so the window can report and close.</summary>
+    public event Action<CommitResult>? Committed;
+
+    /// <summary>Raised for anything the user has to be told, with Git's own words in it.</summary>
+    public event Action<string, string>? ErrorRaised;
+
+    /// <summary>
+    /// Raised when the caret belongs back in the message box: a generation that failed with a commit
+    /// queued, or one that landed and is now waiting for Enter.
+    /// </summary>
+    public event Action? FocusMessageRequested;
+
+    /// <summary>
+    /// Asks the user a yes/no question and waits for the answer.
+    ///
+    /// A callback rather than a dialog call, because a view model must not construct windows — and
+    /// because the questions it asks are guardrail consent, which CLAUDE.md requires to be answered
+    /// before anything executes.
+    /// </summary>
+    public Func<string, string, string, string, Task<bool>>? ConfirmAsync { get; set; }
+
+    public RepositoryInfo Repository
+    {
+        get => _repository;
+        private set => Set(ref _repository, value);
+    }
+
+    public string RepositoryName => _repository.Name;
+
+    public string Title => Strings.Get("commit.title", _repository.Name);
+
+    /// <summary>The status behind everything on screen. Null until the first refresh lands.</summary>
+    public RepositoryStatus? CurrentStatus => _currentStatus;
+
+    public string CurrentBranch => _currentStatus?.Branch ?? string.Empty;
+
+    public string SummaryText =>
+        _currentStatus is null
+            ? string.Empty
+            : Strings.Get("commit.summary.counts", _currentStatus.TrackedChangeCount, _currentStatus.UntrackedCount);
 
     public string AheadBehindText =>
-        CurrentStatus?.Upstream is null ? string.Empty : $"↑{CurrentStatus.Ahead} ↓{CurrentStatus.Behind}";
+        _currentStatus?.Upstream is null ? string.Empty : $"↑{_currentStatus.Ahead} ↓{_currentStatus.Behind}";
 
     public string SelectionText => Strings.Get("commit.summary.selected", Files.Count(f => f.IsSelected));
+
+    public string Message
+    {
+        get => _message;
+        set
+        {
+            if (!Set(ref _message, value))
+                return;
+
+            //A keystroke in the box means the user is taking over from the stream. Their text wins: a
+            //stream that kept overwriting what they were typing would be unusable.
+            if (!_applyingStream && _stage is CommitStage.Generating or CommitStage.Queued)
+            {
+                CancelGeneration();
+                Stage = CommitStage.Idle;
+                StatusText = null;
+            }
+
+            RaiseCommandStates();
+        }
+    }
+
+    /// <summary>
+    /// The branch ComboBox's text. Free text: anything that is not an existing branch is a new
+    /// branch name.
+    /// </summary>
+    public string BranchInput
+    {
+        get => _branchInput;
+        set
+        {
+            if (!Set(ref _branchInput, value))
+                return;
+
+            //Resolved on every keystroke with no Git call: the branch list is already in memory and
+            //name validity is an offline check.
+            BranchResolution = BranchResolution.Resolve(value, CurrentBranch, Branches);
+            RaiseCommandStates();
+        }
+    }
+
+    public BranchResolution BranchResolution
+    {
+        get => _branchResolution;
+        private set
+        {
+            if (Set(ref _branchResolution, value))
+                Raise(nameof(BranchHint));
+        }
+    }
+
+    public string BranchHint => BranchHintText.For(_branchResolution.Intent);
+
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (Set(ref _isBusy, value))
+                RaiseCommandStates();
+        }
+    }
+
+    /// <summary>The warning strip: committing to the primary branch, or an unresolved conflict.</summary>
+    public string? Notice
+    {
+        get => _notice;
+        private set
+        {
+            if (Set(ref _notice, value))
+                Raise(nameof(HasNotice));
+        }
+    }
+
+    public bool HasNotice => _notice is not null;
+
+    /// <summary>The last outcome line. Cleared at the start of the next action.</summary>
+    public string? StatusText
+    {
+        get => _statusText;
+        private set
+        {
+            if (Set(ref _statusText, value))
+                Raise(nameof(HasStatusText));
+        }
+    }
+
+    public bool HasStatusText => _statusText is not null;
+
+    /// <summary>Where the window is in the type-Enter-done sequence.</summary>
+    public CommitStage Stage
+    {
+        get => _stage;
+        private set
+        {
+            if (Set(ref _stage, value))
+            {
+                Raise(nameof(CommitAndPushText));
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The primary button's label, which is the whole of the queued-Enter feedback: pressing Enter
+    /// during generation has to look like it did something.
+    /// </summary>
+    public string CommitAndPushText => _stage switch
+    {
+        CommitStage.Queued => Strings.Get("commit.queued"),
+        CommitStage.Committing => Strings.Get("commit.committing"),
+        _ => Strings.Get("commit.button.commitpush"),
+    };
+
+    /// <summary>
+    /// Whether committing is possible at all.
+    ///
+    /// The tick state lives on the status's own <c>GitFileChange</c> instances — which is what
+    /// <c>FileChangeItem</c> writes — so this is the same question wherever it is asked from. A
+    /// message is required: CLAUDE.md, "Never commit an empty or placeholder message."
+    /// </summary>
+    public bool CanCommit =>
+        _stage is not (CommitStage.Queued or CommitStage.Committing)
+        && !_isBusy
+        && _currentStatus is not null
+        && _currentStatus.Files.Any(f => f.IsSelected)
+        && !string.IsNullOrWhiteSpace(_message)
+        && _branchResolution.IsCommittable
+        && !_currentStatus.HasConflicts;
+
+    /// <summary>
+    /// Whether the Generate button does anything: a provider, a key, consent, and something to
+    /// describe.
+    /// </summary>
+    public bool CanGenerate =>
+        _messages.IsUsable
+        && _stage is not (CommitStage.Queued or CommitStage.Committing)
+        && _currentStatus is not null
+        && _currentStatus.Files.Any(f => f.IsSelected);
+
+    /// <summary>
+    /// Whether the AI is configured at all. False hides the button rather than showing a permanently
+    /// dead one — with no key stored there is nothing the user can do with it here, and Settings is
+    /// where that is fixed.
+    /// </summary>
+    public bool IsAiConfigured => _messages.IsUsable;
+
+    public bool CloseAfterCommit => _settings.CloseCommitWindowAfterSuccess;
 
     public FileChangeItem? SelectedFile
     {
@@ -98,48 +342,91 @@ public sealed class CommitViewModel : CommitSurface
         private set => Set(ref _isDiffLoading, value);
     }
 
-    public string DiffFontFamily => Settings.DiffFontFamily;
+    public string DiffFontFamily => _settings.DiffFontFamily;
 
-    public double DiffFontSize => Settings.DiffFontSize;
+    public double DiffFontSize => _settings.DiffFontSize;
 
-    public override void Reset(RepositoryInfo repository)
+    // ---- lifecycle ----------------------------------------------------------------
+
+    /// <summary>
+    /// Clears everything, so the reused window shows nothing of the previous repository.
+    ///
+    /// A field added above and not cleared here is exactly the leak CLAUDE.md calls "the main
+    /// correctness risk of reuse" — it shows up as the previous repository's message in a window now
+    /// pointed somewhere else.
+    /// </summary>
+    public void Reset(RepositoryInfo repository)
     {
+        //The AI's state is as much a leak risk as anything else: a generation left running would
+        //stream the previous repository's message into this one.
+        CancelGeneration();
+        Stage = CommitStage.Idle;
+        _queuedPush = false;
+        _applyingStream = false;
+
         _diffs.Reset(repository);
         _selectedFile = null;
         Files.Clear();
         CurrentDiff = null;
         IsDiffLoading = false;
 
-        base.Reset(repository);
+        Repository = repository;
+        _currentStatus = null;
+        _primaryBranch = null;
+        Branches.Clear();
 
+        Message = string.Empty;
+        BranchInput = string.Empty;
+        BranchResolution = new BranchResolution(BranchIntent.Empty, string.Empty);
+        Notice = null;
+        StatusText = null;
+        IsBusy = false;
+
+        Raise(nameof(Repository));
+        Raise(nameof(RepositoryName));
         Raise(nameof(Title));
+        Raise(nameof(CurrentStatus));
+        Raise(nameof(CurrentBranch));
+        Raise(nameof(SummaryText));
         Raise(nameof(SelectedFile));
         Raise(nameof(AheadBehindText));
         Raise(nameof(SelectionText));
+        RaiseCommandStates();
     }
 
     /// <summary>
-    /// Takes a status somebody else already fetched, along with what they had typed.
+    /// Reads the status and adopts it.
     ///
-    /// This is the popup's <c>Details…</c> handoff: it has just run the same three Git processes for
-    /// its own summary, and running them again to fill this window is the difference between the
-    /// 60 ms CLAUDE.md budgets for the handoff and another 100 ms of Git.
+    /// Deliberately not called from <see cref="Reset"/>: the window is shown between the two.
+    /// CLAUDE.md budgets the window appearing separately from its contents arriving — two budgets, so
+    /// two steps. Populating first means paying both before anything is on screen, and three Git
+    /// processes is most of that.
     /// </summary>
-    public void Adopt(RepositoryStatus status, string? message, string? branchInput)
+    public async Task RefreshAsync()
     {
-        //Assigned first, because adopting the status reads BranchInput to decide whether to overwrite
-        //the ComboBox with the current branch. Setting them afterwards would lose the branch the user
-        //had typed in the popup.
-        if (message is not null)
-            Message = message;
+        IsBusy = true;
 
-        if (branchInput is { Length: > 0 })
-            BranchInput = branchInput;
+        try
+        {
+            RepositoryStatus status = await _status
+                .GetStatusAsync(_repository, CancellationToken.None)
+                .ConfigureAwait(true);
 
-        Adopt(status);
+            Adopt(status);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    public override void Adopt(RepositoryStatus status)
+    /// <summary>
+    /// Takes a status, from <see cref="RefreshAsync"/> or from whoever already fetched one.
+    ///
+    /// The branch list and the primary-branch warning are started and not awaited: both are worth
+    /// having, and worth nothing if waiting for them delays the window.
+    /// </summary>
+    public void Adopt(RepositoryStatus status)
     {
         //The tick boxes the user already set, kept across a refresh. Losing them would make Refresh
         //actively hostile.
@@ -151,8 +438,8 @@ public sealed class CommitViewModel : CommitSurface
 
         string? previouslySelectedPath = _selectedFile?.Path;
 
-        //Rebuilt before the base adopts the status, because the base recomputes the command states
-        //and CanCommit counts the ticked files.
+        //Rebuilt before the command states are recomputed below, because CanCommit counts the ticked
+        //files.
         Files.Clear();
 
         foreach (GitFileChange change in status.Files)
@@ -169,10 +456,25 @@ public sealed class CommitViewModel : CommitSurface
             Files.Add(item);
         }
 
-        base.Adopt(status);
+        _currentStatus = status;
 
+        //The ComboBox opens on the current branch, so committing without touching it involves no
+        //switch at all.
+        if (_branchInput.Length == 0 && status.Branch is { Length: > 0 } branch)
+            BranchInput = branch;
+        else
+            BranchResolution = BranchResolution.Resolve(_branchInput, status.Branch, Branches);
+
+        Raise(nameof(CurrentStatus));
+        Raise(nameof(CurrentBranch));
+        Raise(nameof(SummaryText));
         Raise(nameof(AheadBehindText));
         Raise(nameof(SelectionText));
+        UpdateNotice();
+        RaiseCommandStates();
+
+        _ = ResolvePrimaryBranchAsync();
+        _ = LoadBranchesAsync();
 
         _selectedFile = Files.FirstOrDefault(f => f.Path == previouslySelectedPath) ?? Files.FirstOrDefault();
         Raise(nameof(SelectedFile));
@@ -186,14 +488,192 @@ public sealed class CommitViewModel : CommitSurface
         _ = _diffs.PrefetchAsync(Files.Take(5).Select(f => f.Change).ToArray());
     }
 
-    protected override void RaiseCommandStates()
+    /// <summary>
+    /// Called by the window when it closes, so neither a running diff nor a running generation
+    /// outlives it.
+    /// </summary>
+    public void Cancel()
     {
-        base.RaiseCommandStates();
-        RefreshCommand.RaiseCanExecuteChanged();
+        CancelGeneration();
+        _diffs.Cancel();
     }
 
-    /// <summary>Called by the window when it closes, so a running diff does not outlive it.</summary>
-    public void Cancel() => _diffs.Cancel();
+    // ---- the AI message ------------------------------------------------------------
+
+    /// <summary>
+    /// Starts writing a message, when there is something to write about and a provider to ask.
+    ///
+    /// Fire-and-forget by design: the window is already on screen, and the message arrives into it.
+    /// </summary>
+    /// <param name="force">
+    /// True for the Generate button, which replaces whatever is in the box. False for the automatic
+    /// pass when the window opens, where text already in the box means the user got there first —
+    /// overwriting it would be the rudest thing this feature could do.
+    /// </param>
+    public void BeginGeneration(bool force)
+    {
+        if (!CanGenerate)
+            return;
+
+        if (!force && Message.Length > 0)
+            return;
+
+        CancelGeneration();
+
+        var generation = new CancellationTokenSource();
+        _generation = generation;
+
+        //Cleared through the stream flag, so emptying the box does not read as the user typing and
+        //cancel the generation that is about to start.
+        if (force)
+            ApplyStreamedText(string.Empty);
+
+        Stage = CommitStage.Generating;
+        StatusText = Strings.Get("ai.generating");
+
+        _ = RunGenerationAsync(generation);
+    }
+
+    /// <summary>
+    /// Enter, and what it means right now.
+    ///
+    /// <b>During generation it queues rather than refusing.</b> CLAUDE.md: "do not block and do not
+    /// refuse... This is what makes the true one-key path work — trigger, Enter, done, without
+    /// waiting to read anything."
+    /// </summary>
+    public void EnterPressed(bool push)
+    {
+        switch (_stage)
+        {
+            case CommitStage.Generating:
+                _queuedPush = push;
+                Stage = CommitStage.Queued;
+                break;
+
+            case CommitStage.Queued:
+            case CommitStage.Committing:
+                //Already under way. A second Enter is not a second commit.
+                break;
+
+            default:
+                if (push)
+                    CommitAndPushCommand.Execute(null);
+                else
+                    CommitCommand.Execute(null);
+
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Esc. <b>Closes the window</b>, whatever else is in flight.
+    ///
+    /// It briefly did not: a generation in progress ate the first Esc and only the second one closed.
+    /// That reads as a stuck window, and it is the common case rather than the rare one — generation
+    /// starts on every open, so for the first half-second Esc would appear to do nothing. One key,
+    /// one outcome, always.
+    ///
+    /// Closing is safe with a generation or a queued commit outstanding: the window's
+    /// <c>OnClosed</c> calls <see cref="Cancel"/>, which cancels the token, and
+    /// <see cref="RunGenerationAsync"/> then finds its own <c>CancellationTokenSource</c> replaced and
+    /// returns without committing. A queued Enter cannot fire into a window that is gone.
+    /// </summary>
+    /// <returns>
+    /// False only while a commit is actually executing. There is nothing to take back at that point
+    /// that would not leave the repository half-changed, and the window has to stay to report the
+    /// outcome.
+    /// </returns>
+    public bool EscapePressed() => _stage != CommitStage.Committing;
+
+    private async Task RunGenerationAsync(CancellationTokenSource generation)
+    {
+        GenerationOutcome outcome = await _messages
+            .StreamAsync(
+                _repository,
+                _currentStatus!,
+                ApplyStreamedText,
+                (title, body, yes, no) => ConfirmAsync?.Invoke(title, body, yes, no) ?? Task.FromResult(false),
+                generation.Token)
+            .ConfigureAwait(true);
+
+        //A newer generation started, or the window moved on. Nothing here is still wanted.
+        if (!ReferenceEquals(_generation, generation))
+            return;
+
+        _generation = null;
+        generation.Dispose();
+
+        if (!outcome.Succeeded)
+        {
+            bool wasQueued = _stage == CommitStage.Queued;
+
+            Stage = CommitStage.Idle;
+            StatusText = outcome.FailureReason;
+
+            //CLAUDE.md: "If generation fails while a commit is queued: cancel the queue, focus the
+            //message box, keep it open. Never commit an empty or placeholder message."
+            if (wasQueued)
+                FocusMessageRequested?.Invoke();
+
+            return;
+        }
+
+        ApplyStreamedText(outcome.Message);
+        StatusText = null;
+
+        bool commitNow = _stage == CommitStage.Queued;
+        Stage = CommitStage.Idle;
+
+        if (!commitNow)
+        {
+            //The caret belongs at the end of what just arrived, so Enter commits it and typing
+            //appends rather than replacing.
+            FocusMessageRequested?.Invoke();
+            return;
+        }
+
+        //The queued Enter, cashed in. CanCommit is re-checked inside CommitAsync, so a message that
+        //arrived blank cannot reach a commit from here.
+        Stage = CommitStage.Committing;
+
+        try
+        {
+            await CommitAsync(_queuedPush).ConfigureAwait(true);
+        }
+        finally
+        {
+            Stage = CommitStage.Idle;
+        }
+    }
+
+    /// <summary>Puts streamed text in the box without it reading as the user typing.</summary>
+    private void ApplyStreamedText(string text)
+    {
+        _applyingStream = true;
+
+        try
+        {
+            Message = text;
+        }
+        finally
+        {
+            _applyingStream = false;
+        }
+    }
+
+    private void CancelGeneration()
+    {
+        CancellationTokenSource? generation = _generation;
+        _generation = null;
+
+        if (generation is null)
+            return;
+
+        generation.Cancel();
+        generation.Dispose();
+    }
+
+    // ---- the file list -------------------------------------------------------------
 
     private void OnFileSelectionChanged()
     {
@@ -270,7 +750,7 @@ public sealed class CommitViewModel : CommitSurface
             return SaveOutcome.Refused(SaveRefusal.Missing, "No file is open.");
 
         SaveOutcome outcome = await _writer.SaveAsync(
-            Repository.Root,
+            _repository.Root,
             _currentDiff.Path,
             _currentDiff.Right,
             newText,
@@ -280,7 +760,7 @@ public sealed class CommitViewModel : CommitSurface
         if (!outcome.Succeeded)
             return outcome;
 
-        Log.Info($"Saved {_currentDiff.Path}.");
+        _log.Info($"Saved {_currentDiff.Path}.");
 
         //The cached diff is stale the moment the file changes, and the cache is keyed by path alone
         //-- so it has to be dropped here or the next click would render the pre-save text.
@@ -310,7 +790,7 @@ public sealed class CommitViewModel : CommitSurface
         try
         {
             RepositoryStatus refreshed = await _status
-                .GetStatusAsync(Repository, CancellationToken.None)
+                .GetStatusAsync(_repository, CancellationToken.None)
                 .ConfigureAwait(true);
 
             var byPath = refreshed.Files.ToDictionary(f => f.Path, StringComparer.Ordinal);
@@ -347,11 +827,16 @@ public sealed class CommitViewModel : CommitSurface
             foreach (FileChangeItem item in Files)
                 item.Update(byPath[item.Path]);
 
-            AdoptCounts(refreshed);
+            //The counts only. A full Adopt here is what this method exists to avoid.
+            _currentStatus = refreshed;
+
+            Raise(nameof(CurrentStatus));
+            Raise(nameof(SummaryText));
+            RaiseCommandStates();
         }
         catch (Exception ex)
         {
-            Log.Debug($"Post-save refresh failed: {ex.Message}");
+            _log.Debug($"Post-save refresh failed: {ex.Message}");
         }
     }
 
@@ -366,7 +851,7 @@ public sealed class CommitViewModel : CommitSurface
         if (_selectedFile is null)
             return;
 
-        await _commits.StageAsync(Repository, [_selectedFile.Path], CancellationToken.None).ConfigureAwait(true);
+        await _commits.StageAsync(_repository, [_selectedFile.Path], CancellationToken.None).ConfigureAwait(true);
 
         StatusText = Strings.Get("edit.restaged");
         await RefreshSelectedFileCountsAsync().ConfigureAwait(true);
@@ -402,8 +887,8 @@ public sealed class CommitViewModel : CommitSurface
             return null;
 
         PatchResult result = unstage
-            ? await _patches.UnstageAsync(Repository, patch, CancellationToken.None).ConfigureAwait(true)
-            : await _patches.StageAsync(Repository, patch, CancellationToken.None).ConfigureAwait(true);
+            ? await _patches.UnstageAsync(_repository, patch, CancellationToken.None).ConfigureAwait(true)
+            : await _patches.StageAsync(_repository, patch, CancellationToken.None).ConfigureAwait(true);
 
         if (!result.Succeeded)
         {
@@ -441,7 +926,53 @@ public sealed class CommitViewModel : CommitSurface
 
     // ---- commit -------------------------------------------------------------------
 
-    protected override async Task ApplyAsync(CommitFlowResult result)
+    /// <summary>
+    /// Hands the whole sequence to <see cref="CommitFlow"/> and turns its outcome into words.
+    ///
+    /// The sequence itself — stage, switch, verify, commit, push — lives in Core so it can be tested
+    /// without a message pump. What is left here is what only a surface can do: ask the guardrail
+    /// questions, and phrase the result in the user's language.
+    /// </summary>
+    private async Task CommitAsync(bool push)
+    {
+        if (!CanCommit || _currentStatus is null)
+            return;
+
+        IsBusy = true;
+        StatusText = null;
+
+        try
+        {
+            //Both path lists are derived in Core, so nothing here decides what an unticked-but-staged
+            //file means. TargetBranch is null when the ComboBox names the branch already checked out,
+            //which is the normal case and costs no Git call.
+            CommitRequest request = CommitRequest.From(
+                _repository,
+                _currentStatus,
+                _message,
+                _branchResolution.RequiresBranchChange ? _branchResolution.Branch : null,
+                _branchResolution.Intent == BranchIntent.NewBranch,
+                push,
+                AskAsync);
+
+            CommitFlowResult result = await _flow.RunAsync(request, CancellationToken.None).ConfigureAwait(true);
+
+            //The commit exists whatever came after it, so the message box is cleared as soon as there
+            //is a hash -- even when the push that followed it failed.
+            if (result.Commit is not null)
+                Message = string.Empty;
+
+            StatusText = CommitOutcomeReporter.SuccessText(result) ?? StatusText;
+
+            await ApplyAsync(result).ConfigureAwait(true);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task ApplyAsync(CommitFlowResult result)
     {
         //The commit moved HEAD, so every cached diff was computed against the wrong base.
         if (result.Commit is not null)
@@ -449,7 +980,7 @@ public sealed class CommitViewModel : CommitSurface
 
         if (result.Outcome == CommitFlowOutcome.Committed)
         {
-            RaiseCommitted(result.Commit!);
+            Committed?.Invoke(result.Commit!);
         }
         else if (CommitOutcomeReporter.FailureText(result) is { } failure)
         {
@@ -465,5 +996,116 @@ public sealed class CommitViewModel : CommitSurface
         //aborted-switch case is excluded because it has just adopted the refreshed status above.
         if (result.Outcome != CommitFlowOutcome.AbortedSelectionChanged)
             await RefreshAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Recomputes the warning strip. Called whenever the branch or the status changes.</summary>
+    private void UpdateNotice()
+    {
+        if (_currentStatus?.HasConflicts == true)
+        {
+            Notice = Strings.Get("commit.warn.conflict");
+            return;
+        }
+
+        //The warning is about the branch being committed *to*, which with the ComboBox is not
+        //necessarily the one checked out. Committing to main by typing it deserves the same friction
+        //as committing to main while standing on it.
+        string? target = _branchResolution.Intent switch
+        {
+            BranchIntent.Current or BranchIntent.Empty => _currentStatus?.Branch,
+            BranchIntent.ExistingBranch => _branchResolution.Branch,
+            _ => null,
+        };
+
+        Notice = _settings.WarnWhenCommittingToPrimaryBranch
+                 && _primaryBranch is not null
+                 && target is not null
+                 && string.Equals(target, _primaryBranch, StringComparison.Ordinal)
+            ? Strings.Get("commit.warn.primary", target)
+            : null;
+    }
+
+    private void RaiseCommandStates()
+    {
+        Raise(nameof(CanCommit));
+        Raise(nameof(CanGenerate));
+        Raise(nameof(IsAiConfigured));
+        CommitCommand.RaiseCanExecuteChanged();
+        CommitAndPushCommand.RaiseCanExecuteChanged();
+        RefreshCommand.RaiseCanExecuteChanged();
+        GenerateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void RaiseError(string title, string message) => ErrorRaised?.Invoke(title, message);
+
+    private void ReportError(Exception exception)
+    {
+        _log.Error($"Commit window operation failed: {exception}");
+
+        //A Git failure is reported with Git's own words, the repository path and a next action --
+        //never paraphrased. CLAUDE.md, "Error Handling".
+        if (exception is GitOperationException git)
+        {
+            RaiseError(
+                git.Operation,
+                $"{git.GitError}\n\n{Strings.Get("error.repositorypath", git.RepositoryPath)}"
+                + (git.Suggestion is { Length: > 0 } ? $"\n\n{git.Suggestion}" : string.Empty));
+
+            return;
+        }
+
+        RaiseError(Strings.Get("error.title"), exception.Message);
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            IReadOnlyList<string> branches = await _branches
+                .ListLocalBranchesAsync(_repository, _currentStatus?.Branch, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            Branches.Clear();
+            foreach (string branch in branches)
+                Branches.Add(branch);
+
+            //Re-resolved now the list is known: until it arrived, an existing branch would have been
+            //reported as a new one.
+            BranchResolution = BranchResolution.Resolve(_branchInput, CurrentBranch, Branches);
+        }
+        catch (Exception ex)
+        {
+            //The ComboBox still works as a free-text field without its drop-down.
+            _log.Debug($"Branch listing failed: {ex.Message}");
+        }
+    }
+
+    private async Task ResolvePrimaryBranchAsync()
+    {
+        try
+        {
+            _primaryBranch = await _branches
+                .ResolvePrimaryBranchAsync(_repository, _settings.PrimaryBranch, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            UpdateNotice();
+        }
+        catch (Exception ex)
+        {
+            //A missing warning strip is a cosmetic loss. Failing the window over it is not.
+            _log.Debug($"Primary branch resolution failed: {ex.Message}");
+        }
+    }
+
+    private Task<bool> AskAsync(CommitFlowQuestion question, CancellationToken cancellationToken)
+    {
+        //The token is unused on purpose: a guardrail question has to be answered before the flow
+        //continues, and cancelling it out from under the user would answer it for them.
+        _ = cancellationToken;
+
+        return _consent.AnswerAsync(
+            _repository,
+            question,
+            (title, body, yes, no) => ConfirmAsync?.Invoke(title, body, yes, no) ?? Task.FromResult(false));
     }
 }

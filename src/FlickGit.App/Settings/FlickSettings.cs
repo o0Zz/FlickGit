@@ -53,7 +53,7 @@ public sealed class FlickSettings
     public bool VerboseLogging { get; set; }
 
     /// <summary>
-    /// Which input opens the quick-commit popup.
+    /// Which input opens the commit window.
     ///
     /// A global hotkey, or nothing. CLAUDE.md's two Explorer-scoped input hooks are not built yet,
     /// and there is no value here for them until they are: a setting that silently falls back to
@@ -71,11 +71,11 @@ public sealed class FlickSettings
     /// <summary>
     /// The global hotkey that opens the repository palette.
     ///
-    /// <b>Not Ctrl+Alt+G.</b> CLAUDE.md names that combination twice — once for the quick-commit
-    /// trigger and once here — and two <c>RegisterHotKey</c> calls for one combination cannot both
-    /// succeed; the second fails with ERROR_HOTKEY_ALREADY_REGISTERED. The trigger keeps it, because
-    /// it is the product's named feature and the section specifying it is the one that argues the
-    /// choice through. The palette gets Ctrl+Alt+R, for repositories.
+    /// <b>Not Ctrl+Alt+G.</b> CLAUDE.md names that combination twice — once for the commit trigger
+    /// and once here — and two <c>RegisterHotKey</c> calls for one combination cannot both succeed;
+    /// the second fails with ERROR_HOTKEY_ALREADY_REGISTERED. The trigger keeps it, because it is the
+    /// product's named feature and the section specifying it is the one that argues the choice
+    /// through. The palette gets Ctrl+Alt+R, for repositories.
     ///
     /// Configurable for the same reason the trigger's is: the combination may already belong to
     /// something else on this machine, and that is not a thing a constant can fix.

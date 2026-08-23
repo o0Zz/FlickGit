@@ -16,7 +16,7 @@ that.
 Core capabilities:
 
 - Git actions from the Explorer context menu
-- A zero-click quick-commit popup triggered from Explorer
+- A global hotkey that opens the commit window on the folder Explorer is showing
 - A commit window with a TortoiseGit-style file list (status, lines added, lines removed)
 - A fast side-by-side diff viewer with a **live-editable** right pane
 - AI-generated commit messages
@@ -213,8 +213,8 @@ src/
 │   │                        catalog action, and lives here because that is the same
 │   │                        job as a verb.
 │   ├── Views/               Windows, the diff pane, and PopupPlacement.
-│   ├── ViewModels/          Presentation state. No Git logic. CommitSurface is what
-│   │                        the commit window and the quick-commit popup share.
+│   ├── ViewModels/          Presentation state. No Git logic. CommitViewModel is the
+│   │                        whole of the commit surface -- there is only one.
 │   ├── Rendering/           Diff renderers, gutters, DiffBrushes, and
 │   │                        AlignedDocument -- the only thing that converts between
 │   │                        the padded editor document and the file on disk.
@@ -294,7 +294,6 @@ Shell entries launch the stub with arguments:
 ```text
 flick.exe clone "C:\dev"
 flick.exe commit "C:\Projects\MyRepo"
-flick.exe quick-commit "C:\Projects\MyRepo"
 flick.exe pull-rebase "C:\Projects\MyRepo"
 flick.exe switch "C:\Projects\MyRepo"
 ```
@@ -309,7 +308,6 @@ PowerToys Run and future integrations.
 ```text
 flick clone <path> [url]             clone into a subdirectory of <path>
 flick commit <path>                  commit window (branch ComboBox included)
-flick quick-commit <path>            quick-commit popup
 flick pull-rebase <path>             + submodule update when applicable
 flick pull-rebase-autostash <path>
 flick push <path>
@@ -400,8 +398,16 @@ result. Surface a clear error if not found rather than failing per-command.
 
 # Commit Window
 
-The full commit window. Reached from the context menu, from `Details…` in the quick-commit
-popup, or from the CLI.
+The commit window. **The only commit surface**, reached from the context menu, from the global
+hotkey, and from the CLI.
+
+There used to be a quick-commit popup as well — a smaller surface with no file list, for the fast
+path — and this window was "the escape hatch" behind it. It was removed: two surfaces meant two
+places for every commit behaviour to live, and the popup's own section admitted it had "no file
+list, which leaves three specified behaviours without a home". What made the popup fast was not its
+size. It was the caret already sitting in the message box, Enter committing, and the AI message
+streaming in while the user decided. Those moved here, so this window opens the way the popup did
+and shows everything the popup could not.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -432,6 +438,37 @@ scope, and it overrides anything here that reads like a suggestion. Verified by 
 
 `CommitContext` in this document means two different things: the input to that reset, and the input
 to an AI generator. Only the second is a type.
+
+## Keyboard
+
+The caret is in the message box from the moment the window is populated, and stays the thing the
+window is arranged around.
+
+```text
+⏎          commit & push
+⇧⏎         newline, for a multi-line body
+Ctrl+⏎     commit & push, from anywhere including the file list
+Ctrl+S     save the diff pane's edit
+esc        cancel a queued commit or a running generation; otherwise close
+```
+
+**Enter commits rather than inserting a newline**, which is the one thing about this window nobody
+can guess — so the footer says so whenever there is no outcome to report in its place.
+
+**Except while the diff pane has keyboard focus.** Its right-hand pane is an editor over the user's
+working tree, where Enter is a newline in their file. Committing instead would be surprising and
+unrecoverable in the same keystroke, so the whole map above is suspended there.
+
+**Esc closes, always — including from inside the diff pane, and including while the AI is still
+writing.** One key, one outcome. It briefly cancelled a running generation instead and left the
+window open, needing a second press; since generation starts on every open, that made Esc look
+broken for the first half-second of the window's life. Closing cancels the generation on the way
+out, and a queued Enter cannot fire into a window that is gone.
+
+The single exception is a commit **already executing**, where Esc does nothing: there is no point of
+return that would not leave the repository half-changed, and the window has to stay to report the
+outcome. Esc is therefore intercepted rather than left to the Cancel button's `IsCancel`, which
+would close the window straight through that guard.
 
 ---
 
@@ -495,8 +532,8 @@ Sort order: conflicted, modified, added, deleted, renamed, untracked last.
 
 # Staging Defaults
 
-The user may commit without reviewing the list, especially from the quick-commit popup. The
-defaults must be safe without being annoying.
+The user may commit without reviewing the list — the caret starts in the message box, so Enter is
+reachable without ever looking at the files. The defaults must be safe without being annoying.
 
 - **Tracked modified and deleted files: checked by default.**
 - **Untracked files: unchecked by default**, count shown. This is the rule that prevents
@@ -667,8 +704,8 @@ Guardrails, checked **before** executing:
 - **No upstream:** ask once, remember the answer per repository
 - **Behind the remote:** offer `pull --rebase --autostash` then push as a single button. Do
   not push and let it fail.
-- **Diverged, or push would require force:** stop. Never offer force-push from the
-  quick-commit popup. Direct the user to the full window.
+- **Diverged, or push would require force:** stop. Never offer force-push from any surface, and
+  never as part of a commit.
 - **On the primary branch:** show a warning strip if `Warn when committing to main` is
   enabled (default: on). This is the one case where the fast path deserves friction.
 - Secret detection runs before the commit, not only before the AI call.
@@ -680,9 +717,8 @@ Budget for the Git portion, warm, excluding network: **400 ms**.
 # Branch Selector
 
 There is **no separate "Commit in new branch" action.** Branch choice is an editable
-ComboBox inside the commit surface — present in both the quick-commit popup and the commit
-window. This removes a menu entry and a decision the user would otherwise have to make
-before seeing their changes.
+ComboBox inside the commit window. This removes a menu entry and a decision the user would
+otherwise have to make before seeing their changes.
 
 ```text
 Branch: [ feature/storage-gw            ▾ ]
@@ -819,7 +855,7 @@ every right-click.
 
 At startup, after the tray icon is created:
 
-1. Construct the quick-commit popup and the commit window, but never call `Show()`
+1. Construct the commit window and the palette, but never call `Show()`
 2. Force template application and a measure/arrange pass so WPF resolves themes and JITs the
    layout path
 3. Keep the instances alive; on request, reset the `DataContext` and `Show()`
@@ -866,10 +902,15 @@ A background process cannot steal focus. Without this, the window opens behind E
 - Single instance via named mutex; a second launch forwards to the first
 - Autostart via a Scheduled Task at logon with a 30–60 s delay, so the tool never appears in
   boot-impact measurements. `HKCU\...\CurrentVersion\Run` is an acceptable fallback.
-- Tray menu: Quick commit, Recent repositories, Settings, About, Exit. **No "Pause shell
-  integration".** It wrote the same registry keys the Settings window's context-menu checkbox
-  writes, permanently, under a word that promises it comes back on its own -- a mislabelled
-  duplicate of one boolean, not a second feature. The checkbox is the only surface for it.
+- Tray menu: Recent repositories, Settings, About, Exit. Left-click opens the menu rather than
+  committing: there is no Explorer window behind a tray click, so there is no folder to resolve and
+  no repository worth guessing.
+- **No "Quick commit" entry.** It opened the popup, which is gone. Nothing replaced it, for the
+  reason above: the recent list is the honest way to name a repository from here.
+- **No "Pause shell integration" entry.** It wrote the same registry keys the Settings window's
+  context-menu checkbox writes, permanently, under a word that promises it comes back on its own --
+  a mislabelled duplicate of one boolean, not a second feature. The checkbox is the only surface
+  for it.
 - Idle working set target **80 MB**. Do not call `SetProcessWorkingSetSize` to fake a lower
   number — the pages return on first use and the window becomes slow again, which is the
   exact opposite of the goal.
@@ -877,19 +918,25 @@ A background process cannot steal focus. Without this, the window opens behind E
 
 ---
 
-# Explorer Quick Commit
+# The Explorer Trigger
 
 The primary interaction. The user is already in the right folder, so the context is free.
 
 ```text
 User is browsing C:\dev\d360-portal in Explorer
         ↓  presses the trigger
-        ↓  < 80 ms
-Popup appears, anchored near the cursor
+        ↓  < 120 ms
+Commit window appears, caret in the message box
         ↓  AI message streams in
         ↓  Enter
-Commit + push, toast confirmation, popup closes
+Commit + push, toast confirmation, window closes
 ```
+
+**This opened a dedicated popup until it did not.** The popup was smaller than the commit window on
+purpose — no file list, no diff — and the commit window was the escape hatch behind it. Both are now
+the same window: see **Commit Window**, which carries the argument for the merge and the keyboard map
+that came out of it. What this section still owns is everything before the window appears — which key,
+and which folder.
 
 ## Trigger: three mechanisms, global hotkey by default
 
@@ -913,7 +960,7 @@ the fastest gesture of all, since the hand never leaves the mouse).
 hook proc:
     if (input != configuredTrigger)          return CallNextHookEx(...)
     if (cachedForegroundPid != explorerPid)  return CallNextHookEx(...)
-    PostMessage(residentWindow, WM_QUICK_COMMIT, 0, 0)
+    PostMessage(residentWindow, WM_FLICK_TRIGGER, 0, 0)
     return 1                                 // swallow
 ```
 
@@ -950,58 +997,50 @@ setting nobody can use.
 
 ## Folder resolution
 
-On `WM_QUICK_COMMIT`, resolve the folder shown by the foreground Explorer window via the
+On `WM_FLICK_TRIGGER`, resolve the folder shown by the foreground Explorer window via the
 `IShellWindows` shell automation interface, then normalise to the repository root.
 
 Order:
 
 1. Selected item in the active Explorer view, if it is a folder
 2. Current folder of the active Explorer window
-3. Most-recently-used repository (fallback, clearly labelled in the popup header)
+
+**There is no third step.** There was: the most-recently-used repository, as a fallback the popup
+labelled in its header. It is gone, and **a trigger with no Explorer folder behind it now opens
+nothing at all** — no window, no notification, one debug log line. That covers the hotkey pressed
+from an IDE and the tray icon clicked with no Explorer running.
+
+The rule this serves is the one below: never act on a repository the user is not looking at. A
+labelled guess satisfied it in a popup that was three lines tall and dismissed itself on focus loss.
+The commit window is neither, and "opens the wrong repository, but says so in the header" is a worse
+failure in a window the user has to read and close. Not guessing is cheaper than labelling the guess.
 
 **Windows 11 tabbed Explorer:** one HWND hosts several tabs, so matching by HWND can return
 an inactive tab's path. Compare the resolved path against the window's address-bar title
-where possible; on mismatch, show the repository name prominently and let the user press
-`Ctrl+R` to switch. Never act silently on a repository the user is not looking at.
+where possible. Two tabs on folders with the same leaf name are genuinely undecidable; the first
+candidate is used and the ambiguity is logged, because the window names the repository in its own
+title bar and header — which is what "show the repository name prominently" asks for. `Ctrl+R` to
+switch repository was the popup's answer to this and went with it: the window has a title bar, a
+file list and a Cancel button, so a user looking at the wrong repository can see it and close it.
 
-If the folder is not inside a repository, show the clone popup instead of the commit
-popup (see **Clone**). `git init` is offered as a secondary choice, not the default.
+If the folder is not inside a repository, show the clone dialog instead of the commit
+window (see **Clone**). `git init` is offered as a secondary choice, not the default.
 
-## The popup
+## What opens
 
-Deliberately smaller than the commit window. This is the fast path; the window is the escape
-hatch.
+The commit window, pre-warmed, through the same host the context menu and `flick commit` use. Not
+placed near the cursor: it is a full window with a title bar, so it keeps the position WPF gives it
+rather than being anchored like the popup was, and it does **not** close on focus loss — an
+accidental click outside must not throw away a message the user is typing.
 
-```text
-┌─ d360-portal ───────────────────────────────────┐
-│                                                 │
-│  Branch [ feature/storage-gw               ▾ ]  │
-│  4 modified · 1 untracked (excluded)            │
-│                                                 │
-│  ┌───────────────────────────────────────────┐  │
-│  │ feat: add PgBouncer connection pooling to │  │
-│  │ the storage gateway                       │  │
-│  └───────────────────────────────────────────┘  │
-│                                                 │
-│  [ Commit & Push ]  [ Commit ]  [ Details… ]    │
-│                                                 │
-│  ⏎ commit & push   ⇧⏎ commit   ⇥ edit   esc     │
-└─────────────────────────────────────────────────┘
-```
+Three behaviours the popup could not have, because it had no file list, come for free and the
+CLAUDE.md text that worked around them is deleted rather than reinterpreted:
 
-- Anchored near the cursor, not centred. Always-on-top. Closes on focus loss.
-- Repository and branch shown permanently in the header — the user did not select this
-  repository explicitly, so it must be unambiguous.
-- `Details…` hands off to the pre-warmed commit window, transferring the already-generated
-  message and the already-computed status. No Git work is repeated. Budget **60 ms**.
-
-**The popup has no file list, which leaves three specified behaviours without a home:**
-
-- `CommitFlowOutcome.AbortedSelectionChanged` says "the list has been refreshed" — there is no list
-  here to refresh, so the popup reports it and the user opens `Details…`.
-- "If the resulting set is empty, say so and disable Commit" needs a way out as well as a message,
-  because there is no tick box to reach: say so *and* name `Details…`.
-- The footer hint has to include `Ctrl+R`, which the tabbed-Explorer rule above requires.
+- `CommitFlowOutcome.AbortedSelectionChanged` says "the list has been refreshed" — and now there is
+  a list, showing exactly what changed under the user.
+- "If the resulting set is empty, say so and disable Commit" needs no way out: the tick boxes are
+  right there.
+- Nothing has to name `Details…`, because there is nothing to hand off to.
 
 ## Queued Enter
 
@@ -1013,7 +1052,7 @@ This is what makes the true one-key path work — trigger, Enter, done, without 
 anything. Cancellable with Esc until the commit actually executes.
 
 If generation **fails** while a commit is queued: cancel the queue, focus the message box,
-keep the popup open. **Never commit an empty or placeholder message.**
+keep the window open. **Never commit an empty or placeholder message.**
 
 ---
 
@@ -1291,7 +1330,7 @@ repository without explicit confirmation.
 Secondary surface, for when the user is not in Explorer. Global hotkey, default
 **`Ctrl+Alt+R`**.
 
-**Not `Ctrl+Alt+G`**, which this document also names for the quick-commit trigger. Two
+**Not `Ctrl+Alt+G`**, which this document also names for the Explorer trigger. Two
 `RegisterHotKey` calls for one combination cannot both succeed -- the second fails with
 `ERROR_HOTKEY_ALREADY_REGISTERED` -- so the trigger keeps it, being the product's named feature and
 the one whose section argues the choice through. The palette takes `Ctrl+Alt+R`, for repositories,
@@ -1391,7 +1430,7 @@ HKCU\Software\Classes\FlickGit.Menu\shell\110switch
 - Support a flat-at-root layout as a setting, not only the submenu
 
 **On Windows 11 this appears only under "Show more options" (Shift+F10).** Accept this for
-Phase 1; the quick-commit trigger is the real fast path anyway.
+Phase 1; the global hotkey is the real fast path anyway.
 
 ## 2. IExplorerCommand + sparse MSIX (Phase 6)
 
@@ -1709,6 +1748,15 @@ one. Three tabs and nothing else:
 │  ☑ Close the commit window after a successful commit     │
 │  ☑ Show a notification after a successful commit         │
 │                                                          │
+│  COMMIT MESSAGES (AI)                                    │
+│  Written by                                              │
+│  [ Anthropic — Claude Haiku 4.5                     ▾ ]  │
+│  [ Set API key… ]  [ Remove key ]                        │
+│  A key is stored for Anthropic, in Windows Credential    │
+│  Manager.                                                │
+│  ☐ Allow the diff to be sent to this provider            │
+│     Your code leaves this machine only while this is on. │
+│                                                          │
 │  LANGUAGE                                                │
 │  [ English                                          ▾ ]  │
 │                                                          │
@@ -1734,6 +1782,17 @@ before they have found the file: whether the Explorer menu is registered at all,
 tool starts with Windows, and which language this is. Those are worth a window. The rest says
 where it lives and stops.
 
+**The AI section is here for a stronger version of the same reason: the key was not in any file.**
+`aiProvider` is a settings key somebody could find, but the key itself lives in Credential Manager
+and the only way to store one was `flick ai key set` — a fine way to keep a secret and a hopeless
+way to discover that you can. A user who has an API key and wants commit messages has no reason to
+suspect a CLI verb exists, and the message box gives no hint, because a provider with no key is
+indistinguishable from no provider at all.
+
+So: the provider, a button that opens the existing key prompt, and the consent switch. Three
+controls, no model picker and no max-diff field — those are `aiModel` and `aiMaxDiffBytes` in
+`settings.json`, guessable once the provider is on, and neither is a thing anyone changes twice.
+
 Rules the window follows:
 
 - **Every value is read from its source of truth on open** — the registry for the context menu,
@@ -1742,6 +1801,10 @@ Rules the window follows:
   checkbox that disagreed with the registry would be worse than no checkbox.
 - **Nothing is applied until Save**, and Save touches the registry or the Task Scheduler only
   when the answer actually changed.
+- **The API key is the one exception**, and applied immediately. The Save rule is about the
+  registry, the Task Scheduler and `settings.json`; a credential is none of those. Deferring it
+  would mean holding the secret in a field until the user pressed Save, and a Cancel that silently
+  discarded a key they had just pasted would be its own kind of wrong.
 - **The window stays open when there is something left to say** — a failure, or a language
   change, which needs a restart before it shows. Otherwise it closes.
 - Its state is not reused between sessions: it is constructed on demand, not pre-warmed. It is
@@ -1839,9 +1902,9 @@ git push --force
 Any destructive operation requires explicit user intent, expressed in the moment. Never
 discard uncommitted work.
 
-The quick-commit popup and the palette are **not** shortcuts around these rules. Actions
+The hotkey trigger and the palette are **not** shortcuts around these rules. Actions
 marked `RequiresConfirmation`, and every operation in the list above, require a second
-explicit confirmation regardless of surface. Force-push is never offered from the popup.
+explicit confirmation regardless of surface. Force-push is never offered from any of them.
 
 ---
 
@@ -1880,7 +1943,7 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | Path                                       | Target | Hard limit |
 |--------------------------------------------|--------|------------|
 | CLI stub start → exit                      | 30 ms  | 80 ms      |
-| Trigger → quick-commit popup painted       | 80 ms  | 150 ms     |
+| Trigger → commit window painted            | 120 ms | 250 ms     |
 | Popup file summary populated               | 110 ms | 250 ms     |
 | Palette painted after hotkey               | 80 ms  | 150 ms     |
 | Commit window visible (service warm)       | 120 ms | 250 ms     |
@@ -1965,14 +2028,21 @@ foreground activation · tray icon and menu · diff prefetch cache · notificati
 
 Definition of value: every window opens in under 150 ms.
 
-## Phase 4 — Quick commit and AI
+## Phase 4 — The trigger and AI
 
-Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity and `Ctrl+R` ·
-quick-commit popup, pre-warmed and cursor-anchored · staging defaults · queued Enter · AI provider
-abstraction · Anthropic and OpenAI providers · streaming · warm connection · diff capping and
-redaction · API key in Credential Manager · commit & push guardrails.
+Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · staging defaults ·
+queued Enter · AI provider abstraction · Anthropic and OpenAI providers · streaming · warm
+connection · diff capping and redaction · API key in Credential Manager · commit & push guardrails.
 
 Definition of value: trigger, Enter, done.
+
+**The quick-commit popup was built and then removed.** It shipped as this phase describes it —
+pre-warmed, cursor-anchored, closing on focus loss, with `Details…` handing off to the commit window
+— and it was deleted afterwards in favour of the trigger opening the commit window directly. The
+argument is in **Commit Window**; what it cost is one surface, `Ctrl+R`, the MRU fallback and the
+60 ms handoff budget, and what it bought is one place where a commit behaviour can live. The AI
+generation and the queued Enter moved to the commit window rather than dying with the popup, which
+is the part worth checking against this list: everything above still exists.
 
 **Still open:** the two Explorer-scoped input hooks (`WH_KEYBOARD_LL` for a key,
 `WH_MOUSE_LL` for a side button). They are selectable in settings.json and currently fall back to
@@ -2073,7 +2143,7 @@ anybody having to clear it.
 **Still open:** the sparse MSIX package and `IExplorerCommand`, deliberately. They are the only way to
 reach the Windows 11 primary menu, and they require package identity and a code-signing certificate;
 without one there is nothing to install. The registry menu under "Show more options" remains the
-shipped surface, and the quick-commit hotkey is the fast path regardless.
+shipped surface, and the global hotkey is the fast path regardless.
 
 ---
 

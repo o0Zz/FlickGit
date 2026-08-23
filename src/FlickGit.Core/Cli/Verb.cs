@@ -26,7 +26,6 @@ public enum VerbKind
     Tray,
 
     Commit,
-    QuickCommit,
     PullRebase,
     PullRebaseAutostash,
     Push,
@@ -140,7 +139,6 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
         VerbKind? kind = head.ToLowerInvariant() switch
         {
             "commit" => VerbKind.Commit,
-            "quick-commit" => VerbKind.QuickCommit,
             "pull-rebase" => VerbKind.PullRebase,
             "pull-rebase-autostash" => VerbKind.PullRebaseAutostash,
             "push" => VerbKind.Push,
@@ -198,7 +196,6 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
         flick — fast Git actions from Windows Explorer and the command line.
 
           flick commit <path>                 commit window
-          flick quick-commit <path>           quick-commit popup
           flick pull-rebase <path>            pull --rebase (+ submodules when present)
           flick pull-rebase-autostash <path>
           flick push <path>

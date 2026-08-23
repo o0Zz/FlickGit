@@ -53,7 +53,7 @@ public sealed class VerbRunner(
     /// `terminal`, which works anywhere.
     /// </summary>
     private static bool NeedsRepository(VerbKind kind) =>
-        kind is VerbKind.Commit or VerbKind.QuickCommit or VerbKind.Status or VerbKind.PullRebase
+        kind is VerbKind.Commit or VerbKind.Status or VerbKind.PullRebase
             or VerbKind.PullRebaseAutostash or VerbKind.Switch or VerbKind.Push or VerbKind.Tag;
 
     /// <summary>
@@ -78,7 +78,7 @@ public sealed class VerbRunner(
 
         if (action.RequiresRepository && resolved is null)
         {
-            output.Fail(action.Label, Strings.Get("error.notrepo", path ?? string.Empty));
+            output.Fail(action.Label, Strings.Get("error.notarepository", path ?? string.Empty));
             return VerbResult.Exit(ExitCodes.NotARepository);
         }
 
@@ -153,7 +153,6 @@ public sealed class VerbRunner(
             VerbKind.Language => environmentVerbs.Language(output, verb.Path),
 
             VerbKind.Commit => await windowVerbs.CommitAsync(output, repository!).ConfigureAwait(true),
-            VerbKind.QuickCommit => await windowVerbs.QuickCommitAsync(output, repository!).ConfigureAwait(true),
             VerbKind.Palette => await windowVerbs.PaletteAsync().ConfigureAwait(true),
             VerbKind.RunAction => await RunActionAsync(output, verb.Argument, verb.Path).ConfigureAwait(true),
             VerbKind.Clone => windowVerbs.Clone(output, verb.Path!, verb.Argument),

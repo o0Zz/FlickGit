@@ -428,7 +428,7 @@ public sealed class EnvironmentVerbs(
         //up with two of them disagreeing about what the checkboxes say.
         if (_settingsWindow is null)
         {
-            _settingsWindow = new SettingsWindow(settings, shell, autostart);
+            _settingsWindow = new SettingsWindow(settings, shell, autostart, keys);
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
             _settingsWindow.Show();
         }

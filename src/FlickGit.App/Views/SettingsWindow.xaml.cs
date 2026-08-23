@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using FlickGit.Ai;
 using FlickGit.App.Localization;
 using FlickGit.App.Rendering;
 using FlickGit.App.Resident;
@@ -41,15 +42,17 @@ public partial class SettingsWindow : Window
     private readonly FlickSettings _settings;
     private readonly ShellIntegration _shell;
     private readonly Autostart _autostart;
+    private readonly ApiKeyStore _keys;
 
     /// <summary>The language selected when the window opened, to tell a real change from a re-pick.</summary>
     private readonly string _languageOnOpen;
 
-    public SettingsWindow(FlickSettings settings, ShellIntegration shell, Autostart autostart)
+    public SettingsWindow(FlickSettings settings, ShellIntegration shell, Autostart autostart, ApiKeyStore keys)
     {
         _settings = settings;
         _shell = shell;
         _autostart = autostart;
+        _keys = keys;
         _languageOnOpen = settings.Language;
 
         InitializeComponent();
@@ -94,6 +97,13 @@ public partial class SettingsWindow : Window
         CloseAfterBox.Content = Strings.Get("settings.closeafter");
         NotifyBox.Content = Strings.Get("settings.notify");
 
+        AiSection.Text = Strings.Get("settings.section.ai");
+        AiProviderLabel.Text = Strings.Get("settings.ai.provider");
+        AiKeyButton.Content = Strings.Get("settings.ai.key");
+        AiKeyClearButton.Content = Strings.Get("settings.ai.key.clear");
+        AiAllowBox.Content = Strings.Get("settings.ai.allow");
+        AiAllowHint.Text = Strings.Get("settings.ai.allow.hint");
+
         LanguageSection.Text = Strings.Get("settings.section.language");
         LanguageHint.Text = Strings.Get("settings.language.hint");
 
@@ -120,6 +130,18 @@ public partial class SettingsWindow : Window
     {
         ContextMenuBox.IsChecked = _shell.IsInstalled();
         AutostartBox.IsChecked = _autostart.IsEnabled();
+
+        //One entry per provider, the enum as the item so nothing has to map a display string back.
+        AiProviderBox.Items.Clear();
+        foreach (AiProvider provider in new[] { AiProvider.Disabled, AiProvider.Anthropic, AiProvider.OpenAi })
+            AiProviderBox.Items.Add(new ProviderChoice(provider));
+
+        AiProviderBox.SelectedItem = AiProviderBox.Items
+            .Cast<ProviderChoice>()
+            .FirstOrDefault(c => c.Provider == ParseProvider(_settings.AiProvider))
+            ?? AiProviderBox.Items.Cast<ProviderChoice>().First();
+
+        AiAllowBox.IsChecked = _settings.AiAllowDiffsToLeaveMachine;
 
         WarnPrimaryBox.IsChecked = _settings.WarnWhenCommittingToPrimaryBranch;
         CloseAfterBox.IsChecked = _settings.CloseCommitWindowAfterSuccess;
@@ -224,6 +246,17 @@ public partial class SettingsWindow : Window
 
         _settings.Language = language;
 
+        _settings.AiProvider = SelectedProvider.ToString().ToLowerInvariant();
+
+        //Ticking the box *is* answering the one-time consent question, so it is recorded as asked.
+        //Otherwise the first generation would ask again about something the user just agreed to.
+        bool allow = AiAllowBox.IsChecked == true;
+
+        if (allow != _settings.AiAllowDiffsToLeaveMachine)
+            _settings.AiDiffConsentShown = true;
+
+        _settings.AiAllowDiffsToLeaveMachine = allow;
+
         try
         {
             _settings.Save();
@@ -289,7 +322,109 @@ public partial class SettingsWindow : Window
         return succeeded ? null : message;
     }
 
+    /// <summary>The provider the ComboBox is showing, whether or not Save has been pressed.</summary>
+    private AiProvider SelectedProvider =>
+        AiProviderBox.SelectedItem is ProviderChoice choice ? choice.Provider : AiProvider.Disabled;
+
+    /// <summary>
+    /// Says whether a key is stored for the selected provider, without reading it.
+    ///
+    /// Per provider, because <see cref="ApiKeyStore"/> keeps one credential each — so switching the
+    /// ComboBox has to re-ask rather than carry the previous answer across.
+    /// </summary>
+    private void RefreshKeyStatus()
+    {
+        AiProvider provider = SelectedProvider;
+        bool disabled = provider == AiProvider.Disabled;
+
+        //Nothing to store a key for, and nothing to send. The rest of the section stays visible so
+        //it is obvious what turning a provider on would offer.
+        AiKeyButton.IsEnabled = !disabled;
+        AiAllowBox.IsEnabled = !disabled;
+
+        if (disabled)
+        {
+            AiKeyClearButton.IsEnabled = false;
+            AiKeyStatus.Text = string.Empty;
+            return;
+        }
+
+        bool stored = _keys.Has(provider);
+
+        AiKeyClearButton.IsEnabled = stored;
+        AiKeyStatus.Text = Strings.Get(stored ? "settings.ai.key.stored" : "settings.ai.key.missing", provider.ToString());
+    }
+
+    private void OnAiProviderChanged(object sender, SelectionChangedEventArgs e)
+    {
+        //Fires during InitializeComponent, before the store is assigned.
+        if (_keys is not null)
+            RefreshKeyStatus();
+    }
+
+    /// <summary>
+    /// Stores a key for the selected provider.
+    ///
+    /// <b>Applied immediately, unlike everything else in this window.</b> "Nothing is applied until
+    /// Save" is about the registry, the Task Scheduler and settings.json; a key is none of those. The
+    /// alternative is holding the secret in a field until the user presses Save, which is worse than
+    /// writing it to the credential store the moment it is typed — and a Cancel that silently threw
+    /// away a key the user had just pasted would be its own kind of wrong.
+    /// </summary>
+    private void OnSetApiKey(object sender, RoutedEventArgs e)
+    {
+        AiProvider provider = SelectedProvider;
+
+        if (provider == AiProvider.Disabled)
+            return;
+
+        //The window returns the key; it is never logged and never comes back out of the store.
+        if (ApiKeyWindow.Ask(provider) is not { Length: > 0 } typed)
+            return;
+
+        Report(_keys.Write(provider, typed)
+            ? Strings.Get("ai.key.saved", provider.ToString())
+            : Strings.Get("ai.key.failed"));
+
+        RefreshKeyStatus();
+    }
+
+    private void OnClearApiKey(object sender, RoutedEventArgs e)
+    {
+        AiProvider provider = SelectedProvider;
+
+        if (provider == AiProvider.Disabled)
+            return;
+
+        Report(_keys.Clear(provider)
+            ? Strings.Get("ai.key.cleared", provider.ToString())
+            : Strings.Get("ai.key.failed"));
+
+        RefreshKeyStatus();
+    }
+
+    /// <summary>
+    /// A settings value that is not a known provider is read as disabled, the same way
+    /// <c>AiConfiguration</c> reads it — a typo in a hand-edited file must not silently pick one.
+    /// </summary>
+    private static AiProvider ParseProvider(string name) =>
+        Enum.TryParse(name, ignoreCase: true, out AiProvider provider) ? provider : AiProvider.Disabled;
+
     private void Report(string message) => StatusText.Text = message;
+
+    /// <summary>
+    /// One ComboBox row. A value object rather than a string, so the selection carries the provider
+    /// itself and nothing has to map a display name back to an enum.
+    /// </summary>
+    private sealed record ProviderChoice(AiProvider Provider)
+    {
+        public override string ToString() => Provider switch
+        {
+            AiProvider.Anthropic => "Anthropic — Claude Haiku 4.5",
+            AiProvider.OpenAi => "OpenAI — GPT-5.6 Luna",
+            _ => Strings.Get("settings.ai.provider.disabled"),
+        };
+    }
 
     private void OnOpenFolder(object sender, RoutedEventArgs e)
     {

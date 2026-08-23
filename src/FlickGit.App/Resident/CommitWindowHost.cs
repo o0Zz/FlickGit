@@ -4,7 +4,6 @@ using FlickGit.App.Views;
 using FlickGit.Diagnostics;
 using FlickGit.Logging;
 using FlickGit.Models;
-using FlickGit.Status;
 
 namespace FlickGit.App.Resident;
 
@@ -22,8 +21,7 @@ namespace FlickGit.App.Resident;
 ///
 /// <b>Reuse is the correctness risk.</b> CLAUDE.md: the window "must be fully re-initialisable from
 /// a new <c>CommitContext</c>; no state may leak between two uses." Every mutable field is assigned
-/// in <see cref="CommitSurface.Reset"/> and its override here, which is where to look when adding
-/// a field.
+/// in <see cref="CommitViewModel.Reset"/>, which is where to look when adding a field.
 /// </summary>
 public sealed class CommitWindowHost(CommitViewModelFactory viewModels, OperationTimings timings, ILog log)
 {
@@ -68,29 +66,6 @@ public sealed class CommitWindowHost(CommitViewModelFactory viewModels, Operatio
         await _window.RefreshAsync().ConfigureAwait(true);
 
         timings.Record("window.commit.populated", clock.Elapsed);
-    }
-
-    /// <summary>
-    /// Shows the window on state somebody else already computed.
-    ///
-    /// The quick-commit popup's <c>Details…</c> path. It has just run the same three Git processes
-    /// for its own summary, so running them again is the difference between the 60 ms CLAUDE.md
-    /// budgets for the handoff and another 100 ms of Git the user waits through twice.
-    ///
-    /// The file selection transfers for free: <c>IsSelected</c> lives on the
-    /// <c>GitFileChange</c> instances inside <paramref name="status"/>, and the popup hands over
-    /// the same objects.
-    /// </summary>
-    public void ShowFrom(RepositoryInfo repository, RepositoryStatus status, string message, string branchInput)
-    {
-        _window ??= Create(keepAlive: false);
-
-        //Reset first: it clears the message, the branch text and the diff cache. Adopting before
-        //resetting would have the reset throw away what was just handed over.
-        _window.Reset(repository);
-        _window.Adopt(status, message, branchInput);
-
-        _ = ResidentWindow.Present(_window);
     }
 
     private CommitWindow Create(bool keepAlive) =>

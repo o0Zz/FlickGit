@@ -10,7 +10,6 @@
 app.name = FlickGit
 
 # ---- Infobereich ----
-tray.commit = Schnell-Commit…
 tray.recent = Zuletzt verwendete Repositorys
 tray.recent.none = (noch keine)
 tray.settings = Einstellungen
@@ -28,6 +27,7 @@ commit.button.cancel = Abbrechen
 commit.button.refresh = Aktualisieren
 commit.selectall = Alle
 commit.selectnone = Keine
+commit.button.generate = Mit KI erzeugen
 
 commit.summary.selected = {0} ausgewählt
 commit.summary.counts = {0} geändert · {1} unversioniert (ausgeschlossen)
@@ -38,14 +38,12 @@ commit.warn.primary = Sie committen auf {0}.
 commit.warn.secret = Diese Datei passt auf ein Geheimnis-Muster — vor dem Commit prüfen.
 commit.warn.conflict = Dieses Repository hat ungelöste Konflikte. Bitte vor dem Commit lösen.
 
-# ---- Schnell-Commit-Popup ----
-quick.details = Details…
-quick.hint = ⏎ Commit und Push   ⇧⏎ Commit   ⇥ bearbeiten   Esc schließen
-quick.fallback = zuletzt verwendetes Repository
-quick.norecent = Es wurde noch kein Repository geöffnet. Mit der rechten Maustaste auf einen Ordner klicken, oder `flick quick-commit` ausführen.
-quick.queued = Commit, sobald die Nachricht da ist…
-quick.committing = Commit läuft…
-quick.foreground.refused = Windows hat das Fenster nicht in den Vordergrund gelassen, deshalb wurde es zurückgezogen. Bitte das Symbol im Infobereich verwenden.
+# The primary button while an Enter is waiting for the message. This is the whole of the
+# queued-Enter feedback: pressing Enter during generation has to look like it did something.
+commit.queued = Commit, sobald die Nachricht da ist…
+commit.committing = Commit läuft…
+# The keyboard map, shown in the footer until there is an outcome to report in its place.
+commit.hint = ⏎ Commit und Push   ⇧⏎ neue Zeile   ^S speichern   Esc schließen
 
 # ---- Dateiliste ----
 files.tooltip.split = Bereitgestellt +{0} -{1} · Arbeitsverzeichnis +{2} -{3}
@@ -208,7 +206,6 @@ palette.empty.norepos = Noch keine Repositorys. Einmal aus dem Explorer heraus c
 
 # --- Aktionen -----------------------------------------------------------------
 action.commit = Commit / Push…
-action.quick-commit = Schnell-Commit
 action.pull-rebase = Pull (Rebase)
 action.pull-rebase-autostash = Pull (Rebase, Autostash)
 action.push = Push
@@ -267,6 +264,18 @@ settings.section.language = Sprache
 settings.language.auto = Automatisch (Windows folgen)
 settings.language.hint = Fenster lesen ihren Text nur einmal, beim Erzeugen — eine neue Sprache erscheint nach einem Neustart.
 settings.language.restart = Gespeichert. FlickGit neu starten, um die neue Sprache zu sehen.
+
+settings.section.ai = COMMIT-NACHRICHTEN (KI)
+settings.ai.provider = Geschrieben von
+settings.ai.provider.disabled = Niemandem — ich schreibe selbst
+settings.ai.key = API-Schlüssel festlegen…
+settings.ai.key.clear = Schlüssel entfernen
+# {0} provider name
+settings.ai.key.stored = Für {0} ist ein Schlüssel in der Windows-Anmeldeinformationsverwaltung gespeichert.
+# {0} provider name
+settings.ai.key.missing = Für {0} ist kein Schlüssel gespeichert. Ohne Schlüssel wird nichts erzeugt.
+settings.ai.allow = Senden des Diffs an diesen Anbieter erlauben
+settings.ai.allow.hint = Ihr Code verlässt diesen Rechner nur, solange dies aktiv ist. Standardmäßig aus.
 
 settings.advanced = Alles Weitere wird in diesen beiden Dateien eingestellt:
 settings.advanced.open = Konfigurationsordner öffnen

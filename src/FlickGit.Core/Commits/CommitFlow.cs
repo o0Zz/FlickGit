@@ -286,11 +286,10 @@ public sealed record CommitRequest
     /// <summary>
     /// Derives a request from a status and the ticks already on it.
     ///
-    /// The two path lists are the dangerous part, and there are now two commit surfaces that need
-    /// them: the commit window and the quick-commit popup. Deriving them here rather than in each
-    /// view model means neither can get <see cref="PathsToUnstage"/> wrong — and getting that
-    /// wrong commits a file the user deliberately unticked, because `git commit` commits the index
-    /// and not the selection.
+    /// The two path lists are the dangerous part. Deriving them here rather than in the view model
+    /// is what keeps <see cref="PathsToUnstage"/> out of reach of a surface that could get it wrong
+    /// — and getting that wrong commits a file the user deliberately unticked, because `git commit`
+    /// commits the index and not the selection.
     ///
     /// <paramref name="status"/> carries the selection: <see cref="GitFileChange.IsSelected"/> is
     /// set by <c>StatusService</c> to the safe defaults and then by the user's ticks.

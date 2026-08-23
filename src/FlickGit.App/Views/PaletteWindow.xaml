@@ -13,7 +13,7 @@
 
     <!-- The repository palette. One text box, one list, one footer.
 
-         A fixed Height rather than SizeToContent, unlike the quick-commit popup: the list length
+         A fixed Height rather than SizeToContent: the list length
          changes on every keystroke, and a window that grew and shrank as the user typed would move
          the rows out from under their eyes. A fixed frame with a scrolling list keeps the first row
          in one place, which is where Enter acts.

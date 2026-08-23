@@ -58,6 +58,50 @@
                         <CheckBox x:Name="CloseAfterBox" Margin="0,10,0,0" />
                         <CheckBox x:Name="NotifyBox" Margin="0,10,0,0" />
 
+                        <!-- The AI section exists because the key had nowhere to go. It was
+                             `flick ai key set` and nothing else, which is a fine way to store a
+                             secret and a hopeless way to discover that you can. Same argument as
+                             the context-menu checkbox: not guessable from a JSON key name, and in
+                             this case not in the JSON file at all. -->
+                        <TextBlock x:Name="AiSection"
+                                   Style="{StaticResource SectionLabel}"
+                                   Margin="0,22,0,0" />
+
+                        <TextBlock x:Name="AiProviderLabel"
+                                   Style="{StaticResource Muted}"
+                                   FontSize="11"
+                                   Margin="0,8,0,0" />
+
+                        <ComboBox x:Name="AiProviderBox"
+                                  Margin="0,4,0,0"
+                                  HorizontalAlignment="Left"
+                                  MinWidth="240"
+                                  Padding="6,4"
+                                  SelectionChanged="OnAiProviderChanged" />
+
+                        <!-- The key is never shown, only reported as present or absent: it is in
+                             Credential Manager and this window has no business reading it back. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button x:Name="AiKeyButton" Padding="10,4" Click="OnSetApiKey" />
+                            <Button x:Name="AiKeyClearButton"
+                                    Margin="8,0,0,0"
+                                    Padding="10,4"
+                                    Click="OnClearApiKey" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="AiKeyStatus"
+                                   Style="{StaticResource Muted}"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0" />
+
+                        <CheckBox x:Name="AiAllowBox" Margin="0,12,0,0" />
+                        <TextBlock x:Name="AiAllowHint"
+                                   Style="{StaticResource Muted}"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Margin="22,3,0,0" />
+
                         <TextBlock x:Name="LanguageSection"
                                    Style="{StaticResource SectionLabel}"
                                    Margin="0,22,0,0" />

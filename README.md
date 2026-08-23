@@ -11,9 +11,10 @@ FlickGit is built for developers who work across multiple repositories and switc
 
 - [x] **Explorer context menu** — Commit / Push… and Pull (rebase) as entries of their own at the
       bottom of the menu, the rest in the *FlickGit* submenu. Per-user, no administrator rights.
-- [x] **Quick commit** — `Ctrl+Alt+G` anywhere opens a popup on the repository the front Explorer
-      window is showing. Enter commits and pushes, `Shift+Enter` commits, `Details…` hands off to
-      the full window without re-running Git.
+- [x] **One-key commit** — `Ctrl+Alt+G` opens the commit window on the repository the front
+      Explorer window is showing, caret already in the message box. Enter commits and pushes;
+      `Shift+Enter` is a newline. With no Explorer window in front, nothing opens — FlickGit does
+      not guess which repository you meant.
 - [x] **Repository palette** — `Ctrl+Alt+R`, repositories with something to do listed first, fuzzy
       filter, action mode, `Ctrl+Enter` to pull every repository that is behind.
 - [x] **Commit window** — file list with status letters and `+added / -removed` counts, and tick
@@ -109,7 +110,6 @@ assumed.
 
 ```text
 flick commit <path>                 commit window
-flick quick-commit <path>           quick-commit popup
 flick pull-rebase <path>            pull --rebase (+ submodules when present)
 flick pull-rebase-autostash <path>
 flick push <path>                   with the guardrails; exit 5 if refused
@@ -163,7 +163,7 @@ everything below is the file itself.
 | `allowUpstreamCreation` | `{}` | Per-repository answer to "create an upstream?", remembered after it is asked once. |
 | `trigger` | `Hotkey` | `Hotkey` or `None`. CLAUDE.md's Explorer-scoped input hooks are not built yet, so there is no value for them — a setting that silently falls back is worse than one that does not exist. |
 | `hotkeyGesture` | `Ctrl+Alt+G` | At least one modifier is required. An unparseable value falls back to the default and is logged. |
-| `paletteHotkeyGesture` | `Ctrl+Alt+R` | Opens the repository palette. Not `Ctrl+Alt+G`: one combination cannot be registered twice, and the quick-commit trigger has it. |
+| `paletteHotkeyGesture` | `Ctrl+Alt+R` | Opens the repository palette. Not `Ctrl+Alt+G`: one combination cannot be registered twice, and the commit trigger has it. |
 | `paletteScanRoots` | `[]` | Folders the palette searches for repositories, three levels deep. Empty is fine — the palette also lists the ones you have already used. |
 | `aiProvider` | `anthropic` | `anthropic`, `openai` or `disabled`. Inert until `aiAllowDiffsToLeaveMachine` is true. |
 | `aiModel` | *(empty)* | Empty means the provider's default. |
@@ -283,8 +283,8 @@ dependencies as typed constructor parameters so that stays a choice rather than 
 | **1** | The commit path | ✅ Repository detection · Git runner · registry menu · commit window · file list with line counts · stage/unstage · side-by-side diff · commit · pull --rebase · error handling · logging |
 | **2** | Branches, push, live editing | ✅ Branch ComboBox with switch/create · branch validation · push with upstream handling and divergence refusal · Switch branch with stash-switch-restore · Clone with clipboard prefill and progress · **editable right pane** with encoding and line-ending preservation · atomic save · external-modification detection · restage prompt |
 | **3** | Speed | ✅ Resident service with tray menu and MRU · named-pipe IPC with direct-launch fallback · pre-warmed windows · foreground activation · logon task · diff prefetch cache · notifications |
-| **4** | Quick commit and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · cursor-anchored quick-commit popup · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *The Explorer-scoped input hooks — a key or a mouse side button swallowed only over Explorer — are still open; the setting falls back to the global hotkey and says so in `diag doctor`.* |
-| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) with a Help tab rendering an editable `Help.md` and an About tab. *Three items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface), the Ollama provider, and with it speculative generation — which by its own safety rule may only run against a local provider.* |
+| **4** | The trigger and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *The cursor-anchored quick-commit popup was built and then removed: the trigger opens the commit window instead, which took over the caret-in-the-message-box opening, Enter-commits and the streamed message. The Explorer-scoped input hooks — a key or a mouse side button swallowed only over Explorer — are still open; the setting falls back to the global hotkey and says so in `diag doctor`.* |
+| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) carrying the context menu, autostart, the commit switches, the AI provider and its API key, the language picker, a Help tab rendering an editable `Help.md` and an About tab. *Three items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface), the Ollama provider, and with it speculative generation — which by its own safety rule may only run against a local provider.* |
 | **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. *The Windows 11 primary menu (`IExplorerCommand` + sparse MSIX) is the one thing still open: it needs package identity and a code-signing certificate.* |
 
 Design decisions, performance budgets and the reasoning behind them live in

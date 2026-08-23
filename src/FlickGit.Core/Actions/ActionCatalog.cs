@@ -345,7 +345,6 @@ public sealed class ActionCatalog
 
         //The fast path. Not on the context menu: CLAUDE.md's layout has one commit entry, and a
         //second beside it would be a decision the user has to make before seeing their changes.
-        new("quick-commit", "quick-commit", VerbKind.QuickCommit, 15, ActionSurfaces.Palette, NeedsRepository: true),
 
         //Everything else, under More.
         new("switch", "switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
