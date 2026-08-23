@@ -611,7 +611,30 @@ character diffs. Do not write a Myers implementation.
 
 **AvalonEdit**, two instances, left read-only and right editable.
 
+- **Opens on the first change, not at line 1.** A file whose first change is three hundred lines
+  down otherwise opens on a screenful of unchanged text, and the user has to hunt for the thing they
+  clicked the file to see. Three lines of context above it, matching what a unified hunk carries. The
+  caret goes there too — `SelectedRows` reads the caret line, so leaving it on line 1 would make
+  Stage hunk and Revert lines act on something off screen.
 - Synchronised scrolling locked to the diff alignment, not to raw line numbers
+
+  **Two traps, both of which produced the same symptom — the view jumping about under the cursor:**
+
+  - **`ScrollToVerticalOffset` does not scroll.** It asks the `ScrollViewer` to move during the next
+    arrange pass, so the target pane's own `ScrollOffsetChanged` arrives *after* the sync method has
+    returned. A guard flag cleared in a `finally` is therefore already down when the echo lands, and
+    the echo scrolls the source back to where the target had just been put. With the wheel still
+    turning the two panes take turns dragging each other backwards. The guard has to come down at
+    `DispatcherPriority.Background`, which is below `Render` and so runs after that arrange.
+  - **The two panes do not have the same maximum horizontal offset**, because they do not have the
+    same longest line — so `ScrollToHorizontalOffset` *clamps* to the narrower document. That clamped
+    value comes back as a scroll event, and treating it as a gesture drags the pane the user actually
+    scrolled back to wherever the other one could reach. The echo has to be told apart from a real
+    gesture by remembering which pane the current sync is moving.
+
+  A real gesture arriving while the guard is up is remembered and replayed once when it comes down,
+  not dropped: dropping it leaves the panes out of step until the next gesture happens to arrive at a
+  quiet moment.
 - Change bars and line backgrounds via `IBackgroundRenderer` — never insert a visual element
   per line
 - The connector strip between panes drawn as a single visual

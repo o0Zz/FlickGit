@@ -45,7 +45,27 @@ public partial class DiffPane : UserControl
     private readonly DispatcherTimer _rediffTimer;
 
     /// <summary>Guards the two-way scroll sync against feeding itself.</summary>
+    /// <summary>
+    /// How much unchanged text to leave above the first change when a file is opened.
+    ///
+    /// Three, matching the context a unified diff hunk carries, so the opening view shows the same
+    /// amount of surrounding code that a patch would have.
+    /// </summary>
+    private const int ContextLinesAboveFirstChange = 3;
+
     private bool _syncing;
+
+    /// <summary>
+    /// The pane that raised a scroll while <see cref="_syncing"/> was up, to be reconciled when it
+    /// comes down. See <see cref="Sync"/>.
+    /// </summary>
+    private TextEditor? _pendingSource;
+
+    /// <summary>
+    /// The pane the current sync is moving. Its own scroll event is an echo, not a gesture, and
+    /// telling the two apart is what stops the panes dragging each other backwards.
+    /// </summary>
+    private TextEditor? _syncTarget;
 
     /// <summary>Suppresses the dirty/re-diff handling while this control rewrites the document.</summary>
     private bool _updatingDocument;
@@ -407,8 +427,9 @@ public partial class DiffPane : UserControl
 
         SetEditable(diff.IsEditable, diff);
 
-        LeftEditor.ScrollToHome();
-        RightEditor.ScrollToHome();
+        //Not ScrollToHome. A change three hundred lines down is a diff that opens on a screenful of
+        //unchanged text, and the user has to hunt for the thing they clicked the file to see.
+        ScrollToFirstChange(diff.Rows);
 
         //The trap strip, from CLAUDE.md, "The staged-versus-worktree trap": the right pane is the
         //working tree, so an edit here is not in the commit until the file is restaged.
@@ -651,29 +672,133 @@ public partial class DiffPane : UserControl
             _ = RestageRequested();
     }
 
+    /// <summary>
+    /// Scrolls so the first changed row is near the top, or home when the file has no changes.
+    ///
+    /// The caret goes there too, and that is not cosmetic: <c>SelectedRows</c> reads the caret line,
+    /// so a caret left on line 1 while the view shows line 300 would make Stage hunk and Revert lines
+    /// act on something off-screen.
+    /// </summary>
+    private void ScrollToFirstChange(IReadOnlyList<DiffRow> rows)
+    {
+        int first = -1;
+
+        for (int row = 0; row < rows.Count; row++)
+        {
+            if (Hunks.IsChange(rows[row]))
+            {
+                first = row;
+                break;
+            }
+        }
+
+        if (first < 0)
+        {
+            //No change to go to: an identical file, or one whose only difference is a mode or a
+            //rename. The top is the honest place to be.
+            LeftEditor.ScrollToHome();
+            RightEditor.ScrollToHome();
+            return;
+        }
+
+        int line = first + 1;
+
+        RightEditor.TextArea.Caret.Line = line;
+        RightEditor.TextArea.Caret.Column = 1;
+
+        //Offset arithmetic rather than ScrollToLine, because "bring this line into view" scrolls the
+        //minimum distance -- from the top of a document that means the target lands at the *bottom*
+        //of the viewport, which is the opposite of what is wanted. Every row is exactly one line and
+        //the font is monospace, so the offset is exact.
+        double lineHeight = RightEditor.TextArea.TextView.DefaultLineHeight;
+
+        if (lineHeight > 0)
+        {
+            double offset = Math.Max(0, (line - 1 - ContextLinesAboveFirstChange) * lineHeight);
+
+            RightEditor.ScrollToVerticalOffset(offset);
+            LeftEditor.ScrollToVerticalOffset(offset);
+        }
+        else
+        {
+            //No layout has happened yet, so there is no line height to multiply. Minimal scrolling
+            //is worse than none here; the change is at least on screen.
+            RightEditor.ScrollToLine(line);
+        }
+
+        //Left and right start level, so the connector is not drawn against a stale offset.
+        _connector.SetViewport(lineHeight, RightEditor.VerticalOffset);
+    }
+
+    /// <summary>
+    /// Copies one pane's scroll offset onto the other.
+    ///
+    /// <b>The guard cannot be released synchronously, and that was the bug.</b>
+    /// <c>ScrollToVerticalOffset</c> does not move the view; it asks the <c>ScrollViewer</c> to move
+    /// it during the next arrange pass. So the target's own <c>ScrollOffsetChanged</c> arrives
+    /// <i>after</i> this method has returned and cleared the flag — and that echo then scrolled the
+    /// source back to where the target had just been put. With the wheel still turning, the two panes
+    /// take turns dragging each other backwards, which is the view jumping about under the cursor.
+    ///
+    /// So the flag is cleared at <c>Background</c> priority, which is below <c>Render</c> and
+    /// therefore runs after the arrange that applies the scroll — the echo lands while the guard is
+    /// still up and is ignored.
+    /// </summary>
     private void Sync(TextEditor source, TextEditor target)
     {
         if (_syncing)
+        {
+            //The echo from the pane this sync just moved, which is not a user gesture.
+            //
+            //Recording it would be worse than dropping it. The two documents have the same number of
+            //lines but not the same longest line, so ScrollToHorizontalOffset *clamps* to the
+            //narrower one -- and reconciling from that clamped echo would drag the pane the user
+            //actually scrolled back to wherever the other one could reach. That is the snap-back.
+            if (ReferenceEquals(source, _syncTarget))
+                return;
+
+            //A real gesture: the wheel kept turning while the deferred scroll was being applied.
+            //Remembered rather than dropped, or the panes stay out of step until the next gesture
+            //happens to arrive at a quiet moment.
+            _pendingSource = source;
             return;
+        }
 
         _syncing = true;
+        _syncTarget = target;
 
-        try
-        {
-            //Vertical offsets are copied outright, which is only correct because both documents
-            //have the same number of lines. Horizontal too: reading a long changed line means
-            //scrolling both halves together.
-            if (Math.Abs(target.VerticalOffset - source.VerticalOffset) > 0.5)
-                target.ScrollToVerticalOffset(source.VerticalOffset);
+        //Queued before the work, so the guard comes down even if something below throws. It cannot
+        //run before this method returns: Background is dispatched, not called.
+        Dispatcher.BeginInvoke(ReleaseSyncGuard, DispatcherPriority.Background);
 
-            if (Math.Abs(target.HorizontalOffset - source.HorizontalOffset) > 0.5)
-                target.ScrollToHorizontalOffset(source.HorizontalOffset);
+        //Vertical offsets are copied outright, which is only correct because both documents
+        //have the same number of lines. Horizontal too: reading a long changed line means
+        //scrolling both halves together.
+        if (Math.Abs(target.VerticalOffset - source.VerticalOffset) > 0.5)
+            target.ScrollToVerticalOffset(source.VerticalOffset);
 
-            _connector.SetViewport(source.TextArea.TextView.DefaultLineHeight, source.VerticalOffset);
-        }
-        finally
-        {
-            _syncing = false;
-        }
+        if (Math.Abs(target.HorizontalOffset - source.HorizontalOffset) > 0.5)
+            target.ScrollToHorizontalOffset(source.HorizontalOffset);
+
+        _connector.SetViewport(source.TextArea.TextView.DefaultLineHeight, source.VerticalOffset);
+    }
+
+    /// <summary>
+    /// Lowers the guard and catches up on whatever arrived while it was up.
+    ///
+    /// One follow-up pass, not a loop: it re-syncs from the last pane the user actually scrolled, and
+    /// if the two are already level the difference checks in <see cref="Sync"/> do nothing and it
+    /// stops there.
+    /// </summary>
+    private void ReleaseSyncGuard()
+    {
+        _syncing = false;
+        _syncTarget = null;
+
+        TextEditor? pending = _pendingSource;
+        _pendingSource = null;
+
+        if (pending is not null)
+            Sync(pending, pending == LeftEditor ? RightEditor : LeftEditor);
     }
 }
