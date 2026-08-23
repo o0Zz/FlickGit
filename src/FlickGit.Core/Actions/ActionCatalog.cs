@@ -342,6 +342,7 @@ public sealed class ActionCatalog
         //The two the user performs all day, at the root of the menu.
         new("commit", "commit", VerbKind.Commit, 10, ActionSurfaces.All, "commit.ico", NeedsRepository: true),
         new("pull-rebase", "pull-rebase", VerbKind.PullRebase, 20, ActionSurfaces.All, "pull.ico", NeedsRepository: true),
+        //One pull entry, and it autostashes -- see PullService for why there is no plain one.
 
         //The fast path. Not on the context menu: CLAUDE.md's layout has one commit entry, and a
         //second beside it would be a decision the user has to make before seeing their changes.
@@ -357,9 +358,6 @@ public sealed class ActionCatalog
             NeedsRepository: true, Parameter: ActionParameter.Tag),
 
         new("push", "push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
-
-        new("pull-rebase-autostash", "pull-rebase-autostash", VerbKind.PullRebaseAutostash, 130,
-            ActionSurfaces.Palette, NeedsRepository: true),
 
         //Not on the palette: the palette lists repositories, and cloning is what you do when there
         //is not one yet.

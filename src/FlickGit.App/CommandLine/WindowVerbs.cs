@@ -69,14 +69,14 @@ public sealed class WindowVerbs(
     }
 
     /// <summary>`flick pull-rebase`, with the submodule update as a distinct step.</summary>
-    public async Task<VerbResult> PullAsync(VerbOutput output, RepositoryInfo repository, bool autostash)
+    public async Task<VerbResult> PullAsync(VerbOutput output, RepositoryInfo repository)
     {
         var window = new ProgressWindow(Strings.Get("pull.title", repository.Name));
         window.Show();
         window.Activate();
 
         PullOutcome outcome = await pulls
-            .PullRebaseAsync(repository, autostash, new Progress<string>(window.AddStep), CancellationToken.None)
+            .PullRebaseAsync(repository, new Progress<string>(window.AddStep), CancellationToken.None)
             .ConfigureAwait(true);
 
         if (!outcome.Succeeded)

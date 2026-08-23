@@ -17,28 +17,27 @@ namespace FlickGit.Pulls;
 /// were part-way through.</description></item>
 /// <item><description><b>A submodule failure does not roll back the pull.</b> The pull
 /// succeeded. Reporting it as a failure would invite the user to try to undo it.</description></item>
+/// <item><description><b><c>--autostash</c> is unconditional.</b> There is no plain
+/// <c>pull --rebase</c> anywhere in the product, and no second verb offering the stashing one.
+/// A pull that refuses because the working tree is dirty is the state the user is in every
+/// time they are part-way through something, and "come back when you have committed" is not
+/// an answer a one-click menu entry gets to give. Git stashes only when there is something to
+/// stash, restores it afterwards, and unwinds the whole thing itself if the rebase fails — which
+/// is why this is Git's flag rather than a stash/pull/pop sequence of ours.</description></item>
 /// </list>
 /// </summary>
 public sealed class PullService(IGitProcessRunner git, RepositoryService repositories)
 {
-    /// <param name="autostash">
-    /// Use Git's own <c>--autostash</c>. Native, and safer than a manual
-    /// stash/pull/pop — it is one operation that Git itself unwinds if the rebase fails,
-    /// with no window in which a stash exists that nothing is tracking.
-    /// </param>
     public async Task<PullOutcome> PullRebaseAsync(
         RepositoryInfo repository,
-        bool autostash,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
         progress?.Report("Pull --rebase");
 
-        var args = new List<string> { "pull", "--rebase" };
-        if (autostash)
-            args.Add("--autostash");
-
-        GitResult pull = await git.RunAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
+        GitResult pull = await git
+            .RunAsync(repository.Root, ["pull", "--rebase", "--autostash"], cancellationToken)
+            .ConfigureAwait(false);
         repositories.Invalidate(repository.Root);
 
         if (!pull.Succeeded)

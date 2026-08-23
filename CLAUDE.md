@@ -321,8 +321,7 @@ PowerToys Run and future integrations.
 ```text
 flick clone <path> [url]             clone into a subdirectory of <path>
 flick commit <path>                  commit window (branch ComboBox included)
-flick pull-rebase <path>             + submodule update when applicable
-flick pull-rebase-autostash <path>
+flick pull-rebase <path>             --autostash, + submodule update when applicable
 flick push <path>
 flick switch <path> [branch]         branch picker when omitted
 flick tag <path> [name]              tag window when omitted; creates it when named
@@ -861,7 +860,6 @@ Switching to the primary branch follows the ordinary switch rules — check
 # Pull --rebase
 
 ```bash
-git pull --rebase
 git pull --rebase --autostash
 git submodule update --init --recursive    # only when .gitmodules exists
 ```
@@ -870,14 +868,17 @@ Show progress in a lightweight dialog, with the submodule update as a distinct s
 **Submodules**). On conflict, show a clear message and offer to open
 the repository status window. Do not automatically abort a rebase.
 
-Use Git's native `--autostash` whenever available — it is safer than a manual
-stash/pull/pop. If unavailable, the manual fallback must:
+**`--autostash` is unconditional, and there is no second verb without it.** This section used
+to specify both spellings and let the menu carry the plain one, which meant the everyday entry
+refused to run whenever the working tree was dirty — which is most of the time, since the user
+reaching for Pull is usually part-way through something. "Commit first, then pull" is not an
+answer a one-click menu entry gets to give.
 
-1. Detect whether local changes exist
-2. Create a uniquely identifiable stash
-3. Run `pull --rebase`
-4. Restore **only** the stash it created
-5. Never blindly pop an unrelated existing stash
+Git stashes only when there is something to stash, restores it when the rebase finishes, and
+unwinds the whole thing itself if the rebase fails. That is why the flag is Git's rather than a
+stash/pull/pop sequence of ours: there is no window in which a stash exists that nothing is
+tracking. A rebase that stops on conflicts still stops — the autostash is restored by
+`git rebase --continue` or `--abort`, and the user is told which.
 
 ---
 

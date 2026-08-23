@@ -187,7 +187,7 @@ public sealed class CommitFlow(
                     return new CommitFlowResult(CommitFlowOutcome.Cancelled) { Branch = plan.Branch };
 
                 PullOutcome pulled = await pulls
-                    .PullRebaseAsync(repository, autostash: true, progress: null, cancellationToken)
+                    .PullRebaseAsync(repository, progress: null, cancellationToken)
                     .ConfigureAwait(false);
 
                 if (!pulled.Succeeded)

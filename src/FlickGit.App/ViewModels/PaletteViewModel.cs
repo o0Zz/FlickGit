@@ -265,6 +265,8 @@ public sealed class PaletteViewModel(
     /// The one bulk operation the palette offers, and the footer advertises it. Safe in bulk because
     /// <c>pull --rebase --autostash</c> refuses rather than discarding: a repository that cannot be
     /// rebased cleanly is reported, never forced.
+    ///
+    /// The same <c>pull-rebase</c> action as the context menu, because there is only one.
     /// </summary>
     public void PullAllBehind()
     {
@@ -277,7 +279,7 @@ public sealed class PaletteViewModel(
             return;
         }
 
-        if (catalog.ById("pull-rebase-autostash") is not { } pull)
+        if (catalog.ById("pull-rebase") is not { } pull)
             return;
 
         foreach (RepositoryOverview overview in behind)
