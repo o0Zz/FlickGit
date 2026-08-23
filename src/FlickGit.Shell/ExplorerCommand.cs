@@ -387,16 +387,39 @@ internal static unsafe class ExplorerCommand
         }
     }
 
+    /// <summary>
+    /// The separator bars, which is what gives the FlickGit entries a block of their own instead of
+    /// leaving them interleaved with every other tool's verbs.
+    ///
+    /// <c>ECF_SEPARATORBEFORE</c> on the first entry and <c>ECF_SEPARATORAFTER</c> on the last is
+    /// the declarative form of what TortoiseGit does by hand — its <c>QueryContextMenu</c> calls
+    /// <c>InsertMenu(hMenu, indexMenu++, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr)</c> either side of
+    /// its own items, and nothing else. It has to, being an <c>IContextMenu</c> handler that is
+    /// handed a raw <c>HMENU</c>; an <c>IExplorerCommand</c> asks for the same two bars instead.
+    ///
+    /// Which entry gets which flag is not decided here: the App writes it into each CLSID's key,
+    /// because it is the App that knows the order the entries appear in.
+    /// </summary>
     [UnmanagedCallersOnly]
     private static int GetFlags(void* self, uint* flags)
     {
-        _ = self;
-
         if (flags is null)
             return Com.E_POINTER;
 
         *flags = Com.EcfDefault;
-        return Com.S_OK;
+
+        try
+        {
+            if (CommandConfig.For(Self(self)->Clsid) is { } config)
+                *flags = config.CommandFlags;
+
+            return Com.S_OK;
+        }
+        catch
+        {
+            //No separator rather than no entry.
+            return Com.S_OK;
+        }
     }
 
     /// <summary>

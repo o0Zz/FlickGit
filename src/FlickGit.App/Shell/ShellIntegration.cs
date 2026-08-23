@@ -31,6 +31,15 @@ namespace FlickGit.App.Shell;
 /// <item><description><b>Every key this tool creates is named <c>FlickGit.*</c></b>, which is what
 /// lets an uninstall find its own root verbs — now several keys rather than one — without ever
 /// reaching a neighbouring shell extension's.</description></item>
+/// <item><description><b>The block is bracketed by separators.</b> The first root entry carries
+/// <c>ECF_SEPARATORBEFORE</c> and the last carries <c>ECF_SEPARATORAFTER</c>, which is what gives
+/// FlickGit a group of its own rather than leaving it interleaved with every other tool's verbs.
+/// This is the declarative form of what TortoiseGit does by hand: its <c>QueryContextMenu</c> calls
+/// <c>InsertMenu(hMenu, indexMenu++, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr)</c> either side of its
+/// own items and nothing else, because an <c>IContextMenu</c> handler is given a raw <c>HMENU</c> and
+/// has to draw the bars itself. A verb can ask for them instead — as a <c>CommandFlags</c>
+/// <c>REG_DWORD</c>, and through <c>IExplorerCommand::GetFlags</c> when the handler is
+/// registered.</description></item>
 /// <item><description><b>No <c>Position</c> value is written, and that is the placement.</b> These
 /// entries used to set <c>Position = "Bottom"</c>, on the stated grounds that it put them "with the
 /// other tools' verbs at the end of the menu" and that it was "where TortoiseGit is". Both halves
@@ -160,7 +169,14 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
             IReadOnlyList<GitAction> actions = MenuActions();
 
-            GitAction[] rootActions = [.. actions.Where(a => !a.InMoreSubmenu)];
+            //Sorted the way Explorer will show them -- alphabetically by key name -- because which
+            //entry is first and which is last is what decides where the separators go.
+            GitAction[] rootActions =
+            [
+                .. actions.Where(a => !a.InMoreSubmenu)
+                    .OrderBy(RootKeyName, StringComparer.OrdinalIgnoreCase),
+            ];
+
             GitAction[] submenuActions = [.. actions.Where(a => a.InMoreSubmenu)];
 
             WriteSubmenu(classes, cliPath, submenuActions);
@@ -170,19 +186,22 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             string? handlerDll = ShellHandlerAvailable(installDirectory);
 
             if (handlerDll is not null)
-                WriteCommandHandlers(classes, cliPath, handlerDll, rootActions);
+                WriteCommandHandlers(classes, cliPath, handlerDll, rootActions, submenuActions.Length > 0);
             else
                 log.Info($"{ShellCommandIds.DllFileName} is not present, so the menu entries are plain static verbs.");
 
             foreach (string parent in VerbParents)
             {
                 foreach (GitAction action in rootActions)
-                    WriteRootVerb(classes, parent, cliPath, action, handlerDll is not null);
+                    WriteRootVerb(classes, parent, cliPath, action, handlerDll is not null, SeparatorFor(action, rootActions, submenuActions.Length > 0));
 
                 //Only when there is something behind it. CLAUDE.md: "Do not show a submenu with a
                 //single item" -- an empty one is worse still.
+                //
+                //The submenu verb sorts after every root entry, so when it exists it is the bottom of
+                //the block and carries the closing separator.
                 if (submenuActions.Length > 0)
-                    WriteMenuVerb(classes, parent, appPath);
+                    WriteMenuVerb(classes, parent, appPath, ShellCommandIds.SeparatorAfter);
             }
 
             //Read back what was written. CLAUDE.md, "Registry synchronisation" step 4:
@@ -294,7 +313,13 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// is what runs if <c>Invoke</c> is never reached. A verb that consists only of a handler is a
     /// verb that vanishes when the DLL does.
     /// </param>
-    private static void WriteRootVerb(RegistryKey classes, string parent, string cliPath, GitAction action, bool withHandler)
+    /// <param name="separators">
+    /// <c>ECF_SEPARATORBEFORE</c>, <c>ECF_SEPARATORAFTER</c>, or zero. Written as <c>CommandFlags</c>,
+    /// which is the registry half of the pair — the handler reports the same value from
+    /// <c>GetFlags</c>, because it is not documented which of the two the classic menu consults when
+    /// both are present, and they cannot disagree if they come from one decision.
+    /// </param>
+    private static void WriteRootVerb(RegistryKey classes, string parent, string cliPath, GitAction action, bool withHandler, uint separators)
     {
         using RegistryKey verb = classes.CreateSubKey($@"{parent}\{RootKeyName(action)}", writable: true)
                                  ?? throw new InvalidOperationException($"Could not create the {action.Id} verb.");
@@ -304,6 +329,9 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
         //No Position value: the default placement is what puts this just above New. See the class
         //remarks -- "Bottom" is what used to push it past New, down beside Properties.
+        if (separators != 0)
+            verb.SetValue("CommandFlags", unchecked((int)separators), RegistryValueKind.DWord);
+
         if (withHandler && ClsidFor(action.Id) is { } clsid)
             verb.SetValue("ExplorerCommandHandler", clsid, RegistryValueKind.String);
 
@@ -349,7 +377,7 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// <c>ThreadingModel = Apartment</c>, which is what a shell extension is called on. The shell
     /// then marshals for us rather than expecting this code to be free-threaded.
     /// </summary>
-    private void WriteCommandHandlers(RegistryKey classes, string cliPath, string dllPath, IReadOnlyList<GitAction> rootActions)
+    private void WriteCommandHandlers(RegistryKey classes, string cliPath, string dllPath, IReadOnlyList<GitAction> rootActions, bool hasSubmenu)
     {
         foreach ((string verb, string clsid, bool showBranch) in ShellCommandIds.Handlers)
         {
@@ -371,6 +399,13 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             key.SetValue(ShellCommandIds.ValueShowBranch, showBranch ? "1" : "0", RegistryValueKind.String);
             key.SetValue(ShellCommandIds.ValueNeedsRepository, action.RequiresRepository ? "1" : "0", RegistryValueKind.String);
 
+            //The same decision the CommandFlags value above carries, so GetFlags cannot report a
+            //different answer from the one the registry states.
+            key.SetValue(
+                ShellCommandIds.ValueCommandFlags,
+                SeparatorFor(action, rootActions, hasSubmenu).ToString(),
+                RegistryValueKind.String);
+
             if (action.IconFileName is { Length: > 0 } iconName)
             {
                 string icon = Path.Combine(Path.GetDirectoryName(cliPath) ?? string.Empty, "icons", iconName);
@@ -390,7 +425,7 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     }
 
     /// <summary>The "FlickGit" submenu, carrying everything not worth a root entry.</summary>
-    private static void WriteMenuVerb(RegistryKey classes, string parent, string appPath)
+    private static void WriteMenuVerb(RegistryKey classes, string parent, string appPath, uint separators)
     {
         using RegistryKey verb = classes.CreateSubKey($@"{parent}\{MenuVerbKeyName}", writable: true)
                                  ?? throw new InvalidOperationException($@"Could not create {parent}\{MenuVerbKeyName}.");
@@ -403,6 +438,10 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
         //Resolved relative to HKCR, i.e. HKCU\Software\Classes\FlickGit.Menu.
         verb.SetValue("ExtendedSubCommandsKey", MenuKeyName, RegistryValueKind.String);
+
+        //The bar under the whole FlickGit block.
+        if (separators != 0)
+            verb.SetValue("CommandFlags", unchecked((int)separators), RegistryValueKind.DWord);
 
         //No Position, for the reason the root verbs have none. See the class remarks.
     }
@@ -439,6 +478,29 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// enumerated alphabetically too.
     /// </summary>
     private static string RootKeyName(GitAction action) => $"{KeyPrefix}{action.MenuOrder}.{action.Id}";
+
+    /// <summary>
+    /// The separator flags for one root entry: a bar above the first, a bar below the last.
+    ///
+    /// <paramref name="rootActions"/> must already be in the order Explorer will draw them, or "first"
+    /// and "last" name the wrong entries and the bars land inside the block instead of around it.
+    /// </summary>
+    /// <param name="hasSubmenu">
+    /// True when the <c>FlickGit</c> submenu verb exists. It sorts after every root entry — its key is
+    /// <c>zz.menu</c> — so it takes the closing bar and no root entry does.
+    /// </param>
+    private static uint SeparatorFor(GitAction action, IReadOnlyList<GitAction> rootActions, bool hasSubmenu)
+    {
+        uint flags = 0;
+
+        if (ReferenceEquals(action, rootActions[0]))
+            flags |= ShellCommandIds.SeparatorBefore;
+
+        if (!hasSubmenu && ReferenceEquals(action, rootActions[^1]))
+            flags |= ShellCommandIds.SeparatorAfter;
+
+        return flags;
+    }
 
     /// <summary>
     /// What Explorer runs. A built-in is its own verb; a user action is reached by id through

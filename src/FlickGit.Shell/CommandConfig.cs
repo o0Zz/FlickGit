@@ -23,7 +23,8 @@ internal sealed record CommandConfig(
     string Verb,
     string? Icon,
     bool ShowBranch,
-    bool NeedsRepository)
+    bool NeedsRepository,
+    uint CommandFlags)
 {
     private static readonly Dictionary<Guid, CommandConfig?> Cache = [];
     private static readonly object Gate = new();
@@ -77,7 +78,8 @@ internal sealed record CommandConfig(
                 verb,
                 key.GetValue(ShellCommandIds.ValueIcon) as string is { Length: > 0 } icon ? icon : null,
                 IsSet(key, ShellCommandIds.ValueShowBranch),
-                IsSet(key, ShellCommandIds.ValueNeedsRepository));
+                IsSet(key, ShellCommandIds.ValueNeedsRepository),
+                Flags(key));
         }
         catch
         {
@@ -87,4 +89,13 @@ internal sealed record CommandConfig(
     }
 
     private static bool IsSet(RegistryKey key, string name) => key.GetValue(name) as string == "1";
+
+    /// <summary>
+    /// The EXPCMDFLAGS to report, or zero.
+    ///
+    /// Unparseable is zero rather than an error: a menu entry with no separator around it is a
+    /// cosmetic loss, and refusing to draw the entry over it would not be.
+    /// </summary>
+    private static uint Flags(RegistryKey key) =>
+        uint.TryParse(key.GetValue(ShellCommandIds.ValueCommandFlags) as string, out uint flags) ? flags : 0;
 }

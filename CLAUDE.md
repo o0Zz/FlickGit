@@ -1445,6 +1445,7 @@ performed all day in order to tidy up the seven that are not is the wrong trade.
 HKCU\Software\Classes\Directory\shell\FlickGit.10.commit
     MUIVerb                = "Commit / Push..."
     Icon                   = "<install>\icons\commit.ico"
+    CommandFlags           = dword:00000020        ; ECF_SEPARATORBEFORE
     ExplorerCommandHandler = "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C10}"
     \command  (default)    = "<install>\flick.exe" commit "%V"
 
@@ -1452,6 +1453,7 @@ HKCU\Software\Classes\Directory\shell\FlickGit.zz.menu
     MUIVerb                = "FlickGit"
     Icon                   = "<install>\FlickGit.exe,0"
     ExtendedSubCommandsKey = "FlickGit.Menu"
+    CommandFlags           = dword:00000040        ; ECF_SEPARATORAFTER
 
 HKCU\Software\Classes\FlickGit.Menu\shell\110switch
     MUIVerb                = "Switch branch..."
@@ -1491,6 +1493,18 @@ HKCU\Software\Classes\FlickGit.Menu\shell\110switch
 - **Every key the tool creates is named `FlickGit.*`.** The root entries are several keys now,
   so an uninstall finds them by enumerating that one prefix -- which is what keeps "never
   modify keys the tool did not create" structural rather than a promise.
+- **The block is bracketed by separators.** `CommandFlags = 0x20` (`ECF_SEPARATORBEFORE`) on the
+  first entry and `0x40` (`ECF_SEPARATORAFTER`) on the last, which is what gives FlickGit a group of
+  its own instead of leaving it interleaved with `Open with Code` and `Git GUI Here`. When the shell
+  DLL is registered the same value is also reported from `IExplorerCommand::GetFlags`, because it is
+  undocumented which of the two the classic menu consults when both are present — and they cannot
+  disagree if they come from one decision.
+
+  This is the declarative form of what TortoiseGit does by hand. Its `QueryContextMenu` calls
+  `InsertMenu(hMenu, indexMenu++, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr)` either side of its own
+  items and does nothing else about placement — the "dedicated block with a bar around it" *is* those
+  two separators, not a position. An `IContextMenu` handler is handed a raw `HMENU` and has to draw
+  them itself; a verb can ask for them.
 - **`MUIVerb` is a static string**, written once and rendered for every folder on the machine.
   Nothing of ours runs while Explorer builds the menu, so a registry verb cannot know the branch,
   the repository, or anything else about what was clicked. The two root entries get around this

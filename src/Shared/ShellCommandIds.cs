@@ -67,6 +67,22 @@ internal static class ShellCommandIds
     public const string ValueNeedsRepository = "FlickGit.NeedsRepository";
 
     /// <summary>
+    /// The <c>EXPCMDFLAGS</c> value <c>IExplorerCommand::GetFlags</c> reports, as a decimal string.
+    ///
+    /// In practice one of <see cref="SeparatorBefore"/> or <see cref="SeparatorAfter"/>, which is
+    /// what draws the bar that gives the FlickGit entries a block of their own. Decided by the App,
+    /// because it is the App that knows which entry is first and which is last — the DLL sees one
+    /// CLSID at a time and could not work it out.
+    /// </summary>
+    public const string ValueCommandFlags = "FlickGit.CommandFlags";
+
+    /// <summary><c>ECF_SEPARATORBEFORE</c>. A bar above this entry.</summary>
+    public const uint SeparatorBefore = 0x20;
+
+    /// <summary><c>ECF_SEPARATORAFTER</c>. A bar below it.</summary>
+    public const uint SeparatorAfter = 0x40;
+
+    /// <summary>
     /// The file name the App looks for beside itself, and registers only if it is really there.
     ///
     /// A handler pointing at a CLSID whose DLL is missing is worse than no handler: Explorer cannot
