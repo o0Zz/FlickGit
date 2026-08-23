@@ -64,6 +64,16 @@ public partial class CommitWindow : Window
             Modifiers = ModifierKeys.Control,
             Command = new Infrastructure.RelayCommand(() => Diff.RequestSave()),
         });
+
+        //F5 re-reads the status, which the Refresh button already does. A window binding rather than
+        //a button accelerator, so it works from the diff pane and the file list as well as from the
+        //message box -- and it is bound to the view model's own command, so it obeys the same
+        //"not while busy" rule the button does instead of stacking refreshes on a slow repository.
+        InputBindings.Add(new KeyBinding
+        {
+            Key = Key.F5,
+            Command = new Infrastructure.RelayCommand(() => _viewModel?.RefreshCommand.Execute(null)),
+        });
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

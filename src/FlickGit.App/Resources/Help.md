@@ -20,7 +20,8 @@ moment it lands. **Esc** closes the window at any point up until the commit actu
 running, and whatever the AI was doing is abandoned with it.
 
 **Shift+Enter** is a newline, for a commit body. **Ctrl+S** saves an edit in the diff pane, and
-Enter there is an ordinary newline in your file rather than a commit.
+Enter there is an ordinary newline in your file rather than a commit. **F5** re-reads the
+repository, the same as the Refresh button.
 
 If no Explorer window is in front, **nothing happens** — FlickGit will not guess which
 repository you meant. Use **Ctrl+Alt+R**, or the tray icon's Recent list.

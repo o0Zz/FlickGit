@@ -43,7 +43,7 @@ commit.warn.conflict = Dieses Repository hat ungelöste Konflikte. Bitte vor dem
 commit.queued = Commit, sobald die Nachricht da ist…
 commit.committing = Commit läuft…
 # The keyboard map, shown in the footer until there is an outcome to report in its place.
-commit.hint = ⏎ Commit und Push   ⇧⏎ neue Zeile   ^S speichern   Esc schließen
+commit.hint = ⏎ Commit und Push   ⇧⏎ neue Zeile   ^S speichern   F5 aktualisieren   Esc schließen
 
 # ---- Dateiliste ----
 files.tooltip.split = Bereitgestellt +{0} -{1} · Arbeitsverzeichnis +{2} -{3}

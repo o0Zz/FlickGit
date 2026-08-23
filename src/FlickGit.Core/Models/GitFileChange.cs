@@ -72,6 +72,30 @@ public sealed class GitFileChange
     /// </summary>
     public bool HasChosenHunks { get; set; }
 
+    /// <summary>
+    /// The deletion is already recorded in the index, and the file is gone from disk.
+    ///
+    /// <b><c>git add</c> must not be run on this, and that is not an optimisation.</b> Pathspec
+    /// matching looks at the working tree and the index; a file in this state is in neither, so
+    /// <c>git add -- &lt;path&gt;</c> fails outright:
+    ///
+    /// <code>fatal: pathspec 'src/Thing.cs' did not match any files</code>
+    ///
+    /// The distinction is invisible on the row, which is what made this worth a named property. Both
+    /// of these show a <c>D</c>:
+    ///
+    /// <list type="bullet">
+    /// <item><description><c>1 .D</c> — deleted from the working tree only. The index entry is still
+    /// there, so <c>git add</c> matches it and stages the deletion. This is the ordinary
+    /// case.</description></item>
+    /// <item><description><c>1 D.</c> — deleted with <c>git rm</c>, so the deletion is staged
+    /// already. Nothing to match, and nothing to do: the index holds exactly what the user is asking
+    /// to commit.</description></item>
+    /// </list>
+    /// </summary>
+    public bool IsDeletionStaged =>
+        IndexStatus == GitChangeType.Deleted && WorkTreeStatus == GitChangeType.None;
+
     /// <summary>Unmerged on either side. Not safe to edit, stage or commit.</summary>
     public bool IsConflicted =>
         IndexStatus == GitChangeType.Conflicted || WorkTreeStatus == GitChangeType.Conflicted;

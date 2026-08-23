@@ -469,8 +469,13 @@ window is arranged around.
 ⇧⏎         newline, for a multi-line body
 Ctrl+⏎     commit & push, from anywhere including the file list
 Ctrl+S     save the diff pane's edit
-esc        cancel a queued commit or a running generation; otherwise close
+F5         re-read the status, the same as the Refresh button
+esc        close
 ```
+
+`F5` is a window binding rather than a button accelerator, so it works from the diff pane and the
+file list as well as the message box — and it goes through the view model's own command, so it obeys
+the same "not while busy" rule the button does instead of stacking refreshes on a slow repository.
 
 **Enter commits rather than inserting a newline**, which is the one thing about this window nobody
 can guess — so the footer says so whenever there is no outcome to report in its place.
@@ -572,6 +577,25 @@ git restore --staged -- "<file>"       # unstage
 
 **Never run `git add -A` or `git add .`** anywhere in the product. Stage the explicit
 resolved path list. The user's selection determines what is committed.
+
+## A deleted file is two states, and one of them must not be staged
+
+Both show a `D` on the row, and `git add` behaves oppositely on them:
+
+| porcelain v2 | meaning | `git add -- <path>` |
+|---|---|---|
+| `1 .D` | gone from the working tree, index entry still there | stages the deletion |
+| `1 D.` | deleted with `git rm`, so the deletion is already staged | **`fatal: pathspec … did not match any files`** |
+
+Pathspec matching looks at the working tree *and* the index. A `git rm`-ed file is in neither, so the
+command does not quietly do nothing — it aborts, and with it the whole commit.
+
+So `GitFileChange.IsDeletionStaged` keeps those paths out of `SelectedPaths`. They need nothing doing:
+the index already holds exactly what the user is asking to commit. Unticking one still unstages it
+normally, because `git restore --staged` matches against HEAD rather than against a pathspec.
+
+This is the second entry in a list that now has three staging states — whole file, chosen hunks,
+already-staged deletion — and all three are "leave the index alone" for different reasons.
 
 ---
 
@@ -2572,6 +2596,8 @@ the *arguments* are assertable, which is the half a temporary repository would h
 `CommitFlow`, which owns the order:
 
 - Unticked-but-staged files are taken out of the index before the commit
+- A file whose deletion is already staged is not passed to `git add`, where the pathspec would match
+  nothing and fail the command, while one deleted from the working tree only still is
 - Naming the current branch performs no switch at all
 - An existing branch switches, refreshes, and aborts when a selected file changed as a result
 - An invalid ref name is rejected before any Git command runs

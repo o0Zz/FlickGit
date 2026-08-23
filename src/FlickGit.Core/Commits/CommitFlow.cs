@@ -310,11 +310,20 @@ public sealed record CommitRequest
         {
             Repository = repository,
             Message = message,
-            //Ticked, minus the ones whose index content the user chose hunk by hunk: `git add` would
-            //stage the whole file and swallow the hunks they left out.
+            //Ticked, minus two kinds that `git add` must not be run on:
+            //
+            //  - files whose index content the user chose hunk by hunk, because adding the whole file
+            //    would swallow the hunks they left out;
+            //  - files whose deletion is already staged, because there is nothing left for a pathspec
+            //    to match and git fails the whole command -- see GitFileChange.IsDeletionStaged.
+            //
+            //Both are already in the index exactly as the user wants them, so both are simply left
+            //alone rather than handled.
             SelectedPaths =
             [
-                .. status.Files.Where(f => f.IsSelected && !f.HasChosenHunks).Select(f => f.Path)
+                .. status.Files
+                    .Where(f => f.IsSelected && !f.HasChosenHunks && !f.IsDeletionStaged)
+                    .Select(f => f.Path)
             ],
 
             //Unticked but in the index. Without this the untick would do nothing at all -- `git
