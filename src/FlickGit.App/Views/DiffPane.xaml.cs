@@ -77,6 +77,7 @@ public partial class DiffPane : UserControl
         //windows show comes from the language file.
         StageHunkButton.Content = Strings.Get("hunk.stage");
         UnstageHunkButton.Content = Strings.Get("hunk.unstage");
+        RevertHunkButton.Content = Strings.Get("hunk.revert");
 
         _document = new AlignedDocument(RightEditor);
 
@@ -156,19 +157,23 @@ public partial class DiffPane : UserControl
 
         var rows = new HashSet<int>();
 
+        //_rows, not _diff.Rows: the live alignment, which is what the document in front of the user
+        //actually is. The two are the same until an edit re-diffs, and staging refuses on a dirty
+        //document anyway -- but reverting does not, and reverting against a stale row list would
+        //rewrite lines the user has since changed.
         for (int line = firstLine; line <= lastLine; line++)
         {
             int row = line - 1;
 
-            if (row >= 0 && row < _diff.Rows.Count)
+            if (row >= 0 && row < _rows.Count)
                 rows.Add(row);
         }
 
-        //A caret sitting on a context line means the hunk that context belongs to, because "stage
-        //this hunk" is the common case and asking the user to land exactly on a changed line would
-        //make it a game.
-        if (rows.Count == 1 && Hunks.Find(_diff.Rows).FirstOrDefault(h => h.Covers(rows.First())) is { } hunk)
-            return Hunks.RowsOf(_diff.Rows, hunk);
+        //A caret sitting on a context line means the hunk that context belongs to, because "this
+        //hunk" is the common case and asking the user to land exactly on a changed line would make
+        //it a game.
+        if (rows.Count == 1 && Hunks.Find(_rows).FirstOrDefault(h => h.Covers(rows.First())) is { } hunk)
+            return Hunks.RowsOf(_rows, hunk);
 
         return rows;
     }
@@ -199,7 +204,7 @@ public partial class DiffPane : UserControl
         //worse than one that explains itself.
         IReadOnlySet<int> rows = SelectedRows();
 
-        return rows.Any(row => Hunks.IsChange(_diff.Rows[row]))
+        return rows.Any(row => Hunks.IsChange(_rows[row]))
             ? null
             : Strings.Get("hunk.nothing");
     }
@@ -215,6 +220,26 @@ public partial class DiffPane : UserControl
         UnstageHunkButton.IsEnabled = can;
         StageHunkButton.ToolTip = refusal;
         UnstageHunkButton.ToolTip = refusal;
+
+        //Reverting has one condition of the three staging has: something changed under the
+        //selection. It does not need a clean document, because it edits the document rather than
+        //describing it to Git -- and it does not need a tracked file, because the left side of an
+        //untracked file is empty and "revert to nothing" is a legitimate thing to ask for.
+        string? revertRefusal = editable ? WhyCannotRevert() : null;
+
+        RevertHunkButton.IsEnabled = editable && revertRefusal is null;
+        RevertHunkButton.ToolTip = revertRefusal;
+    }
+
+    /// <summary>Why reverting is unavailable, or null when it is available.</summary>
+    private string? WhyCannotRevert()
+    {
+        if (_diff is null || !_diff.IsEditable)
+            return null;
+
+        return SelectedRows().Any(row => Hunks.IsChange(_rows[row]))
+            ? null
+            : Strings.Get("hunk.nothing");
     }
 
     public bool IsDirty
@@ -553,6 +578,52 @@ public partial class DiffPane : UserControl
 
         //RealText, never the document. See the class remarks.
         _ = SaveRequested(RealText());
+    }
+
+    private void OnRevertHunk(object sender, RoutedEventArgs e) => _ = RevertSelectionAsync();
+
+    /// <summary>
+    /// Puts the selected lines back the way the left pane has them.
+    ///
+    /// <b>An edit, not a Git operation.</b> Nothing is staged, nothing is written, and no process
+    /// runs: the reverted text goes into the editor exactly as if the user had typed it there, so
+    /// <c>Ctrl+Z</c> takes it back and <c>Ctrl+S</c> is still the only thing that reaches the disk.
+    /// That is what makes this safe to offer on one click for an operation that otherwise reads as
+    /// "discard my work" — CLAUDE.md's rule is that uncommitted work is never discarded, and until
+    /// the user saves, none has been.
+    ///
+    /// The rows are rebuilt from the new text rather than patched in place. A revert changes which
+    /// lines are filler on both sides, and the filler layout is the alignment — so recomputing it is
+    /// the only way to leave the two panes describing the same file.
+    /// </summary>
+    private async Task RevertSelectionAsync()
+    {
+        if (_diff is null || RightEditor.IsReadOnly)
+            return;
+
+        if (Hunks.RevertRows(_rows, SelectedRows()) is not { } reverted)
+            return;
+
+        //Any re-diff already queued from earlier typing would otherwise land after this one and
+        //recompute from text this is about to replace.
+        _rediffCancellation?.Cancel();
+        _rediffTimer.Stop();
+
+        bool wordLevel = _diff.RenderMode == DiffRenderMode.SideBySideWithWordDiff;
+        string baseText = _diff.Left.Text;
+
+        //Off the UI thread, like every other re-diff here: a revert on a large file is the same
+        //amount of work as a keystroke on one.
+        IReadOnlyList<DiffRow> rows = await Task.Run(
+            () => DiffService.Rediff(baseText, reverted, wordLevel)).ConfigureAwait(true);
+
+        BuildDocuments(rows, preserveCaret: true);
+
+        //Dirty, because the file on disk still has what was just taken out of the editor. The user
+        //saves when they are satisfied, or closes and is asked.
+        IsDirty = true;
+        SavedText.Visibility = Visibility.Collapsed;
+        UpdateHunkButtons();
     }
 
     private void OnStageHunk(object sender, RoutedEventArgs e) => RaiseHunk(unstage: false);

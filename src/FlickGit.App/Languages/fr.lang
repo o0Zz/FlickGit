@@ -229,6 +229,9 @@ palette.tag.willcreate = sera créée sur HEAD
 # --- indexation par section ---------------------------------------------------
 hunk.stage = Indexer la section
 hunk.unstage = Désindexer la section
+# Takes the left pane's version of the selected lines. An editor edit, not a Git
+# operation: Ctrl+Z undoes it and nothing is written until Ctrl+S.
+hunk.revert = Annuler
 hunk.savefirst = Enregistrez d'abord vos modifications — le diff affiché n'est pas celui du disque.
 hunk.untracked = Ce fichier n'est pas suivi, il n'y a donc rien à en indexer partiellement. Cochez plutôt le fichier.
 hunk.nothing = Placez le curseur dans une modification, ou sélectionnez des lignes, pour n'indexer qu'une partie de ce fichier.

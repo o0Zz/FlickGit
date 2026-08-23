@@ -648,6 +648,41 @@ On save, rewrite with the **same** encoding, BOM state and line endings. Silentl
 normalising line endings on a Windows tool turns a three-line change into a whole-file diff,
 and it will happen on the first CRLF repository otherwise.
 
+## Reverting lines
+
+The right pane is editable, so the other half of editing is putting something back. **Select lines
+in the right pane and press `Revert lines`, and the left side's version of those lines replaces
+them.** Landing the caret anywhere inside a hunk without selecting takes the whole hunk, the same
+rule hunk staging already uses.
+
+One rule makes this safe enough to offer on a single click, for an operation that otherwise reads as
+"discard my work":
+
+> **It is an edit, not a Git operation.** The reverted text goes into the editor exactly as if it had
+> been typed there. Nothing is staged, no process runs, and nothing reaches the disk — so `Ctrl+Z`
+> takes it back, and `Ctrl+S` is still the only thing that writes. **Safety Rules** forbids
+> discarding uncommitted work; until the user saves, none has been discarded.
+
+That is also why there is no confirmation dialog. A confirmation would be friction protecting
+against something that has not happened yet, and the thing it would guard — the save — already has
+its own explicit keystroke.
+
+Two consequences worth stating:
+
+- **It works on a dirty document**, unlike hunk staging, which refuses one. Staging has to describe
+  the file to Git in bytes and so needs the document to match what is on disk; reverting only has to
+  produce new text. This is why the selection is mapped against the *live* row list rather than the
+  one the diff was first computed with — after an edit the viewer re-diffs, and reverting against a
+  stale alignment would rewrite lines the user has since changed.
+- **It says nothing about line endings**, where `Hunks.ToPatch` has to re-terminate every line from
+  the original bytes. The reconstruction works in the normalised `\n` text the viewer holds, and
+  `WorkingTreeWriter` restores the file's own encoding, BOM and endings on save. Two places deciding
+  line endings is exactly how a one-line revert becomes a whole-file diff.
+
+Reverting an **inserted** line removes it; reverting a **deleted** line brings it back. Both fall
+out of one rule — a selected row contributes its left side, and a side that is filler contributes no
+line — which is why one function serves both directions and they cannot disagree.
+
 ## Save semantics
 
 - **Never auto-save.** Explicit `Ctrl+S`. Dirty state shown in the header, blocking on close.
@@ -2263,6 +2298,9 @@ The one place where thoroughness is the point rather than the cost:
 
 - Round-trip save preserves UTF-8 with BOM, UTF-8 without, UTF-16LE, CRLF, LF, mixed endings, and
   the absence of a trailing newline
+- Reverting lines reconstructs the file: a modified line goes back, an insertion is dropped, a
+  deletion is restored, an unselected change survives, a trailing newline is neither gained nor
+  lost, and reverting every row reproduces the left side exactly
 - Save is refused when the file changed on disk after load
 - The document the editor holds converts back to file text without its alignment fillers, and
   without gaining or losing a trailing newline

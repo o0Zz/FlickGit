@@ -75,6 +75,8 @@ The right side is a real editor, not a preview.
   If something else changed the file since you opened it, the save is refused and you are
   offered a reload.
 - Select lines, or a whole hunk, and stage just those. The same patch reversed unstages them.
+- **Revert lines** puts the left pane's version of the selected lines back. It is an edit, not a Git
+  operation: **Ctrl+Z** undoes it, and nothing reaches the disk until you press **Ctrl+S**.
 - The header always says what you are comparing against: `Working tree ↔ HEAD` or
   `Working tree ↔ Index`. Editing while looking at the staged diff edits the **working tree** —
   a strip appears offering to restage.

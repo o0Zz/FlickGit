@@ -229,6 +229,9 @@ palette.tag.willcreate = será criada em HEAD
 # --- preparação por blocos ----------------------------------------------------
 hunk.stage = Preparar o bloco
 hunk.unstage = Retirar o bloco
+# Takes the left pane's version of the selected lines. An editor edit, not a Git
+# operation: Ctrl+Z undoes it and nothing is written until Ctrl+S.
+hunk.revert = Reverter
 hunk.savefirst = Guarde primeiro as suas edições — o diff no ecrã não é o que está no disco.
 hunk.untracked = Este ficheiro não é controlado, por isso não há parte dele para preparar. Marque antes o ficheiro inteiro.
 hunk.nothing = Ponha o cursor numa alteração, ou selecione linhas, para preparar apenas parte deste ficheiro.

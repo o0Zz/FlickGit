@@ -18,6 +18,10 @@ FlickGit is built for developers who work across multiple repositories and switc
       Explorer window is showing, caret already in the message box. Enter commits and pushes;
       `Shift+Enter` is a newline. With no Explorer window in front, nothing opens — FlickGit does
       not guess which repository you meant.
+- [x] **Live-editable diff** — the right pane is the file on disk. Edit it, stage or unstage
+      individual lines, or **revert** selected lines to the left side's version. Reverting is an
+      editor edit: `Ctrl+Z` undoes it and nothing is written until `Ctrl+S`, which restores the
+      file's original encoding, BOM and line endings.
 - [x] **Repository palette** — `Ctrl+Alt+R`, repositories with something to do listed first, fuzzy
       filter, action mode, `Ctrl+Enter` to pull every repository that is behind.
 - [x] **Commit window** — file list with status letters and `+added / -removed` counts, and tick

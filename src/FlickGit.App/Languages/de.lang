@@ -229,6 +229,9 @@ palette.tag.willcreate = wird auf HEAD erstellt
 # --- Bereitstellen einzelner Blöcke -------------------------------------------
 hunk.stage = Block bereitstellen
 hunk.unstage = Block zurücknehmen
+# Takes the left pane's version of the selected lines. An editor edit, not a Git
+# operation: Ctrl+Z undoes it and nothing is written until Ctrl+S.
+hunk.revert = Zurücknehmen
 hunk.savefirst = Zuerst die Bearbeitungen speichern — der Diff auf dem Bildschirm ist nicht das, was auf der Festplatte steht.
 hunk.untracked = Diese Datei ist unversioniert, es gibt also keinen Teil davon bereitzustellen. Stattdessen die Datei ankreuzen.
 hunk.nothing = Den Cursor in eine Änderung setzen oder Zeilen markieren, um nur einen Teil dieser Datei bereitzustellen.

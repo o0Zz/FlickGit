@@ -76,6 +76,17 @@
                             IsEnabled="False"
                             Click="OnUnstageHunk" />
 
+                    <!-- Revert: take the left side's version of the selected lines. First in the
+                         strip because it reads left-to-right the way the panes do, and because it is
+                         an edit rather than a Git operation: it belongs beside Save, not beside
+                         the staging pair. -->
+                    <Button x:Name="RevertHunkButton"
+                            MinWidth="94"
+                            Padding="8,2"
+                            Margin="0,0,6,0"
+                            IsEnabled="False"
+                            Click="OnRevertHunk" />
+
                     <Button x:Name="SaveButton"
                             Content="Save"
                             MinWidth="56"

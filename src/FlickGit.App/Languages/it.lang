@@ -229,6 +229,9 @@ palette.tag.willcreate = sarà creato su HEAD
 # --- stage per blocchi --------------------------------------------------------
 hunk.stage = Metti il blocco in stage
 hunk.unstage = Togli il blocco dallo stage
+# Takes the left pane's version of the selected lines. An editor edit, not a Git
+# operation: Ctrl+Z undoes it and nothing is written until Ctrl+S.
+hunk.revert = Ripristina
 hunk.savefirst = Salvare prima le modifiche: il diff a schermo non è quello che c'è su disco.
 hunk.untracked = Questo file non è tracciato, quindi non c'è nulla di cui mettere in stage una parte. Selezionare l'intero file.
 hunk.nothing = Posizionare il cursore in una modifica, o selezionare delle righe, per mettere in stage solo una parte di questo file.

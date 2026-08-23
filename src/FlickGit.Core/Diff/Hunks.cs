@@ -229,6 +229,77 @@ public static class Hunks
         && (row.Left.LineNumber is not null || row.Right.LineNumber is not null);
 
     /// <summary>
+    /// The right-hand text with the selected changes put back the way the left side has them.
+    ///
+    /// <b>This is "revert these lines", and it is the only thing in the viewer that removes the
+    /// user's work rather than adding to it.</b> Two properties make that safe, and both come from
+    /// where the result goes rather than from anything here:
+    ///
+    /// <list type="bullet">
+    /// <item><description>It returns <i>text</i>, not a file operation. The caller puts it in the
+    /// editor, which means <c>Ctrl+Z</c> undoes it and nothing has touched the disk. CLAUDE.md's
+    /// "never discard uncommitted work" is satisfied by the change being an ordinary edit the user
+    /// can walk back, and by <c>Ctrl+S</c> still being the only thing that
+    /// writes.</description></item>
+    /// <item><description>It works in the normalised <c>\n</c> text the viewer holds, and says
+    /// nothing about line endings. <see cref="ToPatch"/> above has to re-terminate every line from
+    /// the original bytes because <c>git apply</c> compares them byte for byte; this does not,
+    /// because <c>WorkingTreeWriter</c> restores the file's own encoding, BOM and endings when it
+    /// saves. Two places deciding line endings is how a one-line revert becomes a whole-file
+    /// diff.</description></item>
+    /// </list>
+    ///
+    /// Every row is emitted in order: a selected change contributes its <b>left</b> side, everything
+    /// else contributes its <b>right</b> side. A side that is filler contributes no line at all,
+    /// which is what makes the two directions work out of one rule — reverting an added line drops
+    /// it, and reverting a deleted line brings it back.
+    /// </summary>
+    /// <param name="rows">
+    /// The <i>live</i> alignment, not the one the diff was first computed with. After an edit the
+    /// viewer re-diffs, and reverting against a stale row list would rewrite lines the user has since
+    /// changed.
+    /// </param>
+    /// <param name="selected">Row indices to take from the left. Anything else is ignored.</param>
+    /// <returns>
+    /// The complete new text for the right-hand side, or null when the selection contains no change
+    /// — where returning the text unaltered would mark the editor dirty for nothing.
+    /// </returns>
+    public static string? RevertRows(IReadOnlyList<DiffRow> rows, IReadOnlySet<int> selected)
+    {
+        bool anything = false;
+
+        foreach (int row in selected)
+        {
+            if (row >= 0 && row < rows.Count && IsChange(rows[row]))
+            {
+                anything = true;
+                break;
+            }
+        }
+
+        if (!anything)
+            return null;
+
+        var lines = new List<string>(rows.Count);
+
+        for (int row = 0; row < rows.Count; row++)
+        {
+            //A selected change takes the left side; everything else keeps what the file has now.
+            DiffSide side = selected.Contains(row) && IsChange(rows[row]) ? rows[row].Left : rows[row].Right;
+
+            //Filler contributes nothing. That is the whole of the asymmetry between reverting an
+            //insertion and reverting a deletion.
+            if (!side.IsFiller)
+                lines.Add(side.Text);
+        }
+
+        //Joined with \n and nothing else. A file that ends with a newline arrives here as a final
+        //empty row, so the join reproduces that terminator without this having to know whether the
+        //file had one -- and a file that does not, does not gain one.
+        return string.Join('\n', lines);
+    }
+
+    /// <summary>
     /// Whether <paramref name="lineNumber"/> names a line the file actually has.
     ///
     /// The differ works on text split by newline, so a file ending with one yields a final empty
