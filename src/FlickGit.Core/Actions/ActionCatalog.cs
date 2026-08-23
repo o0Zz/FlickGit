@@ -347,7 +347,11 @@ public sealed class ActionCatalog
         //The fast path. Not on the context menu: CLAUDE.md's layout has one commit entry, and a
         //second beside it would be a decision the user has to make before seeing their changes.
 
-        //Everything else, under More.
+        //Everything else, under More. Log first: it is the most-reached of the eight, and it is
+        //still not a root entry because CLAUDE.md's two root entries are the two the user
+        //*performs* all day -- and this one performs nothing.
+        new("log", "log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
+
         new("switch", "switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Branch),
 

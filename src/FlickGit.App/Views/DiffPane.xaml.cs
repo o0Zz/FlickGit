@@ -314,9 +314,13 @@ public partial class DiffPane : UserControl
             return;
         }
 
-        ModeText.Text = diff.ComparisonMode == DiffComparisonMode.WorkingTreeVsIndex
-            ? Strings.Get("diff.mode.index")
-            : Strings.Get("diff.mode.head");
+        //A historical diff labels its range instead of a comparison mode: "Working tree ↔ HEAD"
+        //over two blobs out of the object store would not merely be unhelpful, it would be false.
+        ModeText.Text = diff.Range is { } range
+            ? range.Label
+            : diff.ComparisonMode == DiffComparisonMode.WorkingTreeVsIndex
+                ? Strings.Get("diff.mode.index")
+                : Strings.Get("diff.mode.head");
 
         NoticeText.Text = diff.Notice ?? string.Empty;
 

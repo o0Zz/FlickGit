@@ -24,6 +24,10 @@ FlickGit is built for developers who work across multiple repositories and switc
       individual lines, or **revert** selected lines to the left side's version. Reverting is an
       editor edit: `Ctrl+Z` undoes it and nothing is written until `Ctrl+S`, which restores the
       file's original encoding, BOM and line endings.
+- [x] **Show log, with a combined diff** — the feature this was built for: select several commits
+      and see the diff across all of them at once, not one at a time. A gapped selection says so,
+      in words, before you read the diff. Read-only — nothing in the window touches the
+      repository — with **Save as patch…** for handing the result to somebody else.
 - [x] **Repository palette** — `Ctrl+Alt+R`, repositories with something to do listed first, fuzzy
       filter, action mode, `Ctrl+Enter` to pull every repository that is behind.
 - [x] **Commit window** — file list with status letters and `+added / -removed` counts, and tick
@@ -119,12 +123,12 @@ assumed.
 
 ```text
 flick commit <path>                 commit window
-flick pull-rebase <path>            pull --rebase (+ submodules when present)
-flick pull-rebase-autostash <path>
+flick pull-rebase <path>            pull --rebase --autostash (+ submodules when present)
 flick push <path>                   with the guardrails; exit 5 if refused
 flick switch <path> [branch]        picker when omitted, direct switch when named
 flick tag <path> [name]             tag window when omitted, creates it when named
 flick status <path>
+flick log <path>                    commit history; multi-select for a combined diff
 flick terminal <path>               open a terminal there
 flick clone <path> [url]            clone into a subdirectory of <path>
 flick run <id> [path]               run a catalog action by id

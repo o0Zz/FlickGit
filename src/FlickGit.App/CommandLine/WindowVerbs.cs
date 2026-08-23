@@ -6,7 +6,11 @@ using FlickGit.App.Resident;
 using FlickGit.App.Views;
 using FlickGit.Branches;
 using FlickGit.Cli;
+using FlickGit.App.Settings;
 using FlickGit.Clone;
+using FlickGit.Diagnostics;
+using FlickGit.Diff;
+using FlickGit.History;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Pulls;
@@ -36,6 +40,10 @@ public sealed class WindowVerbs(
     PullService pulls,
     CloneService clones,
     TagService tags,
+    HistoryService history,
+    DiffService diffs,
+    FlickSettings settings,
+    OperationTimings timings,
     RepositoryService repositories,
     ILog log)
 {
@@ -65,6 +73,42 @@ public sealed class WindowVerbs(
     public async Task<VerbResult> PaletteAsync()
     {
         await palette.ShowAsync().ConfigureAwait(true);
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// The log window, for `flick log`.
+    ///
+    /// Constructed per call rather than pre-warmed, and the reason is not the tag window's: the
+    /// resident process has already paid WPF's cold start, the theme dictionary and AvalonEdit's
+    /// first JIT for the commit window's diff pane, so a second pane here costs an HWND and a
+    /// layout pass. What a warm instance <i>would</i> cost is a window full of per-use state --
+    /// loaded pages, a selection, a range, a diff cache, an in-flight token -- that has to be
+    /// provably reset between two uses, for a surface with no row in CLAUDE.md's latency table.
+    ///
+    /// No bare-repository guard, unlike <see cref="CommitAsync"/>: a bare repository has no working
+    /// tree but it does have history, and this is the one window that can show it.
+    /// </summary>
+    public async Task<VerbResult> LogAsync(RepositoryInfo repository)
+    {
+        var clock = Stopwatch.StartNew();
+
+        var window = new LogWindow(repository, history, diffs, settings, timings, log);
+
+        window.Show();
+
+        //The stub granted this process foreground rights before sending the request; without this
+        //the window comes up behind Explorer.
+        window.Activate();
+
+        timings.Record("window.log.visible", clock.Elapsed);
+
+        //Awaited rather than left running, so "visible" and "usable" are two budgets -- the same
+        //split CommitWindowHost makes.
+        await window.LoadFirstPageAsync().ConfigureAwait(true);
+
+        timings.Record("window.log.populated", clock.Elapsed);
+
         return VerbResult.Stay();
     }
 

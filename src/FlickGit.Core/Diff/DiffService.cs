@@ -2,6 +2,7 @@ using DiffPlex;
 using DiffPlex.DiffBuilder;
 using DiffPlex.DiffBuilder.Model;
 using FlickGit.Git;
+using FlickGit.History;
 using FlickGit.Models;
 
 namespace FlickGit.Diff;
@@ -51,12 +52,85 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         FileText left = await leftTask.ConfigureAwait(false);
         FileText right = await rightTask.ConfigureAwait(false);
 
-        if (file.IsBinary || left.IsBinary || right.IsBinary)
+        return await AssembleAsync(
+            repository,
+            file.Path,
+            left,
+            right,
+            file.IsBinary,
+            mode,
+            range: null,
+            UnifiedArgs(file, mode),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The same diff, of two commits instead of the working tree.
+    ///
+    /// Both sides are blobs out of the object store, so there is nothing on disk the right pane
+    /// corresponds to — which is what <see cref="SideBySideDiff.Range"/> tells the viewer, and why
+    /// the result reports itself uneditable however small the file is.
+    ///
+    /// Not an overload of <see cref="ComputeAsync"/>: two methods differing only by whether the
+    /// third argument is a mode or a range is exactly the shape Hard Requirement 1 warns about.
+    /// Two different questions get two different names.
+    /// </summary>
+    public async Task<SideBySideDiff> ComputeRangeAsync(
+        RepositoryInfo repository,
+        GitFileChange file,
+        CommitRange range,
+        CancellationToken cancellationToken)
+    {
+        //Concurrently, for the reason ComputeAsync gives: two process starts serialised would add
+        //a whole `git show` to the click-to-rendered budget for nothing.
+        Task<FileText> leftTask = LoadBlobAsync(repository, range.BaseSpec, file.OldPath ?? file.Path, cancellationToken);
+        Task<FileText> rightTask = LoadBlobAsync(repository, range.TipSpec, file.Path, cancellationToken);
+
+        FileText left = await leftTask.ConfigureAwait(false);
+        FileText right = await rightTask.ConfigureAwait(false);
+
+        return await AssembleAsync(
+            repository,
+            file.Path,
+            left,
+            right,
+            file.IsBinary,
+            DiffComparisonMode.WorkingTreeVsHead,
+            range,
+            RangeUnifiedArgs(file, range),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Everything both compute paths do once they have two <see cref="FileText"/>s: the binary
+    /// check, the size ceilings, the unified fallback and the row build.
+    ///
+    /// Extracted rather than written twice because CLAUDE.md fixes the three ceilings at 500 KB,
+    /// 2 MB and 50,000 lines, and two copies of those numbers is two places for them to disagree.
+    /// </summary>
+    /// <param name="unifiedArgs">
+    /// The fully formed argument list for the over-the-ceiling fallback, passed in rather than as
+    /// a callback — the boring mechanism, and it keeps the two commands beside the two callers that
+    /// know what they mean.
+    /// </param>
+    private async Task<SideBySideDiff> AssembleAsync(
+        RepositoryInfo repository,
+        string path,
+        FileText left,
+        FileText right,
+        bool knownBinary,
+        DiffComparisonMode mode,
+        CommitRange? range,
+        IReadOnlyList<string> unifiedArgs,
+        CancellationToken cancellationToken)
+    {
+        if (knownBinary || left.IsBinary || right.IsBinary)
         {
             return new SideBySideDiff
             {
-                Path = file.Path,
+                Path = path,
                 ComparisonMode = mode,
+                Range = range,
                 RenderMode = DiffRenderMode.Binary,
                 Left = left,
                 Right = right,
@@ -72,16 +146,17 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
             //Read-only unified, and say so. Live re-diff at this size cannot be made to
             //feel instant, and pretending otherwise would give the user an editor that
             //stutters on every keystroke.
-            string unified = await LoadUnifiedAsync(repository, file, mode, cancellationToken).ConfigureAwait(false);
+            GitResult unified = await git.ReadAsync(repository.Root, unifiedArgs, cancellationToken).ConfigureAwait(false);
 
             return new SideBySideDiff
             {
-                Path = file.Path,
+                Path = path,
                 ComparisonMode = mode,
+                Range = range,
                 RenderMode = DiffRenderMode.UnifiedReadOnly,
                 Left = left,
                 Right = right,
-                UnifiedText = unified,
+                UnifiedText = unified.Succeeded ? unified.StdOut : unified.ErrorText,
                 Notice = largest > SideBySideCeilingBytes
                     ? $"{largest / (1024 * 1024)} MB file — read-only unified view."
                     : $"{lines:N0} lines — read-only unified view.",
@@ -99,8 +174,9 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
 
         return new SideBySideDiff
         {
-            Path = file.Path,
+            Path = path,
             ComparisonMode = mode,
+            Range = range,
             RenderMode = wordLevel ? DiffRenderMode.SideBySideWithWordDiff : DiffRenderMode.SideBySideLinesOnly,
             Rows = rows,
             Left = left,
@@ -138,9 +214,28 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
             ? $"HEAD:{basePath}"
             : $":{basePath}";
 
+        return await LoadBlobAsync(repository, mode == DiffComparisonMode.WorkingTreeVsHead ? "HEAD" : string.Empty, basePath, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// One blob out of the object store, as <c>git show &lt;spec&gt;:&lt;path&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// A failure here is the ordinary case rather than an error, and that is what lets the range
+    /// diff have no case analysis at all: a file <b>added</b> in the range has no blob in the base
+    /// tree, a file <b>deleted</b> in it has none in the tip, and the empty-tree base of a root
+    /// commit contains nothing at all. Every one of those is a legitimately empty pane — "the whole
+    /// file was added", "the whole file was removed" — which is exactly what should be shown.
+    /// </remarks>
+    private async Task<FileText> LoadBlobAsync(
+        RepositoryInfo repository,
+        string spec,
+        string path,
+        CancellationToken cancellationToken)
+    {
         GitResult result = await git.ReadAsync(
             repository.Root,
-            ["show", spec],
+            ["show", $"{spec}:{path}"],
             cancellationToken).ConfigureAwait(false);
 
         if (!result.Succeeded)
@@ -176,29 +271,35 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         }
     }
 
-    private async Task<string> LoadUnifiedAsync(
-        RepositoryInfo repository,
-        GitFileChange file,
-        DiffComparisonMode mode,
-        CancellationToken cancellationToken)
+    private static IReadOnlyList<string> UnifiedArgs(GitFileChange file, DiffComparisonMode mode)
     {
         var args = new List<string> { "diff" };
 
-        if (mode == DiffComparisonMode.WorkingTreeVsIndex)
-        {
-            //Working tree against the index is plain `git diff`; against HEAD needs HEAD
-            //named explicitly, or staged changes would be invisible in the output.
-        }
-        else
-        {
+        //Working tree against the index is plain `git diff`; against HEAD needs HEAD
+        //named explicitly, or staged changes would be invisible in the output.
+        if (mode == DiffComparisonMode.WorkingTreeVsHead)
             args.Add("HEAD");
-        }
 
         args.Add("--");
         args.Add(file.Path);
 
-        GitResult result = await git.ReadAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
-        return result.Succeeded ? result.StdOut : result.ErrorText;
+        return args;
+    }
+
+    private static IReadOnlyList<string> RangeUnifiedArgs(GitFileChange file, CommitRange range)
+    {
+        var args = new List<string>
+        {
+            "diff", "--no-color", "--no-ext-diff", "--no-textconv", "-M",
+            range.BaseSpec, range.TipSpec, "--", file.Path,
+        };
+
+        //A rename needs both pathspecs or `git diff -M` has nothing to pair, and the file would
+        //come back as an unrelated add.
+        if (file.OldPath is { Length: > 0 } old)
+            args.Add(old);
+
+        return args;
     }
 
     /// <summary>

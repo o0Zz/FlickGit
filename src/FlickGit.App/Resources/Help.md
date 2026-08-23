@@ -110,6 +110,19 @@ a secret pattern is redacted or dropped.
 The AI is never a dependency. If it is slow, unreachable or unconfigured, the message box is an
 ordinary text box and every button still works.
 
+## The log
+
+**Show log…** in the FlickGit submenu, or `flick log`. A commit list, what each commit changed,
+and the diff side by side.
+
+The reason it is here: **select several commits and you get their combined diff**, not one diff
+per commit. That is `git diff <oldest>^ <newest>`, so a selection with gaps in it also includes
+the commits in between — and the window says so, in words, above the file list.
+
+Nothing in this window changes the repository. There is no checkout, reset, revert or
+cherry-pick here, and the diff is read-only on both sides. **Save as patch…** writes the diff you
+are looking at to a file you choose.
+
 ## Command line
 
 Everything in the menus is also a verb. `<path>` defaults to the current directory.
@@ -118,6 +131,7 @@ Everything in the menus is also a verb. `<path>` defaults to the current directo
 flick commit <path>              flick switch <path> [branch]
 flick pull-rebase <path>         flick tag <path> [name]
 flick push <path>                flick status <path>
+flick log <path>                 commit history + combined diffs
 flick palette                    flick clone <path> [url]
 flick settings                   flick terminal <path>
                                  flick run <id> [path]

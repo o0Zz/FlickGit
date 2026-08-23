@@ -1,0 +1,563 @@
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
+using FlickGit.App.Localization;
+using FlickGit.App.Settings;
+using FlickGit.Diagnostics;
+using FlickGit.Diff;
+using FlickGit.Git;
+using FlickGit.History;
+using FlickGit.Logging;
+using FlickGit.Models;
+using Microsoft.Win32;
+
+namespace FlickGit.App.Views;
+
+/// <summary>
+/// The log window: commit history, and the diff of whatever is selected.
+///
+/// <b>The feature this window exists for is the multi-selection.</b> Picking several commits shows
+/// their <i>combined</i> diff — <c>git diff &lt;oldest&gt;^ &lt;newest&gt;</c>, which is what answers
+/// "what changed between Tuesday and now" and what no per-commit view can answer. Everything else
+/// here is in service of that: the list is what you select in, the file list is what the range
+/// touched, and the pane is the commit window's, read-only.
+///
+/// <b>It performs nothing.</b> No checkout, reset, revert, cherry-pick, tag or branch-from-here.
+/// That list is the boundary CLAUDE.md's Product Philosophy draws, and it is written down so it
+/// does not grow one release at a time. The single outward action is Save as patch, which writes a
+/// file the user named in a dialog, outside the repository.
+///
+/// Code-behind rather than a view model, in the <see cref="TagsWindow"/> tradition. The Git
+/// sequences live in <see cref="HistoryService"/> and <see cref="DiffService"/>; what stays here is
+/// what the list shows and what the hint says, which is what a view model owns anyway — and
+/// <c>ListBox.SelectedItems</c> is not bindable, so a view model would need an attached behaviour
+/// invented so that a second class could avoid touching the first.
+/// </summary>
+public partial class LogWindow : Window
+{
+    /// <summary>
+    /// How long the selection has to settle before Git is asked anything.
+    ///
+    /// A key-repeated Shift+Down fires roughly every 30 ms, so this collapses a whole drag into one
+    /// reload rather than starting a process per row. 200 ms — the diff pane's re-diff delay — is
+    /// perceptible slack after the hand stops; 120 is not.
+    /// </summary>
+    private static readonly TimeSpan SelectionSettleDelay = TimeSpan.FromMilliseconds(120);
+
+    /// <summary>Files whose diff is computed before the user clicks one, as the commit window does.</summary>
+    private const int PrefetchCount = 5;
+
+    private readonly RepositoryInfo _repository;
+    private readonly HistoryService _history;
+    private readonly DiffService _diffs;
+    private readonly OperationTimings _timings;
+    private readonly ILog _log;
+
+    private readonly ObservableCollection<CommitRow> _commits = [];
+
+    /// <summary>
+    /// Computed diffs, keyed by range and path.
+    ///
+    /// Not <c>DiffCache</c>, which is not a dictionary but a set of working-tree rules —
+    /// <c>Invalidate</c> for a save, <c>Clear</c> for a commit, a hard-coded comparison mode. None
+    /// of them mean anything here: history is immutable, so an entry stays valid until the window
+    /// closes. What the two genuinely share is a dictionary and a token, which is the BCL.
+    /// </summary>
+    private readonly Dictionary<string, SideBySideDiff> _cache = new(StringComparer.Ordinal);
+
+    private readonly DispatcherTimer _settle;
+
+    private CommitRange? _shown;
+    private CancellationTokenSource? _inFlight;
+    private int _generation;
+    private bool _endOfHistory;
+    private bool _loading;
+
+    public LogWindow(
+        RepositoryInfo repository,
+        HistoryService history,
+        DiffService diffs,
+        FlickSettings settings,
+        OperationTimings timings,
+        ILog log)
+    {
+        InitializeComponent();
+
+        _repository = repository;
+        _history = history;
+        _diffs = diffs;
+        _timings = timings;
+        _log = log;
+
+        Title = Strings.Get("log.title", repository.Name);
+        RepositoryText.Text = repository.Name;
+        FilesHeader.Text = Strings.Get("log.files.header");
+        LoadMoreButton.Content = Strings.Get("log.loadmore", HistoryService.PageSize);
+        SavePatchButton.Content = Strings.Get("log.patch");
+        CloseButton.Content = Strings.Get("log.close");
+        PagingText.Text = Strings.Get("log.loading");
+        RangeText.Text = Strings.Get("log.select.prompt");
+        MetaText.Text = Strings.Get("log.hint");
+
+        CommitList.ItemsSource = _commits;
+        Diff.SetTypography(settings.DiffFontFamily, settings.DiffFontSize);
+        Diff.Show(null, isLoading: false);
+
+        //The debounce idiom is the diff pane's: stop-then-start on every event, and the tick
+        //stops itself before doing the work.
+        _settle = new DispatcherTimer { Interval = SelectionSettleDelay };
+        _settle.Tick += (_, _) =>
+        {
+            _settle.Stop();
+            _ = ReloadRangeAsync();
+        };
+
+        //Ctrl+S means the same thing here as in the commit window -- write what I am looking at --
+        //with a different destination because the destination is the only thing that differs. Esc
+        //is left to the Close button's IsCancel: this window has no state that must refuse to
+        //close, which is the only reason CommitWindow intercepts it.
+        InputBindings.Add(new KeyBinding
+        {
+            Key = Key.S,
+            Modifiers = ModifierKeys.Control,
+            Command = new Infrastructure.RelayCommand(() => OnSavePatch(this, new RoutedEventArgs())),
+        });
+    }
+
+    /// <summary>
+    /// Reads the first page.
+    ///
+    /// Separate from the constructor so the caller can time "visible" and "usable" apart, which is
+    /// the split <c>CommitWindowHost</c> makes for the same reason.
+    /// </summary>
+    public async Task LoadFirstPageAsync() => await LoadPageAsync().ConfigureAwait(true);
+
+    private async Task LoadPageAsync()
+    {
+        if (_loading || _endOfHistory)
+            return;
+
+        _loading = true;
+        LoadMoreButton.IsEnabled = false;
+
+        try
+        {
+            LogPage page = await _history
+                .GetPageAsync(_repository, _commits.Count, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            //Added into the bound collection rather than reassigning ItemsSource: a reassignment
+            //would drop the selection, the scroll position and every virtualized container on
+            //every page.
+            foreach (LogCommit commit in page.Commits)
+                _commits.Add(Row(_commits.Count, commit));
+
+            _endOfHistory = !page.HasMore;
+
+            if (_commits.Count == 0)
+            {
+                PagingText.Text = Strings.Get("log.empty");
+                RangeText.Text = Strings.Get("log.empty");
+                return;
+            }
+
+            LoadedText.Text = Strings.Get("log.loaded", _commits.Count);
+            PagingText.Text = _endOfHistory ? Strings.Get("log.end") : Strings.Get("log.loaded", _commits.Count);
+
+            //The first page selects its newest commit, so the window opens showing something
+            //rather than a prompt over three empty panes.
+            if (CommitList.SelectedItems.Count == 0)
+                CommitList.SelectedIndex = 0;
+        }
+        catch (GitNotFoundException ex)
+        {
+            Report(Strings.Get("log.failed"), ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Log page failed for {_repository.Root}: {ex.Message}");
+            Report(Strings.Get("log.failed"), ex.Message);
+        }
+        finally
+        {
+            _loading = false;
+            LoadMoreButton.IsEnabled = !_endOfHistory;
+            LoadMoreButton.Visibility = _endOfHistory ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
+    private async void OnLoadMore(object sender, RoutedEventArgs e) => await LoadPageAsync().ConfigureAwait(true);
+
+    private void OnCommitSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        //Painted immediately: the range line is arithmetic over two indices, so it must never wait
+        //for a process. What waits is everything that costs one.
+        UpdateRangeBand();
+
+        _settle.Stop();
+        _settle.Start();
+    }
+
+    /// <summary>
+    /// The range the selection implies, and the sentence that discloses what it swept in.
+    /// </summary>
+    private CommitRange? CurrentRange()
+    {
+        var selected = new HashSet<string>(
+            CommitList.SelectedItems.OfType<CommitRow>().Select(r => r.Commit.Sha),
+            StringComparer.Ordinal);
+
+        //Resolved in Core rather than here: the list is newest-first, so the *smallest* index is
+        //the newest commit, and "the range came out the wrong way round" is exactly the bug
+        //clicking does not reveal.
+        return CommitRange.Resolve([.. _commits.Select(r => r.Commit)], selected);
+    }
+
+    private void UpdateRangeBand()
+    {
+        CommitRange? range = CurrentRange();
+
+        if (range is null)
+        {
+            RangeText.Text = Strings.Get("log.select.prompt");
+            GapText.Visibility = Visibility.Collapsed;
+            SubjectText.Text = string.Empty;
+            BodyBox.Visibility = Visibility.Collapsed;
+            MetaText.Text = Strings.Get("log.hint");
+            return;
+        }
+
+        RangeText.Text = range.SelectedCount == 1
+            ? Strings.Get("log.range.one", range.Newest.ShortSha)
+            : range.Oldest.IsRoot
+                ? Strings.Get("log.range.root", range.SelectedCount, range.Newest.ShortSha)
+                : Strings.Get("log.range.many", range.SelectedCount, range.Oldest.ShortSha, range.Newest.ShortSha);
+
+        GapText.Text = Strings.Get("log.range.gap", range.ImplicitCount);
+        GapText.Visibility = range.ImplicitCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (range.SelectedCount == 1)
+        {
+            LogCommit one = range.Newest;
+
+            SubjectText.Text = one.Subject;
+            BodyBox.Text = one.Body;
+            BodyBox.Visibility = one.Body.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            MetaText.Text = one.IsMerge
+                ? Strings.Get("log.commit.merge")
+                : Strings.Get("log.commit.meta", one.Author, Stamp(one.When), string.Join(", ", one.Parents.Select(Short)));
+        }
+        else
+        {
+            SubjectText.Text = range.Newest.Subject;
+            BodyBox.Visibility = Visibility.Collapsed;
+            MetaText.Text = Strings.Get("log.hint");
+        }
+    }
+
+    /// <summary>
+    /// Recomputes the file list for the current selection, and with it the diff.
+    /// </summary>
+    private async Task ReloadRangeAsync()
+    {
+        if (CurrentRange() is not { } range)
+        {
+            FileList.ItemsSource = null;
+            Diff.Show(null, isLoading: false);
+            SavePatchButton.IsEnabled = false;
+            StatusText.Text = string.Empty;
+            _shown = null;
+            return;
+        }
+
+        //A shift-arrow that widened and narrowed back lands on a range already on screen.
+        if (_shown is { } current && current.BaseSpec == range.BaseSpec && current.TipSpec == range.TipSpec)
+            return;
+
+        //The token kills the Git process; the generation guards the repaint. Both, because a
+        //cancelled process can still complete before its cancellation is observed.
+        int mine = ++_generation;
+
+        _inFlight?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        _inFlight = cancellation;
+
+        var clock = Stopwatch.StartNew();
+
+        IReadOnlyList<GitFileChange> files;
+
+        try
+        {
+            files = await _history.GetFilesAsync(_repository, range, cancellation.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Range file list failed for {range.Label}: {ex.Message}");
+            Report(Strings.Get("log.failed"), ex.Message);
+            return;
+        }
+
+        if (mine != _generation)
+            return;
+
+        _shown = range;
+        ApplyFiles(range, files);
+        _timings.Record("log.range", clock.Elapsed);
+
+        _ = PrefetchAsync(range, [.. files.Take(PrefetchCount)]);
+    }
+
+    private void ApplyFiles(CommitRange range, IReadOnlyList<GitFileChange> files)
+    {
+        //Kept if it survives into the new list: widening a range while reading GatewayClient.cs
+        //must keep showing GatewayClient.cs. Nothing here can be dirty, so there is nothing to
+        //confirm and nothing to lose.
+        string? keep = (FileList.SelectedItem as FileRow)?.Change.Path;
+
+        List<FileRow> rows = [.. files.Select(f => new FileRow(f))];
+
+        FileList.ItemsSource = rows;
+        FileList.SelectedItem = rows.FirstOrDefault(r => r.Change.Path == keep) ?? rows.FirstOrDefault();
+
+        int added = files.Sum(f => f.AddedLines ?? 0);
+        int removed = files.Sum(f => f.RemovedLines ?? 0);
+
+        StatusText.Text = Strings.Get("log.totals", rows.Count, added, removed);
+        SavePatchButton.IsEnabled = rows.Count > 0;
+
+        if (rows.Count == 0)
+            Diff.Show(null, isLoading: false);
+
+        _ = range;
+    }
+
+    private async void OnFileSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_shown is not { } range || FileList.SelectedItem is not FileRow row)
+            return;
+
+        string key = CacheKey(range, row.Change.Path);
+
+        if (_cache.TryGetValue(key, out SideBySideDiff? cached))
+        {
+            Diff.Show(cached, isLoading: false);
+            return;
+        }
+
+        Diff.Show(null, isLoading: true);
+
+        var clock = Stopwatch.StartNew();
+
+        try
+        {
+            SideBySideDiff diff = await _diffs
+                .ComputeRangeAsync(_repository, row.Change, range, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            _cache[key] = diff;
+
+            //The user may have moved on while this ran. Repainting then would show the previous
+            //file's diff over the current row.
+            if (_shown == range && FileList.SelectedItem == row)
+            {
+                Diff.Show(diff, isLoading: false);
+                _timings.Record("log.diff", clock.Elapsed);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Range diff failed for {row.Change.Path}: {ex.Message}");
+            Diff.Show(null, isLoading: false);
+        }
+    }
+
+    /// <summary>
+    /// Fills the cache for the first few files. Uncancelled and unreported, as the commit window's
+    /// prefetch is: a file that fails here is computed again — and reported — when it is clicked.
+    /// </summary>
+    private async Task PrefetchAsync(CommitRange range, IReadOnlyList<GitFileChange> files)
+    {
+        foreach (GitFileChange file in files)
+        {
+            string key = CacheKey(range, file.Path);
+
+            if (_cache.ContainsKey(key))
+                continue;
+
+            try
+            {
+                _cache[key] = await _diffs
+                    .ComputeRangeAsync(_repository, file, range, CancellationToken.None)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _log.Debug($"Prefetch failed for {file.Path}: {ex.Message}");
+            }
+        }
+    }
+
+    private async void OnSavePatch(object sender, RoutedEventArgs e)
+    {
+        if (_shown is not { } range || !SavePatchButton.IsEnabled)
+            return;
+
+        var dialog = new SaveFileDialog
+        {
+            FileName = PatchFileName(range),
+            DefaultExt = ".patch",
+            AddExtension = true,
+            Filter = Strings.Get("log.patch.filter"),
+
+            //The repository's parent, not the repository: a .patch dropped inside the working tree
+            //comes straight back as an untracked file in the commit window.
+            InitialDirectory = Path.GetDirectoryName(_repository.Root.TrimEnd('\\', '/')) ?? _repository.Root,
+        };
+
+        //Cancelling is not a failure and says nothing.
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        var clock = Stopwatch.StartNew();
+
+        try
+        {
+            //Git writes the file itself, so the patch never becomes a string here -- see
+            //HistoryService.SavePatchAsync for why that is the whole point.
+            GitResult result = await _history
+                .SavePatchAsync(_repository, range, dialog.FileName, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (!result.Succeeded)
+            {
+                Report(Strings.Get("log.patch.failed"), $"{result.ErrorText}\n\n{dialog.FileName}");
+                return;
+            }
+
+            //A range whose endpoints hold the same tree writes nothing. Said in the footer rather
+            //than leaving a zero-byte file the user would later find and not understand.
+            StatusText.Text = new FileInfo(dialog.FileName) is { Exists: true, Length: > 0 } written
+                ? Strings.Get("log.patch.saved", Path.GetFileName(written.FullName))
+                : Strings.Get("log.patch.empty");
+
+            _timings.Record("log.patch", clock.Elapsed);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Report(Strings.Get("log.patch.failed"), $"{ex.Message}\n\n{dialog.FileName}");
+        }
+    }
+
+    private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _settle.Stop();
+        _inFlight?.Cancel();
+        base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// <c>a1b2c3d-add-pgbouncer-pooling.patch</c> for one commit, <c>4d5e6f7..a1b2c3d.patch</c> for
+    /// a range. A subject is only useful when there is exactly one; a range's own name is its ends.
+    /// </summary>
+    private static string PatchFileName(CommitRange range)
+    {
+        if (range.SelectedCount != 1)
+            return $"{Short(range.Oldest.Sha)}..{Short(range.Newest.Sha)}.patch";
+
+        //IsLetterOrDigit drops every invalid file-name character as a side effect, and keeps a
+        //non-ASCII subject legible: "é" survives, ":" and "/" do not.
+        string slug = new string([.. range.Newest.Subject.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '-')])
+            .Trim('-');
+
+        while (slug.Contains("--", StringComparison.Ordinal))
+            slug = slug.Replace("--", "-", StringComparison.Ordinal);
+
+        //Forty characters is a file name, not a commit message.
+        if (slug.Length > 40)
+            slug = slug[..40].TrimEnd('-');
+
+        return slug.Length == 0
+            ? $"{range.Newest.ShortSha}.patch"
+            : $"{range.Newest.ShortSha}-{slug}.patch";
+    }
+
+    private void Report(string title, string message) =>
+        new NoticeWindow(title, message, compact: false) { Owner = this }.ShowDialog();
+
+    private static string CacheKey(CommitRange range, string path) => $"{range.BaseSpec} {range.TipSpec} {path}";
+
+    private static string Short(string sha) => sha.Length > 7 ? sha[..7] : sha;
+
+    /// <summary>
+    /// Absolute, never relative. "2 hours ago" needs plural forms per language in a flat
+    /// <c>key = value</c> file a translator opens in Notepad, and the absolute form sorts, aligns
+    /// in monospace and is never ambiguous.
+    /// </summary>
+    private static string Stamp(DateTimeOffset when) => when.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
+
+    private static CommitRow Row(int index, LogCommit commit) =>
+        new(index, commit, commit.ShortSha, commit.Subject, commit.Author, Stamp(commit.When), Decorate(commit.Refs));
+
+    /// <summary>Drops the "HEAD -&gt; " prefix, which is the same word on every list's top row.</summary>
+    private static string Decorate(string refs) =>
+        refs.Replace("HEAD -> ", string.Empty, StringComparison.Ordinal);
+
+    /// <param name="Index">
+    /// The row's position, kept on the row rather than looked up per selection change: the list is
+    /// newest-first and the arithmetic reads backwards, so it is worth being able to see it.
+    /// </param>
+    private sealed record CommitRow(
+        int Index,
+        LogCommit Commit,
+        string ShortSha,
+        string Subject,
+        string Author,
+        string Date,
+        string Refs)
+    {
+        public string Tooltip => $"{Commit.Sha}\n{Commit.Author} · {Commit.When.LocalDateTime:F}";
+
+        //Overridden for TagRow's reason: a templated ListBoxItem has no text of its own, and UI
+        //Automation falls back to this. A record's synthesised version reads every property name
+        //out to a screen reader.
+        public override string ToString() => $"{ShortSha} {Subject} {Author} {Date}".TrimEnd();
+    }
+
+    /// <summary>
+    /// One file row. A projection of <see cref="GitFileChange"/> rather than
+    /// <see cref="ViewModels.FileChangeItem"/>, whose <c>IsSelected</c> writes through to decide a
+    /// commit's contents and whose tooltip renders "Staged +x −y · Working tree +a −b" — which for
+    /// a commit range is not merely irrelevant, it is false.
+    /// </summary>
+    private sealed class FileRow(GitFileChange change)
+    {
+        public GitFileChange Change { get; } = change;
+
+        public string StatusCode => Change.DisplayStatus.ToShortCode();
+
+        public string FileName => Change.Path[(Change.Path.LastIndexOf('/') + 1)..];
+
+        public string Directory => Change.Path.LastIndexOf('/') is var i && i >= 0 ? Change.Path[..(i + 1)] : string.Empty;
+
+        public string Added => Change.IsBinary ? Strings.Get("commit.summary.binary") : Change.AddedLines is { } a ? $"+{a}" : string.Empty;
+
+        public string Removed => Change.IsBinary || Change.RemovedLines is null ? string.Empty : $"-{Change.RemovedLines}";
+
+        public string Tooltip => Change.OldPath is { Length: > 0 } old
+            ? Strings.Get("files.tooltip.renamed", Change.Path, old)
+            : Change.Path;
+
+        public override string ToString() => $"{StatusCode} {Change.Path} {Added} {Removed}".TrimEnd();
+    }
+}

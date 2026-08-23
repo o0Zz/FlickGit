@@ -197,8 +197,10 @@ public partial class TagsWindow : Window
 
         try
         {
-            //Null commit: the tag lands on HEAD. Tagging some other commit needs a commit picker,
-            //which is a log viewer, which is the full Git client this tool is deliberately not.
+            //Null commit: the tag lands on HEAD. There is a log viewer now, and it deliberately
+            //offers no action on a commit -- no checkout, reset, revert, cherry-pick or tag. So
+            //there is still nothing to pick a commit *from*, and that is a decision rather than a
+            //missing feature.
             TagOutcome outcome = await _tags
                 .CreateAsync(_repository, name, NoteBox.Text, null, CancellationToken.None)
                 .ConfigureAwait(true);

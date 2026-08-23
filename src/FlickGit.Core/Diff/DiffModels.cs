@@ -84,6 +84,10 @@ public sealed record SideBySideDiff
 {
     public required string Path { get; init; }
 
+    /// <summary>
+    /// Which working-tree comparison this is. Meaningless when <see cref="Range"/> is set, where
+    /// the label comes from the range instead.
+    /// </summary>
     public required DiffComparisonMode ComparisonMode { get; init; }
 
     public required DiffRenderMode RenderMode { get; init; }
@@ -106,8 +110,22 @@ public sealed record SideBySideDiff
     /// <summary>Why the viewer refused, when it did. Shown in the header, never as a dialog.</summary>
     public string? Notice { get; init; }
 
-    /// <summary>True when the right pane may be edited: not binary, and small enough to re-diff live.</summary>
+    /// <summary>
+    /// The commit range this diff is of, or null when the right side is the working tree.
+    ///
+    /// Non-null means both sides came out of Git's object store, so there is no file on disk the
+    /// right pane corresponds to and nothing to save — which is why <see cref="IsEditable"/>
+    /// consults it before anything else. Carrying the range rather than a bare flag also gives the
+    /// viewer its header (<see cref="History.CommitRange.Label"/>) with no second field to keep in
+    /// step: a diff cannot then be rendered read-only under a label saying "Working tree ↔ HEAD",
+    /// which — given that the whole staged-versus-worktree section exists because a mislabelled
+    /// header is how users lose work — is exactly the mistake not to make possible.
+    /// </summary>
+    public History.CommitRange? Range { get; init; }
+
+    /// <summary>True when the right pane may be edited: a working-tree diff, not binary, and small enough to re-diff live.</summary>
     public bool IsEditable =>
-        RenderMode is DiffRenderMode.SideBySideWithWordDiff or DiffRenderMode.SideBySideLinesOnly
+        Range is null
+        && RenderMode is DiffRenderMode.SideBySideWithWordDiff or DiffRenderMode.SideBySideLinesOnly
         && !Right.IsBinary;
 }

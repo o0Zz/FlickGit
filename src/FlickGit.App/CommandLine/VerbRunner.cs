@@ -54,7 +54,7 @@ public sealed class VerbRunner(
     /// </summary>
     private static bool NeedsRepository(VerbKind kind) =>
         kind is VerbKind.Commit or VerbKind.Status or VerbKind.PullRebase
-            or VerbKind.Switch or VerbKind.Push or VerbKind.Tag;
+            or VerbKind.Switch or VerbKind.Push or VerbKind.Tag or VerbKind.Log;
 
     /// <summary>
     /// Runs a catalog action by id.
@@ -159,6 +159,7 @@ public sealed class VerbRunner(
             VerbKind.Terminal => windowVerbs.Terminal(output, verb.Path),
 
             VerbKind.PullRebase => await windowVerbs.PullAsync(output, repository!).ConfigureAwait(true),
+            VerbKind.Log => await windowVerbs.LogAsync(repository!).ConfigureAwait(true),
 
             //`status` is text when there is a console to print into, and the commit window when
             //there is not: it is reachable from the context menu, where a window is what the user

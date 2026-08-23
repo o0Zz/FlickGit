@@ -30,6 +30,10 @@ public enum VerbKind
     Push,
     Switch,
     Status,
+
+    /// <summary>The log window: commit history, and the combined diff over a selected range.</summary>
+    Log,
+
     Clone,
 
     /// <summary>
@@ -143,6 +147,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "switch" => VerbKind.Switch,
             "tag" => VerbKind.Tag,
             "status" => VerbKind.Status,
+            "log" => VerbKind.Log,
             "terminal" => VerbKind.Terminal,
             "clone" => VerbKind.Clone,
             "palette" => VerbKind.Palette,
@@ -199,6 +204,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick switch <path> [branch]        branch picker when omitted
           flick tag <path> [name]             tag picker when omitted, else creates it
           flick status <path>
+          flick log <path>                    commit history; multi-select for a combined diff
           flick terminal <path>               open a terminal there
           flick clone <path> [url]
           flick run <id> [path]               run a catalog action by id

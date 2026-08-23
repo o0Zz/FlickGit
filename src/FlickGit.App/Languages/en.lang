@@ -130,6 +130,44 @@ tag.confirm.local = Delete the tag {0} from this repository?\n\nA tag has no ref
 tag.confirm.remote = Delete the tag {0} from this repository and from {1}?\n\nAnyone who has already fetched it keeps their copy, and a tag has no reflog — this cannot be undone from here.
 tag.confirm.yes = Delete
 
+# ---- log window ----
+
+# {0} repository name
+log.title = Log — {0}
+log.files.header = Changed files
+# {0} number of commits read so far
+log.loaded = {0} commits loaded
+# {0} page size
+log.loadmore = Load {0} more
+log.loading = Reading history…
+log.end = That is the whole history.
+log.empty = This repository has no commits yet.
+log.failed = The history could not be read.
+log.select.prompt = Select a commit to see what it changed.
+log.hint = Select several commits to see their combined diff.
+# {0} short hash. One commit needs no range: the diff is the commit.
+log.range.one = {0}
+# {0} count, {1} oldest short hash, {2} newest short hash
+log.range.many = {0} commits · {1}^..{2}
+# {0} count, {1} newest short hash. When the oldest selected commit is the repository's first,
+# which has no parent to diff against.
+log.range.root = {0} commits · from the first commit to {1}
+# {0} commits inside the range the user did not select. Shown whenever it is not zero, because a
+# combined diff that quietly included them is the one thing this window must not do.
+log.range.gap = including {0} you did not select
+# {0} author, {1} date, {2} parent short hashes
+log.commit.meta = {0} · {1} · parent {2}
+log.commit.merge = Merge commit — the diff is against its first parent.
+# {0} file count, {1} added lines, {2} removed lines
+log.totals = {0} files · +{1} −{2}
+log.patch = Save as patch…
+log.patch.filter = Patch files (*.patch)|*.patch|All files (*.*)|*.*
+# {0} file name
+log.patch.saved = Saved {0}.
+log.patch.empty = This range produces no diff, so there was nothing to save.
+log.patch.failed = The patch could not be written.
+log.close = Close
+
 # ---- push ----
 push.button = Push
 push.success = Pushed {0} to {1}.
@@ -237,6 +275,7 @@ action.pull-rebase = Pull (rebase)
 action.push = Push
 action.switch = Switch branch…
 action.tag = Tags…
+action.log = Show log…
 action.status = Repository status…
 action.clone = Clone…
 action.terminal = Open terminal here

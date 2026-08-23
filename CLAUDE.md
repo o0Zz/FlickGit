@@ -122,8 +122,9 @@ useless without. It does not chase coverage.
 
 **In scope, and only this:**
 
-- **Parsers.** `--porcelain=v2 -z` and `--numstat -z`, the two places where a wrong byte becomes a
-  wrong file list.
+- **Parsers, and the pure functions beside them.** `--porcelain=v2 -z`, `--numstat -z`,
+  `--name-status -z` and the `git log` format — the places where a wrong byte becomes a wrong file
+  list — and `CommitRange.Resolve`, where a wrong index becomes a diff of the wrong commits.
 - **The commit sequence.** `CommitFlow` — stage, switch, verify, commit, push, in that order.
 - **The safety rules.** A blocked switch changes nothing; a stash restores only the one it created;
   a diverged push is refused; `add -A` never appears in an argument list; untracked and
@@ -234,13 +235,16 @@ src/
 │   │                        without a message pump.
 │   ├── Git/                 GitProcessRunner, GitExecutable, errors
 │   ├── Repositories/        RepositoryService
-│   ├── Status/              porcelain v2 and numstat parsing, StatusService,
-│   │                        StatusComparer
+│   ├── Status/              porcelain v2, numstat and name-status parsing,
+│   │                        StatusService, StatusComparer
 │   ├── Diff/                DiffService, FileTextLoader, WorkingTreeWriter,
 │   │                        DiffDocument, and Hunks + PatchService -- the patch
 │   │                        generator and `git apply --cached`
 │   ├── Commits/             CommitService, and CommitFlow -- the stage/switch/
 │   │                        verify/commit/push sequence
+│   ├── History/             HistoryService, CommitLogParser and CommitRange --
+│   │                        the read-only log, and the oldest^..newest rule the
+│   │                        combined diff is
 │   ├── Actions/             ActionCatalog and its data: GitAction, ActionRun,
 │   │                        ActionSafety, ActionPlaceholders, actions.json
 │   ├── Palette/             RepositoryScanner and the cached overview the palette
@@ -326,6 +330,7 @@ flick push <path>
 flick switch <path> [branch]         branch picker when omitted
 flick tag <path> [name]              tag window when omitted; creates it when named
 flick status <path>
+flick log <path>                     commit history; multi-select for a combined diff
 flick run <id> [path]                run a catalog action by id
 flick palette                        global repository palette
 flick settings
@@ -703,7 +708,8 @@ the commit.
 This is a well-known source of confusion in TortoiseGit. Handle it explicitly:
 
 - Label the comparison mode permanently in the viewer header: `Working tree ↔ Index` or
-  `Working tree ↔ HEAD`
+  `Working tree ↔ HEAD` — or, in the log, the commit range the diff was computed over. The
+  label is always what the left side actually is, which is the whole point of it.
 - When the user edits a file that is already staged, show an inline strip: *"This file is
   staged. Your edit is not in the commit yet — restage?"* with a one-click restage
 - On commit, restage every edited file if the user chose restage, and warn otherwise. Never
@@ -714,6 +720,151 @@ This is a well-known source of confusion in TortoiseGit. Handle it explicitly:
 - Read-only for binary files, files above the size limit, and files in an unresolved conflict
 - Never edit files outside the resolved repository root
 - Refuse to save into a path that has become a symlink or junction since load
+
+---
+
+# Log
+
+Commit history, and **the combined diff over a selection** — which is the whole reason this window
+exists. Selecting several commits shows
+
+```bash
+git diff <oldest selected>^ <newest selected>
+```
+
+one command, always fast, that cannot fail. That answers *"what changed between Tuesday and now"*,
+which reading five commits one at a time does not: their sum is not the same as five diffs. It is
+the operation TortoiseGit is reached for and that almost nothing else offers, and a log window that
+only showed one commit at a time would not have earned its place beside **Product Philosophy**.
+
+```text
+┌─ Log — d360-portal ──────────────────────────────────────────────────────────────────────┐
+│ d360-portal                                    feature/storage-gw     400 commits loaded │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ a1b2c3d  feat: add PgBouncer connection pooling   HEAD ▸main   Thomas Q.  2026-08-21 14:03│
+│ 9f0e1d2  fix: pool leak on reconnect                           Thomas Q.  2026-08-21 09:40│
+│ 77c4b10  chore: bump deps                                      renovate   2026-08-20 22:11│
+│ 4d5e6f7  feat: storage gateway skeleton           v1.4.0       Thomas Q.  2026-08-19 16:02│
+│ 400 commits loaded                                              [ Load 200 more ]        │
+╞═════════════════════════════════════════════════════════════════════════════════════════╡
+│ 3 commits · 4d5e6f7^..a1b2c3d   ·   including 1 you did not select                        │
+│ feat: add PgBouncer connection pooling to the storage gateway                             │
+│ Thomas Quemerais · 2026-08-21 14:03 · parent 9f0e1d2                                      │
+├────────────────────────────────┬─────────────────────────────────────────────────────────┤
+│ Changed files                  │ 4d5e6f7^ ↔ a1b2c3d                                       │
+│  M src/GatewayClient.cs +42 -17│  41  services.AddSingleton   │ 41  services.AddSingleton │
+│  A src/PgBouncerPool.cs +156   │  43- var pool = new Pool();  │ 43+ var pool = pooled(…)  │
+│  D src/LegacyPool.cs      -203 │  ← read-only                              read-only →    │
+├────────────────────────────────┴─────────────────────────────────────────────────────────┤
+│ 12 files · +418 −233                                       [ Save as patch… ]  [ Close ]  │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## The gap disclosure is a requirement, not a nicety
+
+A **gapped** selection — commits 1, 2 and 5, skipping 3 and 4 — diffs `1^..5`, so the two skipped
+commits are in the diff. That is the semantics that was chosen, and the alternative was rejected on
+purpose: replaying only the picked patches onto a temporary tree can *refuse*, when a selected
+commit does not apply without a skipped one, and a headline feature that sometimes says no is worth
+less than one that is always right about a slightly wider range.
+
+The price of that choice is a claim the user cannot verify by looking, so the window states it:
+
+```text
+3 commits · 4d5e6f7^..a1b2c3d   ·   including 1 you did not select
+```
+
+in the accent colour, in its own element, shown whenever the number is not zero. `ImplicitCount` is
+computed in `CommitRange` where it is tested, never in the header's string formatting. **A combined
+diff that quietly swept in commits the user did not pick is the one failure this window must not
+have.**
+
+## What it deliberately does not do
+
+Written down once, because a list nobody wrote down grows one release at a time:
+
+> **No checkout, reset, revert, cherry-pick, rebase, amend, tag-at-commit or branch-from-here.**
+
+Nothing in this window writes to the repository. `HistoryService` reaches Git only through
+`ReadAsync`, and a test asserts that every invocation the surface makes is a read — which is what
+catches somebody later hanging a checkout off a right-click here.
+
+The one outward action is **Save as patch…**, which writes `git diff --binary --output=<file>` at a
+path the user chose in a dialog, outside the repository. `--output` rather than capturing stdout is
+load-bearing: the patch never becomes a C# string, so a Latin-1 source file gets byte-exact bytes
+rather than U+FFFD, and the BOM question — a BOM in front of `diff --git` makes `git apply` refuse
+the file — never arises. `--binary` is what makes the result a patch that actually applies.
+
+## Reading history
+
+```bash
+git log --decorate=short --no-color --max-count=<page+1> --format=<machine format>
+git diff --name-status -z -M --no-color --no-ext-diff --no-textconv <base> <tip>
+git diff --numstat     -z -M --no-color --no-ext-diff --no-textconv <base> <tip>
+```
+
+- **The format is `%H%x1f%h%x1f%P%x1f%an%x1f%aI%x1f%D%x1f%B%x00`.** `%B` is last and is the only
+  free-text field, and the split is bounded at the field count — so a message containing a newline,
+  a separator byte or anything else lands in the final slot verbatim and cannot shift a field.
+  Records end with NUL, the one byte a commit message cannot contain.
+- **`tformat` appends a newline after every record**, *after* our NUL. Every record but the first
+  therefore arrives with a leading newline, and the stream ends with a record that is nothing else.
+  Not trimming it makes every sha after the first begin with `
+`, and nothing matches.
+- **`%P` is empty for the root commit.** Split without `RemoveEmptyEntries` it reports one parent
+  whose sha is the empty string, which becomes a base spec of `""` — turning the repository's first
+  commit into a Git error rather than a diff against the empty tree.
+- **`--name-status -z` is a third parser**, beside porcelain v2 and numstat, because there is no
+  other way to get the letter for a range: `--porcelain=v2` is working-tree-only by construction,
+  and inferring the letter from the counts is wrong in both directions. Its trap is its own: the
+  similarity score is glued to the letter (`R100`), and a rename consumes **two** extra fields where
+  every other record consumes one.
+- **Paging is `--skip`**, never a "start from the last sha I saw" cursor, which is wrong twice:
+  `<sha>^` does not resolve when the last row of a page is the root commit, and when it is a merge
+  the caret silently switches the walk to the first-parent line, so the next page is a different set
+  of commits from the one being scrolled through.
+
+## The range
+
+Resolved by `CommitRange.Resolve`, a pure function in Core, for the reason `CommitFlow` is there:
+the list is **newest-first**, so the newest selected commit is the *lowest* index and the oldest is
+the highest — the one place in the feature where the arithmetic reads backwards, and "the range came
+out the wrong way round" is exactly the bug clicking does not reveal, because both ends are plausible
+hashes either way.
+
+| Selection | Base | Tip |
+|---|---|---|
+| one ordinary commit | its `Parents[0]` | itself |
+| N commits, contiguous or gapped | oldest's `Parents[0]` | newest |
+| oldest is the **root** | the empty tree, `4b825dc…` | newest |
+| oldest is a **merge** | `Parents[0]` — first parent, no special case | newest |
+
+The base is always a **bare object id**, never revision syntax, so nothing downstream has to know
+Git's revision grammar. The empty tree needing no code path of its own is the payoff: a root commit
+fails the blob lookup exactly the way an added file does, and shows as a whole file inserted.
+
+A merge selected alone gives `git diff <merge>^1 <merge>` — "what this merge brought in", which is
+the useful answer and the one `git show <merge>` conspicuously does not give. The second parent
+would invert it, rendering every change from the other branch as a deletion.
+
+## The viewer is the commit window's, read-only
+
+`SideBySideDiff.Range` is non-null for a historical diff, and `IsEditable` consults it before
+anything else. That one property is the whole integration: `DiffPane` already calls
+`SetEditable(diff.IsEditable, …)`, which makes the right editor read-only, blanks the caret, **hides
+the entire editing bar** rather than disabling its buttons, and swaps the footer label — and both
+`OnRightTextChanged` and the re-diff timer already return early when the editor is read-only.
+
+Carrying the range rather than a bare flag also gives the header its text (`a1b2c3d^ ↔ e4f5g6h`)
+with no second field to keep in step, so a historical diff *cannot* be rendered under a label
+reading "Working tree ↔ HEAD". Given that the whole **staged-versus-worktree trap** section exists
+because a mislabelled header is how users lose work, that is the mistake worth making impossible.
+
+## Scope of the listing
+
+The current branch, `git log HEAD`, and no branch picker. `flick log <path> <rev>` is not built
+either — the ComboBox-shaped feature this would grow into is the full client the tool is not. What
+exists is a list, a selection and a diff.
 
 ---
 
@@ -1742,6 +1893,7 @@ which is Phase 6.
 Commit / Push…
 Pull (rebase)                       ← + submodule update when .gitmodules exists
 FlickGit                          ▸
+      ├── Show log…
       ├── Switch branch…
       ├── Tags…
       ├── Push
@@ -1752,6 +1904,8 @@ FlickGit                          ▸
 ```
 
 Two entries in the context menu itself, because those are the two the user performs all day.
+**Show log… was considered for a third and left in the submenu**, on that same rule: the root
+entries are the two the user *performs*, not the one they read.
 One click, from wherever the pointer already is. Everything else is one hover away inside the
 **FlickGit** submenu, which sorts after them.
 
@@ -2041,6 +2195,8 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | AI first token (Haiku 4.5, capped diff)    | 400 ms | 1.5 s      |
 | AI complete message                        | 800 ms | 3 s        |
 | AI request timeout                         | —      | 8 s        |
+| Log window painted, first 200 commits      | 250 ms | 600 ms     |
+| Commit selection settled -> file list      | 150 ms | 400 ms     |
 | Commit + push, warm, excluding network      | 400 ms | 1 s        |
 | `IExplorerCommand::GetState`               | 20 ms  | 50 ms      |
 | `IExplorerCommand::GetTitle` (branch read) | 20 ms  | 50 ms      |
@@ -2268,6 +2424,19 @@ Windows 11 primary menu rather than "Show more options", and it needs package id
 code-signing certificate; without one there is nothing to install. The global hotkey is the fast path
 regardless.
 
+## Phase 7 — Reading history
+
+The log window: a commit list, a message, a file list and the read-only diff — and the reason it
+exists, **the combined diff over a multi-selection**. Its own section above carries the rules.
+
+Definition of value: the user can answer "what changed between these commits" without leaving
+FlickGit, and can hand the answer to somebody else as a `.patch`.
+
+This is the first feature that is not on the commit path at all, and the thing that makes it
+belong in a tool that is "not a complete Git client" is that it *performs nothing*. Reading
+history is the one everyday operation that changes no state and had no surface. The list of what
+the window refuses to do is in its section, and it is the boundary.
+
 ---
 
 # Testing
@@ -2284,6 +2453,12 @@ the *arguments* are assertable, which is the half a temporary repository would h
 
 - `--porcelain=v2 -z`: ordinary changes, renames, untracked, conflicted, the branch header
 - `--numstat -z`: a rename, a binary file reporting `-`, and a path containing a literal `=>`
+- `--name-status -z`: the ordinary letters, and a rename whose score is glued to the letter and
+  which consumes two extra fields
+- the `git log` format: every field of one record, a message containing the field separator and
+  newlines, the root commit's empty `%P`, and a merge's parents
+- `CommitRange.Resolve`: newest-first ordering, a gapped selection and its implicit count, the
+  root commit's empty-tree base, and a merge's first parent
 - Paths containing spaces and non-ASCII characters
 
 ## The commit sequence
@@ -2358,7 +2533,9 @@ does not pass:
 ## Verified by running it, not by a test
 
 The resident service, the named pipe, the tray icon, the registry writer, autostart, notifications,
-window reuse, and every window. Checked by hand when the feature is built — start the service, run
+window reuse, and every window — the log window included: its list, its multi-selection, its gap
+disclosure and the patch it saves are checked by opening it and by running `git apply --check` on
+the result. Checked by hand when the feature is built — start the service, run
 the verb, read `flick diag timings`, confirm the numbers against **Performance Targets** — and
 recorded in the phase's notes. A test that has to construct a `Window` is testing WPF.
 
