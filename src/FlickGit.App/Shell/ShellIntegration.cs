@@ -179,37 +179,49 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
             GitAction[] submenuActions = [.. actions.Where(a => a.InMoreSubmenu)];
 
-            WriteSubmenu(classes, cliPath, submenuActions);
-
-            //Before the verbs, because WriteRootVerb points at these classes: a verb naming a CLSID
-            //that is not registered yet is a verb Explorer briefly cannot draw.
             string? handlerDll = ShellHandlerAvailable(installDirectory);
 
+            //One or the other, never both: the same entries from a handler and from static verbs is
+            //the menu twice over.
             if (handlerDll is not null)
-                WriteCommandHandlers(classes, cliPath, handlerDll, rootActions, submenuActions.Length > 0);
-            else
-                log.Info($"{ShellCommandIds.DllFileName} is not present, so the menu entries are plain static verbs.");
-
-            foreach (string parent in VerbParents)
             {
-                foreach (GitAction action in rootActions)
-                    WriteRootVerb(classes, parent, cliPath, action, handlerDll is not null, SeparatorFor(action, rootActions, submenuActions.Length > 0));
+                WriteContextMenuHandler(classes, cliPath, handlerDll, rootActions, submenuActions);
+            }
+            else
+            {
+                log.Info($"{ShellCommandIds.DllFileName} is not present, so the menu falls back to static verbs.");
 
-                //Only when there is something behind it. CLAUDE.md: "Do not show a submenu with a
-                //single item" -- an empty one is worse still.
-                //
-                //The submenu verb sorts after every root entry, so when it exists it is the bottom of
-                //the block and carries the closing separator.
-                if (submenuActions.Length > 0)
-                    WriteMenuVerb(classes, parent, appPath, ShellCommandIds.SeparatorAfter);
+                WriteSubmenu(classes, cliPath, submenuActions);
+
+                foreach (string parent in VerbParents)
+                {
+                    foreach (GitAction action in rootActions)
+                        WriteRootVerb(classes, parent, cliPath, action, SeparatorFor(action, rootActions, submenuActions.Length > 0));
+
+                    //Only when there is something behind it. CLAUDE.md: "Do not show a submenu with a
+                    //single item" -- an empty one is worse still.
+                    //
+                    //The submenu verb sorts after every root entry, so when it exists it is the bottom
+                    //of the block and carries the closing separator.
+                    if (submenuActions.Length > 0)
+                        WriteMenuVerb(classes, parent, appPath, ShellCommandIds.SeparatorAfter);
+                }
             }
 
             //Read back what was written. CLAUDE.md, "Registry synchronisation" step 4:
             //"Verify by reading back; report failures in the UI." A registry write that
             //silently did nothing (policy, a locked hive) must not be reported as success.
-            string? verification = Verify(cliPath, rootActions, submenuActions);
-            if (verification is not null)
-                return new InstallResult(false, verification);
+            //
+            //Only for the static-verb layout: the handler writes no verbs to read back, and what
+            //would need verifying there is whether Explorer can create the class -- which cannot be
+            //answered from here without loading the DLL into this process.
+            if (handlerDll is null)
+            {
+                string? verification = Verify(cliPath, rootActions, submenuActions);
+
+                if (verification is not null)
+                    return new InstallResult(false, verification);
+            }
 
             log.Info($"Shell integration installed from {installDirectory}.");
             return new InstallResult(true, Strings.Get("shell.installed"));
@@ -250,13 +262,27 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             foreach (string name in ClassKeyNames)
                 classes.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
 
+            //The handler registration, under each parent class it was written to.
+            foreach (string parent in VerbParents)
+            {
+                string owner = parent[..parent.LastIndexOf(@"\shell", StringComparison.Ordinal)];
+
+                using RegistryKey? handlers = classes.OpenSubKey(
+                    $@"{owner}\{ShellCommandIds.ContextMenuHandlersPath}", writable: true);
+
+                handlers?.DeleteSubKeyTree(ShellCommandIds.HandlerKeyName, throwOnMissingSubKey: false);
+            }
+
             //By name, from the compiled-in list -- never by enumerating CLSID, which is every COM
             //class on the machine. This is why ShellCommandIds calls its GUIDs permanent: a renumbered
-            //one is a key nothing can find to delete.
+            //one is a key nothing can find to delete, and RetiredClsids exists so the per-verb
+            //handlers an earlier version wrote are still removable.
             using (RegistryKey? clsids = classes.OpenSubKey(ClsidPath, writable: true))
             {
-                foreach ((_, string clsid, _) in ShellCommandIds.Handlers)
-                    clsids?.DeleteSubKeyTree(clsid, throwOnMissingSubKey: false);
+                clsids?.DeleteSubKeyTree(ShellCommandIds.MenuHandlerClsid, throwOnMissingSubKey: false);
+
+                foreach (string retired in ShellCommandIds.RetiredClsids)
+                    clsids?.DeleteSubKeyTree(retired, throwOnMissingSubKey: false);
             }
 
             log.Info("Shell integration removed.");
@@ -319,7 +345,7 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// <c>GetFlags</c>, because it is not documented which of the two the classic menu consults when
     /// both are present, and they cannot disagree if they come from one decision.
     /// </param>
-    private static void WriteRootVerb(RegistryKey classes, string parent, string cliPath, GitAction action, bool withHandler, uint separators)
+    private static void WriteRootVerb(RegistryKey classes, string parent, string cliPath, GitAction action, uint separators)
     {
         using RegistryKey verb = classes.CreateSubKey($@"{parent}\{RootKeyName(action)}", writable: true)
                                  ?? throw new InvalidOperationException($"Could not create the {action.Id} verb.");
@@ -331,9 +357,6 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         //remarks -- "Bottom" is what used to push it past New, down beside Properties.
         if (separators != 0)
             verb.SetValue("CommandFlags", unchecked((int)separators), RegistryValueKind.DWord);
-
-        if (withHandler && ClsidFor(action.Id) is { } clsid)
-            verb.SetValue("ExplorerCommandHandler", clsid, RegistryValueKind.String);
 
         using RegistryKey commandKey = verb.CreateSubKey("command", writable: true)
                                        ?? throw new InvalidOperationException($"Could not create command for {action.Id}.");
@@ -355,73 +378,107 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         return File.Exists(path) ? path : null;
     }
 
-    private static string? ClsidFor(string actionId)
-    {
-        foreach ((string verb, string clsid, _) in ShellCommandIds.Handlers)
-        {
-            if (string.Equals(verb, actionId, StringComparison.Ordinal))
-                return clsid;
-        }
-
-        return null;
-    }
-
     /// <summary>
-    /// Registers the COM classes the verbs point at, and hands each one everything it needs.
+    /// Registers the context-menu handler, and writes the whole menu into its CLSID key.
     ///
-    /// <b>The DLL holds no interface text of its own.</b> The label written here is the one already
-    /// resolved from the <c>.lang</c> file in force, so <c>Strings</c> stays the only place any
-    /// user-visible word lives — and `flick language de` followed by a re-register changes the menu
-    /// without the DLL knowing a word of German. The DLL appends the branch and nothing else.
+    /// <b>This is the placement, and nothing else was able to provide it.</b> A static verb reaches
+    /// <c>Top</c>, the default, or <c>Bottom</c>; Explorer draws the static-verb block above the
+    /// shell-extension block, which it draws above <c>New</c>. So the default left the entries up
+    /// among <c>Open with Code</c> and <c>Git GUI Here</c>, and <c>Bottom</c> pushed them past
+    /// <c>New</c> down beside <c>Properties</c>. The slot every Git client occupies belongs to
+    /// handlers, and <c>shellex\ContextMenuHandlers</c> is how one is registered.
     ///
-    /// <c>ThreadingModel = Apartment</c>, which is what a shell extension is called on. The shell
-    /// then marshals for us rather than expecting this code to be free-threaded.
+    /// The DLL holds no interface text: every label written here is already localised from the
+    /// <c>.lang</c> file in force, so <c>flick language de</c> plus a re-register changes the menu
+    /// without that assembly knowing a word of German.
     /// </summary>
-    private void WriteCommandHandlers(RegistryKey classes, string cliPath, string dllPath, IReadOnlyList<GitAction> rootActions, bool hasSubmenu)
+    private void WriteContextMenuHandler(
+        RegistryKey classes,
+        string cliPath,
+        string dllPath,
+        IReadOnlyList<GitAction> rootActions,
+        IReadOnlyList<GitAction> submenuActions)
     {
-        foreach ((string verb, string clsid, bool showBranch) in ShellCommandIds.Handlers)
+        using RegistryKey clsid = classes.CreateSubKey($@"{ClsidPath}\{ShellCommandIds.MenuHandlerClsid}", writable: true)
+                                  ?? throw new InvalidOperationException("Could not register the context-menu handler.");
+
+        clsid.SetValue(string.Empty, "FlickGit context menu", RegistryValueKind.String);
+        clsid.SetValue(ShellCommandIds.ValueExe, cliPath, RegistryValueKind.String);
+        clsid.SetValue(ShellCommandIds.ValueSubmenuLabel, Strings.Get("shell.menu.root"), RegistryValueKind.String);
+
+        using (RegistryKey server = clsid.CreateSubKey("InprocServer32", writable: true)
+                                   ?? throw new InvalidOperationException("Could not register the handler's server."))
         {
-            //Only for an action the catalog actually put on the menu. A built-in the user hid must
-            //not come back as a COM class nothing references.
-            GitAction? action = rootActions.FirstOrDefault(a => string.Equals(a.Id, verb, StringComparison.Ordinal));
-
-            if (action is null)
-                continue;
-
-            using RegistryKey key = classes.CreateSubKey($@"{ClsidPath}\{clsid}", writable: true)
-                                   ?? throw new InvalidOperationException($"Could not register the {verb} handler.");
-
-            key.SetValue(string.Empty, $"FlickGit {action.Label}", RegistryValueKind.String);
-
-            key.SetValue(ShellCommandIds.ValueLabel, action.Label, RegistryValueKind.String);
-            key.SetValue(ShellCommandIds.ValueExe, cliPath, RegistryValueKind.String);
-            key.SetValue(ShellCommandIds.ValueVerb, action.Cli is { Length: > 0 } cli ? cli : $"run {action.Id}", RegistryValueKind.String);
-            key.SetValue(ShellCommandIds.ValueShowBranch, showBranch ? "1" : "0", RegistryValueKind.String);
-            key.SetValue(ShellCommandIds.ValueNeedsRepository, action.RequiresRepository ? "1" : "0", RegistryValueKind.String);
-
-            //The same decision the CommandFlags value above carries, so GetFlags cannot report a
-            //different answer from the one the registry states.
-            key.SetValue(
-                ShellCommandIds.ValueCommandFlags,
-                SeparatorFor(action, rootActions, hasSubmenu).ToString(),
-                RegistryValueKind.String);
-
-            if (action.IconFileName is { Length: > 0 } iconName)
-            {
-                string icon = Path.Combine(Path.GetDirectoryName(cliPath) ?? string.Empty, "icons", iconName);
-
-                if (File.Exists(icon))
-                    key.SetValue(ShellCommandIds.ValueIcon, icon, RegistryValueKind.String);
-            }
-
-            using RegistryKey server = key.CreateSubKey("InprocServer32", writable: true)
-                                       ?? throw new InvalidOperationException($"Could not register the {verb} server.");
-
             server.SetValue(string.Empty, dllPath, RegistryValueKind.String);
+
+            //Apartment: what a shell extension is called on. The shell then marshals for us rather
+            //than expecting this code to be free-threaded.
             server.SetValue("ThreadingModel", "Apartment", RegistryValueKind.String);
         }
 
-        log.Info($"Registered {ShellCommandIds.Handlers.Length} IExplorerCommand handler(s) from {dllPath}.");
+        //Rewritten from scratch, so an action the user has since hidden does not survive as an item
+        //nothing removed.
+        clsid.DeleteSubKeyTree(ShellCommandIds.ItemsKeyName, throwOnMissingSubKey: false);
+
+        using RegistryKey items = clsid.CreateSubKey(ShellCommandIds.ItemsKeyName, writable: true)
+                                  ?? throw new InvalidOperationException("Could not write the menu items.");
+
+        int order = 0;
+
+        foreach (GitAction action in rootActions)
+            WriteItem(items, ref order, cliPath, action, inSubmenu: false);
+
+        foreach (GitAction action in submenuActions)
+            WriteItem(items, ref order, cliPath, action, inSubmenu: true);
+
+        foreach (string parent in VerbParents)
+        {
+            //VerbParents name the verb container -- "Directory\shell". A handler goes under the
+            //class itself, so the trailing segment is dropped: Directory, Directory\Background, Drive.
+            string owner = parent[..parent.LastIndexOf(@"\shell", StringComparison.Ordinal)];
+
+            using RegistryKey handler = classes.CreateSubKey(
+                                            $@"{owner}\{ShellCommandIds.ContextMenuHandlersPath}\{ShellCommandIds.HandlerKeyName}",
+                                            writable: true)
+                                        ?? throw new InvalidOperationException($"Could not register the handler under {owner}.");
+
+            handler.SetValue(string.Empty, ShellCommandIds.MenuHandlerClsid, RegistryValueKind.String);
+        }
+
+        log.Info($"Registered the context-menu handler from {dllPath} with {order} item(s).");
+    }
+
+    /// <summary>One menu entry, as a numbered subkey so the registry enumerates them in draw order.</summary>
+    private static void WriteItem(RegistryKey items, ref int order, string cliPath, GitAction action, bool inSubmenu)
+    {
+        order += 10;
+
+        using RegistryKey item = items.CreateSubKey(order.ToString("D4"), writable: true)
+                                 ?? throw new InvalidOperationException($"Could not write the {action.Id} item.");
+
+        item.SetValue(ShellCommandIds.ValueLabel, action.Label, RegistryValueKind.String);
+        item.SetValue(
+            ShellCommandIds.ValueVerb,
+            action.Cli is { Length: > 0 } cli ? cli : $"run {action.Id}",
+            RegistryValueKind.String);
+
+        item.SetValue(ShellCommandIds.ValueNeedsRepository, action.RequiresRepository ? "1" : "0", RegistryValueKind.String);
+        item.SetValue(ShellCommandIds.ValueInSubmenu, inSubmenu ? "1" : "0", RegistryValueKind.String);
+
+        //Only the Commit entry. On Pull it would read as "pull *into* this branch" -- true, and
+        //saying nothing the entry above it has not already said.
+        item.SetValue(
+            ShellCommandIds.ValueShowBranch,
+            action.Cli == "commit" ? "1" : "0",
+            RegistryValueKind.String);
+
+        if (action.IconFileName is { Length: > 0 } iconName)
+        {
+            string icon = Path.Combine(Path.GetDirectoryName(cliPath) ?? string.Empty, "icons", iconName);
+
+            if (File.Exists(icon))
+                item.SetValue(ShellCommandIds.ValueIcon, icon, RegistryValueKind.String);
+        }
     }
 
     /// <summary>The "FlickGit" submenu, carrying everything not worth a root entry.</summary>

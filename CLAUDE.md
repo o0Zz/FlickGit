@@ -257,21 +257,24 @@ src/
 │   └── Pulls/ Clone/ Secrets/ Matching/ Logging/ Diagnostics/ Models/
 │
 └── FlickGit.Shell/          Native AOT COM DLL, loaded into explorer.exe. Draws the
-    │                        two root menu entries: IExplorerCommand::GetTitle puts the
-    │                        branch in the Commit label, GetState hides both outside a
-    │                        repository. Hand-rolled vtables, no [GeneratedComInterface]
-    │                        -- see Com.cs for why. No ProjectReference, ever.
-    ├── Exports.cs           DllGetClassObject, DllCanUnloadNow, IClassFactory.
-    ├── ExplorerCommand.cs   The one COM object: IExplorerCommand + IObjectWithSite.
-    ├── FolderResolver.cs    IShellItemArray for a clicked folder; the site chain for
-    │                        a clicked background.
-    ├── GitHead.cs           The branch, from .git/HEAD. No git.exe, no pipe.
-    └── RepositoryLookup.cs  One answer per right-click instead of four.
+    │                        whole FlickGit block: the branch in the Commit label,
+    │                        repository-requiring items omitted outside a repository,
+    │                        and a separator either side. Hand-rolled vtables, no
+    │                        [GeneratedComInterface] -- see Com.cs. No ProjectReference.
+    ├── Exports.cs              DllGetClassObject, DllCanUnloadNow, IClassFactory.
+    ├── ContextMenuHandler.cs   The one COM object: IContextMenu + IShellExtInit.
+    ├── Selection.cs            The clicked folder, from a PIDL or a CF_HDROP.
+    ├── MenuItems.cs            The menu, as the App wrote it into the CLSID key.
+    ├── MenuIcons.cs            An .ico as a 32bpp menu bitmap. InsertMenu takes text
+    │                           only, so the alpha has to be drawn by hand.
+    ├── MenuConfig.cs           flick.exe's path and the submenu's label.
+    ├── GitHead.cs              The branch, from .git/HEAD. No git.exe, no pipe.
+    └── RepositoryLookup.cs     One answer per right-click instead of four.
 
     This does NOT reach the Windows 11 primary menu -- that still needs a sparse MSIX
-    package and package identity, which is the part of Phase 6 still open. An
-    ExplorerCommandHandler on a verb key is honoured in the classic menu with an
-    ordinary per-user COM registration, which is what this uses.
+    package and package identity, which is the part of Phase 6 still open. A
+    ContextMenuHandler is honoured in the classic menu with an ordinary per-user COM
+    registration, which is what this uses.
 
 tests/
 └── FlickGit.Core.Tests/     The only test project, and there will not be a second
@@ -1667,18 +1670,13 @@ HKCU\Software\Classes\FlickGit.Menu\shell\110switch
 - **Every key the tool creates is named `FlickGit.*`.** The root entries are several keys now,
   so an uninstall finds them by enumerating that one prefix -- which is what keeps "never
   modify keys the tool did not create" structural rather than a promise.
-- **The block is bracketed by separators.** `CommandFlags = 0x20` (`ECF_SEPARATORBEFORE`) on the
-  first entry and `0x40` (`ECF_SEPARATORAFTER`) on the last, which is what gives FlickGit a group of
-  its own instead of leaving it interleaved with `Open with Code` and `Git GUI Here`. When the shell
-  DLL is registered the same value is also reported from `IExplorerCommand::GetFlags`, because it is
-  undocumented which of the two the classic menu consults when both are present — and they cannot
-  disagree if they come from one decision.
-
-  This is the declarative form of what TortoiseGit does by hand. Its `QueryContextMenu` calls
-  `InsertMenu(hMenu, indexMenu++, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr)` either side of its own
-  items and does nothing else about placement — the "dedicated block with a bar around it" *is* those
-  two separators, not a position. An `IContextMenu` handler is handed a raw `HMENU` and has to draw
-  them itself; a verb can ask for them.
+- **Static verbs are the fallback layout, not the shipped one.** When `FlickGit.Shell.dll` is
+  present the whole block comes from a `ContextMenuHandler` instead — see **The context menu is a
+  handler** below, which is the third and final answer to a question this document got wrong twice.
+  What follows describes the fallback, which is what a `dotnet build` working tree gets.
+- **The block is bracketed by separators**, via `CommandFlags = 0x20` (`ECF_SEPARATORBEFORE`) on the
+  first entry and `0x40` (`ECF_SEPARATORAFTER`) on the last. Bars, but in the wrong block — see
+  below.
 - **`MUIVerb` is a static string**, written once and rendered for every folder on the machine.
   Nothing of ours runs while Explorer builds the menu, so a registry verb cannot know the branch,
   the repository, or anything else about what was clicked. The two root entries get around this
@@ -1688,8 +1686,56 @@ HKCU\Software\Classes\FlickGit.Menu\shell\110switch
   and dark rather than shipping two sets.
 - Support a flat-at-root layout as a setting, not only the submenu
 
-**On Windows 11 this appears only under "Show more options" (Shift+F10).** Accept this for
-Phase 1; the global hotkey is the real fast path anyway.
+### The context menu is a handler
+
+**A static verb cannot be put where every Git client sits, and three attempts established that.**
+The order Explorer draws the classic menu in is:
+
+```text
+Open, Open in new window, …            canonical verbs
+Open with Code, Git GUI Here, …        Directory\shell static verbs
+TortoiseGit, Sharing, …                shellex\ContextMenuHandlers
+New
+                                       Position="Bottom" static verbs
+Properties
+```
+
+A verb reaches exactly three of those places — `Top`, the default, and `Bottom` — and none of them
+is the handler block:
+
+1. `Position = "Bottom"` put the entries **past `New`**, down beside `Properties`.
+2. Removing it put them **up among the other tools**, which is the block above the handlers.
+3. `CommandFlags` separators drew the bars, but around the entries *in that same wrong block*.
+
+The handler block is not addressable by a verb at any setting. So the block is now an
+`IContextMenu` handler — `FlickGit.Shell.dll`, registered under
+`Directory\shellex\ContextMenuHandlers\FlickGit` and the same for `Directory\Background` and
+`Drive`. That is what TortoiseGit is, and it is the only reason it sits where it does.
+
+The handler contributes the whole block at once, which makes it **simpler** than what it replaced
+rather than more complex:
+
+- **One CLSID, not one per verb.** The `IExplorerCommand` handlers were one class per entry, each
+  asked separately about its own title and state, because each hung off its own static verb.
+- **`GetTitle` and `GetState` fold into `QueryContextMenu`.** The branch goes in the label as the
+  item is inserted, and a repository-requiring item outside a repository is simply not inserted.
+- **The whole `IObjectWithSite` chain is gone.** A click on a folder's background needed
+  service provider → shell browser → active view → folder view → persist folder → PIDL → path, six
+  hops each able to fail. `IShellExtInit::Initialize` is handed the PIDL.
+- **The separators are drawn, not requested.** `InsertMenu(… MF_SEPARATOR | MF_BYPOSITION …)` either
+  side, which is exactly what TortoiseGit's `QueryContextMenu` does and all it does about placement.
+
+Two costs, both real:
+
+- **Icons must be built by hand.** `InsertMenu` takes text and nothing else, so an `.ico` has to be
+  loaded and drawn into a 32-bit top-down DIB and attached with `SetMenuItemInfo`. A menu bitmap
+  without an alpha channel renders transparent pixels as black squares, which is worse than no icon
+  — hence `CreateDIBSection` plus `DrawIconEx`, not `CopyImage`.
+- **The static verbs and the handler are mutually exclusive.** Registering both is the menu twice
+  over, so `Install` writes one or the other and the DLL's presence decides which.
+
+**On Windows 11 all of this appears only under "Show more options" (Shift+F10).** The primary menu
+needs the sparse MSIX package, which is still open; the global hotkey is the real fast path anyway.
 
 ## 2. IExplorerCommand + sparse MSIX (Phase 6)
 
@@ -2471,10 +2517,13 @@ Five things that were not obvious until it ran:
   DLL stays locked while Explorer runs: replacing the binary needs an Explorer restart, though an
   uninstall takes effect immediately because it only removes registry keys.
 - **The handler is registered only when the DLL is actually beside `flick.exe`.** Native AOT runs on
-  publish, so a `dotnet build` working tree has no native DLL — and a verb naming a CLSID with no
-  server behind it is a verb Explorer *drops*, turning two working entries into none. The static
-  `MUIVerb` and `command` are still written either way, so the handler is an enhancement to a verb
-  that works without it rather than a replacement for one.
+  publish, so a `dotnet build` working tree has no native DLL. Without it the menu falls back to
+  static registry verbs, which is a working menu in the wrong block rather than no menu at all.
+- **`IExplorerCommand` was the wrong interface, and the reason is placement.** It shipped, it worked,
+  and it was replaced by `IContextMenu` — because a verb-hosted handler inherits the verb's position,
+  and no verb can reach the block Explorer reserves for shell extensions. See **The context menu is
+  a handler**. The per-verb CLSIDs live on only in `ShellCommandIds.RetiredClsids`, so an uninstall
+  can still remove what an earlier version wrote.
 
 **Still open:** the sparse MSIX package, and only that. It is the one remaining way to reach the
 Windows 11 primary menu rather than "Show more options", and it needs package identity and a

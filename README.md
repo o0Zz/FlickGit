@@ -14,8 +14,10 @@ FlickGit is built for developers who work across multiple repositories and switc
 - [x] **The branch in the menu** — `Commit / Push (feature/storage-gw)…`, read from `.git/HEAD` while
       the menu is built, and both root entries hide themselves on a folder that is not a repository.
       Needs `FlickGit.Shell.dll` beside `flick.exe`; without it the entries are plain static verbs.
-- [x] **Its own block in the menu** — separator bars above and below, via `ECF_SEPARATORBEFORE` /
-      `ECF_SEPARATORAFTER`, so the entries are not interleaved with every other tool's verbs.
+- [x] **Its own block in the menu** — an `IContextMenu` handler, so the entries sit where every
+      other Git client sits (just above *New*), with a separator bar either side. A static registry
+      verb cannot reach that block at any `Position`; being there means being a shell extension,
+      which is what TortoiseGit is.
 - [x] **One-key commit** — `Ctrl+Alt+G` opens the commit window on the repository the front
       Explorer window is showing, caret already in the message box. Enter commits and pushes;
       `Shift+Enter` is a newline. With no Explorer window in front, nothing opens — FlickGit does

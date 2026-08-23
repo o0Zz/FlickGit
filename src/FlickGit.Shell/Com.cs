@@ -61,6 +61,104 @@ internal static unsafe class Com
     /// <summary>`ECF_DEFAULT`. No sub-commands, no separator, nothing special.</summary>
     public const uint EcfDefault = 0x00;
 
+    // ---- IContextMenu, which is how the block reaches TortoiseGit's position ---------
+    //
+    // A static verb can only be Top, default, or Bottom, and Explorer draws the whole static-verb
+    // block above the shell-extension block. So no Position value reaches the slot between them --
+    // the one immediately above `New`, where every other Git client sits. Being there means being a
+    // ContextMenuHandler, which means implementing these two interfaces.
+
+    public static readonly Guid IContextMenu = new("000214e4-0000-0000-c000-000000000046");
+
+    /// <summary>How Explorer tells the handler which folder, or which selection, was clicked.</summary>
+    public static readonly Guid IShellExtInit = new("000214e8-0000-0000-c000-000000000046");
+
+    public static readonly Guid IDataObject = new("0000010e-0000-0000-c000-000000000046");
+
+    /// <summary>
+    /// `CMF_DEFAULTONLY`. Explorer is asking only for the default action — a double-click, not a
+    /// right-click — and a handler that adds items here puts them somewhere nobody asked for.
+    /// </summary>
+    public const uint CmfDefaultOnly = 0x00000001;
+
+    public const uint MfByPosition = 0x00000400;
+    public const uint MfSeparator = 0x00000800;
+    public const uint MfString = 0x00000000;
+    public const uint MfPopup = 0x00000010;
+
+    /// <summary>`MIIM_BITMAP`, for the one field of MENUITEMINFO this needs.</summary>
+    public const uint MiimBitmap = 0x00000080;
+
+    public const int CfHdrop = 15;
+    public const uint TymedHGlobal = 1;
+    public const uint DvAspectContent = 1;
+
+    /// <summary>
+    /// `FORMATETC`. The padding is real: `cfFormat` is a <c>WORD</c> followed by a pointer, so the
+    /// pointer is 8-aligned and the struct is 32 bytes. Sequential layout reproduces that.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FormatEtc
+    {
+        public ushort Format;
+        public nint TargetDevice;
+        public uint Aspect;
+        public int Index;
+        public uint Tymed;
+    }
+
+    /// <summary>`STGMEDIUM`. Released with <c>ReleaseStgMedium</c>, never by hand.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StgMedium
+    {
+        public uint Tymed;
+        public nint Data;
+        public nint UnkForRelease;
+    }
+
+    /// <summary>
+    /// `CMINVOKECOMMANDINFO`. Only <c>Verb</c> is read: when its high word is zero it is not a
+    /// pointer at all but the zero-based index of the item that was clicked, which is the whole of
+    /// how <c>InvokeCommand</c> identifies what to run.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct InvokeCommandInfo
+    {
+        public uint Size;
+        public uint Mask;
+        public nint Window;
+        public nint Verb;
+        public nint Parameters;
+        public nint Directory;
+        public int Show;
+        public uint HotKey;
+        public nint Icon;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MenuItemInfo
+    {
+        public uint Size;
+        public uint Mask;
+        public uint Type;
+        public uint State;
+        public uint Id;
+        public nint SubMenu;
+        public nint Checked;
+        public nint Unchecked;
+        public nint ItemData;
+        public nint TypeData;
+        public uint Cch;
+        public nint BitmapItem;
+    }
+
+    /// <summary>
+    /// The HRESULT `QueryContextMenu` returns: a success code whose low word is the number of
+    /// command ids used. `MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, count)` is just the count,
+    /// which is worth naming rather than leaving as a bare integer that looks like S_OK plus n.
+    /// </summary>
+    public static int ItemsAdded(int count) => count;
+
     /// <summary>The vtable of a COM pointer: the machine word it starts with.</summary>
     public static void** Vtable(void* instance) => *(void***)instance;
 

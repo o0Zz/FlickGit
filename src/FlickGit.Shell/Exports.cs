@@ -24,7 +24,6 @@ internal static unsafe class Exports
     {
         public void** Vtable;
         public int RefCount;
-        public Guid Clsid;
     }
 
     private static void** _factoryVtable;
@@ -46,9 +45,11 @@ internal static unsafe class Exports
 
         try
         {
-            //Only the CLSIDs this build knows about. An unrecognised one is a stale registry entry
-            //from an older version, and CLASS_E_CLASSNOTAVAILABLE is exactly what it means.
-            if (!IsKnown(*clsid))
+            //The one class this build serves. An unrecognised CLSID is a stale registry entry from a
+            //version that registered per-verb IExplorerCommand handlers, and
+            //CLASS_E_CLASSNOTAVAILABLE is exactly what it means -- Explorer then draws no entry,
+            //rather than an entry that does nothing.
+            if (Guid.Parse(ShellCommandIds.MenuHandlerClsid) != *clsid)
                 return Com.CLASS_E_CLASSNOTAVAILABLE;
 
             //A class object is asked for as IClassFactory or IUnknown, and nothing else.
@@ -64,7 +65,6 @@ internal static unsafe class Exports
 
             factory->Vtable = _factoryVtable;
             factory->RefCount = 1;
-            factory->Clsid = *clsid;
 
             *result = factory;
             return Com.S_OK;
@@ -89,17 +89,6 @@ internal static unsafe class Exports
     /// </summary>
     [UnmanagedCallersOnly(EntryPoint = "DllCanUnloadNow")]
     public static int DllCanUnloadNow() => Com.S_FALSE;
-
-    private static bool IsKnown(Guid clsid)
-    {
-        foreach ((_, string registered, _) in ShellCommandIds.Handlers)
-        {
-            if (Guid.Parse(registered) == clsid)
-                return true;
-        }
-
-        return false;
-    }
 
     private static void EnsureFactoryVtable()
     {
@@ -197,7 +186,8 @@ internal static unsafe class Exports
 
         try
         {
-            return ExplorerCommand.Create(((Factory*)self)->Clsid, *iid, result);
+            _ = self;
+            return ContextMenuHandler.Create(*iid, result);
         }
         catch
         {

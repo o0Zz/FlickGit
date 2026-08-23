@@ -19,28 +19,41 @@ namespace FlickGit.Shared;
 internal static class ShellCommandIds
 {
     /// <summary>
-    /// Which verbs get a handler, and the CLSID each one is registered as.
+    /// The context-menu handler: <b>one</b> CLSID for the whole FlickGit block.
     ///
-    /// <b>Only the two root entries.</b> They are the ones the user sees without hovering, so they
-    /// are where a live branch name and a hidden-outside-a-repository entry are worth the cost of a
-    /// DLL in <c>explorer.exe</c>. The <c>FlickGit</c> submenu stays static registry verbs: its
-    /// items are one hover away, already grouped under a name that says what they are, and every
-    /// handler added here is another object Explorer builds on every right-click.
-    ///
-    /// The verb is the key: it is the CLI spelling, which is also the built-in action's id, so this
-    /// table joins to the Action Catalog without carrying a second copy of anything from it.
+    /// <b>Why one and not one per verb.</b> This replaced two <c>IExplorerCommand</c> handlers, which
+    /// Explorer asked about separately because each was registered on its own static verb. Those
+    /// verbs could not be placed: a static verb reaches <c>Top</c>, the default, or <c>Bottom</c>,
+    /// and Explorer draws the static-verb block above the shell-extension block, which it draws
+    /// above <c>New</c> — so the slot every Git client sits in, immediately above <c>New</c>, is not
+    /// addressable by a verb at all. A <c>ContextMenuHandler</c> is, and it contributes the whole
+    /// block at once, so it is one object and one id.
     /// </summary>
-    public static readonly (string Verb, string Clsid, bool ShowBranch)[] Handlers =
-    [
-        //Commit / Push -- the entry the branch name is actually for.
-        ("commit", "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C10}", true),
+    public const string MenuHandlerClsid = "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C20}";
 
-        //Pull (rebase). No branch in the label: it would read as "pull *into* this branch", which is
-        //true but says nothing the Commit entry above it has not already said, and two parenthesised
-        //branch names one under the other is noise. It is here for GetState, so that neither root
-        //entry appears on a folder that is not a repository.
-        ("pull-rebase", "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C11}", false),
+    /// <summary>
+    /// The CLSIDs of the per-verb <c>IExplorerCommand</c> handlers this replaced.
+    ///
+    /// Listed only so an uninstall can remove them from a registry that an earlier version wrote
+    /// into. Nothing creates them any more; see <b>These GUIDs are permanent</b> above for why they
+    /// cannot simply be forgotten.
+    /// </summary>
+    public static readonly string[] RetiredClsids =
+    [
+        "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C10}",
+        "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C11}",
     ];
+
+    /// <summary>
+    /// Where the handler is registered under each parent class, and the name of the key.
+    ///
+    /// <c>shellex\ContextMenuHandlers</c> rather than <c>shell</c>: that is the difference between
+    /// being a verb and being a handler, and therefore the difference between the two menu blocks.
+    /// </summary>
+    public const string ContextMenuHandlersPath = @"shellex\ContextMenuHandlers";
+
+    /// <summary>The key name under it. Recognisable as ours, and what an uninstall looks for.</summary>
+    public const string HandlerKeyName = "FlickGit";
 
     /// <summary>
     /// Where the DLL reads what it needs, under its own <c>CLSID\{guid}</c> key.
@@ -65,6 +78,15 @@ internal static class ShellCommandIds
 
     /// <summary><c>1</c> to hide the entry outside a repository.</summary>
     public const string ValueNeedsRepository = "FlickGit.NeedsRepository";
+
+    /// <summary><c>1</c> to put the entry under the <c>FlickGit</c> popup rather than at the top level.</summary>
+    public const string ValueInSubmenu = "FlickGit.InSubmenu";
+
+    /// <summary>The popup's own label, already localised.</summary>
+    public const string ValueSubmenuLabel = "FlickGit.SubmenuLabel";
+
+    /// <summary>The subkey under the handler's CLSID holding one subkey per menu entry.</summary>
+    public const string ItemsKeyName = "Items";
 
     /// <summary>
     /// The <c>EXPCMDFLAGS</c> value <c>IExplorerCommand::GetFlags</c> reports, as a decimal string.
