@@ -55,6 +55,7 @@
          format and the stub is not allowed a project reference, so the source is shared and each
          assembly compiles its own copy. Two hand-maintained copies would drift. -->
     <Compile Include="..\Shared\IpcMessages.cs" Link="Ipc\IpcMessages.cs" />
+    <Compile Include="..\Shared\ShellCommandIds.cs" Link="Shared\ShellCommandIds.cs" />
   </ItemGroup>
 
 

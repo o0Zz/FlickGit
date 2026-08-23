@@ -252,9 +252,22 @@ src/
 │   ├── Remotes/             PushService
 │   └── Pulls/ Clone/ Secrets/ Matching/ Logging/ Diagnostics/ Models/
 │
-└── (no FlickGit.Shell)      The native IExplorerCommand DLL is not built: it needs
-                             package identity and a code-signing certificate, and
-                             without one there is nothing to install. See Phase 6.
+└── FlickGit.Shell/          Native AOT COM DLL, loaded into explorer.exe. Draws the
+    │                        two root menu entries: IExplorerCommand::GetTitle puts the
+    │                        branch in the Commit label, GetState hides both outside a
+    │                        repository. Hand-rolled vtables, no [GeneratedComInterface]
+    │                        -- see Com.cs for why. No ProjectReference, ever.
+    ├── Exports.cs           DllGetClassObject, DllCanUnloadNow, IClassFactory.
+    ├── ExplorerCommand.cs   The one COM object: IExplorerCommand + IObjectWithSite.
+    ├── FolderResolver.cs    IShellItemArray for a clicked folder; the site chain for
+    │                        a clicked background.
+    ├── GitHead.cs           The branch, from .git/HEAD. No git.exe, no pipe.
+    └── RepositoryLookup.cs  One answer per right-click instead of four.
+
+    This does NOT reach the Windows 11 primary menu -- that still needs a sparse MSIX
+    package and package identity, which is the part of Phase 6 still open. An
+    ExplorerCommandHandler on a verb key is honoured in the classic menu with an
+    ordinary per-user COM registration, which is what this uses.
 
 tests/
 └── FlickGit.Core.Tests/     The only test project, and there will not be a second
@@ -1424,6 +1437,10 @@ HKCU\Software\Classes\FlickGit.Menu\shell\110switch
 - **Every key the tool creates is named `FlickGit.*`.** The root entries are several keys now,
   so an uninstall finds them by enumerating that one prefix -- which is what keeps "never
   modify keys the tool did not create" structural rather than a promise.
+- **`MUIVerb` is a static string**, written once and rendered for every folder on the machine.
+  Nothing of ours runs while Explorer builds the menu, so a registry verb cannot know the branch,
+  the repository, or anything else about what was clicked. The two root entries get around this
+  with an `ExplorerCommandHandler` — see below — and everything in the submenu does not.
 - Ship `.ico` files with 16, 20, 24, 32 and 48 px frames; Explorer picks by DPI
 - Classic menu icons are **not** theme-aware. Use mid-tone outline glyphs that read on light
   and dark rather than shipping two sets.
@@ -1958,6 +1975,7 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | AI request timeout                         | —      | 8 s        |
 | Commit + push, warm, excluding network      | 400 ms | 1 s        |
 | `IExplorerCommand::GetState`               | 20 ms  | 50 ms      |
+| `IExplorerCommand::GetTitle` (branch read) | 20 ms  | 50 ms      |
 | Input hook proc                            | < 1 ms | 5 ms  *(see below)* |
 | Resident idle working set                  | 80 MB  | 150 MB     |
 
@@ -2110,8 +2128,8 @@ that was always ready to receive one.
 
 ## Phase 6 — Deep shell integration
 
-Sparse MSIX package · `IExplorerCommand` for the Windows 11 primary menu · repository-aware
-visibility via `GetState` · dynamic submenu from the Action Catalog · line and hunk staging.
+Sparse MSIX package · `IExplorerCommand` · repository-aware visibility via `GetState` · the branch
+name in the Commit label · dynamic submenu from the Action Catalog · line and hunk staging.
 
 **Line and hunk staging is done.** `Core/Diff/Hunks.cs` groups the in-memory diff into hunks and
 turns any set of rows into a unified patch; `PatchService` applies it with `git apply --cached`, which
@@ -2140,10 +2158,47 @@ was picked" and puts the file in neither list. It is set by the viewer, carried 
 dropped as soon as the index no longer holds anything of the file — so it is spent by a commit without
 anybody having to clear it.
 
-**Still open:** the sparse MSIX package and `IExplorerCommand`, deliberately. They are the only way to
-reach the Windows 11 primary menu, and they require package identity and a code-signing certificate;
-without one there is nothing to install. The registry menu under "Show more options" remains the
-shipped surface, and the global hotkey is the fast path regardless.
+**`IExplorerCommand` is done, and it did not need MSIX.** That was the mistake in the plan above:
+the sparse package is required for the Windows 11 *primary* menu, not for a dynamic handler.
+`ExplorerCommandHandler` on a verb key is honoured in the classic menu with an ordinary per-user
+COM registration, so `GetTitle` and `GetState` were reachable all along without package identity or
+a signature.
+
+`FlickGit.Shell.dll` is a Native AOT COM server on the two root verbs. It does two things:
+
+- **`GetTitle` puts the branch in the label** — `Commit / Push (feature/storage-gw)…`, which is what
+  this was built for. Before the ellipsis, not after: the ellipsis means "this opens something" and
+  belongs at the end of the whole label.
+- **`GetState` hides both root entries outside a repository**, which is the repository-aware
+  visibility this phase always wanted.
+
+Five things that were not obvious until it ran:
+
+- **The vtable slot numbers are the whole risk.** `IShellItemArray::GetItemAt` is slot 8, not 9 —
+  slot 9 is `EnumItems`, whose only argument is a pointer. Calling it with a `DWORD` in that register
+  and reading the result back as an `IShellItem` is an access violation, and in the real
+  configuration that access violation is inside `explorer.exe`. Every slot in the DLL is now
+  commented with the count that produced it.
+- **Test it out of process first.** A throwaway CLSID pointing at the published DLL, driven from a
+  console app with a real `IShellItemArray`, found that bug in a process nobody minds losing. The
+  same bug found by registering the handler first would have taken the desktop down.
+- **Native AOT, not `comhost`.** The alternative loads the CLR into `explorer.exe` on the first
+  right-click. CLAUDE.md's own argument for `flick.exe` being AOT applies with more force to a DLL in
+  somebody else's process.
+- **`DllCanUnloadNow` must return `S_FALSE` forever.** The .NET runtime cannot be unloaded and
+  reinitialised in a live process, so agreeing to unload is agreeing to a crash. The cost is that the
+  DLL stays locked while Explorer runs: replacing the binary needs an Explorer restart, though an
+  uninstall takes effect immediately because it only removes registry keys.
+- **The handler is registered only when the DLL is actually beside `flick.exe`.** Native AOT runs on
+  publish, so a `dotnet build` working tree has no native DLL — and a verb naming a CLSID with no
+  server behind it is a verb Explorer *drops*, turning two working entries into none. The static
+  `MUIVerb` and `command` are still written either way, so the handler is an enhancement to a verb
+  that works without it rather than a replacement for one.
+
+**Still open:** the sparse MSIX package, and only that. It is the one remaining way to reach the
+Windows 11 primary menu rather than "Show more options", and it needs package identity and a
+code-signing certificate; without one there is nothing to install. The global hotkey is the fast path
+regardless.
 
 ---
 

@@ -1,5 +1,6 @@
 using System.IO;
 using FlickGit.Actions;
+using FlickGit.Shared;
 using FlickGit.App.Localization;
 using FlickGit.Logging;
 using Microsoft.Win32;
@@ -33,8 +34,16 @@ namespace FlickGit.App.Shell;
 /// </list>
 ///
 /// On Windows 11 these appear under "Show more options" (Shift+F10). That is a limitation
-/// of registry verbs, not of this code — the Windows 11 primary menu needs
-/// <c>IExplorerCommand</c> and a sparse MSIX package, which is Phase 6.
+/// of registry verbs, not of this code — the Windows 11 <i>primary</i> menu needs a sparse MSIX
+/// package, which is still Phase 6.
+///
+/// <b>The two root verbs also get an <c>IExplorerCommand</c> handler</b>, which is what puts the
+/// branch name in the Commit entry and hides both entries outside a repository. That does <i>not</i>
+/// need MSIX or a signature: <c>ExplorerCommandHandler</c> on a verb key is honoured in the classic
+/// menu with an ordinary per-user COM registration. What it does need is
+/// <c>FlickGit.Shell.dll</c> — a Native AOT DLL that Explorer loads into itself — so
+/// <see cref="ShellHandlerAvailable"/> checks the file is really there and the verbs stay plain
+/// static entries when it is not.
 /// </summary>
 public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 {
@@ -90,6 +99,9 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// </summary>
     private static readonly string[] ClassKeyNames = [MenuKeyName, "FlickGit.Menu.More"];
 
+    /// <summary>Where a COM class registers itself, under <c>Software\Classes</c>.</summary>
+    private const string ClsidPath = "CLSID";
+
     /// <summary>
     /// The menu, projected from the Action Catalog.
     ///
@@ -141,10 +153,19 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
             WriteSubmenu(classes, cliPath, submenuActions);
 
+            //Before the verbs, because WriteRootVerb points at these classes: a verb naming a CLSID
+            //that is not registered yet is a verb Explorer briefly cannot draw.
+            string? handlerDll = ShellHandlerAvailable(installDirectory);
+
+            if (handlerDll is not null)
+                WriteCommandHandlers(classes, cliPath, handlerDll, rootActions);
+            else
+                log.Info($"{ShellCommandIds.DllFileName} is not present, so the menu entries are plain static verbs.");
+
             foreach (string parent in VerbParents)
             {
                 foreach (GitAction action in rootActions)
-                    WriteRootVerb(classes, parent, cliPath, action);
+                    WriteRootVerb(classes, parent, cliPath, action, handlerDll is not null);
 
                 //Only when there is something behind it. CLAUDE.md: "Do not show a submenu with a
                 //single item" -- an empty one is worse still.
@@ -198,6 +219,15 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             foreach (string name in ClassKeyNames)
                 classes.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
 
+            //By name, from the compiled-in list -- never by enumerating CLSID, which is every COM
+            //class on the machine. This is why ShellCommandIds calls its GUIDs permanent: a renumbered
+            //one is a key nothing can find to delete.
+            using (RegistryKey? clsids = classes.OpenSubKey(ClsidPath, writable: true))
+            {
+                foreach ((_, string clsid, _) in ShellCommandIds.Handlers)
+                    clsids?.DeleteSubKeyTree(clsid, throwOnMissingSubKey: false);
+            }
+
             log.Info("Shell integration removed.");
             return new InstallResult(true, Strings.Get("shell.removed"));
         }
@@ -243,7 +273,16 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// item. This is the whole point of the layout — Commit and Pull are one click from the
     /// right-click, the way they are in TortoiseGit.
     /// </summary>
-    private static void WriteRootVerb(RegistryKey classes, string parent, string cliPath, GitAction action)
+    /// <param name="withHandler">
+    /// True to add <c>ExplorerCommandHandler</c>, so this entry's label and visibility come from the
+    /// shell DLL rather than from the static values written here.
+    ///
+    /// <b>The static values are written either way.</b> They are not redundant: <c>MUIVerb</c> is
+    /// what the entry falls back to if the handler cannot be created, and the <c>command</c> subkey
+    /// is what runs if <c>Invoke</c> is never reached. A verb that consists only of a handler is a
+    /// verb that vanishes when the DLL does.
+    /// </param>
+    private static void WriteRootVerb(RegistryKey classes, string parent, string cliPath, GitAction action, bool withHandler)
     {
         using RegistryKey verb = classes.CreateSubKey($@"{parent}\{RootKeyName(action)}", writable: true)
                                  ?? throw new InvalidOperationException($"Could not create the {action.Id} verb.");
@@ -255,10 +294,89 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         //above Explorer's own "Open". That is where the hand already goes looking for them.
         verb.SetValue("Position", "Bottom", RegistryValueKind.String);
 
+        if (withHandler && ClsidFor(action.Id) is { } clsid)
+            verb.SetValue("ExplorerCommandHandler", clsid, RegistryValueKind.String);
+
         using RegistryKey commandKey = verb.CreateSubKey("command", writable: true)
                                        ?? throw new InvalidOperationException($"Could not create command for {action.Id}.");
 
         commandKey.SetValue(string.Empty, CommandLine(cliPath, action), RegistryValueKind.String);
+    }
+
+    /// <summary>
+    /// The full path of the shell DLL if it is there to be registered, or null.
+    ///
+    /// Null is the ordinary case for a `dotnet build` working tree: Native AOT only runs on publish,
+    /// so the DLL beside the executables exists only in a real install. Registering a handler whose
+    /// CLSID has no DLL behind it would leave Explorer unable to create the object, and it drops the
+    /// entry when that happens — turning two working menu items into none.
+    /// </summary>
+    private static string? ShellHandlerAvailable(string installDirectory)
+    {
+        string path = Path.Combine(installDirectory, ShellCommandIds.DllFileName);
+        return File.Exists(path) ? path : null;
+    }
+
+    private static string? ClsidFor(string actionId)
+    {
+        foreach ((string verb, string clsid, _) in ShellCommandIds.Handlers)
+        {
+            if (string.Equals(verb, actionId, StringComparison.Ordinal))
+                return clsid;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Registers the COM classes the verbs point at, and hands each one everything it needs.
+    ///
+    /// <b>The DLL holds no interface text of its own.</b> The label written here is the one already
+    /// resolved from the <c>.lang</c> file in force, so <c>Strings</c> stays the only place any
+    /// user-visible word lives — and `flick language de` followed by a re-register changes the menu
+    /// without the DLL knowing a word of German. The DLL appends the branch and nothing else.
+    ///
+    /// <c>ThreadingModel = Apartment</c>, which is what a shell extension is called on. The shell
+    /// then marshals for us rather than expecting this code to be free-threaded.
+    /// </summary>
+    private void WriteCommandHandlers(RegistryKey classes, string cliPath, string dllPath, IReadOnlyList<GitAction> rootActions)
+    {
+        foreach ((string verb, string clsid, bool showBranch) in ShellCommandIds.Handlers)
+        {
+            //Only for an action the catalog actually put on the menu. A built-in the user hid must
+            //not come back as a COM class nothing references.
+            GitAction? action = rootActions.FirstOrDefault(a => string.Equals(a.Id, verb, StringComparison.Ordinal));
+
+            if (action is null)
+                continue;
+
+            using RegistryKey key = classes.CreateSubKey($@"{ClsidPath}\{clsid}", writable: true)
+                                   ?? throw new InvalidOperationException($"Could not register the {verb} handler.");
+
+            key.SetValue(string.Empty, $"FlickGit {action.Label}", RegistryValueKind.String);
+
+            key.SetValue(ShellCommandIds.ValueLabel, action.Label, RegistryValueKind.String);
+            key.SetValue(ShellCommandIds.ValueExe, cliPath, RegistryValueKind.String);
+            key.SetValue(ShellCommandIds.ValueVerb, action.Cli is { Length: > 0 } cli ? cli : $"run {action.Id}", RegistryValueKind.String);
+            key.SetValue(ShellCommandIds.ValueShowBranch, showBranch ? "1" : "0", RegistryValueKind.String);
+            key.SetValue(ShellCommandIds.ValueNeedsRepository, action.RequiresRepository ? "1" : "0", RegistryValueKind.String);
+
+            if (action.IconFileName is { Length: > 0 } iconName)
+            {
+                string icon = Path.Combine(Path.GetDirectoryName(cliPath) ?? string.Empty, "icons", iconName);
+
+                if (File.Exists(icon))
+                    key.SetValue(ShellCommandIds.ValueIcon, icon, RegistryValueKind.String);
+            }
+
+            using RegistryKey server = key.CreateSubKey("InprocServer32", writable: true)
+                                       ?? throw new InvalidOperationException($"Could not register the {verb} server.");
+
+            server.SetValue(string.Empty, dllPath, RegistryValueKind.String);
+            server.SetValue("ThreadingModel", "Apartment", RegistryValueKind.String);
+        }
+
+        log.Info($"Registered {ShellCommandIds.Handlers.Length} IExplorerCommand handler(s) from {dllPath}.");
     }
 
     /// <summary>The "FlickGit" submenu, carrying everything not worth a root entry.</summary>

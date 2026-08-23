@@ -11,6 +11,9 @@ FlickGit is built for developers who work across multiple repositories and switc
 
 - [x] **Explorer context menu** — Commit / Push… and Pull (rebase) as entries of their own at the
       bottom of the menu, the rest in the *FlickGit* submenu. Per-user, no administrator rights.
+- [x] **The branch in the menu** — `Commit / Push (feature/storage-gw)…`, read from `.git/HEAD` while
+      the menu is built, and both root entries hide themselves on a folder that is not a repository.
+      Needs `FlickGit.Shell.dll` beside `flick.exe`; without it the entries are plain static verbs.
 - [x] **One-key commit** — `Ctrl+Alt+G` opens the commit window on the repository the front
       Explorer window is showing, caret already in the message box. Enter commits and pushes;
       `Shift+Enter` is a newline. With no Explorer window in front, nothing opens — FlickGit does
@@ -285,7 +288,7 @@ dependencies as typed constructor parameters so that stays a choice rather than 
 | **3** | Speed | ✅ Resident service with tray menu and MRU · named-pipe IPC with direct-launch fallback · pre-warmed windows · foreground activation · logon task · diff prefetch cache · notifications |
 | **4** | The trigger and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *The cursor-anchored quick-commit popup was built and then removed: the trigger opens the commit window instead, which took over the caret-in-the-message-box opening, Enter-commits and the streamed message. The Explorer-scoped input hooks — a key or a mouse side button swallowed only over Explorer — are still open; the setting falls back to the global hotkey and says so in `diag doctor`.* |
 | **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) carrying the context menu, autostart, the commit switches, the AI provider and its API key, the language picker, a Help tab rendering an editable `Help.md` and an About tab. *Three items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface), the Ollama provider, and with it speculative generation — which by its own safety rule may only run against a local provider.* |
-| **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. *The Windows 11 primary menu (`IExplorerCommand` + sparse MSIX) is the one thing still open: it needs package identity and a code-signing certificate.* |
+| **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. ✅ `IExplorerCommand` handler (`FlickGit.Shell.dll`, Native AOT COM in `explorer.exe`) putting the current branch in the Commit label and hiding the root entries outside a repository — no MSIX or signature needed for the classic menu, only for the Windows 11 *primary* one. *The sparse MSIX package is the one thing still open: it needs package identity and a code-signing certificate.* |
 
 Design decisions, performance budgets and the reasoning behind them live in
 [CLAUDE.md](CLAUDE.md).

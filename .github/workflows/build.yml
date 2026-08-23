@@ -86,6 +86,17 @@ jobs:
           -p:Version=${{ steps.version.outputs.version }}
           -o $env:STAGING
 
+      - name: Publish FlickGit.Shell.dll (Native AOT IExplorerCommand handler)
+        run: >
+          dotnet publish src/FlickGit.Shell/FlickGit.Shell.csproj
+          -c $env:CONFIGURATION
+          -r win-x64
+          -p:DebugType=none
+          -p:AssemblyVersion=${{ steps.version.outputs.version }}
+          -p:FileVersion=${{ steps.version.outputs.version }}
+          -p:Version=${{ steps.version.outputs.version }}
+          -o $env:STAGING
+
       - name: Publish flick.exe (Native AOT stub)
         run: >
           dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj

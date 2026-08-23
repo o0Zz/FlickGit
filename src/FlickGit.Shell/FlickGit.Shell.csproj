@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- A native DLL, not an executable and not a managed assembly anybody loads. Windows calls
+         DllGetClassObject in it directly, from inside explorer.exe. -->
+    <OutputType>Library</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+
+    <RootNamespace>FlickGit.Shell</RootNamespace>
+    <AssemblyName>FlickGit.Shell</AssemblyName>
+    <Description>FlickGit IExplorerCommand handler. Draws the context-menu entries and forwards clicks to flick.exe.</Description>
+
+    <!-- Native AOT, and this is the load-bearing choice in this file.
+
+         This DLL is loaded into explorer.exe. The alternative way to build a .NET COM server is
+         EnableComHosting, which loads the CLR into whatever process asks for the class: hundreds of
+         milliseconds on the first right-click, a runtime that can never be unloaded, and a second
+         copy of it if another extension got there first. CLAUDE.md makes that argument for
+         flick.exe already ("a framework-dependent .NET stub costs 50-100 ms of CLR startup on its
+         own"), and it holds with more force here, because this is not our process to slow down.
+
+         NativeLib=Shared is what turns the AOT output into a .dll with real exports. It only takes
+         effect on `dotnet publish`; `dotnet build` produces an ordinary managed assembly that is
+         never loaded by anything. That is why ShellIntegration registers the handler only when it
+         finds a published DLL beside flick.exe: see ShellCommandIds.DllFileName. -->
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+
+    <!-- Every byte and every millisecond is inside a right-click, on Explorer's own thread. -->
+    <OptimizationPreference>Size</OptimizationPreference>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+
+    <!-- No stack traces, because nothing here reports one: every entry point catches everything and
+         answers with an HRESULT. An exception that escaped into native code would not produce a
+         trace, it would produce a dead desktop. -->
+    <StackTraceSupport>false</StackTraceSupport>
+
+    <!-- Required by the function-pointer vtables and LibraryImport. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- Deliberately no ProjectReference, for the reason FlickGit.Cli states and this file inherits
+       twice over: CLAUDE.md requires that the shell extension contain "no Git logic, no AI SDK, no
+       WPF, no HTTP client". A reference to FlickGit.Core would be a reference that could grow into
+       one, inside explorer.exe. What this DLL knows about Git is GitHead.cs: two path probes and one
+       fifty-byte file read. -->
+
+  <ItemGroup>
+    <!-- The CLSIDs and value names, compiled into both this DLL and the App that writes them.
+         Shared as source for the same reason IpcMessages.cs is: two hand-maintained copies of a
+         GUID would drift, and this assembly may not carry a reference it would have to resolve. -->
+    <Compile Include="..\Shared\ShellCommandIds.cs" Link="Shared\ShellCommandIds.cs" />
+  </ItemGroup>
+
+</Project>

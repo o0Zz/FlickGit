@@ -34,6 +34,13 @@ the ones with something to do listed first. Type to filter, type a space to swit
 Right-click a folder — the repository root, any folder inside it, or the empty background of a
 folder you are browsing.
 
+**Commit / Push** shows the branch you are on — `Commit / Push (main)…` — and both top-level
+entries disappear on a folder that is not a Git repository. That needs `FlickGit.Shell.dll` next to
+`flick.exe`; without it the entries still work, they are just plain labels that always show.
+
+Replacing that DLL needs Explorer restarted, because Explorer keeps it loaded once it has drawn a
+menu with it. Turning the menu off in **Settings** takes effect immediately either way.
+
 On Windows 11 the entries live under **Show more options** (Shift+F10). That is a limitation of
 registry context menus, not a setting: the Windows 11 top-level menu needs a signed package.
 
