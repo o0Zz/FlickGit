@@ -76,9 +76,7 @@ delete.missing = {0} is no longer on disk.
 delete.outside = {0} is outside {1} and will not be deleted.
 delete.reparsepoint = {0} is a symlink or junction. FlickGit will not delete through one.
 # {0} repository-relative path, {1} the reason Windows gave
-delete.failed = {0} could not be deleted:
-
-{1}
+delete.failed = {0} could not be deleted:\n\n{1}
 
 # ---- reverting a file ----
 # The commit window's file list, right-click. Puts the file back the way HEAD has it, sending
@@ -143,16 +141,10 @@ switch.menu.delete = Delete branch…
 switch.menu.deleteremote = Delete on {0}…
 switch.created = Created {0} and switched to it.
 branch.delete.title = Delete branch
-branch.delete.local = Delete the local branch '{0}'?
-
-Only this copy goes. Anything already pushed stays on the remote.
-branch.delete.remote = Delete '{0}' on {1}?
-
-This deletes it for everyone using that remote, and FlickGit cannot undo it.
+branch.delete.local = Delete the local branch '{0}'?\n\nOnly this copy goes. Anything already pushed stays on the remote.
+branch.delete.remote = Delete '{0}' on {1}?\n\nThis deletes it for everyone using that remote, and FlickGit cannot undo it.
 branch.delete.yes = Delete
-branch.delete.unmerged = '{0}' has commits that are not merged anywhere else.
-
-Deleting it now leaves them reachable only from the reflog.
+branch.delete.unmerged = '{0}' has commits that are not merged anywhere else.\n\nDeleting it now leaves them reachable only from the reflog.
 branch.delete.force = Delete it anyway
 branch.delete.current = '{0}' is the branch you are on. Switch somewhere else first.
 branch.deleted = Deleted {0}.
@@ -262,9 +254,7 @@ blame.lines = {0} lines · {1} commits
 blame.binary = This is a binary file, so there is nothing to blame line by line.
 blame.failed = The blame could not be read.
 # {0} the path that was given
-blame.notafile = Blame needs a file, not a folder:
-
-{0}
+blame.notafile = Blame needs a file, not a folder:\n\n{0}
 
 # ---- repository window ----
 # {0} repository name
@@ -299,9 +289,7 @@ repo.remote.urlset = {0} now points at {1}.
 repo.remote.removed = Removed {0}.
 repo.remote.confirm.title = Remove a remote?
 # {0} the remote
-repo.remote.confirm = Remove '{0}'?
-
-Its remote-tracking branches go with it, and any branch that tracked it is left with no upstream. Nothing in your working tree is touched.
+repo.remote.confirm = Remove '{0}'?\n\nIts remote-tracking branches go with it, and any branch that tracked it is left with no upstream. Nothing in your working tree is touched.
 repo.remote.confirm.yes = Remove
 repo.section.defaults = FLICKGIT, FOR THIS REPOSITORY
 repo.primarybranch = Primary branch
@@ -363,12 +351,9 @@ pr.step.creating = Creating the pull request…
 # and "a token for git.acme.io" leaves the user guessing which settings page.
 # {0} the host
 pr.token.title = Token for {0}
-pr.token.prompt.github = FlickGit needs a token that can open pull requests on {0}.
-Create a personal access token with the "repo" scope (classic), or "Pull requests: read and write" (fine-grained).
-pr.token.prompt.gitlab = FlickGit needs a token that can open merge requests on {0}.
-Create a personal access token with the "api" scope, in your GitLab profile under Access Tokens.
-pr.token.prompt.azure = FlickGit needs a token that can open pull requests on {0}.
-Create a personal access token with the "Code (read and write)" scope, from User settings → Personal access tokens.
+pr.token.prompt.github = FlickGit needs a token that can open pull requests on {0}.\nCreate a personal access token with the "repo" scope (classic), or "Pull requests: read and write" (fine-grained).
+pr.token.prompt.gitlab = FlickGit needs a token that can open merge requests on {0}.\nCreate a personal access token with the "api" scope, in your GitLab profile under Access Tokens.
+pr.token.prompt.azure = FlickGit needs a token that can open pull requests on {0}.\nCreate a personal access token with the "Code (read and write)" scope, from User settings → Personal access tokens.
 
 # ---- clone ----
 clone.title = Clone into {0}
@@ -544,11 +529,9 @@ settings.openfailed = It could not be opened: {0}
 settings.location = FlickGit is configured by editing these files:
 
 # --- help tab: Help.md, beside the exe ----------------------------------------
-settings.help.edit = Edit Help.md
-settings.help.reload = Reload
 # {0} where the file was expected. Shown as Markdown -- this text is the page itself.
-settings.help.missing = # No help file\n\nHelp.md was expected beside FlickGit.exe:\n\n`{0}`\n\nCreate it and press **Reload**. It is ordinary Markdown.
-# {0} the error
+settings.help.missing = # The help page is missing\n\nHelp.md was expected beside FlickGit.exe:\n\n`{0}`\n\nThat file is part of the install, so this one is incomplete. Reinstalling FlickGit restores it.
+
 settings.help.unreadable = # Help could not be read\n\n`{0}`
 
 # --- about tab ----------------------------------------------------------------

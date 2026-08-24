@@ -63,9 +63,7 @@ delete.done = {0} eliminato
 delete.missing = {0} non è più sul disco.
 delete.outside = {0} è fuori da {1} e non verrà eliminato.
 delete.reparsepoint = {0} è un collegamento simbolico o una giunzione. FlickGit non elimina attraverso di essi.
-delete.failed = Impossibile eliminare {0}:
-
-{1}
+delete.failed = Impossibile eliminare {0}:\n\n{1}
 
 # ---- ripristinare un file ----
 revert.menu = Ripristina il file…
@@ -121,16 +119,10 @@ switch.menu.delete = Elimina il branch…
 switch.menu.deleteremote = Elimina su {0}…
 switch.created = {0} creato, e passato a esso.
 branch.delete.title = Elimina il branch
-branch.delete.local = Eliminare il branch locale «{0}»?
-
-Sparisce solo questa copia. Ciò che è già stato inviato resta sul remoto.
-branch.delete.remote = Eliminare «{0}» su {1}?
-
-Sparisce per tutti quelli che usano quel remoto, e FlickGit non può annullarlo.
+branch.delete.local = Eliminare il branch locale «{0}»?\n\nSparisce solo questa copia. Ciò che è già stato inviato resta sul remoto.
+branch.delete.remote = Eliminare «{0}» su {1}?\n\nSparisce per tutti quelli che usano quel remoto, e FlickGit non può annullarlo.
 branch.delete.yes = Elimina
-branch.delete.unmerged = «{0}» contiene commit che non sono uniti da nessun'altra parte.
-
-Eliminandolo ora restano raggiungibili solo dal reflog.
+branch.delete.unmerged = «{0}» contiene commit che non sono uniti da nessun'altra parte.\n\nEliminandolo ora restano raggiungibili solo dal reflog.
 branch.delete.force = Elimina comunque
 branch.delete.current = «{0}» è il branch su cui si trova. Passi prima a un altro.
 branch.deleted = {0} eliminato.
@@ -325,9 +317,8 @@ settings.openfailed = Non è stato possibile aprirlo: {0}
 settings.location = FlickGit si configura modificando questi file:
 
 # --- guida: Help.md, accanto all'eseguibile -----------------------------------
-settings.help.edit = Modifica Help.md
-settings.help.reload = Ricarica
-settings.help.missing = # Nessun file di guida\n\nHelp.md era atteso accanto a FlickGit.exe:\n\n`{0}`\n\nCrealo e premi **Ricarica**. È normale Markdown.
+settings.help.missing = # La pagina di guida non c'è\n\nHelp.md era atteso accanto a FlickGit.exe:\n\n`{0}`\n\nQuel file fa parte dell'installazione, quindi è incompleta. Reinstallare FlickGit lo ripristina.
+
 settings.help.unreadable = # Non è stato possibile leggere la guida\n\n`{0}`
 
 # --- informazioni -------------------------------------------------------------

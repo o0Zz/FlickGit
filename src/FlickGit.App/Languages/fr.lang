@@ -63,9 +63,7 @@ delete.done = {0} supprimé
 delete.missing = {0} n'est plus sur le disque.
 delete.outside = {0} est en dehors de {1} et ne sera pas supprimé.
 delete.reparsepoint = {0} est un lien symbolique ou une jonction. FlickGit ne supprime pas au travers.
-delete.failed = {0} n'a pas pu être supprimé :
-
-{1}
+delete.failed = {0} n'a pas pu être supprimé :\n\n{1}
 
 # ---- rétablir un fichier ----
 revert.menu = Rétablir le fichier…
@@ -121,16 +119,10 @@ switch.menu.delete = Supprimer la branche…
 switch.menu.deleteremote = Supprimer sur {0}…
 switch.created = {0} créée, et basculement effectué.
 branch.delete.title = Supprimer la branche
-branch.delete.local = Supprimer la branche locale « {0} » ?
-
-Seule cette copie disparaît. Ce qui a déjà été poussé reste sur le dépôt distant.
-branch.delete.remote = Supprimer « {0} » sur {1} ?
-
-Elle disparaît pour tous ceux qui utilisent ce dépôt distant, et FlickGit ne peut pas revenir en arrière.
+branch.delete.local = Supprimer la branche locale « {0} » ?\n\nSeule cette copie disparaît. Ce qui a déjà été poussé reste sur le dépôt distant.
+branch.delete.remote = Supprimer « {0} » sur {1} ?\n\nElle disparaît pour tous ceux qui utilisent ce dépôt distant, et FlickGit ne peut pas revenir en arrière.
 branch.delete.yes = Supprimer
-branch.delete.unmerged = « {0} » contient des commits qui ne sont fusionnés nulle part ailleurs.
-
-La supprimer maintenant les laisse accessibles uniquement depuis le reflog.
+branch.delete.unmerged = « {0} » contient des commits qui ne sont fusionnés nulle part ailleurs.\n\nLa supprimer maintenant les laisse accessibles uniquement depuis le reflog.
 branch.delete.force = Supprimer quand même
 branch.delete.current = « {0} » est la branche courante. Basculez ailleurs d'abord.
 branch.deleted = {0} supprimée.
@@ -188,9 +180,7 @@ repo.remote.renamed = {0} renommé en {1}.
 repo.remote.urlset = {0} pointe maintenant vers {1}.
 repo.remote.removed = {0} supprimé.
 repo.remote.confirm.title = Supprimer un dépôt distant ?
-repo.remote.confirm = Supprimer « {0} » ?
-
-Ses branches de suivi disparaissent avec lui, et toute branche qui le suivait se retrouve sans branche amont. Rien n'est touché dans votre copie de travail.
+repo.remote.confirm = Supprimer « {0} » ?\n\nSes branches de suivi disparaissent avec lui, et toute branche qui le suivait se retrouve sans branche amont. Rien n'est touché dans votre copie de travail.
 repo.remote.confirm.yes = Supprimer
 repo.section.defaults = FLICKGIT, POUR CE DÉPÔT
 repo.primarybranch = Branche principale
@@ -240,12 +230,9 @@ pr.step.authorising = Vérification des identifiants…
 pr.step.checking = Recherche d'une pull request existante…
 pr.step.creating = Création de la pull request…
 pr.token.title = Jeton pour {0}
-pr.token.prompt.github = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.
-Créez un personal access token avec la portée « repo » (classique), ou « Pull requests : lecture et écriture » (fine-grained).
-pr.token.prompt.gitlab = FlickGit a besoin d'un jeton pouvant ouvrir des merge requests sur {0}.
-Créez un personal access token avec la portée « api », dans votre profil GitLab sous Access Tokens.
-pr.token.prompt.azure = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.
-Créez un personal access token avec la portée « Code (lecture et écriture) », depuis Paramètres utilisateur → Personal access tokens.
+pr.token.prompt.github = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.\nCréez un personal access token avec la portée « repo » (classique), ou « Pull requests : lecture et écriture » (fine-grained).
+pr.token.prompt.gitlab = FlickGit a besoin d'un jeton pouvant ouvrir des merge requests sur {0}.\nCréez un personal access token avec la portée « api », dans votre profil GitLab sous Access Tokens.
+pr.token.prompt.azure = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.\nCréez un personal access token avec la portée « Code (lecture et écriture) », depuis Paramètres utilisateur → Personal access tokens.
 
 # ---- clone ----
 clone.title = Cloner dans {0}
@@ -400,9 +387,8 @@ settings.openfailed = Impossible d'ouvrir : {0}
 settings.location = FlickGit se configure en modifiant ces fichiers :
 
 # --- aide : Help.md, à côté de l'exécutable -----------------------------------
-settings.help.edit = Modifier Help.md
-settings.help.reload = Recharger
-settings.help.missing = # Aucun fichier d'aide\n\nHelp.md était attendu à côté de FlickGit.exe :\n\n`{0}`\n\nCréez-le puis appuyez sur **Recharger**. C'est du Markdown ordinaire.
+settings.help.missing = # La page d'aide est absente\n\nHelp.md était attendu à côté de FlickGit.exe :\n\n`{0}`\n\nCe fichier fait partie de l'installation : celle-ci est donc incomplète. Réinstaller FlickGit le restaure.
+
 settings.help.unreadable = # L'aide n'a pas pu être lue\n\n`{0}`
 
 # --- à propos -----------------------------------------------------------------

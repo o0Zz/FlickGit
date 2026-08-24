@@ -63,9 +63,7 @@ delete.done = {0} gelöscht
 delete.missing = {0} liegt nicht mehr auf der Festplatte.
 delete.outside = {0} liegt außerhalb von {1} und wird nicht gelöscht.
 delete.reparsepoint = {0} ist eine Verknüpfung oder Junction. FlickGit löscht nicht hindurch.
-delete.failed = {0} konnte nicht gelöscht werden:
-
-{1}
+delete.failed = {0} konnte nicht gelöscht werden:\n\n{1}
 
 # ---- Datei zurücksetzen ----
 revert.menu = Datei zurücksetzen…
@@ -121,16 +119,10 @@ switch.menu.delete = Branch löschen…
 switch.menu.deleteremote = Auf {0} löschen…
 switch.created = {0} erstellt und gewechselt.
 branch.delete.title = Branch löschen
-branch.delete.local = Den lokalen Branch „{0}“ löschen?
-
-Nur diese Kopie verschwindet. Bereits Gepushtes bleibt auf dem Remote.
-branch.delete.remote = „{0}“ auf {1} löschen?
-
-Damit ist er für alle weg, die dieses Remote nutzen, und FlickGit kann das nicht rückgängig machen.
+branch.delete.local = Den lokalen Branch „{0}“ löschen?\n\nNur diese Kopie verschwindet. Bereits Gepushtes bleibt auf dem Remote.
+branch.delete.remote = „{0}“ auf {1} löschen?\n\nDamit ist er für alle weg, die dieses Remote nutzen, und FlickGit kann das nicht rückgängig machen.
 branch.delete.yes = Löschen
-branch.delete.unmerged = „{0}“ enthält Commits, die nirgends sonst gemergt sind.
-
-Nach dem Löschen sind sie nur noch über das Reflog erreichbar.
+branch.delete.unmerged = „{0}“ enthält Commits, die nirgends sonst gemergt sind.\n\nNach dem Löschen sind sie nur noch über das Reflog erreichbar.
 branch.delete.force = Trotzdem löschen
 branch.delete.current = „{0}“ ist der aktuelle Branch. Wechseln Sie zuerst woandershin.
 branch.deleted = {0} gelöscht.
@@ -325,9 +317,8 @@ settings.openfailed = Konnte nicht geöffnet werden: {0}
 settings.location = FlickGit wird über diese Dateien eingestellt:
 
 # --- Hilfe: Help.md, neben der Exe --------------------------------------------
-settings.help.edit = Help.md bearbeiten
-settings.help.reload = Neu laden
-settings.help.missing = # Keine Hilfedatei\n\nHelp.md wurde neben FlickGit.exe erwartet:\n\n`{0}`\n\nDatei anlegen und **Neu laden** drücken. Es ist gewöhnliches Markdown.
+settings.help.missing = # Die Hilfeseite fehlt\n\nHelp.md wurde neben FlickGit.exe erwartet:\n\n`{0}`\n\nDiese Datei gehört zur Installation, diese ist also unvollständig. Eine Neuinstallation von FlickGit stellt sie wieder her.
+
 settings.help.unreadable = # Hilfe konnte nicht gelesen werden\n\n`{0}`
 
 # --- Über ---------------------------------------------------------------------

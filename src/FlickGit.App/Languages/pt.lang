@@ -63,9 +63,7 @@ delete.done = {0} eliminado
 delete.missing = {0} já não está no disco.
 delete.outside = {0} está fora de {1} e não será eliminado.
 delete.reparsepoint = {0} é uma ligação simbólica ou uma junção. O FlickGit não elimina através de uma.
-delete.failed = Não foi possível eliminar {0}:
-
-{1}
+delete.failed = Não foi possível eliminar {0}:\n\n{1}
 
 # ---- reverter um ficheiro ----
 revert.menu = Reverter ficheiro…
@@ -121,16 +119,10 @@ switch.menu.delete = Eliminar o ramo…
 switch.menu.deleteremote = Eliminar em {0}…
 switch.created = {0} criado, e mudou para ele.
 branch.delete.title = Eliminar o ramo
-branch.delete.local = Eliminar o ramo local «{0}»?
-
-Só esta cópia desaparece. O que já foi enviado permanece no remoto.
-branch.delete.remote = Eliminar «{0}» em {1}?
-
-Desaparece para todos os que usam esse remoto, e o FlickGit não pode desfazer.
+branch.delete.local = Eliminar o ramo local «{0}»?\n\nSó esta cópia desaparece. O que já foi enviado permanece no remoto.
+branch.delete.remote = Eliminar «{0}» em {1}?\n\nDesaparece para todos os que usam esse remoto, e o FlickGit não pode desfazer.
 branch.delete.yes = Eliminar
-branch.delete.unmerged = «{0}» tem commits que não estão integrados em mais lado nenhum.
-
-Ao eliminá-lo ficam acessíveis apenas a partir do reflog.
+branch.delete.unmerged = «{0}» tem commits que não estão integrados em mais lado nenhum.\n\nAo eliminá-lo ficam acessíveis apenas a partir do reflog.
 branch.delete.force = Eliminar mesmo assim
 branch.delete.current = «{0}» é o ramo em que está. Mude para outro primeiro.
 branch.deleted = {0} eliminado.
@@ -325,9 +317,8 @@ settings.openfailed = Não foi possível abrir: {0}
 settings.location = O FlickGit configura-se editando estes ficheiros:
 
 # --- ajuda: Help.md, ao lado do executável ------------------------------------
-settings.help.edit = Editar o Help.md
-settings.help.reload = Recarregar
-settings.help.missing = # Sem ficheiro de ajuda\n\nO Help.md era esperado ao lado do FlickGit.exe:\n\n`{0}`\n\nCrie-o e prima **Recarregar**. É Markdown normal.
+settings.help.missing = # A página de ajuda não existe\n\nO Help.md era esperado ao lado do FlickGit.exe:\n\n`{0}`\n\nEsse ficheiro faz parte da instalação, por isso está incompleta. Reinstalar o FlickGit repõe-no.
+
 settings.help.unreadable = # Não foi possível ler a ajuda\n\n`{0}`
 
 # --- acerca -------------------------------------------------------------------

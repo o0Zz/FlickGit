@@ -142,41 +142,17 @@
 
             <!-- ================= Help ================= -->
             <TabItem x:Name="HelpTab">
-                <Grid Margin="16,14,10,12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
 
-                    <!-- A FlowDocument rather than a TextBox: the file is Markdown, and the point of
-                         shipping it as a file is that it can be rewritten without a build. -->
-                    <FlowDocumentScrollViewer x:Name="HelpView"
-                                              Background="Transparent"
-                                              Padding="0"
-                                              VerticalScrollBarVisibility="Auto"
-                                              IsToolBarVisible="False" />
-
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,6,0">
-                        <TextBlock x:Name="HelpPathText"
-                                   Style="{StaticResource Muted}"
-                                   FontSize="11"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   MaxWidth="300" />
-
-                        <Button x:Name="EditHelpButton"
-                                Margin="12,0,0,0"
-                                Padding="10,4"
-                                MinWidth="0"
-                                Click="OnEditHelp" />
-
-                        <Button x:Name="ReloadHelpButton"
-                                Margin="8,0,0,0"
-                                Padding="10,4"
-                                MinWidth="0"
-                                Click="OnReloadHelp" />
-                    </StackPanel>
-                </Grid>
+                <!-- A FlowDocument rather than a TextBox: the page is Markdown, and this tab only
+                     ever shows it. There is no Edit or Reload button and no path along the bottom.
+                     They invited the user to rewrite a page that is documentation, and a row of
+                     controls under a help page reads as something to act on rather than to read. -->
+                <FlowDocumentScrollViewer x:Name="HelpView"
+                                          Margin="16,14,10,12"
+                                          Background="Transparent"
+                                          Padding="0"
+                                          VerticalScrollBarVisibility="Auto"
+                                          IsToolBarVisible="False" />
             </TabItem>
 
             <!-- ================= About ================= -->

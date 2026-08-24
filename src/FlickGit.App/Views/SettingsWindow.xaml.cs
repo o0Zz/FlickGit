@@ -109,8 +109,6 @@ public partial class SettingsWindow : Window
         AdvancedPaths.Text = $"{FlickSettings.FilePath}\n{FlickSettings.ActionsFilePath}";
         OpenFolderButton.Content = Strings.Get("settings.advanced.open");
 
-        EditHelpButton.Content = Strings.Get("settings.help.edit");
-        ReloadHelpButton.Content = Strings.Get("settings.help.reload");
 
         SaveButton.Content = Strings.Get("settings.save");
         CloseButton.Content = Strings.Get("commit.button.cancel");
@@ -200,16 +198,19 @@ public partial class SettingsWindow : Window
     /// <summary>
     /// The help page, from <c>Help.md</c> beside the executable.
     ///
-    /// A file rather than a compiled-in page, and the reason is the whole design of this tab: the
-    /// user can open it in any text editor, change it, and press Reload. Missing is reported in
-    /// place, with the path, because "where would I put one?" is the only question that follows.
+    /// <b>Read-only, and shown once when the window opens.</b> The tab used to carry an Edit button,
+    /// a Reload button and the file's path, on the reasoning that shipping the page as a file rather
+    /// than compiling it in meant it could be rewritten without a build. That was true and it was the
+    /// wrong thing to put in front of the user: this is documentation, and a row of buttons beneath
+    /// it invites them to maintain a page they came to read. Per Hard Requirement 1 the controls and
+    /// their strings were deleted rather than hidden.
+    ///
+    /// A missing or unreadable file is still reported in place, with the path — that is a broken
+    /// install rather than an invitation, and the path is what makes it diagnosable.
     /// </summary>
     private void LoadHelp()
     {
         string path = HelpFilePath;
-
-        HelpPathText.Text = path;
-        HelpPathText.ToolTip = path;
 
         string markdown;
 
@@ -225,9 +226,6 @@ public partial class SettingsWindow : Window
         }
 
         HelpView.Document = MarkdownFlow.Render(markdown);
-
-        //Nothing to open when there is no file. Reload stays live: the user may be about to write one.
-        EditHelpButton.IsEnabled = File.Exists(path);
     }
 
     private static string HelpFilePath => Path.Combine(AppContext.BaseDirectory, "Help.md");
@@ -464,26 +462,6 @@ public partial class SettingsWindow : Window
             Report(Strings.Get("settings.openfailed", ex.Message));
         }
     }
-
-    private void OnEditHelp(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            using Process? opened = Process.Start(new ProcessStartInfo
-            {
-                FileName = HelpFilePath,
-                UseShellExecute = true,
-            });
-
-            _ = opened;
-        }
-        catch (Exception ex)
-        {
-            Report(Strings.Get("settings.openfailed", ex.Message));
-        }
-    }
-
-    private void OnReloadHelp(object sender, RoutedEventArgs e) => LoadHelp();
 
     private void OnNavigate(object sender, RequestNavigateEventArgs e)
     {
