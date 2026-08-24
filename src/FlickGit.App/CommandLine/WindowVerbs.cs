@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using FlickGit.App.Localization;
@@ -279,21 +279,40 @@ public sealed class WindowVerbs(
     /// </summary>
     public VerbResult Terminal(VerbOutput output, string? path)
     {
-        string directory = path ?? Environment.CurrentDirectory;
+        string directory = TerminalDirectory(path ?? Environment.CurrentDirectory);
 
         //Windows Terminal when present, the shell's own default otherwise. UseShellExecute is
         //required here and only here: it is what lets Windows resolve wt.exe through the
         //app-execution alias, which is not on PATH as a real file.
-        foreach (string executable in new[] { "wt.exe", "powershell.exe" })
+        //
+        //`wt.exe` needs `-d`, and the working directory is not enough on its own: a Windows Terminal
+        //profile carries its own `startingDirectory`, which defaults to `%USERPROFILE%` and wins over
+        //whatever directory the process was started in. Without the argument every terminal opened in
+        //the home folder, which is the one thing this entry exists to avoid. WorkingDirectory is still
+        //set, because it is all powershell.exe reads.
+        (string Executable, string[] Arguments)[] terminals =
+        [
+            ("wt.exe", ["-d", directory]),
+            ("powershell.exe", []),
+        ];
+
+        foreach ((string executable, string[] arguments) in terminals)
         {
             try
             {
-                Process.Start(new ProcessStartInfo
+                var start = new ProcessStartInfo
                 {
                     FileName = executable,
                     WorkingDirectory = directory,
                     UseShellExecute = true,
-                });
+                };
+
+                //ArgumentList rather than a command-line string, per CLAUDE.md: a folder containing a
+                //space, or ending in a backslash, is quoted by the framework rather than by us.
+                foreach (string argument in arguments)
+                    start.ArgumentList.Add(argument);
+
+                Process.Start(start);
 
                 return VerbResult.Exit(ExitCodes.Success);
             }
@@ -305,6 +324,23 @@ public sealed class WindowVerbs(
 
         output.Fail(Strings.Get("app.name"), $"No terminal could be started in:\n\n{directory}");
         return VerbResult.Exit(ExitCodes.ConfigurationError);
+    }
+
+    /// <summary>
+    /// The folder a terminal should start in.
+    ///
+    /// `C:` is not the root of the drive: it is the drive-*relative* path, meaning whichever directory
+    /// happens to be current on C:, which is how a right-click on a drive root opened a terminal
+    /// somewhere else entirely. Explorer hands over `C:\` and the trailing separator is trimmed on
+    /// the way here, so it is put back.
+    /// </summary>
+    private static string TerminalDirectory(string path)
+    {
+        string directory = path.Trim().Trim('"');
+
+        return directory.Length == 2 && directory[1] == ':'
+            ? directory + Path.DirectorySeparatorChar
+            : directory;
     }
 
     /// <summary>
