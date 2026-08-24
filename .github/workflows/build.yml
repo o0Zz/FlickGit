@@ -24,6 +24,9 @@ jobs:
       STAGING: artifacts/FlickGit
       SIGNED: artifacts/signed
 
+      # The two release assets, side by side, so one artifact upload puts both at its root.
+      RELEASE: artifacts/release
+
       # Empty until the SignPath Foundation application is approved and the secret is added, which
       # is what makes every signing step below skip itself. Lifted into env rather than read from
       # `secrets` at the point of use because the `secrets` context is not available in a step's
@@ -136,13 +139,17 @@ jobs:
           -o $env:STAGING
 
    
-      # The signing input as well as the downloadable build: SignPath fetches this artifact from
-      # GitHub by id rather than having files pushed to it, so it has to exist before signing.
-      - name: Upload build artifact
+      # The signing input, and only that: SignPath fetches this artifact from GitHub by id rather
+      # than having files pushed to it, so it has to exist before signing. Conditioned on exactly
+      # what the signing step is conditioned on, so the two are never out of step -- and so a build
+      # that is not being signed does not publish a third artifact holding the same loose binaries
+      # the zip below already carries.
+      - name: Upload the signing input
         id: artifact
+        if: env.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag'
         uses: actions/upload-artifact@v4
         with:
-          name: FlickGit-${{ steps.version.outputs.version }}
+          name: FlickGit-${{ steps.version.outputs.version }}-unsigned
           path: ${{ env.STAGING }}
           if-no-files-found: error
 
@@ -256,25 +263,33 @@ jobs:
 
           if (-not $msi) { throw "The WiX build produced no .msi." }
 
-          New-Item -ItemType Directory -Force artifacts/installer | Out-Null
-          Copy-Item $msi.FullName artifacts/installer/
+          New-Item -ItemType Directory -Force $env:RELEASE | Out-Null
+          Copy-Item $msi.FullName $env:RELEASE
           Write-Host "Installer: $($msi.Name) ($([Math]::Round($msi.Length / 1MB, 1)) MB)"
-          "msi=artifacts/installer/$($msi.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "msi=$env:RELEASE/$($msi.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Upload the installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: FlickGit-${{ steps.version.outputs.msiversion }}-installer
-          path: ${{ env.msi }}
-          if-no-files-found: error
-
-      - name: Package the release asset
-        if: github.ref_type == 'tag'
+      # Built on every branch rather than only on tags, for the same reason the MSI is: the zip is
+      # half of what a build is downloaded for, and a `main` build nobody can install is not worth
+      # producing. Into the same directory as the MSI, which is what puts the two side by side.
+      - name: Package the portable zip
         shell: pwsh
         run: |
-          $zip = "artifacts/FlickGit-${{ steps.version.outputs.version }}.zip"
+          $zip = "$env:RELEASE/FlickGit-${{ steps.version.outputs.version }}.zip"
           Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
           "zip=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # ONE artifact holding both files at its root, rather than one artifact each.
+      #
+      # GitHub serves every artifact as a zip and there is no opt-out, so an artifact containing
+      # only the .msi is an .msi that has to be unwrapped before it can be run. Uploading the
+      # directory instead means the one download opens onto the zip and the MSI side by side --
+      # which is the same pair the release below attaches, assembled once.
+      - name: Upload the release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlickGit-${{ steps.version.outputs.version }}
+          path: ${{ env.RELEASE }}
+          if-no-files-found: error
 
       # Both assets. The MSI is the way in; the zip stays for the portable install, which is the
       # one that works without touching Explorer or the registry at all.
