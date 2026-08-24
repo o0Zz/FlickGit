@@ -157,6 +157,15 @@
                          the selected one before the menu is drawn. -->
                     <ListBox.ContextMenu>
                         <ContextMenu>
+                            <!-- Revert above Delete, and separated from it. They are the two
+                                 destructive things this window does and they are not the same
+                                 destructive thing: Revert puts a tracked file back the way HEAD has
+                                 it, Delete removes the file itself. Both go through the Recycle Bin,
+                                 which is what lets either sit behind one question. -->
+                            <MenuItem x:Name="RevertFileMenuItem"
+                                      Command="{Binding PlacementTarget.DataContext.RevertFileCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <Separator />
                             <MenuItem x:Name="DeleteFileMenuItem"
                                       Command="{Binding PlacementTarget.DataContext.DeleteFileCommand,
                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" />

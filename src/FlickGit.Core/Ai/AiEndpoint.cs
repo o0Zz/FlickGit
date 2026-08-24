@@ -27,7 +27,12 @@ internal static class AiEndpoint
     /// before returning, so the first token would arrive with the last and the streaming this feature
     /// exists for would silently not happen.</description></item>
     /// <item><description><b>The hard timeout lives here</b>, on a linked source, so no caller can
-    /// forget it and closing the popup still cancels immediately.</description></item>
+    /// forget it and closing the window still cancels immediately. <b>It measures silence, not total
+    /// duration</b> — every frame restarts it. It used to cover the whole stream, which made the
+    /// eight seconds a guillotine on the generation rather than a guard against one that had stopped
+    /// answering: a message longer than the budget was cut off mid-word at exactly eight seconds,
+    /// however healthily it was arriving. CLAUDE.md lists "AI complete message" and "AI request
+    /// timeout" as two different rows, and this is the second one.</description></item>
     /// <item><description><b>A timeout is told apart from a cancellation</b> by asking whether the
     /// caller's own token fired. Conflating them reports "the provider was slow" when the user simply
     /// pressed Esc.</description></item>
@@ -84,8 +89,37 @@ internal static class AiEndpoint
 
             Stream body = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
 
-            await foreach (string frame in ServerSentEvents.ReadAsync(body, deadline.Token).ConfigureAwait(false))
+            //Enumerated by hand rather than with `await foreach`, because C# forbids a catch around
+            //a `yield return` and telling a stall apart from an Esc is the whole point below.
+            await using IAsyncEnumerator<string> frames = ServerSentEvents
+                .ReadAsync(body, deadline.Token)
+                .GetAsyncEnumerator(deadline.Token);
+
+            while (true)
             {
+                string frame;
+
+                try
+                {
+                    if (!await frames.MoveNextAsync().ConfigureAwait(false))
+                        break;
+
+                    frame = frames.Current;
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    //A stall, not a cancel. Uncaught, this reached CommitMessageService as an
+                    //OperationCanceledException indistinguishable from the user pressing Esc -- so a
+                    //provider that went quiet truncated the message in silence, with no notice and
+                    //no failure counted.
+                    throw new AiUnavailableException(
+                        $"{provider} stopped sending after {AiOptions.HardTimeout.TotalSeconds:F0} s of silence. "
+                        + "The message above is unfinished.");
+                }
+
+                //A frame arrived, so the request is not hung and the clock starts again.
+                deadline.CancelAfter(AiOptions.HardTimeout);
+
                 //The one sentinel that is not JSON. OpenAI sends it and Anthropic does not; handing it
                 //to a parser would be a spurious warning on every request that gets one.
                 if (frame == ServerSentEvents.Done)

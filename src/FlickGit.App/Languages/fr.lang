@@ -67,6 +67,18 @@ delete.failed = {0} n'a pas pu être supprimé :
 
 {1}
 
+# ---- rétablir un fichier ----
+revert.menu = Rétablir le fichier…
+revert.title = Rétablir le fichier
+revert.question = Rétablir {0} ?
+revert.body = La version sur le disque part à la corbeille et celle de HEAD la remplace — dans la copie de travail et dans l'index. Rien n'est validé ni poussé.
+revert.dirty = Vos modifications non enregistrées dans le volet de comparaison n'ont jamais été écrites sur le disque : la corbeille ne les aura pas.
+revert.yes = Rétablir
+revert.no = Conserver
+revert.done = {0} rétabli
+revert.failed = {0} n'a pas pu être rétabli :
+revert.binned = La version qui était sur le disque est dans la corbeille.
+
 # ---- visionneuse de diff ----
 diff.mode.head = Copie de travail ↔ HEAD
 diff.mode.index = Copie de travail ↔ Index

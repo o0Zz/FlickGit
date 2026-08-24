@@ -46,6 +46,7 @@ public sealed class CommitViewModel : ObservableObject
     private readonly PatchService _patches;
     private readonly WorkingTreeWriter _writer;
     private readonly WorkingTreeDeleter _deleter;
+    private readonly RestoreService _restore;
     private readonly CommitMessageService _messages;
     private readonly FlickSettings _settings;
     private readonly ILog _log;
@@ -85,6 +86,7 @@ public sealed class CommitViewModel : ObservableObject
         PatchService patches,
         WorkingTreeWriter writer,
         WorkingTreeDeleter deleter,
+        RestoreService restore,
         CommitMessageService messages,
         FlickSettings settings,
         ILog log)
@@ -99,6 +101,7 @@ public sealed class CommitViewModel : ObservableObject
         _patches = patches;
         _writer = writer;
         _deleter = deleter;
+        _restore = restore;
         _messages = messages;
         _settings = settings;
         _log = log;
@@ -109,6 +112,7 @@ public sealed class CommitViewModel : ObservableObject
         SelectAllCommand = new RelayCommand(() => SetAllSelected(true));
         SelectNoneCommand = new RelayCommand(() => SetAllSelected(false));
         DeleteFileCommand = new AsyncCommand(DeleteSelectedFileAsync, () => CanDeleteFile, ReportError);
+        RevertFileCommand = new AsyncCommand(RevertSelectedFileAsync, () => CanRevertFile, ReportError);
 
         //Replaces whatever is in the box, unlike the automatic pass when the window opens: the user
         //pressed a button labelled "generate", so overwriting their text is what they asked for.
@@ -124,6 +128,9 @@ public sealed class CommitViewModel : ObservableObject
 
     /// <summary>The file list's context menu. Acts on the row the right-click selected.</summary>
     public AsyncCommand DeleteFileCommand { get; }
+
+    /// <summary>The other item on that menu. Puts the row's file back the way HEAD has it.</summary>
+    public AsyncCommand RevertFileCommand { get; }
 
     public ObservableCollection<FileChangeItem> Files { get; } = [];
 
@@ -150,6 +157,16 @@ public sealed class CommitViewModel : ObservableObject
     /// before anything executes.
     /// </summary>
     public Func<string, string, string, string, Task<bool>>? ConfirmAsync { get; set; }
+
+    /// <summary>
+    /// Whether the diff pane holds an unsaved edit, asked of the window because the pane is the
+    /// window's.
+    ///
+    /// Only the revert confirmation reads it, and only to add a sentence. An edit that was never
+    /// saved is not on disk, so it is not what goes to the Recycle Bin — and a dialog promising
+    /// recoverability has to be right about what it is promising.
+    /// </summary>
+    public Func<bool>? IsEditorDirty { get; set; }
 
     public RepositoryInfo Repository
     {
@@ -323,6 +340,16 @@ public sealed class CommitViewModel : ObservableObject
     /// the letter on the row (<c>D</c>) already says the answer.
     /// </summary>
     public bool CanDeleteFile => !_isBusy && _selectedFile is { IsOnDisk: true };
+
+    /// <summary>
+    /// Whether there is a file to revert: one selected, present in HEAD, and nothing else running.
+    ///
+    /// The reasons a file is not revertable are <see cref="RestoreService.CanRevert"/>'s, and they
+    /// are all one reason — HEAD does not have this path. Greyed out rather than offered and then
+    /// refused, the same rule Delete follows for a row whose file is already gone.
+    /// </summary>
+    public bool CanRevertFile =>
+        !_isBusy && _selectedFile is { } file && RestoreService.CanRevert(file.Change);
 
     /// <summary>
     /// Whether the AI is configured at all. False hides the button rather than showing a permanently
@@ -809,6 +836,95 @@ public sealed class CommitViewModel : ObservableObject
         StatusText = Strings.Get("delete.done", file.Path);
     }
 
+    // ---- reverting ----------------------------------------------------------------
+
+    /// <summary>
+    /// Puts the selected file back the way HEAD has it, sending the copy on disk to the Recycle Bin
+    /// on the way.
+    ///
+    /// <b>The Recycle Bin is what earns this a single question, exactly as it does for Delete.</b>
+    /// CLAUDE.md's Safety Rules say uncommitted work is never discarded, and <c>git restore</c>
+    /// discards it outright — the working-tree version is not in any object Git holds, so nothing in
+    /// the repository can bring it back. Binning it first turns "gone" into "somewhere the user
+    /// already knows how to look", which is the same trade the file list's Delete makes and the same
+    /// reason neither needs a warning nobody could act on.
+    ///
+    /// <b>Bin first, restore second, and the order is not arbitrary.</b> A locked or protected file
+    /// fails the bin, and failing there means nothing has happened yet. The reverse order would
+    /// overwrite the file and then discover it cannot be preserved.
+    /// </summary>
+    private async Task RevertSelectedFileAsync()
+    {
+        if (_selectedFile is not { } file || !CanRevertFile)
+            return;
+
+        string body = Strings.Get("revert.body");
+
+        //An unsaved edit never reached the disk, so it is not in the copy about to be binned. The
+        //dialog says so rather than implying the bin covers it.
+        if (IsEditorDirty?.Invoke() == true)
+            body += "\n\n" + Strings.Get("revert.dirty");
+
+        bool confirmed = await (ConfirmAsync?.Invoke(
+            Strings.Get("revert.title"),
+            Strings.Get("revert.question", file.Path) + "\n\n" + body,
+            Strings.Get("revert.yes"),
+            Strings.Get("revert.no")) ?? Task.FromResult(false)).ConfigureAwait(true);
+
+        if (!confirmed)
+            return;
+
+        //Nothing on disk to preserve when the change *is* a deletion -- the row's D means the file
+        //is already gone, and the revert is what brings it back.
+        bool binned = false;
+
+        if (file.IsOnDisk)
+        {
+            DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
+
+            if (!outcome.Succeeded)
+            {
+                //A null message means the shell already said why, in its own words.
+                if (outcome.Message is { Length: > 0 } message)
+                    RaiseError(Strings.Get("revert.title"), message);
+
+                return;
+            }
+
+            binned = true;
+        }
+
+        RestoreResult result = await _restore
+            .RevertAsync(_repository, file.Path, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (!result.Succeeded)
+        {
+            //Halfway: the file has been binned and not replaced. CLAUDE.md, "Error Handling" --
+            //explain what happened rather than leaving the user to find out, and the Recycle Bin is
+            //the next action.
+            RaiseError(
+                Strings.Get("revert.title"),
+                Strings.Get("revert.failed", file.Path)
+                    + "\n\n"
+                    + (result.Error ?? string.Empty)
+                    + (binned ? "\n\n" + Strings.Get("revert.binned") : string.Empty));
+
+            await RefreshAsync().ConfigureAwait(true);
+            return;
+        }
+
+        //Keyed by path alone, so the cached diff of the pre-revert content would be rendered by the
+        //next click on this row -- which, after a full revert, is a row that no longer exists.
+        _diffs.Invalidate(file.Path);
+
+        await RefreshAsync().ConfigureAwait(true);
+
+        //After the refresh: Adopt does not clear this, but a status line set before it would be
+        //reporting on a list that had not been rebuilt yet.
+        StatusText = Strings.Get("revert.done", file.Path);
+    }
+
     // ---- editing ------------------------------------------------------------------
 
     /// <summary>
@@ -1105,6 +1221,8 @@ public sealed class CommitViewModel : ObservableObject
         Raise(nameof(CanGenerate));
         Raise(nameof(CanDeleteFile));
         DeleteFileCommand.RaiseCanExecuteChanged();
+        Raise(nameof(CanRevertFile));
+        RevertFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(IsAiConfigured));
         CommitCommand.RaiseCanExecuteChanged();
         CommitAndPushCommand.RaiseCanExecuteChanged();

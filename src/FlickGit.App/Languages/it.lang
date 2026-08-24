@@ -67,6 +67,18 @@ delete.failed = Impossibile eliminare {0}:
 
 {1}
 
+# ---- ripristinare un file ----
+revert.menu = Ripristina il file…
+revert.title = Ripristina il file
+revert.question = Ripristinare {0}?
+revert.body = La versione sul disco finisce nel Cestino e quella di HEAD la sostituisce — nell'albero di lavoro e nell'indice. Non viene eseguito alcun commit né alcun push.
+revert.dirty = Le modifiche non salvate nel pannello delle differenze non sono mai state scritte sul disco, quindi il Cestino non le avrà.
+revert.yes = Ripristina
+revert.no = Mantieni
+revert.done = {0} ripristinato
+revert.failed = Impossibile ripristinare {0}:
+revert.binned = La versione che era sul disco è nel Cestino.
+
 # ---- visualizzatore diff ----
 diff.mode.head = Copia di lavoro ↔ HEAD
 diff.mode.index = Copia di lavoro ↔ Indice

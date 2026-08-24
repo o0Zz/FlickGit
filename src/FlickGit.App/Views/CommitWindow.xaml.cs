@@ -51,6 +51,7 @@ public partial class CommitWindow : Window
         HintText.Text = Strings.Get("commit.hint");
         CancelButton.Content = Strings.Get("commit.button.cancel");
         DeleteFileMenuItem.Header = Strings.Get("delete.menu");
+        RevertFileMenuItem.Header = Strings.Get("revert.menu");
 
         DataContextChanged += OnDataContextChanged;
 
@@ -89,6 +90,7 @@ public partial class CommitWindow : Window
             _viewModel.FocusMessageRequested -= FocusMessage;
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             _viewModel.ConfirmAsync = null;
+            _viewModel.IsEditorDirty = null;
         }
 
         _viewModel = e.NewValue as CommitViewModel;
@@ -105,6 +107,10 @@ public partial class CommitWindow : Window
         //thing that can actually ask.
         _viewModel.ConfirmAsync = (title, question, yes, no) =>
             Task.FromResult(ConfirmWindow.Ask(this, title, question, yes, no));
+
+        //Asked only by the revert confirmation, and only so it can say that an unsaved edit is not
+        //what goes to the Recycle Bin. The pane is the window's, so the answer is too.
+        _viewModel.IsEditorDirty = () => Diff.IsDirty;
 
         Diff.SetTypography(_viewModel.DiffFontFamily, _viewModel.DiffFontSize);
 

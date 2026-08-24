@@ -173,6 +173,48 @@ spellings are used unconditionally and there is no fallback to `checkout` or `re
 **Hard Requirements**. An older Git fails with its own "'switch' is not a git command",
 which is a clearer diagnosis than anything a shim would produce.
 
+## Why not libgit2
+
+The alternative is LibGit2Sharp, and it looks like it would be faster and less code. It is
+neither, and this is the record of the evaluation so it is not proposed again.
+
+**It would be a second binding, not a replacement.** Six things the product already does have
+no LibGit2Sharp equivalent, so `git.exe` stays and the binding is added beside it:
+
+| Operation | libgit2 |
+|---|---|
+| `pull --rebase --autostash` | no autostash. The stash/rebase/pop sequence becomes ours — the exact thing **Pull --rebase** refuses, because there would then be a window in which a stash exists that nothing is tracking. |
+| `apply --cached`, for hunk staging | `GIT_APPLY_LOCATION_INDEX` exists in libgit2 and is unbound in LibGit2Sharp. |
+| credential helpers | libgit2 never runs `credential.helper`. GCM, Azure DevOps and PAT prompting would all become ours, against **Clone**'s "do not implement credential handling". |
+| `git@host:path` remotes | the shipped native binaries are built without libssh2. SSH remotes do not work at all. |
+| `blame --porcelain`'s `previous` | not exposed — and that walk back is the reason the Blame window exists. |
+| `submodule update --init --recursive` | a thin binding, not an equivalent. |
+
+Three more are quieter and worse. **libgit2 runs no hooks**, so `pre-commit` and `commit-msg`
+silently stop firing and FlickGit commits what the user's terminal would have rejected. **It runs
+no `filter.*` process filters**, so an LFS file reads back as its pointer text — which the diff
+pane would show and a save could write over the real file. And **it does not understand the sparse
+index or reftable**; writing an index it misread is the one failure **Safety Rules** does not
+survive.
+
+**The speed argument measures the wrong thing.** In-process saves some 15–25 ms of Windows process
+creation per call, which is real — and then the three status commands run in parallel, so the
+commit window pays one launch of wall-clock against a 60 ms budget. Latency here was bought by the
+resident service paying WPF startup once at login, not by the Git binding. On a large repository
+libgit2's status is *slower* than Git's: no `core.fsmonitor`, no untracked cache, which is the
+case `diag doctor` recommends fsmonitor for.
+
+**And the parsers are the asset, not the cost.** Porcelain v2, numstat, name-status, the log format
+and blame porcelain are the tested part of the product precisely because faking
+`IGitProcessRunner` makes the *arguments* assertable with no repository on disk — that `add -A`
+never appears, that every read carries `--no-optional-locks`, that `HistoryService` only ever
+reads. A typed object model moves that surface behind a P/Invoke boundary a unit test cannot
+substitute. Two diff engines that can disagree about rename detection or line endings is a bug
+generator, not a simplification.
+
+A read-only status, log and blame viewer with no writes, no network and no hooks would be a good
+fit for it. This is not that.
+
 Third-party dependencies, all MIT:
 
 | Purpose              | Library                       |
@@ -622,10 +664,11 @@ command runs at all.
 
 The Recycle Bin is the whole design, not a nicety. **Safety Rules** forbids discarding uncommitted
 work, and an untracked file is uncommitted work Git has never seen — `git restore` cannot bring it
-back, because there is nothing to restore it from. A shell delete makes the one destructive thing
-this window does recoverable by a gesture the user already knows, which is what earns it a single
-question instead of a warning nobody could act on. It is the same argument **Reverting lines**
-makes: the safety comes from the operation being undoable, not from a second dialog.
+back, because there is nothing to restore it from. A shell delete makes a destructive operation
+recoverable by a gesture the user already knows, which is what earns it a single question instead of
+a warning nobody could act on. It is the same argument **Reverting lines** makes: the safety comes
+from the operation being undoable, not from a second dialog. It is also what **Reverting one**
+below borrows, which is why the two items sit on one menu.
 
 Because nothing is staged, the two cases resolve themselves and the confirmation says which is
 which:
@@ -646,6 +689,47 @@ somewhere else entirely.
 `WorkingTreeDeleter` is in `FlickGit.App` rather than in Core, and that is forced: it reaches a
 Windows shell facility, and Core is `net9.0` precisely so that it cannot. What is in Core is the
 part worth testing, which was already there.
+
+## Reverting one, from the list
+
+Right-click a row, **Revert file…**, confirm, and the file goes back the way HEAD has it — the
+working tree **and** the index:
+
+```bash
+git restore --source=HEAD --staged --worktree -- "<file>"
+```
+
+`--source=HEAD` rather than the default, which restores the working tree from the *index* and would
+leave a staged change standing: a file the user had already `git add`-ed would come back looking
+reverted and still be committed. "Revert this file" has one meaning, and it is the one the row's
+letter goes away for.
+
+**This is the only place in the product that asks Git to discard uncommitted work**, so both halves
+of **Safety Rules** meet here. The forbidden spellings — `git restore .`, `git checkout -- .` — are
+forbidden because they take the *whole* working tree unasked; this one names the single path the
+user right-clicked, after a confirmation, which is the "explicit user intent, expressed in the
+moment" the same section allows. The other half, *never discard uncommitted work*, is kept the way
+**Deleting one** keeps it: **the copy on disk goes to the Recycle Bin first**, and only then does
+Git overwrite it. Bin first and restore second, never the reverse — a locked file fails the bin,
+and failing there means nothing has happened yet.
+
+**A file HEAD does not have is greyed out**, the same rule Delete follows for a row whose file is
+already gone. Every refusal is that one question, and one of them is not merely useless:
+
+| Row | Why not |
+|---|---|
+| untracked `?` | HEAD has nothing to put back. **Delete** is the item for this row. |
+| added `A` | Staged, still absent from HEAD — and `restore --source=HEAD --staged --worktree` on such a path **deletes the file, exit code 0, no message**. Uncommitted work destroyed by a command reporting success. Unticking the row is how a staged new file leaves the commit. |
+| renamed `R`, copied `C` | HEAD has the *old* path. One command on the new one is the `A` case again; doing it properly is two operations with two ways to fail half way. |
+| conflicted `U` | Taking HEAD's side is a merge decision wearing a revert's label, and conflict resolution is out of scope. |
+
+What is left is every ordinary case: modified, deleted, type-changed, staged or not.
+
+`RestoreService` is in Core with the predicate beside the command, because "which rows may be
+handed to this" is exactly the kind of rule a click cannot be trusted to reveal. The confirmation
+adds a line when the diff pane holds an unsaved edit: that edit was never written to disk, so it is
+not what the Recycle Bin receives, and a dialog promising recoverability has to be right about what
+it is promising.
 
 ---
 
@@ -1622,6 +1706,13 @@ tokens as they arrive. Combined with queued Enter, the practical wait is zero.
 provider. A cold TLS handshake costs 100–300 ms — a third of the budget, otherwise paid on
 every request.
 
+**Copilot's warm-up is two round trips, not one**, and the second is the expensive one: the token
+exchange costs ~450 ms measured, so leaving it lazy put it inside the first generation's first-token
+budget on top of the second `api.githubcopilot.com` already takes to begin answering. Its
+`ProbeAsync` exchanges the token as well as opening the connection, and a refused exchange comes back
+as an unreachable provider — which is how a stale stored token gets named by `flick ai` at startup
+rather than by failing the first commit of the day.
+
 ```csharp
 new SocketsHttpHandler
 {
@@ -1733,6 +1824,20 @@ The AI is an accelerator, never a dependency.
 - Unreachable, invalid key, rate limited, or timed out (**hard timeout 8 s**): the message
   field becomes an ordinary editable box with a one-line notice. Commit and push stay fully
   available.
+
+  **The 8 s measures silence, not total duration.** Every frame restarts it, so it guards a request
+  that has stopped answering rather than capping a generation that is arriving healthily. It covered
+  the whole stream once, and all three of that bug's symptoms were the same bug: a message longer
+  than the budget was *cut off mid-word* at exactly eight seconds; the resulting
+  `OperationCanceledException` was indistinguishable from the user pressing Esc, so it was reported
+  as a cancellation and the truncation happened **in silence**, uncounted by the failure counter; and
+  for Copilot the failed request then dropped the cached token, so the next generation paid the
+  exchange again and was slower still. A stall now raises `AiUnavailableException` naming the
+  provider, which is what makes it visible and what makes three of them reach the tray warning.
+
+  Not unit-tested, deliberately: the assertion would be that nothing happens for eight seconds, and
+  a test that has to wait out a timer is testing `CancelAfter`. Verified by generating against a real
+  provider — `flick diag timings` carries `ai.firsttoken` and `ai.complete`.
 - Log the failure reason. Never log the diff or the key.
 - Three consecutive failures: persistent tray warning rather than failing silently on every
   commit.
@@ -2821,7 +2926,7 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | Re-diff after edit, 2,000-line file        | 120 ms | 300 ms     |
 | AI first token (Haiku 4.5, capped diff)    | 400 ms | 1.5 s      |
 | AI complete message                        | 800 ms | 3 s        |
-| AI request timeout                         | —      | 8 s        |
+| AI request timeout (silence, not total)    | —      | 8 s        |
 | Log window painted, first 200 commits      | 250 ms | 600 ms     |
 | Commit selection settled -> file list      | 150 ms | 400 ms     |
 | Blame painted, 2,000-line file             | 250 ms | 600 ms     |
@@ -3189,6 +3294,8 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - A remote branch deletion pushes a fully qualified `refs/heads/…` ref, with no force and no lease,
   and a name whose prefix is not a configured remote resolves to nothing rather than being guessed
 - A diverged push is refused, with no state change
+- Reverting a file names one path after `--` and takes both sides from HEAD, and a row HEAD does
+  not have — untracked, added, renamed, conflicted — is refused before any command runs
 - No argument list ever contains `add -A`, `add .`, `reset --hard`, `clean -fd` or `push --force`
 - Every read carries `--no-optional-locks`
 

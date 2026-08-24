@@ -67,6 +67,18 @@ delete.failed = Não foi possível eliminar {0}:
 
 {1}
 
+# ---- reverter um ficheiro ----
+revert.menu = Reverter ficheiro…
+revert.title = Reverter ficheiro
+revert.question = Reverter {0}?
+revert.body = A versão em disco vai para a Reciclagem e a de HEAD substitui-a — na árvore de trabalho e no índice. Nada é submetido nem enviado.
+revert.dirty = As suas edições por guardar no painel de diferenças nunca foram escritas em disco, por isso a Reciclagem não as terá.
+revert.yes = Reverter
+revert.no = Manter
+revert.done = {0} revertido
+revert.failed = Não foi possível reverter {0}:
+revert.binned = A versão que estava em disco está na Reciclagem.
+
 # ---- visualizador de diferenças ----
 diff.mode.head = Cópia de trabalho ↔ HEAD
 diff.mode.index = Cópia de trabalho ↔ Índice

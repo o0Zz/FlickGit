@@ -80,6 +80,22 @@ delete.failed = {0} could not be deleted:
 
 {1}
 
+# ---- reverting a file ----
+# The commit window's file list, right-click. Puts the file back the way HEAD has it, sending
+# the copy on disk to the Recycle Bin first -- the same trade delete.* makes, and the reason
+# one question is enough for a destructive action.
+revert.menu = Revert file…
+revert.title = Revert file
+# {0} repository-relative path
+revert.question = Revert {0}?
+revert.body = The version on disk goes to the Recycle Bin, and HEAD's version replaces it — in the working tree and in the index. Nothing is committed and nothing is pushed.
+revert.dirty = Your unsaved edits in the diff pane were never written to disk, so the Recycle Bin will not have them.
+revert.yes = Revert
+revert.no = Keep
+revert.done = Reverted {0}
+revert.failed = {0} could not be reverted:
+revert.binned = The version that was on disk is in the Recycle Bin.
+
 # ---- diff viewer ----
 diff.mode.head = Working tree ↔ HEAD
 diff.mode.index = Working tree ↔ Index

@@ -180,6 +180,7 @@ public partial class App : Application
         services.AddSingleton<FileTextLoader>();
         services.AddSingleton<WorkingTreeWriter>();
         services.AddSingleton<WorkingTreeDeleter>();
+        services.AddSingleton<RestoreService>();
         services.AddSingleton<UntrackedFileMeasurer>();
 
         //The Windows surfaces: the registry, the Task Scheduler, the pipe, the tray. Every one of
@@ -413,10 +414,19 @@ public partial class App : Application
         //The provider connection, warmed alongside the windows. A cold TLS and HTTP/2 handshake
         //costs 100-300 ms, which is a third of the 400 ms first-token budget -- and it is only worth
         //doing when there is actually a key to use.
+        //
+        //Five seconds rather than two, because Copilot's probe is two round trips: it exchanges the
+        //short-lived token as well as opening the connection. A budget that cut the exchange short
+        //would cache nothing, so the cost it exists to avoid would be paid on the first commit
+        //anyway -- and this is fire-and-forget at background priority, where waiting longer costs
+        //the user nothing.
         if (services.GetRequiredService<CommitMessageService>().IsUsable)
         {
+            var warmup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
             _ = services.GetRequiredService<ICommitMessageGenerator>()
-                .ProbeAsync(new CancellationTokenSource(TimeSpan.FromSeconds(2)).Token);
+                .ProbeAsync(warmup.Token)
+                .ContinueWith(_ => warmup.Dispose(), TaskScheduler.Default);
         }
 
         Dispatcher.BeginInvoke(

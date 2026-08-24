@@ -67,6 +67,18 @@ delete.failed = {0} konnte nicht gelöscht werden:
 
 {1}
 
+# ---- Datei zurücksetzen ----
+revert.menu = Datei zurücksetzen…
+revert.title = Datei zurücksetzen
+revert.question = {0} zurücksetzen?
+revert.body = Die Version auf der Festplatte wandert in den Papierkorb, die Version aus HEAD ersetzt sie — im Arbeitsverzeichnis und im Index. Es wird nichts committet und nichts gepusht.
+revert.dirty = Ihre ungespeicherten Änderungen im Vergleichsbereich wurden nie auf die Festplatte geschrieben, der Papierkorb hat sie also nicht.
+revert.yes = Zurücksetzen
+revert.no = Behalten
+revert.done = {0} zurückgesetzt
+revert.failed = {0} konnte nicht zurückgesetzt werden:
+revert.binned = Die Version, die auf der Festplatte lag, liegt im Papierkorb.
+
 # ---- Diff-Ansicht ----
 diff.mode.head = Arbeitsverzeichnis ↔ HEAD
 diff.mode.index = Arbeitsverzeichnis ↔ Index

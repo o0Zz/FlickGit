@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -114,11 +115,35 @@ public sealed class CopilotCommitMessageGenerator(
     }
 
     /// <summary>
-    /// Warms the connection to the completion endpoint, not to the exchange.
+    /// Warms <b>two</b> things, where the other providers warm one.
     ///
-    /// The exchange is one request to a host the machine talks to anyway; the diff goes here, and this
-    /// is the handshake that would otherwise be paid inside the first-token budget.
+    /// The handshake to the completion endpoint is what they all pay for here. Copilot also has the
+    /// token exchange, and that is a second round trip -- measured at ~450 ms -- which would
+    /// otherwise land inside the first generation's first-token budget, on top of the second this
+    /// endpoint already takes to begin answering. Spending it at service start is exactly CLAUDE.md's
+    /// "one cheap warm-up request at service start is fine", and <see cref="CopilotToken"/> then
+    /// holds it until two minutes before it expires.
+    ///
+    /// A refused exchange is reported as an unreachable provider rather than thrown, so a stale
+    /// stored token is named by `flick ai` at startup instead of failing the first commit of the day.
     /// </summary>
-    public Task<AiProbe> ProbeAsync(CancellationToken cancellationToken) =>
-        AiEndpoint.ProbeAsync(http, Endpoint, cancellationToken);
+    public async Task<AiProbe> ProbeAsync(CancellationToken cancellationToken)
+    {
+        var clock = Stopwatch.StartNew();
+
+        try
+        {
+            await tokens.ReadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (AiUnavailableException ex)
+        {
+            return new AiProbe(false, clock.Elapsed, ex.Message);
+        }
+
+        AiProbe probe = await AiEndpoint.ProbeAsync(http, Endpoint, cancellationToken).ConfigureAwait(false);
+
+        //The caller's number is "how long before this provider can answer", which is both round
+        //trips rather than only the second one.
+        return probe with { Elapsed = clock.Elapsed };
+    }
 }
