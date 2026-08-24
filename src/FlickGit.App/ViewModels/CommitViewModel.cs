@@ -958,7 +958,32 @@ public sealed class CommitViewModel : ObservableObject
 
         //Only this file's counts are refreshed, not the whole list. CLAUDE.md: "After a successful
         //save, refresh that file's counts and re-run its diff. Do not refresh the whole status list."
-        CurrentDiff = _currentDiff with { Right = outcome.Saved! };
+        //
+        //Re-run it here rather than only in the pane, because Rows is read by StageHunkAsync: it
+        //would otherwise still describe the pre-edit alignment, and staging -- which is allowed again
+        //the moment the pane is clean -- would build a patch out of those rows against the file now on
+        //disk, which `git apply` refuses whole.
+        SideBySideDiff current = _currentDiff;
+        FileText saved = outcome.Saved!;
+        bool wordLevel = current.RenderMode == DiffRenderMode.SideBySideWithWordDiff;
+
+        IReadOnlyList<DiffRow> rows = await Task
+            .Run(() => DiffService.Rediff(current.Left.Text, saved.Text, wordLevel))
+            .ConfigureAwait(true);
+
+        //Another file was selected while that was computing, so this record is no longer what the
+        //window is showing -- and writing it back would hand StageHunkAsync one file's path with
+        //another's rows.
+        if (!ReferenceEquals(_currentDiff, current))
+            return outcome;
+
+        //The field, not the property, and that is deliberate here and nowhere else. Raising
+        //PropertyChanged sends the window into DiffPane.Show, which rebuilds both documents from
+        //scratch -- throwing away the caret, the scroll position and the undo history of a pane that
+        //is already showing exactly this text, and (because Rows used to be the pre-edit list)
+        //redisplaying the file as it was before the save. MarkSaved is the path written for a save,
+        //and the window calls it next.
+        _currentDiff = current with { Right = saved, Rows = rows };
         StatusText = Strings.Get("edit.saved");
 
         _ = RefreshSelectedFileCountsAsync();

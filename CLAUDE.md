@@ -539,6 +539,7 @@ window is arranged around.
 ⇧⏎         newline, for a multi-line body
 Ctrl+⏎     commit & push, from anywhere including the file list
 Ctrl+S     save the diff pane's edit
+Ctrl+Z     undo the diff pane's last change
 F5         re-read the status, the same as the Refresh button
 esc        close
 ```
@@ -923,6 +924,26 @@ One rule makes this safe enough to offer on a single click, for an operation tha
 That is also why there is no confirmation dialog. A confirmation would be friction protecting
 against something that has not happened yet, and the thing it would guard — the save — already has
 its own explicit keystroke.
+
+**`Ctrl+Z` is the pane's own, and it has to be.** That sentence above was false for as long as this
+feature existed: a revert rebuilds both documents, a rebuild assigns the editor's text, and
+AvalonEdit's `TextEditor.Text` setter calls `UndoStack.ClearAll()` — so the key reached the editor and
+found an empty stack. The same wipe happens on any keystroke that changes the line layout.
+
+The one-line fix is the wrong one and must not be taken. Replacing the assignment with
+`Document.Replace` would make the rebuild undoable, and undoing it would restore the previous
+*document* text while `AlignedDocument`'s anchors describe the layout that was just undone — so
+`ToFileText` would strip the wrong blank lines, and the next `Ctrl+S` would write alignment padding
+into the user's source. Keeping the editor's history across a rebuild means custom
+`IUndoableOperation`s either side of the replace to restore the anchor set in both directions, which
+is subtle bookkeeping in the one place that cannot afford it.
+
+So `DiffPane` keeps a history of **file texts** instead, one per structural change it makes — a
+revert, or a layout-changing edit — and a step is restored by re-diffing it, which is the path a
+revert already takes: with the base text, a file text determines the rows and the filler layout
+outright. AvalonEdit still owns undo for typing inside a line, and the two cannot come out of order
+because every snapshot is followed by the rebuild that ends the editor's history. Clearing that stack
+is therefore load-bearing rather than incidental, and `BuildDocuments` does it by name.
 
 Two consequences worth stating:
 
