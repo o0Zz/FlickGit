@@ -10,11 +10,12 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />                <!-- 0 header -->
+            <RowDefinition Height="Auto" />                <!-- 1 warning strip -->
+            <RowDefinition Height="*" MinHeight="160" />   <!-- 2 files | diff -->
+            <RowDefinition Height="4" />                   <!-- 3 splitter -->
+            <RowDefinition Height="104" MinHeight="76" />  <!-- 4 commit message -->
+            <RowDefinition Height="Auto" />                <!-- 5 footer -->
         </Grid.RowDefinitions>
 
         <!-- Header: repository, branch, ahead/behind. The repository name is shown even
@@ -272,15 +273,24 @@
             <views:DiffPane x:Name="Diff" Grid.Column="2" />
         </Grid>
 
+        <!-- The rule between the diff and the message is draggable, like every other
+             division in the window. A long body is read by taking the space from the file
+             list and the diff pane, which share the row above. Not persisted and not a
+             setting: the resident service keeps one pre-warmed window, so the drag lasts
+             the session. -->
+        <GridSplitter Grid.Row="3"
+                      Height="4"
+                      HorizontalAlignment="Stretch"
+                      Background="{StaticResource Border}"
+                      ResizeBehavior="PreviousAndNext" />
+
         <!-- Commit message -->
-        <Border Grid.Row="3"
-                BorderBrush="{StaticResource Border}"
-                BorderThickness="0,1,0,0"
+        <Border Grid.Row="4"
                 Padding="14,10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
                 <!-- The header and the Generate button share a row: CLAUDE.md's mock-up puts the
@@ -323,14 +333,12 @@
                          Text="{Binding Message, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
-                         MinHeight="58"
-                         MaxHeight="140"
                          VerticalScrollBarVisibility="Auto"
                          FontFamily="Cascadia Mono, Consolas, Courier New" />
             </Grid>
         </Border>
 
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"
