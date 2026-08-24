@@ -108,9 +108,74 @@ internal sealed class OpenAiError
     public string? Message { get; set; }
 }
 
+/// <param name="Model">The model id. Copilot's own list, not OpenAI's.</param>
+/// <param name="Messages">The system prompt and the payload, Chat Completions style.</param>
+/// <param name="MaxTokens">The runaway guard.</param>
+internal sealed record CopilotRequest(
+    [property: JsonPropertyName("model")] string Model,
+    [property: JsonPropertyName("messages")] CopilotMessage[] Messages,
+    [property: JsonPropertyName("max_tokens")] int MaxTokens)
+{
+    [JsonPropertyName("stream")]
+    public bool Stream => true;
+}
+
+/// <summary>
+/// Chat Completions puts the system prompt in the message list rather than in a field of its own,
+/// which is the one structural difference from the other two requests.
+/// </summary>
+internal sealed record CopilotMessage(
+    [property: JsonPropertyName("role")] string Role,
+    [property: JsonPropertyName("content")] string Content);
+
+internal sealed class CopilotEvent
+{
+    [JsonPropertyName("choices")]
+    public CopilotChoice[]? Choices { get; set; }
+
+    [JsonPropertyName("error")]
+    public CopilotError? Error { get; set; }
+}
+
+internal sealed class CopilotChoice
+{
+    [JsonPropertyName("delta")]
+    public CopilotDelta? Delta { get; set; }
+}
+
+internal sealed class CopilotDelta
+{
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+}
+
+internal sealed class CopilotError
+{
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
+/// <summary>
+/// The answer from <c>/copilot_internal/v2/token</c>.
+///
+/// <c>expires_at</c> is epoch seconds. The token string itself also carries an <c>exp=</c> field, and
+/// this reads the sibling rather than parsing the token: a credential should be sent, not picked apart.
+/// </summary>
+internal sealed class CopilotTokenResponse
+{
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+
+    [JsonPropertyName("expires_at")]
+    public long ExpiresAt { get; set; }
+}
+
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AnthropicRequest))]
 [JsonSerializable(typeof(AnthropicEvent))]
 [JsonSerializable(typeof(OpenAiRequest))]
 [JsonSerializable(typeof(OpenAiEvent))]
+[JsonSerializable(typeof(CopilotRequest))]
+[JsonSerializable(typeof(CopilotEvent))]
+[JsonSerializable(typeof(CopilotTokenResponse))]
 internal sealed partial class AiJson : JsonSerializerContext;

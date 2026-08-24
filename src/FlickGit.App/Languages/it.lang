@@ -157,7 +157,7 @@ ai.notallowed = Ai diff non è permesso lasciare questa macchina.
 ai.empty = Il provider non ha restituito nulla. Scrivere un messaggio a mano.
 ai.degraded = I messaggi di commit sono falliti {0} volte di seguito.\n\n{1}
 ai.usage = Uso: flick ai  |  flick ai key [set|clear]
-ai.disabled.hint = Impostare "aiProvider" su "anthropic" oppure "openai" in:\n\n{0}
+ai.disabled.hint = Impostare "aiProvider" su "anthropic", "openai" oppure "copilot" in:\n\n{0}
 
 ai.key.title = Chiave API {0}
 ai.key.prompt = FlickGit ha bisogno di una chiave API per scrivere i messaggi di commit. Viene salvata in Gestione credenziali di Windows, mai in un file di impostazioni, e non viene mai rimostrata.

@@ -252,8 +252,8 @@ src/
 │   ├── Palette/             RepositoryScanner and the cached overview the palette
 │   │                        paints from before Git is asked anything
 │   ├── Ai/                  What may leave the machine (DiffPayload,
-│   │                        CommitContextBuilder) and the two providers. AiEndpoint
-│   │                        is the request both of them make.
+│   │                        CommitContextBuilder) and the three providers. AiEndpoint
+│   │                        is the request all three make.
 │   ├── Branches/            BranchService, SwitchService
 │   ├── Config/              RepositoryConfigService -- the identity, the
 │   │                        remotes and the two flickgit.* keys, out of
@@ -1485,6 +1485,39 @@ GPT-5.6 Luna is the cost-optimised tier at $0.20 / $1.20 per million tokens. Rea
 effort is a per-request parameter; `none` is the latency baseline, `low` the next step up if
 message quality proves insufficient in practice.
 
+**GitHub Copilot:**
+
+```text
+Endpoint:      https://api.githubcopilot.com/chat/completions
+Model:         gpt-4.1              (Copilot's base model; aiModel overrides)
+max_tokens:    150
+stream:        true
+```
+
+For the user who already pays for Copilot and does not want a second bill. It is the **only
+provider whose stored credential is not what gets sent**: the GitHub OAuth token buys a
+short-lived token from `https://api.github.com/copilot_internal/v2/token`, and only that one
+reaches the completion endpoint. `CopilotToken` caches it until two minutes before it expires.
+
+Three things about this are worth knowing before it is extended or relied on:
+
+- **The wire format is Chat Completions**, `choices[0].delta.content` — a third reader, not a
+  reuse of the Responses API's. An empty `choices` array is the ordinary first frame, carrying
+  only content-filter results, and a reader that treats it as a fault fails every request.
+- **`Copilot-Integration-Id: vscode-chat` is required**, along with `Editor-Version`. Without
+  them the endpoint answers 400 with an empty body, which reads exactly like a bad model name.
+  The id has to be one GitHub has issued and there is no registration open to a per-user tool,
+  so FlickGit sends an editor's. That, and `copilot_internal`, make this **an undocumented API
+  that GitHub may change or close without notice** — which is why the default provider is still
+  Anthropic and why a Copilot failure has to degrade like any other.
+- **A personal access token does not work.** The exchange wants the OAuth token an editor
+  already holds, so the key prompt names `%LOCALAPPDATA%\github-copilot\apps.json` rather than
+  leaving the user to deduce it from a 401. This is the only provider whose prompt differs.
+
+The base model spends no premium request, which is why it is the default rather than a faster
+tier: a default that 404s on some subscriptions is worse than a slower one that works on all of
+them.
+
 **Ollama / local:** supported, not the default. Useful when policy forbids sending code off
 the machine.
 
@@ -1553,7 +1586,13 @@ public interface ICommitMessageGenerator
 ```
 
 Implementations: `AnthropicCommitMessageGenerator`, `OpenAICommitMessageGenerator`,
-`OllamaCommitMessageGenerator`, `DisabledCommitMessageGenerator`.
+`CopilotCommitMessageGenerator`, `OllamaCommitMessageGenerator`,
+`DisabledCommitMessageGenerator`.
+
+Still no base class between them. What all three share is one function they call --
+`AiEndpoint.StreamAsync` -- and what differs is exactly its four arguments: the URL, the
+headers, the request shape and which frame carries text. Copilot is the one that cannot
+delegate outright, because its token has to be awaited before the request can be authorised.
 
 The return type is a stream, not a `Task<string>` — streaming is a requirement, not an
 option.
@@ -2432,6 +2471,7 @@ one. Three tabs and nothing else:
 │  COMMIT MESSAGES (AI)                                    │
 │  Written by                                              │
 │  [ Anthropic — Claude Haiku 4.5                     ▾ ]  │
+│    Anthropic · OpenAI · GitHub Copilot · nobody          │
 │  [ Set API key… ]  [ Remove key ]                        │
 │  A key is stored for Anthropic, in Windows Credential    │
 │  Manager.                                                │
@@ -2778,11 +2818,15 @@ record of why so they are not proposed again:
   tab rendering `Help.md`, and an About tab. Those are the settings whose JSON key nobody can guess
   before they have found the file, which is a different argument from the one that killed the
   action editor -- and the window is one screen with a Save button, not a second interface.
-- **The Ollama provider is not being built.** Anthropic and OpenAI cover the feature.
+- **The Ollama provider is not being built.** Anthropic and OpenAI cover the feature. A **GitHub
+  Copilot** provider was added afterwards, and it is not a reversal of this: it exists because a user
+  who already pays for Copilot should not need a second subscription, which is an argument Ollama
+  never had. Its section under **AI Commit Messages** carries the whole of it.
 - **Speculative generation is therefore not being built either.** This section requires it be
   "automatically disabled when the provider is not local", and Ollama was the only local provider --
   so with Ollama gone the feature could never legally enable itself. Implementing it would be dead
-  code by its own safety rule. If a local provider is ever added, this comes back with it.
+  code by its own safety rule. **Copilot does not revive it**: it is a hosted API, so the diff still
+  leaves the machine. If a *local* provider is ever added, this comes back with it.
 
 The context menu is still customisable, just not by clicking: `builtIns` in `actions.json` hides,
 relabels and reorders any built-in, and user actions add to every surface at once.
@@ -3036,11 +3080,15 @@ to a third party:
 
 ## The provider streams
 
-Two wire formats, both read a few bytes at a time so a reader that only works on a whole response
+Three wire formats, all read a few bytes at a time so a reader that only works on a whole response
 does not pass:
 
 - Anthropic `content_block_delta` / `text_delta` concatenated, every other frame ignored
 - OpenAI `response.output_text.delta` concatenated, `[DONE]` not handed to a parser
+- Copilot `choices[0].delta.content` concatenated, and the two frames that carry no text —
+  a delta that is only a role, and an empty `choices` — ignored rather than treated as a fault
+- The stored GitHub token is exchanged and **never** sent to the completion endpoint, which the
+  other two providers cannot get wrong because their key *is* the header
 - The request body carries `max_tokens: 150`, `stream: true` and no `thinking` field
 - A fenced message is unwrapped
 

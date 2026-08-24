@@ -21,7 +21,13 @@ public partial class ApiKeyWindow : Window
         InitializeComponent();
 
         TitleText.Text = Strings.Get("ai.key.title", provider.ToString());
-        PromptText.Text = Strings.Get("ai.key.prompt", provider.ToString());
+        //Copilot gets its own sentence, and it earns the branch: the other two want a key from a
+        //dashboard, and this one wants the OAuth token an editor already stored on this machine. A
+        //user handed the generic wording pastes a personal access token, which the exchange refuses
+        //with a 401 that reads like a revoked key.
+        PromptText.Text = provider == AiProvider.Copilot
+            ? Strings.Get("ai.key.prompt.copilot")
+            : Strings.Get("ai.key.prompt", provider.ToString());
         TargetText.Text = Strings.Get("ai.key.target", ApiKeyStore.TargetFor(provider));
         SaveButton.Content = Strings.Get("ai.key.save");
         CancelButton.Content = Strings.Get("commit.button.cancel");

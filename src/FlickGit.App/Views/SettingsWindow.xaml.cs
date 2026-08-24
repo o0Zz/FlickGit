@@ -133,7 +133,7 @@ public partial class SettingsWindow : Window
 
         //One entry per provider, the enum as the item so nothing has to map a display string back.
         AiProviderBox.Items.Clear();
-        foreach (AiProvider provider in new[] { AiProvider.Disabled, AiProvider.Anthropic, AiProvider.OpenAi })
+        foreach (AiProvider provider in new[] { AiProvider.Disabled, AiProvider.Anthropic, AiProvider.OpenAi, AiProvider.Copilot })
             AiProviderBox.Items.Add(new ProviderChoice(provider));
 
         AiProviderBox.SelectedItem = AiProviderBox.Items
@@ -422,6 +422,7 @@ public partial class SettingsWindow : Window
         {
             AiProvider.Anthropic => "Anthropic — Claude Haiku 4.5",
             AiProvider.OpenAi => "OpenAI — GPT-5.6 Luna",
+            AiProvider.Copilot => "GitHub Copilot — your subscription",
             _ => Strings.Get("settings.ai.provider.disabled"),
         };
     }

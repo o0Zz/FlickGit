@@ -307,6 +307,11 @@ ai.disabled.hint = Set "aiProvider" to "anthropic" or "openai" in:\n\n{0}
 # {0} provider name
 ai.key.title = {0} API key
 ai.key.prompt = FlickGit needs an API key to write commit messages for you. It is stored in Windows Credential Manager, never in a settings file, and never printed back to you.
+
+# Copilot is not asking for an API key. It wants the OAuth token an editor has already stored,
+# because /copilot_internal/v2/token refuses a personal access token -- so the path is named here
+# rather than left for the user to find out from a 401.
+ai.key.prompt.copilot = FlickGit needs the GitHub token that your editor uses for Copilot. Look for "oauth_token" in:\n\n%LOCALAPPDATA%\github-copilot\apps.json\n\nIt is stored in Windows Credential Manager, never in a settings file, and never printed back to you. A personal access token will not work.
 # {0} the Credential Manager target name
 ai.key.target = Stored as: {0}
 ai.key.save = Save

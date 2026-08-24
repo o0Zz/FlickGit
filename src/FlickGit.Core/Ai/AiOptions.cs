@@ -11,6 +11,14 @@ public enum AiProvider
 
     /// <summary>OpenAI's Responses API.</summary>
     OpenAi,
+
+    /// <summary>
+    /// GitHub Copilot's chat endpoint, on the user's existing Copilot subscription.
+    ///
+    /// Third rather than second because it is the only one that cannot be reached with the stored
+    /// credential alone -- see <see cref="CopilotToken"/>.
+    /// </summary>
+    Copilot,
 }
 
 /// <summary>
@@ -60,6 +68,12 @@ public sealed record AiOptions(
         {
             AiProvider.Anthropic => "claude-haiku-4-5-20251001",
             AiProvider.OpenAi => "gpt-5.6-luna",
+
+            //Copilot's base model, which every plan includes and which spends no premium request.
+            //A faster tier exists, but a default that 404s on some subscriptions is worse than a
+            //slower one that works on all of them -- and `aiModel` overrides this either way.
+            AiProvider.Copilot => "gpt-4.1",
+
             _ => string.Empty,
         };
 }

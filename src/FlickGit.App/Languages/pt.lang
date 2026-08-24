@@ -157,7 +157,7 @@ ai.notallowed = Os diffs não têm autorização para sair desta máquina.
 ai.empty = O fornecedor não devolveu nada. Escreva a mensagem à mão.
 ai.degraded = As mensagens de commit falharam {0} vezes seguidas.\n\n{1}
 ai.usage = Utilização: flick ai  |  flick ai key [set|clear]
-ai.disabled.hint = Defina "aiProvider" como "anthropic" ou "openai" em:\n\n{0}
+ai.disabled.hint = Defina "aiProvider" como "anthropic", "openai" ou "copilot" em:\n\n{0}
 
 ai.key.title = Chave de API {0}
 ai.key.prompt = O FlickGit precisa de uma chave de API para escrever as suas mensagens de commit. É guardada no Gestor de Credenciais do Windows, nunca num ficheiro de definições, e nunca lhe é mostrada de novo.

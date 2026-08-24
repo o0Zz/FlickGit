@@ -210,6 +210,15 @@ public partial class App : Application
                 AiProvider.OpenAi => new OpenAiCommitMessageGenerator(
                     http, configuration.Options, configuration.ReadKey, logger),
 
+                //Copilot is the one provider whose stored credential is not what gets sent, so it
+                //takes a CopilotToken rather than the delegate -- constructed here, with the same
+                //pooled client, because the exchange is a network call like any other.
+                AiProvider.Copilot => new CopilotCommitMessageGenerator(
+                    http,
+                    configuration.Options,
+                    new CopilotToken(http, configuration.ReadKey, logger),
+                    logger),
+
                 _ => new DisabledCommitMessageGenerator(),
             };
         });

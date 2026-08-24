@@ -197,7 +197,7 @@ ai.notallowed = Les diffs ne sont pas autorisés à quitter cette machine.
 ai.empty = Le fournisseur n'a rien renvoyé. Écrivez un message vous-même.
 ai.degraded = La génération du message a échoué {0} fois de suite.\n\n{1}
 ai.usage = Utilisation : flick ai  |  flick ai key [set|clear]
-ai.disabled.hint = Donnez à "aiProvider" la valeur "anthropic" ou "openai" dans :\n\n{0}
+ai.disabled.hint = Donnez à "aiProvider" la valeur "anthropic", "openai" ou "copilot" dans :\n\n{0}
 
 ai.key.title = Clé d'API {0}
 ai.key.prompt = FlickGit a besoin d'une clé d'API pour rédiger vos messages de commit. Elle est stockée dans le Gestionnaire d'identifiants Windows, jamais dans un fichier de paramètres, et ne vous est jamais réaffichée.
