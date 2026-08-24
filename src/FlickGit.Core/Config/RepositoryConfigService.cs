@@ -35,6 +35,28 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     public const string UpstreamAnswerKey = "flickgit.allowUpstreamCreation";
 
     /// <summary>
+    /// Which branch a pull request from this repository proposes into, when it is not the primary
+    /// one.
+    ///
+    /// Its own key rather than a reuse of <see cref="PrimaryBranchKey"/>, because the two answer
+    /// different questions and a GitFlow repository gives them different answers: the primary branch
+    /// is what the commit window warns about committing to — <c>main</c> — while everyday work is
+    /// proposed into <c>develop</c>. One key would force a user to choose which of the two features
+    /// is allowed to be right.
+    /// </summary>
+    public const string PullRequestTargetKey = "flickgit.pullRequestTarget";
+
+    /// <summary>
+    /// Which service hosts this repository, when the host name does not say.
+    ///
+    /// <c>git.acme.io</c> is a GitLab or a GitHub Enterprise with equal probability, and posting a
+    /// request shaped for the wrong API at whichever is listening is the one mistake that cannot be
+    /// worked around. So an unrecognised host is refused with this key named in the message, and the
+    /// user answers once — <c>github</c>, <c>gitlab</c> or <c>azure</c>.
+    /// </summary>
+    public const string ForgeKindKey = "flickgit.forge";
+
+    /// <summary>
     /// Everything the repository window shows, from four parallel reads.
     ///
     /// The effective identity needs its own calls: <c>--local</c> answers "does this repository
@@ -120,6 +142,28 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         CancellationToken cancellationToken)
     {
         string? value = await GetAsync(repository, PrimaryBranchKey, cancellationToken).ConfigureAwait(false);
+        return value is null ? null : NullIfEmpty(value);
+    }
+
+    /// <summary>
+    /// This repository's pull-request target override, or null when it has none.
+    ///
+    /// Uncached, like the primary-branch override and for the same reason: it is one
+    /// <c>config --get</c>, so it is always current and nothing has to be invalidated when the user
+    /// changes it.
+    /// </summary>
+    public async Task<string?> ReadPullRequestTargetAsync(
+        RepositoryInfo repository,
+        CancellationToken cancellationToken)
+    {
+        string? value = await GetAsync(repository, PullRequestTargetKey, cancellationToken).ConfigureAwait(false);
+        return value is null ? null : NullIfEmpty(value);
+    }
+
+    /// <summary>What <c>flickgit.forge</c> says this repository is hosted on, or null.</summary>
+    public async Task<string?> ReadForgeKindAsync(RepositoryInfo repository, CancellationToken cancellationToken)
+    {
+        string? value = await GetAsync(repository, ForgeKindKey, cancellationToken).ConfigureAwait(false);
         return value is null ? null : NullIfEmpty(value);
     }
 

@@ -47,7 +47,7 @@ public sealed class CommitViewModel : ObservableObject
     private readonly WorkingTreeWriter _writer;
     private readonly WorkingTreeDeleter _deleter;
     private readonly RestoreService _restore;
-    private readonly CommitMessageService _messages;
+    private readonly AiTextService _messages;
     private readonly FlickSettings _settings;
     private readonly ILog _log;
 
@@ -87,7 +87,7 @@ public sealed class CommitViewModel : ObservableObject
         WorkingTreeWriter writer,
         WorkingTreeDeleter deleter,
         RestoreService restore,
-        CommitMessageService messages,
+        AiTextService messages,
         FlickSettings settings,
         ILog log)
     {
@@ -637,7 +637,7 @@ public sealed class CommitViewModel : ObservableObject
     private async Task RunGenerationAsync(CancellationTokenSource generation)
     {
         GenerationOutcome outcome = await _messages
-            .StreamAsync(
+            .StreamCommitMessageAsync(
                 _repository,
                 _currentStatus!,
                 ApplyStreamedText,

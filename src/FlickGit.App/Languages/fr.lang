@@ -216,6 +216,37 @@ push.pullfirst.ask = {0} est en retard sur {1}. Faire un pull avec rebase puis p
 push.pullfirst.yes = Pull (rebase) puis push
 push.refused.title = Push refusé
 
+# ---- pull requests ----
+pr.title = Pull request — {0}
+pr.field.title = Titre
+pr.field.description = Description
+pr.draft = Brouillon
+pr.deletebranch = Supprimer {0} après la fusion
+pr.generate = Rédiger avec l'IA
+pr.create = Créer la pull request
+pr.open = Ouvrir
+pr.hint = ⏎ créer   esc fermer
+pr.generating = Rédaction de la description…
+pr.notitle = Une pull request a besoin d'un titre.
+pr.summary = {0} commits · {1} fichiers · +{2} −{3}
+pr.summary.empty = {0} n'a aucun commit que {1} ne possède déjà.
+pr.nothing = Rien à décrire : cette branche n'ajoute aucun commit.
+pr.alreadyopen = {0} est déjà ouverte pour cette branche : {1}
+pr.created = Pull request {0} créée  {1}
+pr.pushed = {0} a été poussée sur le dépôt distant, mais la pull request n'a pas été créée.
+pr.error.title = Pull request
+pr.step.pushing = Envoi de la branche…
+pr.step.authorising = Vérification des identifiants…
+pr.step.checking = Recherche d'une pull request existante…
+pr.step.creating = Création de la pull request…
+pr.token.title = Jeton pour {0}
+pr.token.prompt.github = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.
+Créez un personal access token avec la portée « repo » (classique), ou « Pull requests : lecture et écriture » (fine-grained).
+pr.token.prompt.gitlab = FlickGit a besoin d'un jeton pouvant ouvrir des merge requests sur {0}.
+Créez un personal access token avec la portée « api », dans votre profil GitLab sous Access Tokens.
+pr.token.prompt.azure = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.
+Créez un personal access token avec la portée « Code (lecture et écriture) », depuis Paramètres utilisateur → Personal access tokens.
+
 # ---- clone ----
 clone.title = Cloner dans {0}
 clone.into = Dans
@@ -291,6 +322,7 @@ palette.empty.norepos = Aucun dépôt pour l'instant. Committez une fois depuis 
 action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
 action.push = Push
+action.pr = Pull request…
 action.switch = Changer de branche…
 action.tag = Étiquettes…
 action.repo = Paramètres du dépôt…

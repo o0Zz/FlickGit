@@ -33,6 +33,11 @@ FlickGit is built for developers who work across multiple repositories and switc
 - [x] **Blame, with the walk back** — right-click a *file* → **FlickGit ▸ Blame**. Click a line and
       **Blame previous revision** re-blames the file as it was before that commit, following renames,
       until Git says there is nothing before it. Back returns to the line you were following.
+- [x] **Pull requests** — **FlickGit ▸ Pull request…** or `flick pr`, on GitHub, GitLab and Azure
+      DevOps, cloud or self-hosted. The target branch and the description are filled in for you;
+      Create pushes the branch first, refuses to duplicate a request that is already open, and opens
+      the new one in your browser. The credential is usually the one Git already holds for that host,
+      so there is nothing to set up.
 - [x] **Repository palette** — `Ctrl+Alt+R`, repositories with something to do listed first, fuzzy
       filter, action mode, `Ctrl+Enter` to pull every repository that is behind.
 - [x] **Commit window** — file list with status letters and `+added / -removed` counts, and tick
@@ -150,6 +155,7 @@ assumed.
 flick commit <path>                 commit window
 flick pull-rebase <path>            pull --rebase --autostash (+ submodules when present)
 flick push <path>                   with the guardrails; exit 5 if refused
+flick pr <path>                     open a pull request for this branch
 flick switch <path> [branch]        picker when omitted, direct switch when named
 flick tag <path> [name]             tag window when omitted, creates it when named
 flick status <path>
@@ -340,6 +346,9 @@ dependencies as typed constructor parameters so that stays a choice rather than 
 | **4** | The trigger and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *The cursor-anchored quick-commit popup was built and then removed: the trigger opens the commit window instead, which took over the caret-in-the-message-box opening, Enter-commits and the streamed message. The Explorer-scoped input hooks — a key or a mouse side button swallowed only over Explorer — are still open; the setting falls back to the global hotkey and says so in `diag doctor`.* |
 | **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) carrying the context menu, autostart, the commit switches, the AI provider and its API key, the language picker, a Help tab rendering an editable `Help.md` and an About tab. *Three items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface), the Ollama provider, and with it speculative generation — which by its own safety rule may only run against a local provider.* |
 | **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. ✅ `IExplorerCommand` handler (`FlickGit.Shell.dll`, Native AOT COM in `explorer.exe`) putting the current branch in the Commit label and hiding the root entries outside a repository — no MSIX or signature needed for the classic menu, only for the Windows 11 *primary* one. *The sparse MSIX package is the one thing still open: it needs package identity and a code-signing certificate.* |
+| **7** | Reading history | ✅ The log window — a commit list, the files a selection changed, and the read-only side-by-side diff, with the **combined diff over a multi-selection** the window exists for and a gap disclosure when the selection skips commits · **Save as patch…** · blame, with the walk back through Git's own `previous` across renames, reached from a right-click on a *file*. |
+| **8** | The repository's own settings | ✅ The Repository window — the identity it commits as, its remotes (add, rename, re-point, remove), and FlickGit's own per-repository defaults in `.git/config` rather than in a path-keyed dictionary. Reads nothing from the network. |
+| **9** | Proposing the branch | ✅ The Pull request window — GitHub, GitLab and Azure DevOps, cloud and self-hosted, with the description written by the same provider that writes commit messages. Push-then-create in that order, through `PushService` so the divergence refusal and the no-force-push rule hold here too; the credential comes from Git's own helper before FlickGit asks for one. *No reviewers, labels, work items, merging or cross-fork requests — each is argued through in CLAUDE.md.* |
 
 Design decisions, performance budgets and the reasoning behind them live in
 [CLAUDE.md](CLAUDE.md).

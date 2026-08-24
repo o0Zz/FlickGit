@@ -158,6 +158,41 @@ Nothing in this window changes the repository. There is no checkout, reset, reve
 cherry-pick here, and the diff is read-only on both sides. **Save as patch…** writes the diff you
 are looking at to a file you choose.
 
+## Pull requests
+
+**FlickGit ▸ Pull request…**, or `flick pr`. It proposes the branch you are on, on GitHub, GitLab
+or Azure DevOps — cloud or self-hosted.
+
+The window opens already filled in: the target is your repository's trunk, the summary says what
+the request would contain, and the description is written by the AI if one is configured. Pressing
+**Create pull request** does three things in this order — **pushes the branch**, checks that no
+request is already open for it, and creates the new one. Then it opens in your browser.
+
+**The credential is usually one you already have.** FlickGit asks Git's own credential helper for
+the token it holds for that host, so if you can `git push` you can usually open a pull request with
+no setup at all. When there is nothing stored, or the service refuses it, FlickGit asks you once for
+a personal access token and files it in Windows Credential Manager under the host name.
+
+Two checkboxes: **Draft**, and **Delete the branch when it merges** — the second is hidden on
+GitHub, which has no per-request setting for it.
+
+Nothing is guessed. If the branch is diverged from its upstream, or behind it, the window says so
+and creates nothing. If a request is already open, it names it and offers to open it instead.
+
+**A self-hosted instance FlickGit cannot recognise** — `git.acme.io` could be either GitLab or
+GitHub Enterprise — needs telling once, in the repository:
+
+```
+git config --local flickgit.forge gitlab
+```
+
+**A repository that proposes into `develop`** rather than into its primary branch says so the same
+way:
+
+```
+git config --local flickgit.pullRequestTarget develop
+```
+
 ## Blame
 
 Right-click a **file** → **FlickGit ▸ Blame**, or `flick blame <file>`. Each line is labelled with
@@ -179,6 +214,7 @@ Everything in the menus is also a verb. `<path>` defaults to the current directo
 flick commit <path>              flick switch <path> [branch]
 flick pull-rebase <path>         flick tag <path> [name]
 flick push <path>                flick status <path>
+flick pr <path>                  open a pull request for this branch
 flick log <path>                 commit history + combined diffs
 flick blame <file>               who wrote each line
 flick palette                    flick clone <path> [url]
@@ -206,7 +242,11 @@ Everything this window does not show lives in two files, in
 - **`actions.json`** — your own context-menu and palette entries, and overrides that hide,
   rename or reorder the built-in ones.
 
-Both are read at startup. Restart FlickGit after editing them, and run `flick diag doctor` to
+Two more live in the repository's own `.git/config`, because they are facts about that repository
+rather than about you: `flickgit.pullRequestTarget` and `flickgit.forge` (see **Pull requests**),
+alongside `flickgit.primaryBranch` and `flickgit.allowUpstreamCreation`.
+
+Both files are read at startup. Restart FlickGit after editing them, and run `flick diag doctor` to
 see what they resolved to.
 
 ## What FlickGit will not do

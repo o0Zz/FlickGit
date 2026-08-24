@@ -329,6 +329,47 @@ push.pullfirst.ask = {0} is behind {1}. Pull with rebase and then push?
 push.pullfirst.yes = Pull (rebase) and push
 push.refused.title = Push refused
 
+# ---- pull requests ----
+# {0} repository name
+pr.title = Pull request — {0}
+pr.field.title = Title
+pr.field.description = Description
+pr.draft = Draft
+# {0} the source branch
+pr.deletebranch = Delete {0} when it merges
+pr.generate = Write with AI
+pr.create = Create pull request
+pr.open = Open
+pr.hint = ⏎ create   esc close
+pr.generating = Writing a description…
+pr.notitle = A pull request needs a title.
+# {0} commits, {1} files, {2} added lines, {3} removed lines
+pr.summary = {0} commits · {1} files · +{2} −{3}
+# {0} the source branch, {1} the remote target it was compared against
+pr.summary.empty = {0} has no commits that {1} does not already have.
+pr.nothing = There is nothing to describe: this branch adds no commits.
+# {0} the request number as its service writes it, {1} its title
+pr.alreadyopen = {0} is already open for this branch: {1}
+pr.created = Pull request {0} created  {1}
+# {0} the branch that was pushed before the failure
+pr.pushed = {0} was pushed to the remote, but the pull request was not created.
+pr.error.title = Pull request
+pr.step.pushing = Pushing the branch…
+pr.step.authorising = Checking the credential…
+pr.step.checking = Looking for an existing pull request…
+pr.step.creating = Creating the pull request…
+
+# The token prompt. One sentence per service, because what to create and where differ on each,
+# and "a token for git.acme.io" leaves the user guessing which settings page.
+# {0} the host
+pr.token.title = Token for {0}
+pr.token.prompt.github = FlickGit needs a token that can open pull requests on {0}.
+Create a personal access token with the "repo" scope (classic), or "Pull requests: read and write" (fine-grained).
+pr.token.prompt.gitlab = FlickGit needs a token that can open merge requests on {0}.
+Create a personal access token with the "api" scope, in your GitLab profile under Access Tokens.
+pr.token.prompt.azure = FlickGit needs a token that can open pull requests on {0}.
+Create a personal access token with the "Code (read and write)" scope, from User settings → Personal access tokens.
+
 # ---- clone ----
 clone.title = Clone into {0}
 clone.into = Into
@@ -416,6 +457,7 @@ palette.empty.norepos = No repositories yet. Commit from Explorer once and this 
 action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
 action.push = Push
+action.pr = Pull request…
 action.switch = Switch branch…
 action.tag = Tags…
 action.log = Show log…

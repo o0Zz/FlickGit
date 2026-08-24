@@ -21,6 +21,7 @@ using FlickGit.Clone;
 using FlickGit.Commits;
 using FlickGit.Config;
 using FlickGit.Diagnostics;
+using FlickGit.Forges;
 using FlickGit.Blame;
 using FlickGit.Diff;
 using FlickGit.History;
@@ -189,43 +190,56 @@ public partial class App : Application
         services.AddSingleton<Autostart>();
         services.AddSingleton<TriggerService>();
         services.AddSingleton<ExplorerFolderResolver>();
-        services.AddSingleton<ApiKeyStore>();
+        services.AddSingleton<CredentialStore>();
+
+        //Pull requests. Three clients and one holder, all registered whichever forge this machine
+        //happens to use: they are three small objects over the shared HttpClient, and a registration
+        //that depended on a repository's remote could not be a singleton at all.
+        services.AddSingleton<IPullRequestClient, GitHubClient>();
+        services.AddSingleton<IPullRequestClient, GitLabClient>();
+        services.AddSingleton<IPullRequestClient, AzureDevOpsClient>();
+        services.AddSingleton<PullRequestClients>();
+        services.AddSingleton<PullRequestService>();
+        services.AddSingleton<PullRequestFlow>();
+        services.AddSingleton<GitCredentialFill>();
+        services.AddSingleton<ForgeCredentials>();
 
         //AI. The provider is chosen here, once, from settings -- this is the only place allowed to
         //know which implementation a setting names, and the only place that could.
         services.AddSingleton<AiConfiguration>();
         services.AddSingleton<CommitContextBuilder>();
+        services.AddSingleton<PullRequestContextBuilder>();
         services.AddSingleton(_ => BuildHttpClient());
-        services.AddSingleton<ICommitMessageGenerator>(provider =>
+        services.AddSingleton<IAiGenerator>(provider =>
         {
             var configuration = provider.GetRequiredService<AiConfiguration>();
             var http = provider.GetRequiredService<HttpClient>();
             var logger = provider.GetRequiredService<ILog>();
 
             //The key arrives as a delegate rather than as the store itself: an interface with one
-            //implementation is forbidden by Hard Requirement 2, and ApiKeyStore is Windows-only
+            //implementation is forbidden by Hard Requirement 2, and CredentialStore is Windows-only
             //while FlickGit.Core deliberately is not.
             return configuration.Provider switch
             {
-                AiProvider.Anthropic => new AnthropicCommitMessageGenerator(
+                AiProvider.Anthropic => new AnthropicGenerator(
                     http, configuration.Options, configuration.ReadKey, logger),
 
-                AiProvider.OpenAi => new OpenAiCommitMessageGenerator(
+                AiProvider.OpenAi => new OpenAiGenerator(
                     http, configuration.Options, configuration.ReadKey, logger),
 
                 //Copilot is the one provider whose stored credential is not what gets sent, so it
                 //takes a CopilotToken rather than the delegate -- constructed here, with the same
                 //pooled client, because the exchange is a network call like any other.
-                AiProvider.Copilot => new CopilotCommitMessageGenerator(
+                AiProvider.Copilot => new CopilotGenerator(
                     http,
                     configuration.Options,
                     new CopilotToken(http, configuration.ReadKey, logger),
                     logger),
 
-                _ => new DisabledCommitMessageGenerator(),
+                _ => new DisabledAiGenerator(),
             };
         });
-        services.AddSingleton<CommitMessageService>();
+        services.AddSingleton<AiTextService>();
         services.AddSingleton<ResidentService>();
         services.AddSingleton<PipeServer>();
         services.AddSingleton<Notifier>();
@@ -420,11 +434,11 @@ public partial class App : Application
         //would cache nothing, so the cost it exists to avoid would be paid on the first commit
         //anyway -- and this is fire-and-forget at background priority, where waiting longer costs
         //the user nothing.
-        if (services.GetRequiredService<CommitMessageService>().IsUsable)
+        if (services.GetRequiredService<AiTextService>().IsUsable)
         {
             var warmup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-            _ = services.GetRequiredService<ICommitMessageGenerator>()
+            _ = services.GetRequiredService<IAiGenerator>()
                 .ProbeAsync(warmup.Token)
                 .ContinueWith(_ => warmup.Dispose(), TaskScheduler.Default);
         }

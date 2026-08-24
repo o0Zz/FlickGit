@@ -369,6 +369,13 @@ public sealed class ActionCatalog
 
         new("push", "push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
 
+        //Immediately after push, because it is the next thing that happens to a branch and because
+        //it *is* a push most of the time -- the flow publishes the branch before it opens anything.
+        //Not a root entry: CLAUDE.md's two root entries are the two performed all day, and a pull
+        //request is opened once per branch.
+        new("pr", "pr", VerbKind.PullRequest, 125, ActionSurfaces.All, "pr.ico", InMore: true,
+            NeedsRepository: true),
+
         //Next to push on purpose: "which origin does this go to" is the question that sends the user
         //looking for it, and the answer is one row of this window.
         new("repo", "repo", VerbKind.Repo, 130, ActionSurfaces.All, "status.ico", InMore: true,

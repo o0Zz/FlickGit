@@ -22,8 +22,15 @@ public class AiStreamTests
     private static readonly AiOptions Options =
         new(AiProvider.Anthropic, string.Empty, "none", DiffPayload.VerbatimCeilingBytes, ConventionalCommits: false);
 
-    private static readonly CommitContext Context =
-        new("diff --git a/src/A.cs b/src/A.cs\n+new\n", ["M src/A.cs"], [], "main", Truncated: false);
+    /// <summary>
+    /// One request, the way a commit surface assembles it: the system prompt, the payload, and the
+    /// token ceiling that belongs to that task rather than to the provider.
+    /// </summary>
+    private static readonly AiPrompt Prompt = new(
+        CommitPrompt.For(conventionalCommits: false),
+        new CommitContext("diff --git a/src/A.cs b/src/A.cs\n+new\n", ["M src/A.cs"], [], "main", Truncated: false)
+            .ToPromptText(),
+        AiOptions.CommitMaxTokens);
 
     private static async Task<string> Collect(IAsyncEnumerable<string> stream)
     {
@@ -70,9 +77,9 @@ public class AiStreamTests
         var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, transcript);
         using var http = new HttpClient(handler);
 
-        var generator = new AnthropicCommitMessageGenerator(http, Options, () => "sk-ant-test", NullLog.Instance);
+        var generator = new AnthropicGenerator(http, Options, () => "sk-ant-test", NullLog.Instance);
 
-        Assert.Equal("feat: add connection pooling", await Collect(generator.GenerateAsync(Context, CancellationToken.None)));
+        Assert.Equal("feat: add connection pooling", await Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
     }
 
     [Fact]
@@ -96,9 +103,9 @@ public class AiStreamTests
         using var http = new HttpClient(handler);
 
         var options = Options with { Provider = AiProvider.OpenAi };
-        var generator = new OpenAiCommitMessageGenerator(http, options, () => "sk-proj-test", NullLog.Instance);
+        var generator = new OpenAiGenerator(http, options, () => "sk-proj-test", NullLog.Instance);
 
-        Assert.Equal("fix: handle rebase conflicts", await Collect(generator.GenerateAsync(Context, CancellationToken.None)));
+        Assert.Equal("fix: handle rebase conflicts", await Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
     }
 
     /// <summary>
@@ -131,13 +138,13 @@ public class AiStreamTests
         var handler = new FakeCopilotHandler(transcript);
         using var http = new HttpClient(handler);
 
-        var generator = new CopilotCommitMessageGenerator(
+        var generator = new CopilotGenerator(
             http,
             Options with { Provider = AiProvider.Copilot },
             new CopilotToken(http, () => "gho_stored", NullLog.Instance),
             NullLog.Instance);
 
-        Assert.Equal("feat: add Copilot support", await Collect(generator.GenerateAsync(Context, CancellationToken.None)));
+        Assert.Equal("feat: add Copilot support", await Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
     }
 
     /// <summary>
@@ -163,13 +170,13 @@ public class AiStreamTests
         var handler = new FakeCopilotHandler(transcript);
         using var http = new HttpClient(handler);
 
-        var generator = new CopilotCommitMessageGenerator(
+        var generator = new CopilotGenerator(
             http,
             Options with { Provider = AiProvider.Copilot },
             new CopilotToken(http, () => "gho_stored", NullLog.Instance),
             NullLog.Instance);
 
-        Assert.Equal("chore: tidy", await Collect(generator.GenerateAsync(Context, CancellationToken.None)));
+        Assert.Equal("chore: tidy", await Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
 
         //The exchange, with the spelling GitHub's own endpoint wants.
         Assert.Equal("token gho_stored", handler.ExchangeAuthorization);
@@ -255,10 +262,10 @@ public class AiStreamTests
         var handler = new FakeHttpMessageHandler(HttpStatusCode.Unauthorized, body);
         using var http = new HttpClient(handler);
 
-        var generator = new AnthropicCommitMessageGenerator(http, Options, () => "sk-ant-wrong", NullLog.Instance);
+        var generator = new AnthropicGenerator(http, Options, () => "sk-ant-wrong", NullLog.Instance);
 
         AiUnavailableException failure = await Assert.ThrowsAsync<AiUnavailableException>(
-            () => Collect(generator.GenerateAsync(Context, CancellationToken.None)));
+            () => Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
 
         //A sentence with an action in it, not the provider's JSON. CLAUDE.md asks for "a one-line
         //notice", and the raw body is what a user pastes into a search engine instead.
@@ -285,9 +292,9 @@ public class AiStreamTests
         var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, transcript);
         using var http = new HttpClient(handler);
 
-        var generator = new AnthropicCommitMessageGenerator(http, Options, () => "sk-ant-test", NullLog.Instance);
+        var generator = new AnthropicGenerator(http, Options, () => "sk-ant-test", NullLog.Instance);
 
-        await Collect(generator.GenerateAsync(Context, CancellationToken.None));
+        await Collect(generator.GenerateAsync(Prompt, CancellationToken.None));
 
         string body = handler.SentBody ?? string.Empty;
 

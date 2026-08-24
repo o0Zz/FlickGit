@@ -267,8 +267,9 @@ src/
 │   │                        pay for, and the show sequence, which every window
 │   │                        in the product goes through.
 │   ├── Trigger/             The global hotkey and Explorer folder resolution.
-│   ├── Ai/                  CommitMessageService: the failure counter and the
-│   │                        streaming state machine. Here rather than in Core
+│   ├── Ai/                  AiTextService: the failure counter and the streaming
+│   │                        state machine, for both the commit message and the
+│   │                        pull-request description. Here rather than in Core
 │   │                        because it reads settings and the credential store.
 │   ├── Shell/               Registry projection of the Action Catalog.
 │   └── Settings/ Tray/ Localization/ Infrastructure/ Languages/
@@ -296,11 +297,18 @@ src/
 │   ├── Palette/             RepositoryScanner and the cached overview the palette
 │   │                        paints from before Git is asked anything
 │   ├── Ai/                  What may leave the machine (DiffPayload,
-│   │                        CommitContextBuilder) and the three providers. AiEndpoint
-│   │                        is the request all three make.
+│   │                        CommitContextBuilder, PullRequestContextBuilder) and the
+│   │                        three providers. AiEndpoint is the request all three make,
+│   │                        and IAiGenerator takes a prompt rather than a commit --
+│   │                        which is what lets a second surface use them.
+│   ├── Forges/              Pull requests, on GitHub, GitLab and Azure DevOps.
+│   │                        ForgeUrl is the parser; PullRequestService assembles the
+│   │                        plan; PullRequestFlow is the push-then-create order;
+│   │                        three clients over one ForgeApi. GitCredentialFill is
+│   │                        how a token is found without asking.
 │   ├── Branches/            BranchService, SwitchService
 │   ├── Config/              RepositoryConfigService -- the identity, the
-│   │                        remotes and the two flickgit.* keys, out of
+│   │                        remotes and the four flickgit.* keys, out of
 │   │                        one `config --local --list -z`
 │   ├── Remotes/             PushService, and RemoteService -- adding,
 │   │                        renaming, re-pointing and removing one
@@ -388,6 +396,7 @@ flick clone <path> [url]             clone into a subdirectory of <path>
 flick commit <path>                  commit window (branch ComboBox included)
 flick pull-rebase <path>             --autostash, + submodule update when applicable
 flick push <path>
+flick pr <path>                      open a pull request for this branch
 flick switch <path> [branch]         branch picker when omitted
 flick tag <path> [name]              tag window when omitted; creates it when named
 flick status <path>
@@ -1382,6 +1391,212 @@ git push -u origin HEAD    # when the branch has no upstream
 ```
 
 Ask before creating an upstream. Remember the answer per repository.
+
+---
+
+# Pull Requests
+
+Propose the current branch, on **GitHub, GitLab or Azure DevOps**, cloud or self-hosted. Reached
+from the FlickGit submenu, the palette and `flick pr`.
+
+```text
+┌─ Pull request — d360-portal ─────────────────────────────────────────────────┐
+│ feature/storage-gw  →  [ main            ▾ ]           GitHub · o0Zz/portal   │
+│ 3 commits · 12 files · +418 −233                                              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Title                                                                         │
+│ feat: add PgBouncer connection pooling to the storage gateway                 │
+│ Description                                                                   │
+│ Adds a pooled connection path in front of the storage gateway…                │
+│                                                                               │
+│ ☐ Draft   ☑ Delete feature/storage-gw when it merges     [ Write with AI ]    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ⏎ create   esc close              [ Create pull request ]        [ Cancel ]   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+It is the commit window's shape on purpose, minus the file list. A pull request is reviewed on the
+server, so the question here is *"is this the right branch going to the right place"*, which one
+summary line answers — not *"which of these files"*, which is what the file list is for.
+
+## The order is the feature
+
+`PullRequestFlow` in Core, with tests, for the reason `CommitFlow` is there:
+
+```text
+push the branch → find an existing request → create → open it in the browser
+```
+
+**The push is first and it is not optional.** Everything after it asks a server about a branch, and
+until it has run the server does not have one — a request created first is a 404 about a branch the
+user is looking at. The push goes through `PushService`, which is what keeps this surface from being
+a way around the push guardrails: **a diverged branch is refused here exactly as it is from the
+commit window, and force-push is not reachable from either.** A branch behind its own upstream is
+refused too — somebody else has pushed to it, and proposing without their commits would open a
+request missing work already published under that name.
+
+**Creating an upstream is consent**, asked through the same `UpstreamConsent` the commit surface
+uses, so "once per repository" means once across both. Declining stops the flow; it does not fall
+through to creating the request, which is a bug the flow's tests caught and now pin.
+
+**The existing-request check is not an optimisation.** All three services refuse a duplicate with a
+status code and none of them says *where* the existing one is. `!12 is already open for this branch`
+is an answer; `409 Conflict` is a puzzle. It runs before the create, and again on window open when a
+credential is already on the machine — never prompting for one, because demanding a token for a
+check the user did not ask for is the wrong first thing this feature can do.
+
+## Credentials: Git's, then ours
+
+```text
+a token FlickGit stored for this host  →  git credential fill  →  ask once, and store it
+```
+
+**The middle step is the whole reason this needs no setup.** A developer who can `git push` to
+github.com has Git Credential Manager holding a token for it, and that token is what the REST API
+wants. `git credential fill` runs with `credential.interactive=false`, so a helper with nothing
+stored answers with nothing rather than opening somebody's browser tab in the middle of a click.
+
+A stored token comes *first*, not last: the only reason one exists is that the user stored it,
+because what the helper had did not work. Trying the helper again ahead of it would re-break the
+thing they fixed.
+
+Tokens are filed in Windows Credential Manager as `FlickGit:forge:<host>` — per host, because that
+is what a credential is actually scoped to. One token opens requests on every repository on
+`github.com`; a company with both `dev.azure.com` and an internal GitLab needs two. `ApiKeyStore`
+became `CredentialStore` for this: what varies between an API key and a forge token is the name it
+is filed under, so that became the parameter rather than a second copy of four P/Invokes.
+
+**A 401 is retried once, and only a 401.** A helper's token can be stale in a way nothing local can
+detect, and the remedy — ask the user — is what the flow would do next time anyway. Any other
+failure is reported as it stands: retrying a request the server has already explained is guessing.
+
+## Three APIs, three shapes
+
+| | GitHub | GitLab | Azure DevOps |
+|---|---|---|---|
+| API base | `api.github.com`, or `/api/v3/` on Enterprise | `https://host/api/v4/` | the **collection** URL |
+| auth | `Bearer` | `Bearer` | **Basic**, token as the password |
+| draft | a `draft` field | a `Draft:` title prefix | `isDraft` |
+| delete on merge | **no per-request setting** | `remove_source_branch` | `completionOptions` |
+| the number | `number` | **`iid`**, not `id` | `pullRequestId` |
+| web URL | in the answer | in the answer | **built**, not returned |
+
+`IPullRequestClient` has three implementations, which is what earns it under Hard Requirement 2 —
+and they share almost nothing but `ForgeApi`, which carries the timeout, the user agent, the
+redaction and the status-code wording. Three of the rows above are traps rather than differences:
+GitLab's `id` is globally unique and appears nowhere in its interface, Azure DevOps answers a Bearer
+token with an HTML sign-in page, and a GitHub delete-on-merge checkbox would silently do nothing —
+so it is hidden there rather than sent and ignored.
+
+Responses are read with `JsonDocument` rather than typed DTOs, deliberately: the three disagree
+about the shape of an *error* — GitLab's `message` is a string, an array of strings or an object of
+arrays depending on what failed — and a DTO per variant would be a dozen types expressing "find me a
+sentence to show the user". Requests are source-generated, because Core is AOT-compatible.
+
+The Azure DevOps `api-version` is pinned to **6.0** rather than the current 7.1. Everything sent has
+existed since 5.1, so the newer version buys nothing — and Azure DevOps *Server* installs a few years
+old answer 400 to a version they predate. The lowest version carrying the fields is the one that
+works in the most places, which is what a per-user tool running against whatever a company happens to
+host needs.
+
+## Which repository, and which branch
+
+`ForgeUrl` is the parser, and **the one place in this feature where a wrong answer is expensive**:
+every other mistake is an error message, and this one would open a pull request against a real
+repository that is not the user's. It handles `https`, `ssh`, `git` and scp-style remotes, GitHub
+Enterprise, nested GitLab subgroups, `dev.azure.com`, `*.visualstudio.com`, the `v3/` SSH form and
+Azure DevOps Server behind any collection path. Azure's API hangs off the collection, which is
+"everything in front of the project" rather than a known prefix — that is what makes Services and
+Server one code path.
+
+It is deliberately **not** `CloneUrl`. That one guards a clipboard prefill and is allowed to refuse a
+valid URL, because a wrong prefill costs the user more than an empty one. This one answers "which
+project, on which API", where refusing is the safe failure and guessing is not.
+
+**An unrecognised host is refused rather than guessed at.** `git.acme.io` is a GitLab or a GitHub
+Enterprise with equal probability, and posting a request shaped for the wrong API at whatever is
+listening is the one mistake with no way back. The refusal names the fix:
+
+```bash
+git config --local flickgit.forge gitlab
+```
+
+**The target is the primary branch the rest of the product already resolves** —
+`flickgit.primaryBranch`, the user setting, `origin/HEAD`, `main`, `master` — with
+`flickgit.pullRequestTarget` in front of it for a repository that proposes into `develop`. Two keys
+rather than one, because they answer different questions and a GitFlow repository gives them
+different answers: the primary branch is what the commit window *warns about committing to*, and one
+key would force the user to choose which of the two features is allowed to be right. The box is an
+editable ComboBox over the branches that exist on the remote — not the local ones, because a target
+the server does not have is a request no service will accept.
+
+**Which remote, and which of its two URLs.** The branch's own tracked remote first — a branch pushed
+to a fork should propose from the fork — then `origin`, then whatever single remote exists. And its
+**push URL** when it has a separate one, because `git push` obeys `remote.<name>.pushurl` and the
+request has to be opened on whatever project the branch actually landed in. Reading the fetch URL
+instead breaks the one workflow where the two differ — fetch from upstream, push to a fork — by
+pushing the branch to the fork and then asking upstream to review a branch it has never heard of.
+
+**Nothing here touches the network before the window paints.** The remote list is a config read, the
+branch list is `for-each-ref` over refs already fetched, and the merge base is a walk of the object
+database — the same rule `PushService.PlanAsync` follows.
+
+**No fork support.** The source and the target are branches of one repository. A cross-fork request
+needs a head qualified with another owner, a second remote to resolve it from and a permissions model
+per service; nothing here pretends otherwise.
+
+## The description
+
+The same providers, a different prompt. `IAiGenerator` takes an `AiPrompt` — a system prompt, a
+payload and a token ceiling — where it used to take a `CommitContext`, which is what lets a second
+surface use the streaming, the timeout, the redaction and the failure counter rather than owning a
+copy. Per Hard Requirement 1 the signature changed rather than gaining an overload beside it, and
+`CommitMessageService` became `AiTextService` for the same reason. The consecutive-failure count is
+**not** duplicated: three failures raise one tray warning whether they came from commit messages,
+descriptions or a mix, because what the user needs to know is that the provider is not working, not
+which button noticed.
+
+**One request, not two.** The answer's first line is the title, then a blank line, then Markdown —
+the shape a commit message already has, so the parsing rule is Git's own. Two requests would double
+the latency to have a model read the same diff twice, and risk a title describing something the body
+does not. It is split on every fragment, so the title box fills in first and the description grows
+underneath it.
+
+**The commit subjects come before the diff in the payload**, which is the whole reason there is a
+second context builder. A commit message is written from a diff because there is nothing else; a
+branch has already been described, one commit at a time, by the person who wrote it. Those lines are
+the best statement of intent available and the cheapest — so a model reading a truncated diff still
+has them.
+
+Everything about *what may leave the machine* is `DiffPayload`, unchanged and not reimplemented: a
+lock file, a minified bundle or a secret-matching path is held back here by the same code and for the
+same reason as in a commit message. The diff is read against the **merge base**, which is what a
+forge shows — against the target's tip it would put every commit made on the target since the branch
+started into the payload, and the model would faithfully describe somebody else's work.
+
+`AiOptions.MaxOutputTokens` became two constants: 150 still guards a commit subject, and 700 guards a
+description, which is a title plus a few paragraphs of Markdown. One number would either truncate the
+second or stop guarding the first.
+
+**With no AI configured the window still works**, which is what "the AI is an accelerator, never a
+dependency" requires: the title prefills from the single commit's subject or from the branch name,
+and the description from the commit subjects as a bulleted list. Neither is ever overwritten once the
+user has typed — an explicit press of **Write with AI** is the only thing that overrides that, because
+it *is* the user asking.
+
+## What it deliberately does not do
+
+> **No reviewers, no labels, no work items, no merging, no approving, no comments.**
+
+Reviewers were the one real candidate and were left out: each service needs a user-search call with a
+different shape and a different id type — a login, a numeric user id, an Azure DevOps descriptor —
+and a typed field with no completion behind it is worse than no field. Merging and approving are the
+other half of a code-review tool, which is the full client this is not: FlickGit opens the request and
+hands it to the browser, which is where it is read anyway.
+
+One outward action beyond the create: **the finished request is opened in the browser**, and its URL
+is checked for an `http`/`https` scheme first. That string arrives over the network, and
+`UseShellExecute` starts whatever a scheme is registered to.
 
 ---
 
@@ -2500,6 +2715,7 @@ FlickGit                          ▸
       ├── Switch branch…
       ├── Tags…
       ├── Push
+      ├── Pull request…
       ├── Repository settings…
       ├── Clone…
       ├── Fetch (prune)
@@ -2649,10 +2865,13 @@ Two traps, both encoded with a comment saying why:
   front of a user whose request was already satisfied. Exit 5 is success; every other non-zero exit
   is not.
 
-## FlickGit's two per-repository keys
+## FlickGit's four per-repository keys
 
-`flickgit.primaryBranch` and `flickgit.allowUpstreamCreation`, in the repository's own config rather
-than in `settings.json`. A path-keyed dictionary in a global file goes stale the moment the
+`flickgit.primaryBranch`, `flickgit.allowUpstreamCreation`, `flickgit.pullRequestTarget` and
+`flickgit.forge`, in the repository's own config rather than in `settings.json`. The last two are
+**Pull Requests**' — where a request goes, and which service hosts it when the hostname does not
+say. Neither has a row in this window yet: both are refusals that name the `git config` line, which
+is the surface a user reaches them through today. A path-keyed dictionary in a global file goes stale the moment the
 repository is moved and is invisible from the place it applies; `.git/config` is neither, and it is
 not committed, so nothing leaks into the repository's history. See **Persistence** for what that
 replaced.
@@ -2931,6 +3150,9 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | Commit selection settled -> file list      | 150 ms | 400 ms     |
 | Blame painted, 2,000-line file             | 250 ms | 600 ms     |
 | Blame previous revision, one step          | 200 ms | 500 ms     |
+| Pull request window painted                | 250 ms | 600 ms     |
+| Pull request plan settled -> summary       | 200 ms | 500 ms     |
+| AI description first token                 | 600 ms | 2 s        |
 | Commit + push, warm, excluding network      | 400 ms | 1 s        |
 | `IExplorerCommand::GetState`               | 20 ms  | 50 ms      |
 | `IExplorerCommand::GetTitle` (branch read) | 20 ms  | 50 ms      |
@@ -3241,6 +3463,41 @@ the window refuses to do is in its section, and it is the boundary.
 
 ---
 
+## Phase 9 — Proposing the branch
+
+The **Pull request** window: GitHub, GitLab and Azure DevOps, cloud and self-hosted, with the
+description written by the same AI that writes commit messages. Its own section above carries the
+rules.
+
+Definition of value: the branch you have just pushed becomes a pull request without opening a
+browser, finding the repository, remembering which of three interfaces this one is, and typing a
+title that repeats what the commits already say.
+
+**This is the first feature that talks to something other than Git and the AI provider**, and that
+is what most of its design is about. Three things came with it, each of which changed code that was
+already there rather than sitting beside it:
+
+- **`ICommitMessageGenerator` became `IAiGenerator`**, taking an `AiPrompt` rather than a
+  `CommitContext`. The streaming, the eight-second silence timeout, the redaction and the
+  consecutive-failure counter are the expensive parts of the AI feature, and they were reachable
+  only from the commit surface. `CommitMessageService` became `AiTextService` for the same reason.
+- **`ApiKeyStore` became `CredentialStore`**, keyed by a target string rather than by an AI
+  provider. A forge token is a secret filed under a different name and nothing else, and the
+  alternative was a second copy of four P/Invokes.
+- **`HistoryService.GetFilesAsync` takes two revision specs** rather than a `CommitRange`. The log
+  window builds one out of a selection; a pull request has a merge base and a HEAD, and synthesising
+  a fake `CommitRange` to satisfy a signature would have been the wrong kind of reuse.
+
+**Still open, and deliberately:** no reviewers, no labels, no work items, no merging or approving,
+no cross-fork requests. Every one of those is argued through in the section's own list.
+
+The two per-repository keys it adds — `flickgit.pullRequestTarget` and `flickgit.forge` — have no
+row in the **Repository** window yet. Both are reached today through a refusal that names the
+`git config` line, which is honest but is the one loose end worth closing: that window is already
+the surface for "this repository's own defaults", and it now knows about two it does not show.
+
+---
+
 # Testing
 
 The scope is fixed by **Hard Requirement 4**: the core, the commit sequence, the safety rules, the
@@ -3267,6 +3524,12 @@ the *arguments* are assertable, which is the half a temporary repository would h
   newlines, the root commit's empty `%P`, and a merge's parents
 - `CommitRange.Resolve`: newest-first ordering, a gapped selection and its implicit count, the
   root commit's empty-tree base, and a merge's first parent
+- `ForgeUrl.TryParse`: every remote spelling for all three services — GitHub Enterprise's
+  `/api/v3/`, a nested GitLab subgroup encoded whole, Azure DevOps' four shapes and the collection
+  URL each implies, an unrecognised host resolving to nothing rather than to a guess, and
+  `flickgit.forge` overriding a hostname that actively misleads
+- `PullRequestPrompt.Split`: the title off the first line, with and without the blank line, and a
+  heading marker, bold, or a code fence the model was asked not to write
 - Paths containing spaces and non-ASCII characters
 
 ## The commit sequence
@@ -3281,6 +3544,17 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - An invalid ref name is rejected before any Git command runs
 - A new branch is created, committed to, and pushed with `-u`
 - A blocked switch stops the flow with nothing committed
+
+`PullRequestFlow`, which owns the other one:
+
+- The branch is pushed **before** the request is created, and the create can see that it was
+- A diverged branch, and a branch behind its own upstream, are refused with nothing pushed and
+  nothing created
+- Declining to create an upstream stops the flow rather than falling through to the create — the
+  bug this test was written for
+- An already-open request is reported instead of a second being created
+- A refused credential is asked for once more, with `forcePrompt`; any other failure is not retried
+- An empty title is refused before any Git command or request runs
 
 ## The safety rules
 
@@ -3297,6 +3571,8 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - Reverting a file names one path after `--` and takes both sides from HEAD, and a row HEAD does
   not have — untracked, added, renamed, conflicted — is refused before any command runs
 - No argument list ever contains `add -A`, `add .`, `reset --hard`, `clean -fd` or `push --force`
+- Opening a pull request reaches a remote only through `PushService`, so no `--force`, `-f` or
+  `--force-with-lease` can appear on that path either
 - Every read carries `--no-optional-locks`
 
 ## The working tree

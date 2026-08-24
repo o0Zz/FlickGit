@@ -12,7 +12,7 @@ namespace FlickGit.Ai;
 ///
 /// The wire format is OpenAI's Chat Completions — <c>choices[0].delta.content</c>, not the Responses
 /// API's <c>response.output_text.delta</c> — so this is a third frame reader rather than a reuse of
-/// <see cref="OpenAiCommitMessageGenerator"/>'s. That is also why there is no shared base class here
+/// <see cref="OpenAiGenerator"/>'s. That is also why there is no shared base class here
 /// either: what these three providers have in common is <see cref="AiEndpoint.StreamAsync"/>, and what
 /// differs is exactly the four arguments it takes.
 ///
@@ -20,11 +20,11 @@ namespace FlickGit.Ai;
 /// The GitHub token buys a short-lived Copilot token from <see cref="CopilotToken"/>, and only that
 /// one ever reaches the completion endpoint.
 /// </summary>
-public sealed class CopilotCommitMessageGenerator(
+public sealed class CopilotGenerator(
     HttpClient http,
     AiOptions options,
     CopilotToken tokens,
-    ILog log) : ICommitMessageGenerator
+    ILog log) : IAiGenerator
 {
     private const string Endpoint = "https://api.githubcopilot.com/chat/completions";
 
@@ -35,7 +35,7 @@ public sealed class CopilotCommitMessageGenerator(
     /// because for the other two there is nothing to await.
     /// </summary>
     public async IAsyncEnumerable<string> GenerateAsync(
-        CommitContext context,
+        AiPrompt prompt,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         string token = await tokens.ReadAsync(cancellationToken).ConfigureAwait(false);
@@ -44,10 +44,10 @@ public sealed class CopilotCommitMessageGenerator(
             new CopilotRequest(
                 options.ResolvedModel,
                 [
-                    new CopilotMessage("system", CommitPrompt.For(options.ConventionalCommits)),
-                    new CopilotMessage("user", context.ToPromptText()),
+                    new CopilotMessage("system", prompt.System),
+                    new CopilotMessage("user", prompt.User),
                 ],
-                AiOptions.MaxOutputTokens),
+                prompt.MaxTokens),
             AiJson.Default.CopilotRequest);
 
         bool completed = false;

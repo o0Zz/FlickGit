@@ -20,7 +20,7 @@ namespace FlickGit.Ai;
 /// </summary>
 /// <param name="http">The pooled client, so the exchange shares the warm connection.</param>
 /// <param name="gitHubToken">
-/// The stored credential, read per call. Never held in a field — see <c>ApiKeyStore</c>: the only
+/// The stored credential, read per call. Never held in a field — see <c>CredentialStore</c>: the only
 /// thing this code can honestly control about a secret's lifetime is how long one exists.
 /// </param>
 public sealed class CopilotToken(HttpClient http, Func<string?> gitHubToken, ILog log)

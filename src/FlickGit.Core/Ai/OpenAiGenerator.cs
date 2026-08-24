@@ -17,23 +17,23 @@ namespace FlickGit.Ai;
 /// which frame carries text, and those are the arguments. Half of each file used to be the same lines,
 /// which meant the hard timeout and the streaming flag each existed twice.
 /// </summary>
-public sealed class OpenAiCommitMessageGenerator(
+public sealed class OpenAiGenerator(
     HttpClient http,
     AiOptions options,
     Func<string?> apiKey,
-    ILog log) : ICommitMessageGenerator
+    ILog log) : IAiGenerator
 {
     private const string Endpoint = "https://api.openai.com/v1/responses";
 
-    public IAsyncEnumerable<string> GenerateAsync(CommitContext context, CancellationToken cancellationToken)
+    public IAsyncEnumerable<string> GenerateAsync(AiPrompt prompt, CancellationToken cancellationToken)
     {
         string key = apiKey() ?? throw new AiUnavailableException("No OpenAI API key is stored.");
 
         var payload = new OpenAiRequest(
             options.ResolvedModel,
-            CommitPrompt.For(options.ConventionalCommits),
-            context.ToPromptText(),
-            AiOptions.MaxOutputTokens,
+            prompt.System,
+            prompt.User,
+            prompt.MaxTokens,
             new OpenAiReasoning(options.ReasoningEffort.Length > 0 ? options.ReasoningEffort : "none"));
 
         return AiEndpoint.StreamAsync(

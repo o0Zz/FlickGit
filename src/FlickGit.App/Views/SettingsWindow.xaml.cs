@@ -42,12 +42,12 @@ public partial class SettingsWindow : Window
     private readonly FlickSettings _settings;
     private readonly ShellIntegration _shell;
     private readonly Autostart _autostart;
-    private readonly ApiKeyStore _keys;
+    private readonly CredentialStore _keys;
 
     /// <summary>The language selected when the window opened, to tell a real change from a re-pick.</summary>
     private readonly string _languageOnOpen;
 
-    public SettingsWindow(FlickSettings settings, ShellIntegration shell, Autostart autostart, ApiKeyStore keys)
+    public SettingsWindow(FlickSettings settings, ShellIntegration shell, Autostart autostart, CredentialStore keys)
     {
         _settings = settings;
         _shell = shell;
@@ -316,7 +316,7 @@ public partial class SettingsWindow : Window
     /// <summary>
     /// Says whether a key is stored for the selected provider, without reading it.
     ///
-    /// Per provider, because <see cref="ApiKeyStore"/> keeps one credential each — so switching the
+    /// Per provider, because <see cref="CredentialStore"/> keeps one credential each — so switching the
     /// ComboBox has to re-ask rather than carry the previous answer across.
     /// </summary>
     private void RefreshKeyStatus()
@@ -335,7 +335,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        bool stored = _keys.Has(provider);
+        bool stored = _keys.Has(CredentialStore.AiTarget(provider));
 
         AiKeyClearButton.IsEnabled = stored;
         AiKeyStatus.Text = Strings.Get(stored ? "settings.ai.key.stored" : "settings.ai.key.missing", provider.ToString());
@@ -365,10 +365,10 @@ public partial class SettingsWindow : Window
             return;
 
         //The window returns the key; it is never logged and never comes back out of the store.
-        if (ApiKeyWindow.Ask(provider) is not { Length: > 0 } typed)
+        if (SecretWindow.AskForApiKey(provider) is not { Length: > 0 } typed)
             return;
 
-        Report(_keys.Write(provider, typed)
+        Report(_keys.Write(CredentialStore.AiTarget(provider), typed)
             ? Strings.Get("ai.key.saved", provider.ToString())
             : Strings.Get("ai.key.failed"));
 
@@ -382,7 +382,7 @@ public partial class SettingsWindow : Window
         if (provider == AiProvider.Disabled)
             return;
 
-        Report(_keys.Clear(provider)
+        Report(_keys.Clear(CredentialStore.AiTarget(provider))
             ? Strings.Get("ai.key.cleared", provider.ToString())
             : Strings.Get("ai.key.failed"));
 

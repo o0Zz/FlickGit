@@ -13,26 +13,26 @@ namespace FlickGit.Ai;
 /// explicitly enabled, so omitting it <i>is</i> disabling it — CLAUDE.md: "Extended thinking exists on
 /// the Haiku line — do not enable it here."
 /// </summary>
-public sealed class AnthropicCommitMessageGenerator(
+public sealed class AnthropicGenerator(
     HttpClient http,
     AiOptions options,
     Func<string?> apiKey,
-    ILog log) : ICommitMessageGenerator
+    ILog log) : IAiGenerator
 {
     private const string Endpoint = "https://api.anthropic.com/v1/messages";
 
     /// <summary>The API version header Anthropic requires on every request.</summary>
     private const string Version = "2023-06-01";
 
-    public IAsyncEnumerable<string> GenerateAsync(CommitContext context, CancellationToken cancellationToken)
+    public IAsyncEnumerable<string> GenerateAsync(AiPrompt prompt, CancellationToken cancellationToken)
     {
         string key = apiKey() ?? throw new AiUnavailableException("No Anthropic API key is stored.");
 
         var payload = new AnthropicRequest(
             options.ResolvedModel,
-            AiOptions.MaxOutputTokens,
-            CommitPrompt.For(options.ConventionalCommits),
-            [new AnthropicMessage("user", context.ToPromptText())]);
+            prompt.MaxTokens,
+            prompt.System,
+            [new AnthropicMessage("user", prompt.User)]);
 
         return AiEndpoint.StreamAsync(
             http,

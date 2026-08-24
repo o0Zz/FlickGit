@@ -40,6 +40,17 @@ public enum VerbKind
     Clone,
 
     /// <summary>
+    /// The pull-request window: propose the current branch into the repository's trunk, on GitHub,
+    /// GitLab or Azure DevOps.
+    ///
+    /// Spelled <c>pr</c> rather than <c>pull-request</c>, and with no alias for the long form. Two
+    /// spellings of one verb is a grammar with a right answer and a tolerated one, and Hard
+    /// Requirement 1 rules out carrying the second. <c>pr</c> is also what every other tool in this
+    /// space calls it.
+    /// </summary>
+    PullRequest,
+
+    /// <summary>
     /// Tags: the picker when no name is given, otherwise create that one.
     ///
     /// <b>Deletion has no command-line spelling on purpose.</b> `flick tag &lt;path&gt; v1.0` creates,
@@ -165,6 +176,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "repo" => VerbKind.Repo,
             "terminal" => VerbKind.Terminal,
             "clone" => VerbKind.Clone,
+            "pr" => VerbKind.PullRequest,
             "palette" => VerbKind.Palette,
             "settings" => VerbKind.Settings,
             "install-shell" => VerbKind.InstallShell,
@@ -216,6 +228,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick commit <path>                 commit window
           flick pull-rebase <path>            pull --rebase --autostash (+ submodules)
           flick push <path>
+          flick pr <path>                     open a pull request for this branch
           flick switch <path> [branch]        branch picker when omitted
           flick tag <path> [name]             tag picker when omitted, else creates it
           flick status <path>

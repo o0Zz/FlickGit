@@ -51,10 +51,19 @@ public sealed record AiOptions(
     public static readonly TimeSpan HardTimeout = TimeSpan.FromSeconds(8);
 
     /// <summary>
-    /// The runaway guard on the answer. The real control over length is the prompt; this only stops
-    /// a model that has decided to write an essay from being paid for by the second.
+    /// The runaway guard on a commit message. The real control over length is the prompt; this only
+    /// stops a model that has decided to write an essay from being paid for by the second.
     /// </summary>
-    public const int MaxOutputTokens = 150;
+    public const int CommitMaxTokens = 150;
+
+    /// <summary>
+    /// The same guard for a pull-request description, which is a different shape of answer: a title
+    /// plus a few paragraphs of Markdown, where 150 tokens would cut the body off mid-list.
+    ///
+    /// Still a guard rather than a target — the prompt asks for something short, and a description
+    /// that reaches this ceiling is a model that ignored it.
+    /// </summary>
+    public const int PullRequestMaxTokens = 700;
 
     /// <summary>
     /// The model used when <see cref="Model"/> is empty.

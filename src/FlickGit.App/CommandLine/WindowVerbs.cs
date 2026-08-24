@@ -11,7 +11,9 @@ using FlickGit.Blame;
 using FlickGit.Clone;
 using FlickGit.Config;
 using FlickGit.Diagnostics;
+using FlickGit.App.Ai;
 using FlickGit.Diff;
+using FlickGit.Forges;
 using FlickGit.History;
 using FlickGit.Logging;
 using FlickGit.Models;
@@ -52,6 +54,12 @@ public sealed class WindowVerbs(
     HistoryService history,
     BlameService blame,
     DiffService diffs,
+    PullRequestService pullRequests,
+    PullRequestFlow pullRequestFlow,
+    ForgeCredentials forgeCredentials,
+    AiTextService ai,
+    UpstreamConsent upstreamConsent,
+    Notifier notifier,
     FlickSettings settings,
     OperationTimings timings,
     ILog log)
@@ -149,6 +157,47 @@ public sealed class WindowVerbs(
         await window.LoadAsync().ConfigureAwait(true);
 
         timings.Record("window.blame.populated", clock.Elapsed);
+
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// The pull-request window, for `flick pr` and the menu entry.
+    ///
+    /// Per call rather than pre-warmed, for the reason the tag and repository windows are: no row in
+    /// CLAUDE.md's latency table, and a window kept for the session is a window whose per-use state
+    /// -- a resolved forge, a summary, an in-flight generation -- has to be provably reset between
+    /// two uses.
+    ///
+    /// No bare-repository guard: a bare repository has no working tree, but it does have branches and
+    /// a remote, and proposing one branch into another is a question about refs rather than about
+    /// files.
+    /// </summary>
+    public async Task<VerbResult> PullRequestAsync(RepositoryInfo repository)
+    {
+        var clock = Stopwatch.StartNew();
+
+        var window = new PullRequestWindow(
+            repository,
+            pullRequests,
+            pullRequestFlow,
+            forgeCredentials,
+            ai,
+            status,
+            upstreamConsent,
+            notifier,
+            settings,
+            log);
+
+        AppWindow.Present(window);
+
+        timings.Record("window.pr.visible", clock.Elapsed);
+
+        //Awaited rather than left running, so "visible" and "usable" are two budgets -- the same
+        //split the log window makes.
+        await window.LoadAsync().ConfigureAwait(true);
+
+        timings.Record("window.pr.populated", clock.Elapsed);
 
         return VerbResult.Stay();
     }

@@ -29,9 +29,9 @@ public sealed class EnvironmentVerbs(
     Autostart autostart,
     ResidentService resident,
     TriggerService trigger,
-    CommitMessageService messages,
+    AiTextService messages,
     AiConfiguration ai,
-    ApiKeyStore keys,
+    CredentialStore keys,
     ActionCatalog catalog,
     GitExecutable git,
     IGitProcessRunner runner,
@@ -132,18 +132,18 @@ public sealed class EnvironmentVerbs(
         switch (action?.Trim().ToLowerInvariant())
         {
             case "clear":
-                return output.Report(Strings.Get("app.name"), keys.Clear(provider), Strings.Get("ai.key.cleared", provider.ToString()));
+                return output.Report(Strings.Get("app.name"), keys.Clear(CredentialStore.AiTarget(provider)), Strings.Get("ai.key.cleared", provider.ToString()));
 
             case "set":
             {
                 //A window, not an argument. A key on a command line is in the shell's history and
-                //visible in the process list -- see ApiKeyWindow for the whole argument.
-                string? typed = ApiKeyWindow.Ask(provider);
+                //visible in the process list -- see SecretWindow for the whole argument.
+                string? typed = SecretWindow.AskForApiKey(provider);
 
                 if (typed is null)
                     return output.Report(Strings.Get("app.name"), false, Strings.Get("ai.key.cancelled"));
 
-                bool stored = keys.Write(provider, typed);
+                bool stored = keys.Write(CredentialStore.AiTarget(provider), typed);
 
                 return output.Report(
                     Strings.Get("app.name"),
@@ -154,9 +154,9 @@ public sealed class EnvironmentVerbs(
             case null or "":
                 //A status query never changes anything, and never prints the key.
                 output.Line(Strings.Get(
-                    keys.Has(provider) ? "ai.key.stored" : "ai.key.missing",
+                    keys.Has(CredentialStore.AiTarget(provider)) ? "ai.key.stored" : "ai.key.missing",
                     provider.ToString(),
-                    ApiKeyStore.TargetFor(provider)));
+                    CredentialStore.AiTarget(provider)));
 
                 return VerbResult.Exit(ExitCodes.Success);
 
@@ -180,7 +180,7 @@ public sealed class EnvironmentVerbs(
         }
 
         output.Line($"model        {ai.Options.ResolvedModel}");
-        output.Line($"api key      {(ai.HasKey ? $"stored ({ApiKeyStore.TargetFor(provider)})" : "not set — store one with `flick ai key set`")}");
+        output.Line($"api key      {(ai.HasKey ? $"stored ({CredentialStore.AiTarget(provider)})" : "not set — store one with `flick ai key set`")}");
         output.Line("diffs        the diff of the files being committed is sent to this provider");
         output.Line($"max diff     {ai.Options.MaxDiffBytes / 1024} KB (hard ceiling {DiffPayload.TokenCeilingBytes / 1024} KB of payload)");
 

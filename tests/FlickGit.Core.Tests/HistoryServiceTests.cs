@@ -48,7 +48,7 @@ public class HistoryServiceTests
             .Returns(["diff", "--numstat"], Stream("156\t203\t", "src/LegacyPool.cs", "src/PgBouncerPool.cs"));
 
         IReadOnlyList<GitFileChange> files = await new HistoryService(git)
-            .GetFilesAsync(Repository, Range(), CancellationToken.None);
+            .GetFilesAsync(Repository, Range().BaseSpec, Range().TipSpec, CancellationToken.None);
 
         GitFileChange file = Assert.Single(files);
 
@@ -97,7 +97,7 @@ public class HistoryServiceTests
         var history = new HistoryService(git);
 
         await history.GetPageAsync(Repository, skip: 0, CancellationToken.None);
-        await history.GetFilesAsync(Repository, Range(), CancellationToken.None);
+        await history.GetFilesAsync(Repository, Range().BaseSpec, Range().TipSpec, CancellationToken.None);
         await history.SavePatchAsync(Repository, Range(), @"C:\dev\range.patch", CancellationToken.None);
 
         Assert.NotEmpty(git.Invocations);

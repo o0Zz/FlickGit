@@ -11,11 +11,11 @@ namespace FlickGit.App.Settings;
 /// in Credential Manager — and separate from the generators because <c>FlickGit.Core</c> knows
 /// nothing about either.
 /// </summary>
-public sealed class AiConfiguration(FlickSettings settings, ApiKeyStore keys, ILog log)
+public sealed class AiConfiguration(FlickSettings settings, CredentialStore keys, ILog log)
 {
     public AiProvider Provider => Parse(settings.AiProvider);
 
-    public bool HasKey => keys.Has(Provider);
+    public bool HasKey => Provider != AiProvider.Disabled && keys.Has(CredentialStore.AiTarget(Provider));
 
     /// <summary>
     /// Both conditions, and they are the whole of it: <b>a provider with a key stored for it is the
@@ -34,8 +34,8 @@ public sealed class AiConfiguration(FlickSettings settings, ApiKeyStore keys, IL
         settings.AiMaxDiffBytes,
         settings.AiConventionalCommits);
 
-    /// <summary>The key, read on demand. Never held in a field — see <see cref="ApiKeyStore"/>.</summary>
-    public string? ReadKey() => keys.Read(Provider);
+    /// <summary>The key, read on demand. Never held in a field — see <see cref="CredentialStore"/>.</summary>
+    public string? ReadKey() => Provider == AiProvider.Disabled ? null : keys.Read(CredentialStore.AiTarget(Provider));
 
     private AiProvider Parse(string name)
     {

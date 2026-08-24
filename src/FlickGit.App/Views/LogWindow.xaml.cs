@@ -300,7 +300,7 @@ public partial class LogWindow : Window
 
         try
         {
-            files = await _history.GetFilesAsync(_repository, range, cancellation.Token).ConfigureAwait(true);
+            files = await _history.GetFilesAsync(_repository, range.BaseSpec, range.TipSpec, cancellation.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

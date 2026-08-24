@@ -105,21 +105,24 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
     /// letters. Both key on the post-image path, so a rename cannot key differently in the two
     /// streams.
     /// </summary>
+    /// <param name="baseSpec">The left side. A bare object id, never revision syntax.</param>
+    /// <param name="tipSpec">The right side.</param>
     public async Task<IReadOnlyList<GitFileChange>> GetFilesAsync(
         RepositoryInfo repository,
-        CommitRange range,
+        string baseSpec,
+        string tipSpec,
         CancellationToken cancellationToken)
     {
         long startedAt = Stopwatch.GetTimestamp();
 
         Task<GitResult> namesTask = git.ReadAsync(
             repository.Root,
-            ["diff", "--name-status", "-z", .. DiffFlags, range.BaseSpec, range.TipSpec],
+            ["diff", "--name-status", "-z", .. DiffFlags, baseSpec, tipSpec],
             cancellationToken);
 
         Task<GitResult> countsTask = git.ReadAsync(
             repository.Root,
-            ["diff", "--numstat", "-z", .. DiffFlags, range.BaseSpec, range.TipSpec],
+            ["diff", "--numstat", "-z", .. DiffFlags, baseSpec, tipSpec],
             cancellationToken);
 
         GitResult names = await namesTask.ConfigureAwait(false);
@@ -171,6 +174,43 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
         timings?.Record("log.range.files", Stopwatch.GetElapsedTime(startedAt));
 
         return files;
+    }
+
+    /// <summary>
+    /// The commits in <paramref name="revisionRange"/>, newest first.
+    ///
+    /// Its own method rather than an argument on <see cref="GetPageAsync"/>, because it answers a
+    /// different question: that one pages through a branch's whole history and this one reads a
+    /// bounded range in a single call. The pull-request surface asks <c>&lt;target&gt;..HEAD</c>,
+    /// which is exactly the set of commits the request would contain — and there is nothing to page
+    /// through, because a branch with more commits than <paramref name="maxCount"/> is a branch
+    /// whose description is not going to be improved by reading the rest.
+    ///
+    /// A read, like everything else here.
+    /// </summary>
+    public async Task<IReadOnlyList<LogCommit>> GetRangeAsync(
+        RepositoryInfo repository,
+        string revisionRange,
+        int maxCount,
+        CancellationToken cancellationToken)
+    {
+        GitResult result = await git.ReadAsync(
+            repository.Root,
+            [
+                "log",
+                "--decorate=short",
+                "--no-color",
+                $"--max-count={maxCount}",
+                "--format=" + CommitLogParser.Format,
+                revisionRange,
+            ],
+            cancellationToken).ConfigureAwait(false);
+
+        //A range that resolves to nothing is a true answer -- the branch is level with its target.
+        //So is a range naming a ref that does not exist yet, which is what a target branch the user
+        //has never fetched looks like; the caller reports that as "nothing to propose" rather than
+        //as a Git error, because the push it is about to plan says the same thing more usefully.
+        return result.Succeeded ? CommitLogParser.Parse(result.StdOut) : [];
     }
 
     /// <summary>
