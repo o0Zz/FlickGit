@@ -61,10 +61,6 @@
                   Schedule="afterInstallInitialize"
                   DowngradeErrorMessage="A newer version of FlickGit is already installed. Uninstall it first if you want to go back." />
 
-    <!-- We close FlickGit and Explorer ourselves, before InstallValidate, so the Restart Manager
-         has nothing left to find. Left enabled it would reach the same two processes first and
-         offer the user a reboot instead — for a file we are about to unlock deliberately. -->
-    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
     <Property Id="ARPPRODUCTICON" Value="FlickGit.ico" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/o0Zz/FlickGit" />

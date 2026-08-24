@@ -2023,13 +2023,20 @@ actions, and there is exactly one piece of code that writes those keys.
 
 ## The sequence is the package
 
-Six things decide where each action sits, and every one of them is a bug if it is got wrong.
+Seven things decide where each action sits, and every one of them is a bug if it is got wrong.
 
 - **The kills are immediate, and scheduled before `InstallValidate`.** That is where Windows
   Installer decides whether a file it is about to replace is in use, and it runs *before* the script
   that copies anything. A deferred kill would land after the user had already been offered a reboot
-  for a lock we were about to remove deliberately. `MSIRESTARTMANAGERCONTROL=Disable` for the same
-  reason: the Restart Manager would otherwise reach the same two processes first.
+  for a lock we were about to remove deliberately.
+- **`MSIRESTARTMANAGERCONTROL` is deliberately not set.** It was `Disable` for a while, on the
+  reasoning that the kills above leave the Restart Manager nothing to find. They do — RM's
+  detection runs *inside* `InstallValidate`, which both kills precede, so it prompts about
+  nothing — but `Disable` does not mean "skip the check". It means "use the pre-Vista code path",
+  which snapshots every running process and walks its module list in-process. On a developer
+  machine that is **four to five minutes** of one core in kernel mode, with the progress dialog
+  stuck on "Validating install". Measured at 4m 49s with the property against 10s without it,
+  same package. The fast path is the default one, and the default is to say nothing.
 - **`install-shell` is deferred**, for the mirror-image reason. An immediate action scheduled
   `After="InstallFiles"` still runs before a single file exists, because the copying happens inside
   `InstallFinalize`. Only a deferred action runs in file order.
