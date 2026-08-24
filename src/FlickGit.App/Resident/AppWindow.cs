@@ -6,13 +6,17 @@ using FlickGit.Logging;
 namespace FlickGit.App.Resident;
 
 /// <summary>
-/// The two things every resident window does: get warmed at logon, and get put on screen.
+/// The two things a FlickGit window does: get warmed at logon, and get put on screen.
 ///
-/// Both are the same for all three windows, and both are fiddly enough that having them written out
-/// three times meant three chances to get the ordering wrong — the <c>GetForegroundWindow</c> import
-/// was genuinely declared twice before this existed.
+/// <see cref="TryWarm"/> is the resident service's alone — only the commit window and the palette are
+/// pre-warmed. <see cref="Present"/> is <b>every</b> window's, which is why this is no longer called
+/// <c>ResidentWindow</c>: the eight windows the product can open all reach the screen through it, and
+/// six of them used to hand-roll the same <c>Show()</c>-then-<c>Activate()</c> pair with the same
+/// comment above it. Both sequences are fiddly enough that writing them out per caller meant one
+/// chance per caller to get the ordering wrong — the <c>GetForegroundWindow</c> import was genuinely
+/// declared twice before this existed.
 /// </summary>
-internal static partial class ResidentWindow
+internal static partial class AppWindow
 {
     /// <summary>
     /// Builds the HWND and forces a full layout pass, without ever showing the window.

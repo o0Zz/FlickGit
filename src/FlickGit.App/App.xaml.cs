@@ -230,16 +230,47 @@ public partial class App : Application
 
         //The command line, and the window it can open.
         services.AddSingleton<UpstreamConsent>();
-        services.AddSingleton<CommitViewModelFactory>();
+
+        //The two view models, and the diff cache one of them owns.
+        //
+        //Registered rather than built by a factory class, which is what two of these used to be.
+        //There is exactly one commit window and one palette per process -- both are pre-warmed at
+        //logon and reused -- so "per window" and "per process" are the same lifetime here, and a
+        //factory whose Create() took no argument was a second copy of a twelve-parameter constructor
+        //that could only drift from it.
+        services.AddSingleton<DiffCache>();
+        services.AddSingleton(provider =>
+        {
+            var viewModel = ActivatorUtilities.CreateInstance<CommitViewModel>(provider);
+            var notifier = provider.GetRequiredService<Notifier>();
+
+            //Here rather than inside the view model: its job is the outcome, not which surfaces hear
+            //about it. The window closes itself after a successful commit by default, so the
+            //notification is the only thing left to say it worked.
+            viewModel.Committed += result => notifier.Success(
+                Strings.Get("app.name"),
+                Strings.Get("commit.success", result.ShortHash, result.Subject));
+
+            return viewModel;
+        });
+        services.AddSingleton<PaletteViewModel>();
+
         services.AddSingleton<CommitWindowHost>();
         services.AddSingleton<CommitLauncher>();
-        services.AddSingleton<PaletteViewModelFactory>();
         services.AddSingleton<PaletteWindowHost>();
         services.AddSingleton<ActionRunner>();
         services.AddSingleton<RepositoryVerbs>();
         services.AddSingleton<EnvironmentVerbs>();
         services.AddSingleton<WindowVerbs>();
         services.AddSingleton<VerbRunner>();
+
+        //The two cycles in the graph, each broken on one side by a factory rather than by a settable
+        //property somebody has to remember to assign. ActionRunner opens a window through the verb
+        //runner, and the verb runner reaches actions for `flick run`; the palette host runs an action,
+        //and an action can open the palette. Registered here because this is the only file that may
+        //name the container -- everything else just declares a Func<T> parameter.
+        services.AddSingleton<Func<VerbRunner>>(provider => provider.GetRequiredService<VerbRunner>);
+        services.AddSingleton<Func<ActionRunner>>(provider => provider.GetRequiredService<ActionRunner>);
 
         return services.BuildServiceProvider();
     }
@@ -343,8 +374,7 @@ public partial class App : Application
         //The pipe before the pre-warm, so a right-click arriving during it is served rather than
         //falling back to a cold launch.
         _pipe = services.GetRequiredService<PipeServer>();
-        _pipe.OnRequest = HandleRequestAsync;
-        _pipe.Start();
+        _pipe.Start(HandleRequestAsync);
 
         //The tray icon is how a notification reaches the user, and the commit window closes itself
         //on success by default -- so without this a successful commit would leave no trace at all.
@@ -357,21 +387,7 @@ public partial class App : Application
         //same code path as one arriving an hour later.
         _trigger = services.GetRequiredService<TriggerService>();
 
-        //The palette's only route to Git. It raises a catalog action; the runner confirms anything
-        //destructive and then either opens the window through the same VerbRunner the CLI uses or runs
-        //the argument list. That is what makes CLAUDE.md's "the palette is not a shortcut around these
-        //rules" structurally true rather than a promise.
-        var actions = services.GetRequiredService<ActionRunner>();
-        actions.Confirm = (title, question, yes, no) =>
-            Task.FromResult(ConfirmWindow.Ask(null, title, question, yes, no));
-
-        //The other half of the loop the container cannot close: an action that opens a window goes
-        //through the verb runner, and the verb runner reaches actions for `flick run`.
-        actions.RunVerb = (verb, output) => services.GetRequiredService<VerbRunner>().RunAsync(verb, output);
-
         var palette = services.GetRequiredService<PaletteWindowHost>();
-        palette.OnAction = (action, repository, argument) =>
-            _ = actions.RunAsync(action, repository, VerbOutput.Direct(), argument);
 
         TriggerStartup trigger = _trigger.Start(
             foreground => _ = services.GetRequiredService<CommitLauncher>().LaunchAsync(foreground),

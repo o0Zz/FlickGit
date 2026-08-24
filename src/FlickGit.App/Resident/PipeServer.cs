@@ -25,12 +25,7 @@ public sealed class PipeServer(ILog log) : IDisposable
     private Task? _loop;
     private bool _disposed;
 
-    /// <summary>
-    /// Handles one request. Returns what the client should print and exit with.
-    ///
-    /// Invoked on the UI thread, because most verbs open windows.
-    /// </summary>
-    public Func<IpcRequest, Task<IpcResponse>>? OnRequest { get; set; }
+    private Func<IpcRequest, Task<IpcResponse>>? _handler;
 
     /// <summary>The pipe this process is listening on, for diagnostics.</summary>
     public string PipeName { get; } = IpcProtocol.LocalPipeName();
@@ -39,8 +34,17 @@ public sealed class PipeServer(ILog log) : IDisposable
     /// Starts listening. Failure is logged and swallowed: a resident service that cannot open its
     /// pipe is still a working tray icon, and every CLI invocation falls back to a direct launch.
     /// </summary>
-    public void Start()
+    /// <param name="handler">
+    /// Handles one request and returns what the client should print and exit with. Invoked on the UI
+    /// thread, because most verbs open windows.
+    ///
+    /// A parameter of <c>Start</c> rather than a settable property, because there is no state in
+    /// which listening without a handler is wanted: the two were always assigned on consecutive
+    /// lines, and only the order made it correct.
+    /// </param>
+    public void Start(Func<IpcRequest, Task<IpcResponse>> handler)
     {
+        _handler = handler;
         _loop = Task.Run(() => ListenAsync(_stopping.Token));
         log.Info($"Listening on {IpcProtocol.LocalPipePath()}");
     }
@@ -103,9 +107,9 @@ public sealed class PipeServer(ILog log) : IDisposable
             return;
         }
 
-        IpcResponse response = OnRequest is null
+        IpcResponse response = _handler is null
             ? new IpcResponse(1, string.Empty, "The resident service is not ready.")
-            : await OnRequest(request).ConfigureAwait(false);
+            : await _handler(request).ConfigureAwait(false);
 
         await IpcProtocol
             .WriteAsync(pipe, response, IpcJson.Default.IpcResponse, cancellationToken)

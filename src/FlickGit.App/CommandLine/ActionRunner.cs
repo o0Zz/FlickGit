@@ -2,6 +2,7 @@ using System.Diagnostics;
 using FlickGit.Actions;
 using FlickGit.App.Localization;
 using FlickGit.App.Resident;
+using FlickGit.App.Views;
 using FlickGit.Cli;
 using FlickGit.Git;
 using FlickGit.Logging;
@@ -21,29 +22,22 @@ namespace FlickGit.App.CommandLine;
 /// built-in action and the CLI spelling of it are the same code path and cannot apply different
 /// guardrails.
 /// </summary>
+/// <param name="verbs">
+/// The verb runner, behind a factory.
+///
+/// <b>A <c>Func</c> because the dependency is a genuine cycle</b>, not because anything here is
+/// optional: the verb runner needs <i>this</i> for <c>flick run</c>, and this needs the verb runner
+/// for a <see cref="WindowRun"/>. Deferring one side of the cycle is what lets both arrive through a
+/// constructor — which is the whole point, because the settable property this replaced was assigned
+/// only by the resident startup path. A one-shot <c>flick run</c> therefore ran with it null and
+/// silently opened nothing, and every built-in action is a <see cref="WindowRun"/>.
+/// </param>
 public sealed class ActionRunner(
     IGitProcessRunner git,
+    Func<VerbRunner> verbs,
     Notifier notifier,
     ILog log)
 {
-    /// <summary>
-    /// Opens a window by running its verb.
-    ///
-    /// A callback rather than a <c>VerbRunner</c> dependency, because the verb runner needs <i>this</i>
-    /// for <c>flick run</c> — and a class that opens windows and a class that runs actions cannot each
-    /// hold the other. The composition root, which is allowed to know about both, joins them up.
-    /// </summary>
-    public Func<Verb, VerbOutput, Task>? RunVerb { get; set; }
-
-    /// <summary>
-    /// Asks the user to confirm, and waits.
-    ///
-    /// Assigned by the composition root, because the window that asks has to be owned by whichever
-    /// surface is on screen — a dialog with the wrong owner appears behind the thing that asked for
-    /// it. Null means "no", which is what makes a headless caller safe by default.
-    /// </summary>
-    public Func<string, string, string, string, Task<bool>>? Confirm { get; set; }
-
     /// <summary>
     /// Runs <paramref name="action"/> against <paramref name="repository"/>.
     ///
@@ -70,15 +64,16 @@ public sealed class ActionRunner(
 
             //Before anything executes, per CLAUDE.md: "Any destructive operation requires explicit
             //user intent, expressed in the moment."
-            if (action.RequiresConfirmation && !await AskAsync(action, run).ConfigureAwait(true))
+            if (action.RequiresConfirmation && !Ask(action, run))
                 return;
 
             if (run is WindowRun window)
             {
                 //Through the verb runner, so the repository is resolved, the bare-repository guard
                 //applies, and the window is the pre-warmed one.
-                if (RunVerb is not null)
-                    await RunVerb(new Verb(window.Verb, repository.Root, argument), output).ConfigureAwait(true);
+                await verbs()
+                    .RunAsync(new Verb(window.Verb, repository.Root, argument), output)
+                    .ConfigureAwait(true);
 
                 return;
             }
@@ -190,18 +185,24 @@ public sealed class ActionRunner(
         return started is not null;
     }
 
-    private Task<bool> AskAsync(GitAction action, ActionRun run)
+    /// <summary>
+    /// Asks the user to confirm, and waits.
+    ///
+    /// <c>ConfirmWindow</c> directly, as <see cref="RepositoryVerbs"/> already does. This was a
+    /// settable delegate the composition root filled in with exactly this call and a null owner — so
+    /// the indirection bought nothing and cost the one-shot path every confirmable action, which
+    /// <see cref="ActionSafety"/> makes every <see cref="ProcessRun"/> and every destructive one.
+    /// </summary>
+    private static bool Ask(GitAction action, ActionRun run)
     {
-        if (Confirm is null)
-            return Task.FromResult(false);
-
         //Two different warnings, because they are two different risks: one can discard work, the
         //other runs something FlickGit knows nothing about.
         string body = run is ProcessRun
             ? Strings.Get("action.confirm.process", action.Label, run.Describe())
             : Strings.Get("action.confirm.destructive", action.Label, run.Describe());
 
-        return Confirm(
+        return ConfirmWindow.Ask(
+            null,
             Strings.Get("action.confirm.title"),
             body,
             Strings.Get("action.confirm.yes"),

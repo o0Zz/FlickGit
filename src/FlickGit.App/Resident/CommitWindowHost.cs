@@ -23,18 +23,18 @@ namespace FlickGit.App.Resident;
 /// a new <c>CommitContext</c>; no state may leak between two uses." Every mutable field is assigned
 /// in <see cref="CommitViewModel.Reset"/>, which is where to look when adding a field.
 /// </summary>
-public sealed class CommitWindowHost(CommitViewModelFactory viewModels, OperationTimings timings, ILog log)
+public sealed class CommitWindowHost(CommitViewModel viewModel, OperationTimings timings, ILog log)
 {
     private CommitWindow? _window;
 
     /// <summary>
     /// Builds the window and lays it out, without ever showing it. Called only by the resident
-    /// service; see <see cref="ResidentWindow"/> for what that buys and why.
+    /// service; see <see cref="AppWindow"/> for what that buys and why.
     /// </summary>
     public void Warm()
     {
         CommitWindow window = Create(keepAlive: true);
-        _window = ResidentWindow.TryWarm(window, "Commit window", log) ? window : null;
+        _window = AppWindow.TryWarm(window, "Commit window", log) ? window : null;
     }
 
     /// <summary>
@@ -54,7 +54,7 @@ public sealed class CommitWindowHost(CommitViewModelFactory viewModels, Operatio
 
         //Not Topmost, so a refused activation leaves an ordinary background window the user can click
         //-- there is nothing to demote and nothing to warn about.
-        _ = ResidentWindow.Present(_window);
+        _ = AppWindow.Present(_window);
 
         //The number CLAUDE.md budgets at 120 ms. Recorded here rather than inferred from how long
         //the stub took, because the stub also waits for the status below -- and "visible" and
@@ -71,7 +71,7 @@ public sealed class CommitWindowHost(CommitViewModelFactory viewModels, Operatio
     private CommitWindow Create(bool keepAlive) =>
         new()
         {
-            DataContext = viewModels.Create(),
+            DataContext = viewModel,
 
             //Resident: closing hides it, so the next right-click reuses it. One-shot: closing really
             //closes, so the process can exit.

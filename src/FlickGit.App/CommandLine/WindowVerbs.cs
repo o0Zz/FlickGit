@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using FlickGit.App.Localization;
@@ -33,6 +33,10 @@ namespace FlickGit.App.CommandLine;
 /// Windows are constructed here with <c>new</c> rather than resolved. That is not a lapse from
 /// <b>Hard Requirement 3</b>: a window is not a collaborator, it is the output. What comes through
 /// the constructor is everything that touches Git or the disk.
+///
+/// Every one of them goes on screen through <see cref="AppWindow.Present"/>. Each used to do its own
+/// <c>Show()</c> then <c>Activate()</c> with the same comment above it — six copies of a sequence
+/// that already had a seventh implementation in the class the two pre-warmed hosts share.
 /// </summary>
 public sealed class WindowVerbs(
     CommitWindowHost commitWindow,
@@ -99,11 +103,7 @@ public sealed class WindowVerbs(
 
         var window = new LogWindow(repository, history, diffs, blame, settings, timings, log);
 
-        window.Show();
-
-        //The stub granted this process foreground rights before sending the request; without this
-        //the window comes up behind Explorer.
-        window.Activate();
+        AppWindow.Present(window);
 
         timings.Record("window.log.visible", clock.Elapsed);
 
@@ -141,11 +141,7 @@ public sealed class WindowVerbs(
 
         var window = new BlameWindow(repository, relative, revision: null, blame, settings, timings, log);
 
-        window.Show();
-
-        //The stub granted this process foreground rights before sending the request; without this
-        //the window comes up behind Explorer.
-        window.Activate();
+        AppWindow.Present(window);
 
         timings.Record("window.blame.visible", clock.Elapsed);
 
@@ -160,8 +156,7 @@ public sealed class WindowVerbs(
     public async Task<VerbResult> PullAsync(RepositoryInfo repository)
     {
         var window = new ProgressWindow(Strings.Get("pull.title", repository.Name));
-        window.Show();
-        window.Activate();
+        AppWindow.Present(window);
 
         PullOutcome outcome = await pulls
             .PullRebaseAsync(repository, new Progress<string>(window.AddStep), CancellationToken.None)
@@ -200,11 +195,7 @@ public sealed class WindowVerbs(
 
         var picker = new SwitchBranchWindow(repository, switches, state.Branch);
 
-        picker.Show();
-
-        //The stub granted this process foreground rights before sending the request; without this
-        //the picker comes up behind Explorer.
-        picker.Activate();
+        AppWindow.Present(picker);
 
         return VerbResult.Stay();
     }
@@ -220,11 +211,7 @@ public sealed class WindowVerbs(
     {
         var window = new TagsWindow(repository, tags);
 
-        window.Show();
-
-        //The stub granted this process foreground rights before sending the request; without this the
-        //window comes up behind Explorer.
-        window.Activate();
+        AppWindow.Present(window);
 
         return VerbResult.Stay();
     }
@@ -240,11 +227,7 @@ public sealed class WindowVerbs(
     {
         var window = new RepositoryWindow(repository, repositoryConfig, remotes);
 
-        window.Show();
-
-        //The stub granted this process foreground rights before sending the request; without this the
-        //window comes up behind Explorer.
-        window.Activate();
+        AppWindow.Present(window);
 
         return VerbResult.Stay();
     }
@@ -266,8 +249,7 @@ public sealed class WindowVerbs(
         //which was the whole of what its "Open commit window" button did -- on a repository cloned
         //seconds earlier, so with nothing to commit. The window now closes itself on success and
         //that is the end of the operation.
-        window.Show();
-        window.Activate();
+        AppWindow.Present(window);
 
         return VerbResult.Stay();
     }

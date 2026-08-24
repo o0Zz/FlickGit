@@ -220,8 +220,9 @@ src/
 │   │                        AlignedDocument -- the only thing that converts between
 │   │                        the padded editor document and the file on disk.
 │   ├── Resident/            Pipe server, tray, notifier, and the window hosts.
-│   │                        ResidentWindow is the pre-warm and the show sequence,
-│   │                        which all three windows do identically.
+│   │                        AppWindow is the pre-warm, which only these two
+│   │                        pay for, and the show sequence, which every window
+│   │                        in the product goes through.
 │   ├── Trigger/             The global hotkey and Explorer folder resolution.
 │   ├── Ai/                  CommitMessageService: consent, the failure counter and
 │   │                        the streaming state machine. Here rather than in Core

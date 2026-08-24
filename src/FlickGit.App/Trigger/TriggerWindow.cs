@@ -81,7 +81,7 @@ internal sealed partial class TriggerWindow : IDisposable
     ///
     /// Receiving <c>WM_HOTKEY</c> credits this thread with the input, which is what lets the window
     /// call <c>SetForegroundWindow</c> successfully. An Explorer-scoped hook would post its own
-    /// message here and would carry no such credit — see <c>ResidentWindow.Present</c>,
+    /// message here and would carry no such credit — see <c>AppWindow.Present</c>,
     /// which checks rather than assumes.
     /// </summary>
     private nint OnMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)

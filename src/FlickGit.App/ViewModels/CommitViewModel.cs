@@ -68,8 +68,13 @@ public sealed class CommitViewModel : ObservableObject
     private bool _applyingStream;
     private CancellationTokenSource? _generation;
 
+    /// <remarks>
+    /// No repository parameter: the one it was given was always <see cref="RepositoryInfo.None"/>,
+    /// because the window is pre-warmed long before anybody right-clicks and
+    /// <see cref="Reset(RepositoryInfo)"/> is what points it at a folder. Per Hard Requirement 3 the
+    /// repository is per-invocation state, so it arrives per invocation.
+    /// </remarks>
     public CommitViewModel(
-        RepositoryInfo repository,
         StatusService status,
         DiffCache diffs,
         CommitService commits,
@@ -82,10 +87,9 @@ public sealed class CommitViewModel : ObservableObject
         FlickSettings settings,
         ILog log)
     {
-        _repository = repository;
+        _repository = RepositoryInfo.None;
         _status = status;
         _diffs = diffs;
-        _diffs.Reset(repository);
         _commits = commits;
         _branches = branches;
         _flow = flow;
