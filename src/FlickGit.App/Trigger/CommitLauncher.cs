@@ -65,7 +65,7 @@ public sealed class CommitLauncher(
 
             //None of them is a repository. Offer to clone into the one the user is actually looking
             //at; `git init` is deliberately not the default here.
-            windows.Clone(VerbOutput.Direct(), candidates.Ordered[0].Path, url: null);
+            windows.Clone(candidates.Ordered[0].Path, url: null);
         }
         catch (Exception ex)
         {

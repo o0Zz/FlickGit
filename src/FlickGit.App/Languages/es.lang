@@ -133,9 +133,7 @@ clone.shallow = Clon superficial (--depth 1)
 clone.button = Clonar
 clone.cancel = Cancelar
 clone.close = Cerrar
-clone.success = Clonado en {0}
 clone.cancelled = Clonación cancelada. Se eliminó el directorio parcial.
-clone.open = Abrir la ventana de commit
 
 # ---- edición de la copia de trabajo ----
 edit.save = Guardar (Ctrl+S)

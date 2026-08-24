@@ -133,9 +133,7 @@ clone.shallow = Flacher Klon (--depth 1)
 clone.button = Klonen
 clone.cancel = Abbrechen
 clone.close = Schließen
-clone.success = Geklont nach {0}
 clone.cancelled = Klonen abgebrochen. Das unvollständige Verzeichnis wurde entfernt.
-clone.open = Commit-Fenster öffnen
 
 # ---- Bearbeiten des Arbeitsverzeichnisses ----
 edit.save = Speichern (Strg+S)

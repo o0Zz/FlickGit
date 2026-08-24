@@ -46,7 +46,6 @@ public sealed class WindowVerbs(
     DiffService diffs,
     FlickSettings settings,
     OperationTimings timings,
-    RepositoryService repositories,
     ILog log)
 {
     /// <summary>The commit window. Also where `flick status` lands when there is no console.</summary>
@@ -234,27 +233,16 @@ public sealed class WindowVerbs(
     /// repository is resolved. Cloning into a subdirectory of an existing one is legal and
     /// occasionally intended, so it is not refused either.
     /// </summary>
-    public VerbResult Clone(VerbOutput output, string path, string? url)
+    public VerbResult Clone(string path, string? url)
     {
         string parent = Directory.Exists(path) ? path : Environment.CurrentDirectory;
 
         var window = new CloneWindow(parent, clones, log, url ?? ReadClipboard());
 
-        window.Closed += async (_, _) =>
-        {
-            //Cloned successfully: offer the commit window on the new repository, which is almost
-            //always what the user does next.
-            if (window.ClonedInto is not { Length: > 0 } cloned || !Directory.Exists(cloned))
-                return;
-
-            RepositoryInfo? cloneRepository = await repositories
-                .ResolveAsync(cloned, CancellationToken.None)
-                .ConfigureAwait(true);
-
-            if (cloneRepository is not null)
-                await CommitAsync(output, cloneRepository).ConfigureAwait(true);
-        };
-
+        //Nothing happens after it closes. It used to open the commit window on the new repository,
+        //which was the whole of what its "Open commit window" button did -- on a repository cloned
+        //seconds earlier, so with nothing to commit. The window now closes itself on success and
+        //that is the end of the operation.
         window.Show();
         window.Activate();
 

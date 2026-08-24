@@ -227,9 +227,7 @@ clone.shallow = Shallow clone (--depth 1)
 clone.button = Clone
 clone.cancel = Cancel
 clone.close = Close
-clone.success = Cloned into {0}
 clone.cancelled = Clone cancelled. The partial directory was removed.
-clone.open = Open commit window
 
 # ---- editing the working tree ----
 edit.save = Save (Ctrl+S)

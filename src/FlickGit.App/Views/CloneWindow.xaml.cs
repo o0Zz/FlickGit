@@ -51,9 +51,6 @@ public partial class CloneWindow : Window
         Prefill(clipboardText);
     }
 
-    /// <summary>Set when the clone succeeded, so the caller can offer to open the new repository.</summary>
-    public string? ClonedInto { get; private set; }
-
     /// <summary>
     /// Fills the URL field from the clipboard, but only when the content is shaped like a remote.
     ///
@@ -118,6 +115,7 @@ public partial class CloneWindow : Window
         StatusText.Text = string.Empty;
 
         var progress = new Progress<CloneProgress>(Report);
+        bool succeeded = false;
 
         try
         {
@@ -133,17 +131,13 @@ public partial class CloneWindow : Window
 
             if (outcome.Succeeded)
             {
-                ClonedInto = outcome.TargetDirectory;
-                StatusText.Text = Strings.Get("clone.success", outcome.TargetDirectory ?? string.Empty);
                 Progress.Value = 100;
 
-                //Left open with the result showing rather than closing out from under the user: the
-                //caller offers to open the new repository from here.
-                CloneButton.Content = Strings.Get("clone.open");
-                CloneButton.IsEnabled = true;
-                CloneButton.Click -= OnClone;
-                CloneButton.Click += (_, _) => Close();
-                CancelButton.Content = Strings.Get("clone.close");
+                //Closed by the finally below rather than left open behind a button. It used to stay
+                //up with a button labelled "Open commit window", which did no such thing -- all it
+                //did was close the window, exactly like the Close beside it -- and the commit window
+                //that came after opened on a repository just cloned, so with nothing to commit.
+                succeeded = true;
                 return;
             }
 
@@ -163,8 +157,13 @@ public partial class CloneWindow : Window
         }
         finally
         {
+            //Cleared before the close, or OnClosing reads it as a clone still in flight and cancels
+            //the operation that has just succeeded.
             _running = false;
             SetRunning(false);
+
+            if (succeeded)
+                Close();
         }
     }
 

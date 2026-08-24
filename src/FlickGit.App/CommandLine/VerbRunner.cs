@@ -156,7 +156,7 @@ public sealed class VerbRunner(
             VerbKind.Commit => await windowVerbs.CommitAsync(output, repository!).ConfigureAwait(true),
             VerbKind.Palette => await windowVerbs.PaletteAsync().ConfigureAwait(true),
             VerbKind.RunAction => await RunActionAsync(output, verb.Argument, verb.Path).ConfigureAwait(true),
-            VerbKind.Clone => windowVerbs.Clone(output, verb.Path!, verb.Argument),
+            VerbKind.Clone => windowVerbs.Clone(verb.Path!, verb.Argument),
             VerbKind.Terminal => windowVerbs.Terminal(output, verb.Path),
 
             VerbKind.PullRebase => await windowVerbs.PullAsync(output, repository!).ConfigureAwait(true),
