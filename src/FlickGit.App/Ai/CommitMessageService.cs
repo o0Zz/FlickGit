@@ -18,12 +18,12 @@ public readonly record struct GenerationOutcome(bool Succeeded, string Message, 
 /// <summary>
 /// The one place a commit message is generated, for every surface that wants one.
 ///
-/// Both the popup and the commit window need consent, the payload, the stream, the 8-second timeout,
-/// the timings, the failure counter and the rule that a blank answer is a <i>failure</i> rather than
-/// an empty message. Two copies of that would be two chances for one of them to commit a
-/// placeholder, which CLAUDE.md forbids outright.
+/// Every surface that wants one needs the payload, the stream, the 8-second timeout, the timings,
+/// the failure counter and the rule that a blank answer is a <i>failure</i> rather than an empty
+/// message. Two copies of that would be two chances for one of them to commit a placeholder, which
+/// CLAUDE.md forbids outright.
 ///
-/// The only state it keeps is the consecutive-failure count, which has to outlive one popup for the
+/// The only state it keeps is the consecutive-failure count, which has to outlive one window for the
 /// warning threshold to mean anything.
 /// </summary>
 public sealed class CommitMessageService(
@@ -42,7 +42,7 @@ public sealed class CommitMessageService(
 
     private int _consecutiveFailures;
 
-    /// <summary>Whether asking is possible at all: a provider, a key, and consent.</summary>
+    /// <summary>Whether asking is possible at all: a provider, and a key for it.</summary>
     public bool IsUsable => config.IsUsable;
 
     /// <summary>How many times in a row the provider has refused. Reported by `flick ai`.</summary>
@@ -66,15 +66,10 @@ public sealed class CommitMessageService(
     /// The message so far, once per fragment. Called on the caller's thread, so a UI caller is
     /// resumed on the dispatcher and needs no marshalling.
     /// </param>
-    /// <param name="confirm">
-    /// Asks the one-time "source code may leave this machine" question. Null means "no", which is
-    /// what makes a headless caller safe by default.
-    /// </param>
     public async Task<GenerationOutcome> StreamAsync(
         RepositoryInfo repository,
         RepositoryStatus status,
         Action<string> onDelta,
-        Func<string, string, string, string, Task<bool>>? confirm,
         CancellationToken cancellationToken)
     {
         if (config.Provider == AiProvider.Disabled)
@@ -82,9 +77,6 @@ public sealed class CommitMessageService(
 
         if (!config.HasKey)
             return Failed(Strings.Get("ai.nokey"), count: false);
-
-        if (!await ConsentAsync(confirm).ConfigureAwait(true))
-            return Failed(Strings.Get("ai.notallowed"), count: false);
 
         var clock = Stopwatch.StartNew();
         bool firstTokenSeen = false;
@@ -143,33 +135,6 @@ public sealed class CommitMessageService(
             log.Error($"Message generation failed: {ex}");
             return Failed(ex.Message, count: true);
         }
-    }
-
-    /// <summary>
-    /// The one-time consent. CLAUDE.md: "Before any diff leaves the machine, tell the user clearly
-    /// that source code may be transmitted."
-    /// </summary>
-    private async Task<bool> ConsentAsync(Func<string, string, string, string, Task<bool>>? confirm)
-    {
-        if (config.DiffsMayLeave)
-            return true;
-
-        //Already asked and declined. Asking again on every commit would be its own kind of
-        //dark pattern.
-        if (config.ConsentAsked)
-            return false;
-
-        if (confirm is null)
-            return false;
-
-        bool allowed = await confirm(
-            Strings.Get("ai.consent.title"),
-            Strings.Get("ai.consent.ask", config.Provider.ToString()),
-            Strings.Get("ai.consent.yes"),
-            Strings.Get("ai.consent.no")).ConfigureAwait(true);
-
-        config.RememberConsent(allowed);
-        return allowed;
     }
 
     private GenerationOutcome Failed(string? reason, bool count)

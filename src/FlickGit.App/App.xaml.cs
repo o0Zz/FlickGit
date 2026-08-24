@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
 using FlickGit.App.CommandLine;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.Resident;
 using FlickGit.App.Settings;
@@ -178,6 +179,7 @@ public partial class App : Application
         //callers have to be able to receive them.
         services.AddSingleton<FileTextLoader>();
         services.AddSingleton<WorkingTreeWriter>();
+        services.AddSingleton<WorkingTreeDeleter>();
         services.AddSingleton<UntrackedFileMeasurer>();
 
         //The Windows surfaces: the registry, the Task Scheduler, the pipe, the tray. Every one of

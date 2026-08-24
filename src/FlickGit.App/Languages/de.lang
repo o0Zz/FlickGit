@@ -51,6 +51,22 @@ files.tooltip.untracked = Unversioniert — von Git nicht gezählt; Zeilen von d
 files.tooltip.binary = Binärdatei — keine Zeilenzählung und kein Text-Diff.
 files.tooltip.renamed = Umbenannt von {1}
 
+# ---- Datei löschen ----
+delete.menu = Datei löschen…
+delete.title = Datei löschen
+delete.question = {0} löschen?
+delete.tracked = Sie wandert in den Papierkorb. Git kennt sie weiterhin: das Löschen wird zu einer Änderung, die Sie committen — oder mit git restore rückgängig machen — können.
+delete.untracked = Sie wandert in den Papierkorb. Git hat diese Datei nie gesehen, das ist also der einzige Weg zurück.
+delete.yes = Löschen
+delete.no = Behalten
+delete.done = {0} gelöscht
+delete.missing = {0} liegt nicht mehr auf der Festplatte.
+delete.outside = {0} liegt außerhalb von {1} und wird nicht gelöscht.
+delete.reparsepoint = {0} ist eine Verknüpfung oder Junction. FlickGit löscht nicht hindurch.
+delete.failed = {0} konnte nicht gelöscht werden:
+
+{1}
+
 # ---- Diff-Ansicht ----
 diff.mode.head = Arbeitsverzeichnis ↔ HEAD
 diff.mode.index = Arbeitsverzeichnis ↔ Index
@@ -153,7 +169,6 @@ edit.external.overwrite = Überschreiben
 ai.generating = Nachricht wird geschrieben…
 ai.disabled = Es ist kein KI-Anbieter eingerichtet.
 ai.nokey = Es ist kein API-Schlüssel gespeichert. Mit `flick ai key set` einen hinterlegen.
-ai.notallowed = Diffs dürfen diesen Rechner nicht verlassen.
 ai.empty = Der Anbieter hat nichts zurückgegeben. Bitte selbst eine Nachricht schreiben.
 ai.degraded = Die Commit-Nachricht ist {0}-mal hintereinander fehlgeschlagen.\n\n{1}
 ai.usage = Verwendung: flick ai  |  flick ai key [set|clear]
@@ -170,11 +185,6 @@ ai.key.cleared = Der {0}-API-Schlüssel wurde entfernt.
 ai.key.cancelled = Es wurde kein Schlüssel gespeichert.
 ai.key.failed = Der Schlüssel konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden.
 ai.key.noprovider = Es ist kein KI-Anbieter eingerichtet, also gibt es auch keinen Schlüssel zu speichern.
-
-ai.consent.title = Diffs an {0} senden?
-ai.consent.ask = Um eine Commit-Nachricht zu schreiben, sendet FlickGit den Diff der Dateien, die Sie committen, an {0}.\n\nDamit verlässt Ihr Quellcode diesen Rechner. Lock-Dateien, generierter Code und alles, was auf ein Geheimnis-Muster passt, sind ausgeschlossen, und der Diff ist begrenzt.\n\nDiese Frage wird einmal gestellt.
-ai.consent.yes = Diffs senden
-ai.consent.no = Alles lokal behalten
 
 # ---- Fehler ----
 error.title = FlickGit
@@ -269,11 +279,9 @@ settings.ai.provider.disabled = Niemandem — ich schreibe selbst
 settings.ai.key = API-Schlüssel festlegen…
 settings.ai.key.clear = Schlüssel entfernen
 # {0} provider name
-settings.ai.key.stored = Für {0} ist ein Schlüssel in der Windows-Anmeldeinformationsverwaltung gespeichert.
+settings.ai.key.stored = Für {0} ist ein Schlüssel in der Windows-Anmeldeinformationsverwaltung gespeichert. Der Diff der Dateien, die Sie committen, wird an diesen Anbieter gesendet.
 # {0} provider name
 settings.ai.key.missing = Für {0} ist kein Schlüssel gespeichert. Ohne Schlüssel wird nichts erzeugt.
-settings.ai.allow = Senden des Diffs an diesen Anbieter erlauben
-settings.ai.allow.hint = Ihr Code verlässt diesen Rechner nur, solange dies aktiv ist. Standardmäßig aus.
 
 settings.advanced = Alles Weitere wird in diesen beiden Dateien eingestellt:
 settings.advanced.open = Konfigurationsordner öffnen

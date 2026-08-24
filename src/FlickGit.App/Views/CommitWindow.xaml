@@ -148,7 +148,21 @@
                          HorizontalContentAlignment="Stretch"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          VirtualizingPanel.IsVirtualizing="True"
-                         VirtualizingPanel.VirtualizationMode="Recycling">
+                         VirtualizingPanel.VirtualizationMode="Recycling"
+                         ContextMenuOpening="OnFileListContextMenuOpening">
+                    <!-- On the ListBox rather than on each row, so PlacementTarget is the list and
+                         its DataContext is the view model. A menu declared per row would be looking
+                         at a FileChangeItem, which owns no commands. The row it acts on is the
+                         selected one, and ContextMenuOpening is what makes the right-clicked row
+                         the selected one before the menu is drawn. -->
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem x:Name="DeleteFileMenuItem"
+                                      Command="{Binding PlacementTarget.DataContext.DeleteFileCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Padding" Value="4,1" />

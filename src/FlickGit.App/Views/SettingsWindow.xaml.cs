@@ -101,8 +101,6 @@ public partial class SettingsWindow : Window
         AiProviderLabel.Text = Strings.Get("settings.ai.provider");
         AiKeyButton.Content = Strings.Get("settings.ai.key");
         AiKeyClearButton.Content = Strings.Get("settings.ai.key.clear");
-        AiAllowBox.Content = Strings.Get("settings.ai.allow");
-        AiAllowHint.Text = Strings.Get("settings.ai.allow.hint");
 
         LanguageSection.Text = Strings.Get("settings.section.language");
         LanguageHint.Text = Strings.Get("settings.language.hint");
@@ -140,8 +138,6 @@ public partial class SettingsWindow : Window
             .Cast<ProviderChoice>()
             .FirstOrDefault(c => c.Provider == ParseProvider(_settings.AiProvider))
             ?? AiProviderBox.Items.Cast<ProviderChoice>().First();
-
-        AiAllowBox.IsChecked = _settings.AiAllowDiffsToLeaveMachine;
 
         WarnPrimaryBox.IsChecked = _settings.WarnWhenCommittingToPrimaryBranch;
         CloseAfterBox.IsChecked = _settings.CloseCommitWindowAfterSuccess;
@@ -248,15 +244,6 @@ public partial class SettingsWindow : Window
 
         _settings.AiProvider = SelectedProvider.ToString().ToLowerInvariant();
 
-        //Ticking the box *is* answering the one-time consent question, so it is recorded as asked.
-        //Otherwise the first generation would ask again about something the user just agreed to.
-        bool allow = AiAllowBox.IsChecked == true;
-
-        if (allow != _settings.AiAllowDiffsToLeaveMachine)
-            _settings.AiDiffConsentShown = true;
-
-        _settings.AiAllowDiffsToLeaveMachine = allow;
-
         try
         {
             _settings.Save();
@@ -340,7 +327,6 @@ public partial class SettingsWindow : Window
         //Nothing to store a key for, and nothing to send. The rest of the section stays visible so
         //it is obvious what turning a provider on would offer.
         AiKeyButton.IsEnabled = !disabled;
-        AiAllowBox.IsEnabled = !disabled;
 
         if (disabled)
         {

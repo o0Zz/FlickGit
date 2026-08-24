@@ -58,6 +58,28 @@ files.tooltip.binary = Binary file — no line count and no text diff.
 # {0} old path
 files.tooltip.renamed = Renamed from {1}
 
+# ---- deleting a file ----
+# The commit window's file list, right-click. Removes the file from the working tree and sends
+# it to the Recycle Bin, which is what makes one question enough for a destructive action.
+delete.menu = Delete file…
+delete.title = Delete file
+# {0} repository-relative path
+delete.question = Delete {0}?
+delete.tracked = It goes to the Recycle Bin. Git still has it, so the deletion becomes a change you can commit — or undo with git restore.
+delete.untracked = It goes to the Recycle Bin. Git has never seen this file, so that is the only way back.
+delete.yes = Delete
+delete.no = Keep
+# {0} repository-relative path
+delete.done = Deleted {0}
+delete.missing = {0} is no longer on disk.
+# {0} repository-relative path, {1} repository root
+delete.outside = {0} is outside {1} and will not be deleted.
+delete.reparsepoint = {0} is a symlink or junction. FlickGit will not delete through one.
+# {0} repository-relative path, {1} the reason Windows gave
+delete.failed = {0} could not be deleted:
+
+{1}
+
 # ---- diff viewer ----
 diff.mode.head = Working tree ↔ HEAD
 diff.mode.index = Working tree ↔ Index
@@ -296,7 +318,6 @@ edit.external.overwrite = Overwrite
 ai.generating = Writing a message…
 ai.disabled = No AI provider is configured.
 ai.nokey = No API key is stored. Add one with `flick ai key set`.
-ai.notallowed = Diffs are not allowed to leave this machine.
 ai.empty = The provider returned nothing. Type a message instead.
 # {0} the failure threshold, {1} the last reason
 ai.degraded = Commit messages have failed {0} times in a row.\n\n{1}
@@ -323,12 +344,6 @@ ai.key.cleared = The {0} API key was removed.
 ai.key.cancelled = No key was stored.
 ai.key.failed = The key could not be stored in Windows Credential Manager.
 ai.key.noprovider = No AI provider is configured, so there is nothing to store a key for.
-
-# {0} provider name
-ai.consent.title = Send diffs to {0}?
-ai.consent.ask = To write a commit message, FlickGit sends the diff of the files you are committing to {0}.\n\nThat means your source code leaves this machine. Lock files, generated code and anything matching a secret pattern are excluded, and the diff is capped.\n\nThis is asked once.
-ai.consent.yes = Send diffs
-ai.consent.no = Keep everything local
 
 # ---- errors ----
 error.title = FlickGit
@@ -431,11 +446,9 @@ settings.ai.provider.disabled = Nobody — I write my own
 settings.ai.key = Set API key…
 settings.ai.key.clear = Remove key
 # {0} provider name
-settings.ai.key.stored = A key is stored for {0}, in Windows Credential Manager.
+settings.ai.key.stored = A key is stored for {0}, in Windows Credential Manager. The diff of the files you commit is sent to this provider.
 # {0} provider name
 settings.ai.key.missing = No key is stored for {0}. Nothing will be generated until there is one.
-settings.ai.allow = Allow the diff to be sent to this provider
-settings.ai.allow.hint = Your code leaves this machine only while this is on. Off until you turn it on.
 
 settings.advanced = Everything else is configured in these two files:
 settings.advanced.open = Open configuration folder

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using FlickGit.App.Localization;
 using FlickGit.App.ViewModels;
@@ -49,6 +50,7 @@ public partial class CommitWindow : Window
         GenerateButton.Content = Strings.Get("commit.button.generate");
         HintText.Text = Strings.Get("commit.hint");
         CancelButton.Content = Strings.Get("commit.button.cancel");
+        DeleteFileMenuItem.Header = Strings.Get("delete.menu");
 
         DataContextChanged += OnDataContextChanged;
 
@@ -144,6 +146,31 @@ public partial class CommitWindow : Window
         //silent when no provider, key or consent is configured -- CLAUDE.md: "The AI is an
         //accelerator, never a dependency."
         _viewModel.BeginGeneration(force: false);
+    }
+
+    /// <summary>
+    /// Makes the right-clicked row the selected one, so the menu acts on what the pointer is over.
+    ///
+    /// A ListBox does not select on right-click, and without this the menu would silently target
+    /// whatever was selected before — which for a Delete is the wrong file, deleted with the correct
+    /// path shown in a confirmation the user is not reading closely. Right-clicking past the last
+    /// row keeps the current selection, which is at least the highlighted one; with nothing selected
+    /// at all there is nothing to offer, so the menu does not open.
+    /// </summary>
+    private void OnFileListContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        //ContainerFromElement rather than a hand-rolled VisualTreeHelper walk: the row template puts
+        //the path in two Runs, which are ContentElements rather than Visuals, and GetParent throws on
+        //one. This walks whichever tree the element is in.
+        if (e.OriginalSource is DependencyObject source
+            && FileList.ContainerFromElement(source) is ListBoxItem row)
+        {
+            row.IsSelected = true;
+        }
+        else if (FileList.SelectedItem is null)
+        {
+            e.Handled = true;
+        }
     }
 
     /// <summary>

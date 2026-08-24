@@ -95,13 +95,6 @@
                                    TextWrapping="Wrap"
                                    Margin="0,6,0,0" />
 
-                        <CheckBox x:Name="AiAllowBox" Margin="0,12,0,0" />
-                        <TextBlock x:Name="AiAllowHint"
-                                   Style="{StaticResource Muted}"
-                                   FontSize="11"
-                                   TextWrapping="Wrap"
-                                   Margin="22,3,0,0" />
-
                         <TextBlock x:Name="LanguageSection"
                                    Style="{StaticResource SectionLabel}"
                                    Margin="0,22,0,0" />

@@ -224,8 +224,8 @@ src/
 │   │                        pay for, and the show sequence, which every window
 │   │                        in the product goes through.
 │   ├── Trigger/             The global hotkey and Explorer folder resolution.
-│   ├── Ai/                  CommitMessageService: consent, the failure counter and
-│   │                        the streaming state machine. Here rather than in Core
+│   ├── Ai/                  CommitMessageService: the failure counter and the
+│   │                        streaming state machine. Here rather than in Core
 │   │                        because it reads settings and the credential store.
 │   ├── Shell/               Registry projection of the Action Catalog.
 │   └── Settings/ Tray/ Localization/ Infrastructure/ Languages/
@@ -613,6 +613,38 @@ normally, because `git restore --staged` matches against HEAD rather than agains
 
 This is the second entry in a list that now has three staging states — whole file, chosen hunks,
 already-staged deletion — and all three are "leave the index alone" for different reasons.
+
+## Deleting one, from the list
+
+Right-click a row, **Delete file…**, confirm. The file goes to the **Recycle Bin**, and no Git
+command runs at all.
+
+The Recycle Bin is the whole design, not a nicety. **Safety Rules** forbids discarding uncommitted
+work, and an untracked file is uncommitted work Git has never seen — `git restore` cannot bring it
+back, because there is nothing to restore it from. A shell delete makes the one destructive thing
+this window does recoverable by a gesture the user already knows, which is what earns it a single
+question instead of a warning nobody could act on. It is the same argument **Reverting lines**
+makes: the safety comes from the operation being undoable, not from a second dialog.
+
+Because nothing is staged, the two cases resolve themselves and the confirmation says which is
+which:
+
+- a **tracked** file becomes an ordinary `D` row the user can tick and commit, or put back with
+  `git restore`
+- an **untracked** file simply stops existing, and the Recycle Bin is the only way back
+
+A row whose file is already gone — `.D` or a `git rm`-ed `D.` — has the item greyed out rather than
+offered and then refused. The letter on the row already says the answer.
+
+Two guards, both refusals rather than best efforts, and the first is Core's own rather than a second
+copy of it: **nothing outside the resolved repository root is deleted**
+(`WorkingTreeWriter.ResolveInsideRepository`, which is why that is public), and **a symlink or
+junction is refused** — deleting through one is how a single click removes a tree that lives
+somewhere else entirely.
+
+`WorkingTreeDeleter` is in `FlickGit.App` rather than in Core, and that is forced: it reaches a
+Windows shell facility, and Core is `net9.0` precisely so that it cannot. What is in Core is the
+part worth testing, which was already there.
 
 ---
 
@@ -1637,9 +1669,25 @@ at the cost of a process each, and it is Phase 5 if message quality ever suffers
 
 ## Privacy and secrets
 
-Before any diff leaves the machine, tell the user clearly that source code may be
-transmitted. Setting off by default, shown once with a clear explanation on first use, not
-buried.
+**A provider with a key stored for it is the consent.** There used to be a second switch in
+front of that — `aiAllowDiffsToLeaveMachine`, off by default, with a one-time dialog behind it —
+and it is gone, along with the settings checkbox that was its only working surface.
+
+It was answering a question the user had already answered. Naming a provider and storing a key for
+it is not an idle preference: the one thing an AI provider does here is write a commit message, and
+the only way to write one is from the diff. So the switch gated the feature on a fact it had already
+been told, and its default made every fresh install's message box silently empty with no visible
+sign that anything had been skipped — the Generate button is hidden, not disabled, when the AI is
+unusable.
+
+Worse, it gated the dialog meant to *ask* the question. `CanGenerate` consulted the setting before
+`CommitMessageService.StreamAsync` was ever reached, so the "shown once on first use" prompt could
+only ever fire once the answer was already yes. It was unreachable code guarding a checkbox nobody
+could be told to tick.
+
+What remains is the honest version of the same duty: the provider is named in Settings, `flick ai`
+states outright that the diff of the files being committed is sent to it, and choosing **nobody**
+sends nothing. Everything below still holds, and is what the privacy rule now rests on entirely.
 
 Run the secret detector before sending **and** before committing. Patterns: AWS keys, GitHub
 tokens, generic API keys, private key blocks, connection strings, passwords. Never send
@@ -2482,9 +2530,8 @@ one. Three tabs and nothing else:
 │    Anthropic · OpenAI · GitHub Copilot · nobody          │
 │  [ Set API key… ]  [ Remove key ]                        │
 │  A key is stored for Anthropic, in Windows Credential    │
-│  Manager.                                                │
-│  ☐ Allow the diff to be sent to this provider            │
-│     Your code leaves this machine only while this is on. │
+│  Manager. The diff of the files you commit is sent to    │
+│  this provider.                                          │
 │                                                          │
 │  LANGUAGE                                                │
 │  [ English                                          ▾ ]  │
@@ -2518,9 +2565,10 @@ way to discover that you can. A user who has an API key and wants commit message
 suspect a CLI verb exists, and the message box gives no hint, because a provider with no key is
 indistinguishable from no provider at all.
 
-So: the provider, a button that opens the existing key prompt, and the consent switch. Three
-controls, no model picker and no max-diff field — those are `aiModel` and `aiMaxDiffBytes` in
-`settings.json`, guessable once the provider is on, and neither is a thing anyone changes twice.
+So: the provider, and a button that opens the existing key prompt. Two controls, no model picker
+and no max-diff field — those are `aiModel` and `aiMaxDiffBytes` in `settings.json`, guessable once
+the provider is on, and neither is a thing anyone changes twice. **No consent checkbox either**; see
+**Privacy and secrets** for why the one that was here was removed rather than moved.
 
 Rules the window follows:
 
@@ -2581,6 +2629,9 @@ the repository is moved, and can be seen and reset. Per **Hard Requirement 1** t
 rather than migrated: every repository asks once more, and then never again. `primaryBranch` stays
 here as the global default that `flickgit.primaryBranch` overrides, and the recent list stays because
 it is a fact about the *user*, not about any one repository.
+
+`schemaVersion` 3 dropped `aiAllowDiffsToLeaveMachine` and `aiDiffConsentShown`, the AI consent pair.
+A named provider with a key stored for it is the consent — see **Privacy and secrets**.
 
 **API keys are never written to these files.** Windows Credential Manager or DPAPI only.
 

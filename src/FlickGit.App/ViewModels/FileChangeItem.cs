@@ -42,6 +42,7 @@ public sealed class FileChangeItem(GitFileChange change) : ObservableObject
         Raise(nameof(Removed));
         Raise(nameof(Tooltip));
         Raise(nameof(IsUntracked));
+        Raise(nameof(IsOnDisk));
         Raise(nameof(IsConflicted));
         Raise(nameof(LooksLikeSecret));
         Raise(nameof(IsDangerous));
@@ -107,6 +108,16 @@ public sealed class FileChangeItem(GitFileChange change) : ObservableObject
     public event Action? SelectionChanged;
 
     public bool IsUntracked => Change.IsUntracked;
+
+    /// <summary>
+    /// Whether the file is still there to be deleted.
+    ///
+    /// Both deletion states show a <c>D</c> on the row and neither has a file left: one was removed
+    /// from the working tree, the other with <c>git rm</c>. The context menu greys Delete out for
+    /// both rather than offering it and then refusing.
+    /// </summary>
+    public bool IsOnDisk =>
+        Change.WorkTreeStatus != GitChangeType.Deleted && !Change.IsDeletionStaged;
 
     public bool IsConflicted => Change.IsConflicted;
 

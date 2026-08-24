@@ -181,7 +181,7 @@ public sealed class EnvironmentVerbs(
 
         output.Line($"model        {ai.Options.ResolvedModel}");
         output.Line($"api key      {(ai.HasKey ? $"stored ({ApiKeyStore.TargetFor(provider)})" : "not set — store one with `flick ai key set`")}");
-        output.Line($"diffs        {(ai.DiffsMayLeave ? "may leave this machine" : "may NOT leave this machine — asked once on first use")}");
+        output.Line("diffs        the diff of the files being committed is sent to this provider");
         output.Line($"max diff     {ai.Options.MaxDiffBytes / 1024} KB (hard ceiling {DiffPayload.TokenCeilingBytes / 1024} KB of payload)");
 
         //Only worth a round trip when a request could actually be made.
@@ -358,7 +358,7 @@ public sealed class EnvironmentVerbs(
         if (!ai.HasKey)
             return $"{name} (no key)";
 
-        return ai.DiffsMayLeave ? $"{name} ({ai.Options.ResolvedModel})" : $"{name} (diffs not allowed to leave)";
+        return $"{name} ({ai.Options.ResolvedModel})";
     }
 
     /// <summary>

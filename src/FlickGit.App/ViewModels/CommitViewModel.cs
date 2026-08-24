@@ -45,6 +45,7 @@ public sealed class CommitViewModel : ObservableObject
     private readonly CommitService _commits;
     private readonly PatchService _patches;
     private readonly WorkingTreeWriter _writer;
+    private readonly WorkingTreeDeleter _deleter;
     private readonly CommitMessageService _messages;
     private readonly FlickSettings _settings;
     private readonly ILog _log;
@@ -83,6 +84,7 @@ public sealed class CommitViewModel : ObservableObject
         UpstreamConsent consent,
         PatchService patches,
         WorkingTreeWriter writer,
+        WorkingTreeDeleter deleter,
         CommitMessageService messages,
         FlickSettings settings,
         ILog log)
@@ -96,6 +98,7 @@ public sealed class CommitViewModel : ObservableObject
         _consent = consent;
         _patches = patches;
         _writer = writer;
+        _deleter = deleter;
         _messages = messages;
         _settings = settings;
         _log = log;
@@ -105,6 +108,7 @@ public sealed class CommitViewModel : ObservableObject
         RefreshCommand = new AsyncCommand(RefreshAsync, () => !IsBusy, ReportError);
         SelectAllCommand = new RelayCommand(() => SetAllSelected(true));
         SelectNoneCommand = new RelayCommand(() => SetAllSelected(false));
+        DeleteFileCommand = new AsyncCommand(DeleteSelectedFileAsync, () => CanDeleteFile, ReportError);
 
         //Replaces whatever is in the box, unlike the automatic pass when the window opens: the user
         //pressed a button labelled "generate", so overwriting their text is what they asked for.
@@ -117,6 +121,9 @@ public sealed class CommitViewModel : ObservableObject
     public RelayCommand SelectAllCommand { get; }
     public RelayCommand SelectNoneCommand { get; }
     public RelayCommand GenerateCommand { get; }
+
+    /// <summary>The file list's context menu. Acts on the row the right-click selected.</summary>
+    public AsyncCommand DeleteFileCommand { get; }
 
     public ObservableCollection<FileChangeItem> Files { get; } = [];
 
@@ -309,6 +316,15 @@ public sealed class CommitViewModel : ObservableObject
         && _currentStatus.Files.Any(f => f.IsSelected);
 
     /// <summary>
+    /// Whether there is a file to delete: one selected, still on disk, and nothing else running.
+    ///
+    /// A row whose file is already gone — deleted from the working tree, or removed with
+    /// <c>git rm</c> — is greyed out rather than offered and then refused. It is the one state where
+    /// the letter on the row (<c>D</c>) already says the answer.
+    /// </summary>
+    public bool CanDeleteFile => !_isBusy && _selectedFile is { IsOnDisk: true };
+
+    /// <summary>
     /// Whether the AI is configured at all. False hides the button rather than showing a permanently
     /// dead one — with no key stored there is nothing the user can do with it here, and Settings is
     /// where that is fixed.
@@ -324,6 +340,9 @@ public sealed class CommitViewModel : ObservableObject
         {
             if (!Set(ref _selectedFile, value))
                 return;
+
+            //The context menu acts on the selection, so it has to re-evaluate with it.
+            RaiseCommandStates();
 
             _ = LoadDiffAsync(value);
         }
@@ -595,7 +614,6 @@ public sealed class CommitViewModel : ObservableObject
                 _repository,
                 _currentStatus!,
                 ApplyStreamedText,
-                (title, body, yes, no) => ConfirmAsync?.Invoke(title, body, yes, no) ?? Task.FromResult(false),
                 generation.Token)
             .ConfigureAwait(true);
 
@@ -736,6 +754,59 @@ public sealed class CommitViewModel : ObservableObject
         {
             IsDiffLoading = false;
         }
+    }
+
+    // ---- deleting -----------------------------------------------------------------
+
+    /// <summary>
+    /// Deletes the selected file from the working tree, to the Recycle Bin.
+    ///
+    /// <b>The only destructive thing this window does, so it is the only thing here that asks
+    /// first.</b> CLAUDE.md's Safety Rules allow a destructive operation on "explicit user intent,
+    /// expressed in the moment" and require a second confirmation regardless of surface — which is
+    /// what a right-click, a menu item and this question are. The Recycle Bin is what keeps the
+    /// answer recoverable if it was the wrong one; see <see cref="WorkingTreeDeleter"/>.
+    ///
+    /// No Git command runs. Deleting a tracked file leaves an ordinary <c>D</c> row the user can
+    /// commit or put back with <c>git restore</c>; deleting an untracked one simply removes it. The
+    /// warning that distinguishes those two is the whole reason the question has a second line.
+    /// </summary>
+    private async Task DeleteSelectedFileAsync()
+    {
+        if (_selectedFile is not { } file || !file.IsOnDisk)
+            return;
+
+        bool confirmed = await (ConfirmAsync?.Invoke(
+            Strings.Get("delete.title"),
+            Strings.Get("delete.question", file.Path)
+                + "\n\n"
+                + Strings.Get(file.IsUntracked ? "delete.untracked" : "delete.tracked"),
+            Strings.Get("delete.yes"),
+            Strings.Get("delete.no")) ?? Task.FromResult(false)).ConfigureAwait(true);
+
+        if (!confirmed)
+            return;
+
+        DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
+
+        if (!outcome.Succeeded)
+        {
+            //A null message means the shell already said why, in its own words.
+            if (outcome.Message is { Length: > 0 } message)
+                RaiseError(Strings.Get("delete.title"), message);
+
+            return;
+        }
+
+        //Keyed by path alone, so the cached diff of a file that no longer exists would be rendered
+        //by the next click on whatever takes its place in the list.
+        _diffs.Invalidate(file.Path);
+
+        await RefreshAsync().ConfigureAwait(true);
+
+        //After the refresh: Adopt does not clear this, but a status line set before it would be
+        //reporting on a list that had not been rebuilt yet.
+        StatusText = Strings.Get("delete.done", file.Path);
     }
 
     // ---- editing ------------------------------------------------------------------
@@ -1032,6 +1103,8 @@ public sealed class CommitViewModel : ObservableObject
     {
         Raise(nameof(CanCommit));
         Raise(nameof(CanGenerate));
+        Raise(nameof(CanDeleteFile));
+        DeleteFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(IsAiConfigured));
         CommitCommand.RaiseCanExecuteChanged();
         CommitAndPushCommand.RaiseCanExecuteChanged();

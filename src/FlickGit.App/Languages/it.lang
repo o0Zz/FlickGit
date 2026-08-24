@@ -51,6 +51,22 @@ files.tooltip.untracked = Non tracciato: Git non lo conta; le righe sono contate
 files.tooltip.binary = File binario: nessun conteggio di righe e nessun diff testuale.
 files.tooltip.renamed = Rinominato da {1}
 
+# ---- eliminare un file ----
+delete.menu = Elimina file…
+delete.title = Elimina file
+delete.question = Eliminare {0}?
+delete.tracked = Finisce nel cestino. Git ce l'ha ancora, quindi l'eliminazione diventa una modifica da confermare — o da annullare con git restore.
+delete.untracked = Finisce nel cestino. Git non ha mai visto questo file, quindi è l'unico modo per recuperarlo.
+delete.yes = Elimina
+delete.no = Mantieni
+delete.done = {0} eliminato
+delete.missing = {0} non è più sul disco.
+delete.outside = {0} è fuori da {1} e non verrà eliminato.
+delete.reparsepoint = {0} è un collegamento simbolico o una giunzione. FlickGit non elimina attraverso di essi.
+delete.failed = Impossibile eliminare {0}:
+
+{1}
+
 # ---- visualizzatore diff ----
 diff.mode.head = Copia di lavoro ↔ HEAD
 diff.mode.index = Copia di lavoro ↔ Indice
@@ -153,7 +169,6 @@ edit.external.overwrite = Sovrascrivi
 ai.generating = Scrittura di un messaggio…
 ai.disabled = Nessun provider di IA configurato.
 ai.nokey = Nessuna chiave API salvata. Aggiungerne una con `flick ai key set`.
-ai.notallowed = Ai diff non è permesso lasciare questa macchina.
 ai.empty = Il provider non ha restituito nulla. Scrivere un messaggio a mano.
 ai.degraded = I messaggi di commit sono falliti {0} volte di seguito.\n\n{1}
 ai.usage = Uso: flick ai  |  flick ai key [set|clear]
@@ -170,11 +185,6 @@ ai.key.cleared = La chiave API {0} è stata rimossa.
 ai.key.cancelled = Nessuna chiave è stata salvata.
 ai.key.failed = La chiave non è stata salvata in Gestione credenziali di Windows.
 ai.key.noprovider = Nessun provider di IA configurato, quindi non c'è alcuna chiave da salvare.
-
-ai.consent.title = Inviare i diff a {0}?
-ai.consent.ask = Per scrivere un messaggio di commit, FlickGit invia a {0} il diff dei file di cui si sta facendo commit.\n\nQuesto significa che il codice sorgente lascia questa macchina. I file di lock, il codice generato e tutto ciò che corrisponde a un modello di segreto sono esclusi, e il diff è limitato.\n\nLa domanda viene posta una volta sola.
-ai.consent.yes = Invia i diff
-ai.consent.no = Tieni tutto in locale
 
 # ---- errori ----
 error.title = FlickGit
@@ -269,11 +279,9 @@ settings.ai.provider.disabled = Nessuno — li scrivo io
 settings.ai.key = Imposta chiave API…
 settings.ai.key.clear = Rimuovi la chiave
 # {0} provider name
-settings.ai.key.stored = Una chiave è memorizzata per {0}, in Gestione credenziali di Windows.
+settings.ai.key.stored = Una chiave è memorizzata per {0}, in Gestione credenziali di Windows. Il diff dei file di cui fa commit viene inviato a questo fornitore.
 # {0} provider name
 settings.ai.key.missing = Nessuna chiave memorizzata per {0}. Senza chiave non verrà generato nulla.
-settings.ai.allow = Consenti l'invio del diff a questo fornitore
-settings.ai.allow.hint = Il codice lascia questa macchina solo mentre questa opzione è attiva. Disattivata per impostazione predefinita.
 
 settings.advanced = Tutto il resto si configura in questi due file:
 settings.advanced.open = Apri la cartella di configurazione

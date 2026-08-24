@@ -312,8 +312,12 @@ public sealed class WorkingTreeWriter
 
     /// <summary>
     /// The absolute path, or null when it does not resolve to somewhere inside the repository.
+    ///
+    /// Public because deleting a file from the working tree needs exactly this guard, and a second
+    /// implementation of "is this path really inside the repository" is the one place the two could
+    /// disagree.
     /// </summary>
-    internal static string? ResolveInsideRepository(string repositoryRoot, string relativePath)
+    public static string? ResolveInsideRepository(string repositoryRoot, string relativePath)
     {
         if (string.IsNullOrWhiteSpace(repositoryRoot) || string.IsNullOrWhiteSpace(relativePath))
             return null;

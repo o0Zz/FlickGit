@@ -51,6 +51,22 @@ files.tooltip.untracked = Não controlado — o Git não o conta; linhas contada
 files.tooltip.binary = Ficheiro binário — sem contagem de linhas e sem diff de texto.
 files.tooltip.renamed = Renomeado a partir de {1}
 
+# ---- eliminar um ficheiro ----
+delete.menu = Eliminar ficheiro…
+delete.title = Eliminar ficheiro
+delete.question = Eliminar {0}?
+delete.tracked = Vai para a reciclagem. O Git continua a tê-lo, por isso a eliminação torna-se uma alteração que pode confirmar — ou desfazer com git restore.
+delete.untracked = Vai para a reciclagem. O Git nunca viu este ficheiro, por isso é a única forma de o recuperar.
+delete.yes = Eliminar
+delete.no = Manter
+delete.done = {0} eliminado
+delete.missing = {0} já não está no disco.
+delete.outside = {0} está fora de {1} e não será eliminado.
+delete.reparsepoint = {0} é uma ligação simbólica ou uma junção. O FlickGit não elimina através de uma.
+delete.failed = Não foi possível eliminar {0}:
+
+{1}
+
 # ---- visualizador de diferenças ----
 diff.mode.head = Cópia de trabalho ↔ HEAD
 diff.mode.index = Cópia de trabalho ↔ Índice
@@ -153,7 +169,6 @@ edit.external.overwrite = Substituir
 ai.generating = A escrever uma mensagem…
 ai.disabled = Não há nenhum fornecedor de IA configurado.
 ai.nokey = Não há nenhuma chave de API guardada. Adicione uma com `flick ai key set`.
-ai.notallowed = Os diffs não têm autorização para sair desta máquina.
 ai.empty = O fornecedor não devolveu nada. Escreva a mensagem à mão.
 ai.degraded = As mensagens de commit falharam {0} vezes seguidas.\n\n{1}
 ai.usage = Utilização: flick ai  |  flick ai key [set|clear]
@@ -170,11 +185,6 @@ ai.key.cleared = A chave de API {0} foi removida.
 ai.key.cancelled = Não foi guardada nenhuma chave.
 ai.key.failed = Não foi possível guardar a chave no Gestor de Credenciais do Windows.
 ai.key.noprovider = Não há nenhum fornecedor de IA configurado, por isso não há chave para guardar.
-
-ai.consent.title = Enviar os diffs para {0}?
-ai.consent.ask = Para escrever uma mensagem de commit, o FlickGit envia para {0} o diff dos ficheiros que está a submeter.\n\nIsso significa que o seu código-fonte sai desta máquina. Ficheiros de bloqueio, código gerado e tudo o que corresponda a um padrão de segredo são excluídos, e o diff é limitado.\n\nEsta pergunta é feita uma única vez.
-ai.consent.yes = Enviar os diffs
-ai.consent.no = Manter tudo local
 
 # ---- erros ----
 error.title = FlickGit
@@ -269,11 +279,9 @@ settings.ai.provider.disabled = Ninguém — escrevo eu
 settings.ai.key = Definir chave de API…
 settings.ai.key.clear = Remover a chave
 # {0} provider name
-settings.ai.key.stored = Está guardada uma chave para {0}, no Gestor de Credenciais do Windows.
+settings.ai.key.stored = Está guardada uma chave para {0}, no Gestor de Credenciais do Windows. O diff dos ficheiros que submete é enviado para este fornecedor.
 # {0} provider name
 settings.ai.key.missing = Não há chave guardada para {0}. Nada será gerado até existir uma.
-settings.ai.allow = Permitir enviar o diff para este fornecedor
-settings.ai.allow.hint = O seu código só sai desta máquina enquanto isto estiver ligado. Desligado por omissão.
 
 settings.advanced = Tudo o resto configura-se nestes dois ficheiros:
 settings.advanced.open = Abrir a pasta de configuração

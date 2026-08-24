@@ -31,8 +31,14 @@ public sealed class FlickSettings
     /// <c>flickgit.allowUpstreamCreation</c> — where it cannot go stale when the repository is moved
     /// and can be seen and reset from the repository window. Per CLAUDE.md's Hard Requirement 1 the
     /// key is deleted rather than migrated: every repository asks once more, and then never again.
+    ///
+    /// 3 dropped <c>aiAllowDiffsToLeaveMachine</c> and <c>aiDiffConsentShown</c>. A provider that is
+    /// named and has a key stored for it is already the consent: the only thing an AI provider does
+    /// here is write a commit message, and the only way to write one is from the diff. A second
+    /// switch in front of that gated the feature on something the user had already said, and — since
+    /// it also gated the question meant to ask it — could only ever be answered in Settings.
     /// </summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -104,8 +110,8 @@ public sealed class FlickSettings
     /// Which service writes the commit message: <c>anthropic</c>, <c>openai</c> or
     /// <c>disabled</c>.
     ///
-    /// Configured but inert until <see cref="AiAllowDiffsToLeaveMachine"/> is true, which is the
-    /// whole of CLAUDE.md's privacy rule: a provider being named is not consent to send it code.
+    /// <b>Naming one, with a key stored for it, is the consent.</b> There is nothing else a
+    /// configured provider could be for: every message it writes is written from a diff.
     /// </summary>
     public string AiProvider { get; set; } = "anthropic";
 
@@ -127,20 +133,6 @@ public sealed class FlickSettings
     /// the prompt's own "when clearly appropriate" is the better answer for a mixed history.
     /// </summary>
     public bool AiConventionalCommits { get; set; }
-
-    /// <summary>
-    /// Whether a diff may be sent to a third party. <b>Off by default.</b>
-    ///
-    /// CLAUDE.md, "Privacy and secrets": the setting is off by default and "shown once with a clear
-    /// explanation on first use, not buried". Nothing leaves the machine until this is true.
-    /// </summary>
-    public bool AiAllowDiffsToLeaveMachine { get; set; }
-
-    /// <summary>
-    /// Whether the question above has been put. Remembered either way, so a user who said no is not
-    /// asked again on every commit.
-    /// </summary>
-    public bool AiDiffConsentShown { get; set; }
 
     /// <summary>
     /// Most-recently-used repository roots, newest first. Behind the tray's Recent menu, and the MRU
