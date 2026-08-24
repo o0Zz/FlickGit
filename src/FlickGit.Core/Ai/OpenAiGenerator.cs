@@ -42,6 +42,8 @@ public sealed class OpenAiGenerator(
             Endpoint,
             JsonSerializer.Serialize(payload, AiJson.Default.OpenAiRequest),
             request => request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key),
+            AiFraming.ServerSentEvents,
+            options.Silence,
             Read,
             cancellationToken);
     }

@@ -15,27 +15,43 @@ public sealed class AiConfiguration(FlickSettings settings, CredentialStore keys
 {
     public AiProvider Provider => Parse(settings.AiProvider);
 
-    public bool HasKey => Provider != AiProvider.Disabled && keys.Has(CredentialStore.AiTarget(Provider));
+    /// <summary>
+    /// Whether this provider needs a credential at all.
+    ///
+    /// False for Ollama, which is the whole shape of the difference: it runs on the user's machine,
+    /// so there is nobody to authenticate to and nothing to store.
+    /// </summary>
+    public bool RequiresKey => AiOptions.RequiresKey(Provider);
+
+    /// <summary>Whether a key is stored. Always false for a provider that needs none.</summary>
+    public bool HasKey => RequiresKey && keys.Has(CredentialStore.AiTarget(Provider));
 
     /// <summary>
     /// Both conditions, and they are the whole of it: <b>a provider with a key stored for it is the
     /// consent to send it a diff.</b> Nothing else is what an AI provider is configured for here —
     /// every message it writes is written from one.
     ///
+    /// Ollama satisfies it with the provider alone, and that is not a hole in the argument: the
+    /// consent a key stands for is consent to send code to <i>somebody else</i>, and a local model
+    /// sends it nowhere. There is no credential that could be asked for.
+    ///
     /// Anything less and the message box is an ordinary editable field with a one-line notice, which
     /// CLAUDE.md requires of every failure mode: "The AI is an accelerator, never a dependency."
     /// </summary>
-    public bool IsUsable => Provider != AiProvider.Disabled && HasKey;
+    public bool IsUsable => Provider != AiProvider.Disabled && (!RequiresKey || HasKey);
 
     public AiOptions Options => new(
         Provider,
         settings.AiModel,
         settings.AiReasoningEffort,
         settings.AiMaxDiffBytes,
-        settings.AiConventionalCommits);
+        settings.AiConventionalCommits)
+    {
+        OllamaUrl = settings.AiOllamaUrl,
+    };
 
     /// <summary>The key, read on demand. Never held in a field — see <see cref="CredentialStore"/>.</summary>
-    public string? ReadKey() => Provider == AiProvider.Disabled ? null : keys.Read(CredentialStore.AiTarget(Provider));
+    public string? ReadKey() => RequiresKey ? keys.Read(CredentialStore.AiTarget(Provider)) : null;
 
     private AiProvider Parse(string name)
     {

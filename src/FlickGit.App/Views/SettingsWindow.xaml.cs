@@ -131,7 +131,15 @@ public partial class SettingsWindow : Window
 
         //One entry per provider, the enum as the item so nothing has to map a display string back.
         AiProviderBox.Items.Clear();
-        foreach (AiProvider provider in new[] { AiProvider.Disabled, AiProvider.Anthropic, AiProvider.OpenAi, AiProvider.Copilot })
+        foreach (AiProvider provider in new[]
+                 {
+                     AiProvider.Disabled, AiProvider.Anthropic, AiProvider.OpenAi, AiProvider.Copilot,
+
+                     //Last, and not because it is least: it is the only local one, so it is the only
+                     //entry in this list that changes what the section below means rather than which
+                     //service it points at.
+                     AiProvider.Ollama,
+                 })
             AiProviderBox.Items.Add(new ProviderChoice(provider));
 
         AiProviderBox.SelectedItem = AiProviderBox.Items
@@ -326,12 +334,22 @@ public partial class SettingsWindow : Window
 
         //Nothing to store a key for, and nothing to send. The rest of the section stays visible so
         //it is obvious what turning a provider on would offer.
-        AiKeyButton.IsEnabled = !disabled;
+        AiKeyButton.IsEnabled = !disabled && AiOptions.RequiresKey(provider);
 
         if (disabled)
         {
             AiKeyClearButton.IsEnabled = false;
             AiKeyStatus.Text = string.Empty;
+            return;
+        }
+
+        if (!AiOptions.RequiresKey(provider))
+        {
+            //Ollama. Both buttons off and a sentence saying why, rather than a live Set button that
+            //would store a secret nothing ever reads -- and rather than an empty row, which would
+            //read as a section that had failed to load.
+            AiKeyClearButton.IsEnabled = false;
+            AiKeyStatus.Text = Strings.Get("settings.ai.key.notneeded", _settings.AiOllamaUrl);
             return;
         }
 

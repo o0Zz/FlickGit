@@ -248,7 +248,11 @@ public sealed class AiTextService(
         if (config.Provider == AiProvider.Disabled)
             return Failed(Strings.Get("ai.disabled"), count: false);
 
-        return config.HasKey ? null : Failed(Strings.Get("ai.nokey"), count: false);
+        //A missing key is only a reason for a provider that needs one. Ollama has none, and asking
+        //about it here is how "no key stored" would have become the answer for a local model.
+        return !config.RequiresKey || config.HasKey
+            ? null
+            : Failed(Strings.Get("ai.nokey"), count: false);
     }
 
     private GenerationOutcome Failed(string? reason, bool count)

@@ -107,16 +107,34 @@ public sealed class FlickSettings
     public List<string> PaletteScanRoots { get; set; } = [];
 
     /// <summary>
-    /// Which service writes the commit message: <c>anthropic</c>, <c>openai</c>, <c>copilot</c>
-    /// or <c>disabled</c>.
+    /// Which service writes the commit message: <c>anthropic</c>, <c>openai</c>, <c>copilot</c>,
+    /// <c>ollama</c> or <c>disabled</c>.
     ///
     /// <b>Naming one, with a key stored for it, is the consent.</b> There is nothing else a
     /// configured provider could be for: every message it writes is written from a diff.
+    /// <c>ollama</c> needs no key and asks for no consent, because nothing it is sent leaves the
+    /// machine.
     /// </summary>
     public string AiProvider { get; set; } = "anthropic";
 
-    /// <summary>Empty means the provider's default — Haiku 4.5 for Anthropic.</summary>
+    /// <summary>
+    /// Empty means the provider's default — Haiku 4.5 for Anthropic.
+    ///
+    /// <b>Except for Ollama, which has no default and requires this.</b> Which models exist there is
+    /// a fact about the user's own disk, so any guess would 404 for most people; `ollama list` says
+    /// what to put here.
+    /// </summary>
     public string AiModel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Where Ollama is listening.
+    ///
+    /// A setting rather than a constant because running the model on a bigger machine on the same
+    /// network is the ordinary reason to use Ollama at all — and because with it hard-coded to
+    /// loopback there would be no way to express that. Note that pointing it off this machine is
+    /// exactly that: the diff then leaves this computer, even though it does not leave the network.
+    /// </summary>
+    public string AiOllamaUrl { get; set; } = FlickGit.Ai.AiOptions.DefaultOllamaUrl;
 
     /// <summary>OpenAI only. <c>none</c> is the latency baseline; <c>low</c> is the next step up.</summary>
     public string AiReasoningEffort { get; set; } = "none";

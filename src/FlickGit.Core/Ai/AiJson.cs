@@ -155,6 +155,64 @@ internal sealed class CopilotError
     public string? Message { get; set; }
 }
 
+/// <param name="Messages">
+/// The system prompt and the payload. <b>Empty is meaningful</b>: Ollama reads a chat request with
+/// no messages as "load this model and stop", which is what the warm-up sends.
+/// </param>
+/// <param name="Options">
+/// Ollama's per-request generation settings. Null on the warm-up, where there is nothing to
+/// generate.
+/// </param>
+internal sealed record OllamaRequest(
+    [property: JsonPropertyName("model")] string Model,
+    [property: JsonPropertyName("messages")] OllamaMessage[] Messages,
+    [property: JsonPropertyName("options")] OllamaGenerationOptions? Options)
+{
+    /// <summary>
+    /// An init property rather than the computed <c>=&gt; true</c> the other three requests use,
+    /// because the warm-up wants a single non-streamed answer.
+    /// </summary>
+    [JsonPropertyName("stream")]
+    public bool Stream { get; init; } = true;
+
+    /// <summary>
+    /// How long Ollama keeps the model in memory after this request. Sent only by the warm-up: a
+    /// preload that is evicted before the user's first commit has bought nothing. Left off every
+    /// real request, so the user's own <c>OLLAMA_KEEP_ALIVE</c> stays in charge from then on.
+    /// </summary>
+    [JsonPropertyName("keep_alive")]
+    public string? KeepAlive { get; init; }
+}
+
+/// <summary>
+/// <c>num_predict</c> is Ollama's spelling of the runaway guard the other three call
+/// <c>max_tokens</c> or <c>max_output_tokens</c>. Same job, third name.
+/// </summary>
+internal sealed record OllamaGenerationOptions(
+    [property: JsonPropertyName("num_predict")] int NumPredict);
+
+internal sealed record OllamaMessage(
+    [property: JsonPropertyName("role")] string Role,
+    [property: JsonPropertyName("content")] string Content);
+
+/// <summary>
+/// One line of an Ollama stream.
+///
+/// <c>error</c> is a bare string here, where the other three wrap it in an object — so it cannot
+/// share their shape, and reading it as one would silently ignore every Ollama error.
+/// </summary>
+internal sealed class OllamaEvent
+{
+    [JsonPropertyName("message")]
+    public OllamaMessage? Message { get; set; }
+
+    [JsonPropertyName("done")]
+    public bool Done { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
 /// <summary>
 /// The answer from <c>/copilot_internal/v2/token</c>.
 ///
@@ -178,4 +236,6 @@ internal sealed class CopilotTokenResponse
 [JsonSerializable(typeof(CopilotRequest))]
 [JsonSerializable(typeof(CopilotEvent))]
 [JsonSerializable(typeof(CopilotTokenResponse))]
+[JsonSerializable(typeof(OllamaRequest))]
+[JsonSerializable(typeof(OllamaEvent))]
 internal sealed partial class AiJson : JsonSerializerContext;

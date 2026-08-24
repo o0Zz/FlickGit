@@ -49,8 +49,10 @@ FlickGit is built for developers who work across multiple repositories and switc
 - [x] **Side-by-side diff, live-editable** — `Ctrl+S` writes the file back with its original
       encoding, BOM and line endings, atomically, and refuses if something else changed it.
 - [x] **Line and hunk staging** — stage or unstage a whole hunk, or just the lines you select.
-- [x] **AI commit messages** — Anthropic or OpenAI, streamed as they arrive. Enter before the
-      message lands queues the commit. Capped diff, secrets redacted, key in Credential Manager.
+- [x] **AI commit messages** — Anthropic, OpenAI, GitHub Copilot or **Ollama on your own machine**,
+      streamed as they arrive. Enter before the message lands queues the commit. Capped diff, secrets
+      redacted, key in Credential Manager — and with Ollama there is no key and the diff never leaves
+      the machine.
 - [x] **Push with guardrails** — asks once per repository before creating an upstream, offers
       pull-then-push when behind, and **refuses a diverged push**. Force push is never offered.
 - [x] **Switch branch** — fuzzy filter over local and remote branches. If Git refuses, it names
@@ -75,8 +77,8 @@ FlickGit is built for developers who work across multiple repositories and switc
       Until there is a code-signing certificate the entries live under *Show more options*.
 - [ ] **Explorer-only key or mouse trigger** — an input hook that fires only over Explorer, so a
       key like F12 keeps working everywhere else. The global hotkey is the shipped default.
-- [ ] **Ollama, and speculative generation with it** — *not planned.* Anthropic and OpenAI cover
-      the feature, and speculative generation may only run against a local provider.
+- [ ] **Speculative generation** — starting the message before you press the trigger. Unblocked now
+      that a local provider exists, but not built: a queued Enter already hides the wait.
 - [ ] **Status overlay icons** — *not planned.* Registration is machine-wide, Windows loads only
       about fifteen handlers, and doing it properly needs a per-file status cache that would make
       Explorer slow.
@@ -344,7 +346,7 @@ dependencies as typed constructor parameters so that stays a choice rather than 
 | **2** | Branches, push, live editing | ✅ Branch ComboBox with switch/create · branch validation · push with upstream handling and divergence refusal · Switch branch with stash-switch-restore · Clone with clipboard prefill and progress · **editable right pane** with encoding and line-ending preservation · atomic save · external-modification detection · restage prompt |
 | **3** | Speed | ✅ Resident service with tray menu and MRU · named-pipe IPC with direct-launch fallback · pre-warmed windows · foreground activation · logon task · diff prefetch cache · notifications |
 | **4** | The trigger and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *The cursor-anchored quick-commit popup was built and then removed: the trigger opens the commit window instead, which took over the caret-in-the-message-box opening, Enter-commits and the streamed message. The Explorer-scoped input hooks — a key or a mouse side button swallowed only over Explorer — are still open; the setting falls back to the global hotkey and says so in `diag doctor`.* |
-| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) carrying the context menu, autostart, the commit switches, the AI provider and its API key, the language picker, a Help tab rendering an editable `Help.md` and an About tab. *Three items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface), the Ollama provider, and with it speculative generation — which by its own safety rule may only run against a local provider.* |
+| **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) carrying the context menu, autostart, the commit switches, the AI provider and its API key, the language picker, a Help tab rendering an editable `Help.md` and an About tab. *Two items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface) and speculative generation. The Ollama provider was dropped here and built later — the original argument covered the feature and missed the point of the provider, which is that the other three send source code to a third party.* |
 | **6** | Deep shell integration | ✅ Line and hunk staging — stage or unstage a hunk, or just the lines you select, from the diff pane; the patch is generated from the in-memory diff with the file's own line endings and applied with `git apply --cached`. ✅ `IExplorerCommand` handler (`FlickGit.Shell.dll`, Native AOT COM in `explorer.exe`) putting the current branch in the Commit label and hiding the root entries outside a repository — no MSIX or signature needed for the classic menu, only for the Windows 11 *primary* one. *The sparse MSIX package is the one thing still open: it needs package identity and a code-signing certificate.* |
 | **7** | Reading history | ✅ The log window — a commit list, the files a selection changed, and the read-only side-by-side diff, with the **combined diff over a multi-selection** the window exists for and a gap disclosure when the selection skips commits · **Save as patch…** · blame, with the walk back through Git's own `previous` across renames, reached from a right-click on a *file*. |
 | **8** | The repository's own settings | ✅ The Repository window — the identity it commits as, its remotes (add, rename, re-point, remove), and FlickGit's own per-repository defaults in `.git/config` rather than in a path-keyed dictionary. Reads nothing from the network. |

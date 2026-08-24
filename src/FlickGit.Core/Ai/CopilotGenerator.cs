@@ -55,7 +55,16 @@ public sealed class CopilotGenerator(
         try
         {
             await foreach (string chunk in AiEndpoint
-                .StreamAsync(http, "Copilot", Endpoint, json, request => Authorise(request, token), Read, cancellationToken)
+                .StreamAsync(
+                    http,
+                    "Copilot",
+                    Endpoint,
+                    json,
+                    request => Authorise(request, token),
+                    AiFraming.ServerSentEvents,
+                    options.Silence,
+                    Read,
+                    cancellationToken)
                 .ConfigureAwait(false))
             {
                 yield return chunk;

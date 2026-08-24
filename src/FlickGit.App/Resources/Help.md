@@ -86,15 +86,42 @@ The right side is a real editor, not a preview.
 
 Everything you need is in **Settings**, under *Commit messages (AI)*:
 
-1. Pick who writes them — **Anthropic**, **OpenAI** or **GitHubCopilot**.
+1. Pick who writes them — **Anthropic**, **OpenAI**, **GitHubCopilot**, or **Ollama** on your own
+   machine.
 2. Press **Set API key…** and paste your key. It goes into Windows Credential Manager, never
-   into a settings file, and is never shown back to you.
+   into a settings file, and is never shown back to you. *Ollama needs no key — the button is off.*
 
 Press **Save**. The commit window then grows a **Generate with AI** button, and writes a message
-for you as soon as it opens.
+for you as soon as it opens. The pull request window uses the same provider for its description.
 
 Choosing a provider and storing a key for it is what turns this on: from then on, the diff of the
 files you are committing is sent to that provider. Choose **Disabled** and nothing is sent.
+
+### Ollama, on your own machine
+
+The one provider that sends nothing anywhere. Use it when policy forbids source code reaching a
+third party — with the other three, the diff of what you are committing leaves the machine.
+
+1. Install Ollama and pull a model: `ollama pull qwen2.5-coder:7b`.
+2. Pick **Ollama** in Settings, and press **Save**.
+3. Set the model in `%LOCALAPPDATA%\FlickGit\settings.json`:
+
+```json
+"aiModel": "qwen2.5-coder:7b"
+```
+
+**The model is required** — there is no default, because which models exist is a fact about your
+disk. `ollama list` shows what you have; `flick ai` shows what FlickGit resolved.
+
+Two things behave differently, both because the model is local:
+
+- **The first message after a reboot is slow**, because Ollama is reading the model off disk. FlickGit
+  preloads it in the background when it starts with Windows, which is what makes the rest fast, and
+  it waits up to two minutes for a first token instead of the eight seconds it allows a hosted
+  provider.
+- **`aiOllamaUrl`** points at `http://localhost:11434` and can be pointed at another machine on your
+  network, if that is where the GPU is. `flick ai` then says the diff is sent there, because at that
+  point it is leaving this computer.
 
 ### Getting a GitHub token for Copilot
 

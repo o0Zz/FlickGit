@@ -148,6 +148,121 @@ public class AiStreamTests
     }
 
     /// <summary>
+    /// Ollama is newline-delimited JSON, which is a different <i>framing</i> rather than a fourth
+    /// frame shape: no <c>data:</c> prefix, no blank-line separator, no <c>[DONE]</c>.
+    ///
+    /// The last line is the one a naive reader breaks on — <c>done: true</c> arrives with an empty
+    /// content and the timing statistics, and treating it as text would append nothing while
+    /// treating it as a fault would fail every request.
+    /// </summary>
+    [Fact]
+    public async Task Ollama_newline_delimited_messages_are_concatenated()
+    {
+        //Deliberately not blank-line separated: this is exactly what an SSE reader cannot parse.
+        const string transcript =
+            """
+            {"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":"fix: "},"done":false}
+            {"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":"close the "},"done":false}
+            {"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":"pool on reconnect"},"done":false}
+            {"model":"qwen2.5-coder:7b","message":{"role":"assistant","content":""},"done":true,"total_duration":118000}
+            """ + "\n";
+
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, transcript);
+        using var http = new HttpClient(handler);
+
+        var generator = new OllamaGenerator(
+            http,
+            Options with { Provider = AiProvider.Ollama, Model = "qwen2.5-coder:7b" },
+            NullLog.Instance);
+
+        Assert.Equal("fix: close the pool on reconnect", await Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
+    }
+
+    /// <summary>
+    /// Ollama reports a failure as a bare <c>error</c> string, where the other three wrap it in an
+    /// object — so it cannot share their shape, and reading it as one would ignore every Ollama
+    /// error and return a silently empty message.
+    /// </summary>
+    [Fact]
+    public async Task An_Ollama_error_line_fails_rather_than_returning_an_empty_message()
+    {
+        const string transcript = """
+            {"error":"model 'nope' not found, try pulling it first"}
+
+            """;
+
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, transcript);
+        using var http = new HttpClient(handler);
+
+        var generator = new OllamaGenerator(
+            http,
+            Options with { Provider = AiProvider.Ollama, Model = "nope" },
+            NullLog.Instance);
+
+        AiUnavailableException failure = await Assert.ThrowsAsync<AiUnavailableException>(
+            () => Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
+
+        Assert.Contains("not found", failure.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// With no model set, Ollama is refused by name before a request is made.
+    ///
+    /// The other three have a default to fall back on; here the set of models is whatever the user
+    /// has pulled, so a guess would 404 for most people — with an error about a model they never
+    /// asked for, instead of the one sentence that fixes it.
+    /// </summary>
+    [Fact]
+    public async Task Ollama_without_a_model_is_refused_before_anything_is_sent()
+    {
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, string.Empty);
+        using var http = new HttpClient(handler);
+
+        var generator = new OllamaGenerator(
+            http,
+            Options with { Provider = AiProvider.Ollama, Model = string.Empty },
+            NullLog.Instance);
+
+        AiUnavailableException failure = await Assert.ThrowsAsync<AiUnavailableException>(
+            () => Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
+
+        Assert.Contains("ollama list", failure.Message, StringComparison.Ordinal);
+        Assert.Equal(0, handler.Requests);
+    }
+
+    /// <summary>
+    /// The request carries the payload, the output guard under Ollama's own name, and no credential
+    /// of any kind.
+    ///
+    /// The last part is the point: a local provider has nobody to authenticate to, so an
+    /// Authorization header here would be a header nothing reads — and a sign that a key had been
+    /// wired in where none is needed.
+    /// </summary>
+    [Fact]
+    public async Task The_Ollama_request_carries_the_model_and_no_credential()
+    {
+        const string transcript = """
+            {"message":{"role":"assistant","content":"chore: tidy"},"done":true}
+
+            """;
+
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, transcript);
+        using var http = new HttpClient(handler);
+
+        var generator = new OllamaGenerator(
+            http,
+            Options with { Provider = AiProvider.Ollama, Model = "llama3.2" },
+            NullLog.Instance);
+
+        await Collect(generator.GenerateAsync(Prompt, CancellationToken.None));
+
+        Assert.Contains("\"model\":\"llama3.2\"", handler.SentBody, StringComparison.Ordinal);
+        Assert.Contains("\"num_predict\":150", handler.SentBody, StringComparison.Ordinal);
+        Assert.Contains("\"stream\":true", handler.SentBody, StringComparison.Ordinal);
+        Assert.Null(handler.SentAuthorization);
+    }
+
+    /// <summary>
     /// The credential the user stored is <b>never</b> sent to the endpoint the diff goes to.
     ///
     /// In scope as <b>the safety rules</b>, and it is the one assertion this provider needs that the

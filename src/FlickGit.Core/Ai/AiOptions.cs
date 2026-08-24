@@ -19,6 +19,17 @@ public enum AiProvider
     /// credential alone -- see <see cref="CopilotToken"/>.
     /// </summary>
     Copilot,
+
+    /// <summary>
+    /// Ollama, on this machine.
+    ///
+    /// <b>The only local provider, and the only one that differs in kind rather than in wire
+    /// format.</b> It needs no credential, because there is nobody to authenticate to; it has no
+    /// default model, because which models exist is a fact about the user's disk; and nothing it is
+    /// sent leaves the machine, which is the whole reason to want it — a policy that forbids source
+    /// code reaching a third party forbids the other three outright.
+    /// </summary>
+    Ollama,
 }
 
 /// <summary>
@@ -45,10 +56,55 @@ public sealed record AiOptions(
     bool ConventionalCommits)
 {
     /// <summary>
-    /// CLAUDE.md's hard timeout. Enforced inside the generator rather than by the caller, so no
-    /// surface can forget it.
+    /// Where Ollama is listening. An init property rather than a positional parameter, because it
+    /// means nothing to the other three.
+    /// </summary>
+    public string OllamaUrl { get; init; } = DefaultOllamaUrl;
+
+    /// <summary>Ollama's own default port, on this machine.</summary>
+    public const string DefaultOllamaUrl = "http://localhost:11434";
+
+    /// <summary>
+    /// CLAUDE.md's hard timeout, for a provider reached over the internet. Enforced inside the
+    /// generator rather than by the caller, so no surface can forget it.
     /// </summary>
     public static readonly TimeSpan HardTimeout = TimeSpan.FromSeconds(8);
+
+    /// <summary>
+    /// The same guard for a local model, and it has to be far larger.
+    ///
+    /// The budget measures <b>silence</b>, not total duration — and a cold Ollama spends its first
+    /// silence reading several gigabytes of weights off disk before it can emit a token. Eight
+    /// seconds would guillotine every first generation after a reboot, report it as "the provider
+    /// stopped answering", and count it towards the tray warning. Two minutes is still a guard: a
+    /// local server that has said nothing for that long is not loading, it is wedged.
+    /// </summary>
+    public static readonly TimeSpan LocalTimeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>How long this provider may go quiet before it is treated as gone.</summary>
+    public TimeSpan Silence => Provider == AiProvider.Ollama ? LocalTimeout : HardTimeout;
+
+    /// <summary>
+    /// How long the service start's warm-up may take.
+    ///
+    /// For the hosted three it is a TLS and HTTP/2 handshake, which is done in well under a second
+    /// and is capped low so a provider that is down cannot hold a startup task open. For Ollama the
+    /// warm-up <i>is</i> the model load — see <c>OllamaGenerator.ProbeAsync</c> — which is the whole
+    /// value of doing it at logon rather than on the first commit of the day.
+    /// </summary>
+    public TimeSpan WarmUpBudget => Provider == AiProvider.Ollama
+        ? TimeSpan.FromSeconds(60)
+        : TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Whether this provider needs a stored credential.
+    ///
+    /// A static function of the provider rather than a property, because the settings window and the
+    /// command line both have to answer it about a provider they are only <i>considering</i> — one
+    /// the user has selected in a ComboBox and not yet saved.
+    /// </summary>
+    public static bool RequiresKey(AiProvider provider) =>
+        provider is AiProvider.Anthropic or AiProvider.OpenAi or AiProvider.Copilot;
 
     /// <summary>
     /// The runaway guard on a commit message. The real control over length is the prompt; this only
@@ -83,6 +139,11 @@ public sealed record AiOptions(
             //slower one that works on all of them -- and `aiModel` overrides this either way.
             AiProvider.Copilot => "gpt-4.1",
 
+            //Ollama has no default, deliberately. The other three offer a fixed catalogue, so naming
+            //the fastest tier is a safe guess; here the set of models is whatever the user has pulled
+            //onto their own disk, so *any* guess 404s for most people -- with an error about a model
+            //they never asked for. `OllamaGenerator` refuses an empty model by name instead, and the
+            //message says to run `ollama list`.
             _ => string.Empty,
         };
 }

@@ -1883,8 +1883,54 @@ The base model spends no premium request, which is why it is the default rather 
 tier: a default that 404s on some subscriptions is worse than a slower one that works on all of
 them.
 
-**Ollama / local:** supported, not the default. Useful when policy forbids sending code off
-the machine.
+**Ollama (local):**
+
+```text
+Endpoint:      {aiOllamaUrl}/api/chat        default http://localhost:11434
+Model:         aiModel — required, no default
+options:       { "num_predict": 150 }
+stream:        true
+```
+
+The reason to have it is the one the other three cannot answer: **nothing sent to it leaves the
+machine**, so it is the only provider available to somebody whose policy forbids source code
+reaching a third party. That is also why it needs no credential and asks for no consent — the
+consent a stored key stands for is consent to send code to *somebody else*.
+
+Four things about it differ in kind rather than in wire format, and each costs a branch somewhere:
+
+- **No default model.** The other three offer a fixed catalogue, so naming the fastest tier is a
+  safe guess. Here the set of models is whatever the user has pulled onto their own disk, so *any*
+  guess 404s for most people — with an error about a model they never asked for. An empty `aiModel`
+  is refused by name instead, and the message says to run `ollama list`.
+- **Newline-delimited JSON, not SSE.** Each chunk is a complete JSON object on its own line: no
+  `data:` prefix, no blank-line separator, no `[DONE]`. Ollama also exposes an OpenAI-compatible
+  endpoint that would have reused the existing reader, and it was not taken — that endpoint is a
+  translation layer, it cannot carry `options.num_predict` or `keep_alive`, and a shim is a second
+  thing that can be wrong between us and the model. `LineDelimitedJson` is twenty lines.
+- **The silence budget is two minutes, not eight seconds.** The budget measures silence rather than
+  total duration, and a cold Ollama spends its first silence reading several gigabytes of weights
+  off disk. Eight seconds would guillotine every first generation after a reboot, report it as "the
+  provider stopped answering", and count it towards the tray warning. Two minutes is still a guard:
+  a local server silent that long is not loading, it is wedged.
+- **The warm-up loads the model**, where the hosted three open a socket. A chat request with an
+  empty message list is Ollama's own "load and stop", and it is sent with `keep_alive: 10m` — the
+  only request that sets it, so the user's own `OLLAMA_KEEP_ALIVE` governs everything afterwards.
+  The handshake this replaces costs nothing on loopback; the model load costs tens of seconds, and
+  paying it at logon is the difference between the first commit message of the day arriving in half
+  a second and in half a minute. `AiOptions.WarmUpBudget` is 60 s for Ollama against 5 s for the
+  rest.
+
+**`aiOllamaUrl` is a setting because running the model on a bigger machine on the same network is
+the ordinary reason to use Ollama at all**, and there would otherwise be no way to express it. It
+is the one case where "local" stops being literally true, so `flick ai` says which of the two it
+is — *diffs stay on this machine*, or *diffs are sent to the Ollama host named above* — rather than
+printing a claim that has quietly become false.
+
+**No latency row in the table below.** First token depends on the model, the quantisation and
+whether there is a GPU, which is a property of the user's hardware rather than of this product.
+`flick diag timings` still records `ai.firsttoken` and `ai.complete`, which is the number that
+actually matters to somebody choosing a model.
 
 **Cost is not a constraint.** At ten commits per day with a capped diff: roughly $1/month on
 Haiku 4.5, $0.25/month on Luna. Design around **time to first token**, not tokens spent.
@@ -1957,14 +2003,14 @@ public interface ICommitMessageGenerator
 }
 ```
 
-Implementations: `AnthropicCommitMessageGenerator`, `OpenAICommitMessageGenerator`,
-`CopilotCommitMessageGenerator`, `OllamaCommitMessageGenerator`,
-`DisabledCommitMessageGenerator`.
+Implementations: `AnthropicGenerator`, `OpenAiGenerator`, `CopilotGenerator`, `OllamaGenerator`,
+`DisabledAiGenerator`.
 
-Still no base class between them. What all three share is one function they call --
-`AiEndpoint.StreamAsync` -- and what differs is exactly its four arguments: the URL, the
-headers, the request shape and which frame carries text. Copilot is the one that cannot
-delegate outright, because its token has to be awaited before the request can be authorised.
+Still no base class between them. What all four share is one function they call --
+`AiEndpoint.StreamAsync` -- and what differs is exactly its arguments: the URL, the headers, the
+request shape, the framing, the silence budget and which frame carries text. Two cannot delegate
+outright: Copilot has to await its token before the request can be authorised, and Ollama has to
+resolve a model that may not be configured at all.
 
 The return type is a stream, not a `Task<string>` — streaming is a requirement, not an
 option.
@@ -2923,7 +2969,7 @@ one. Three tabs and nothing else:
 │  COMMIT MESSAGES (AI)                                    │
 │  Written by                                              │
 │  [ Anthropic                                        ▾ ]  │
-│    Disabled · Anthropic · OpenAI · GitHubCopilot         │
+│    Disabled · Anthropic · OpenAI · Copilot · Ollama      │
 │  [ Set API key… ]  [ Remove key ]                        │
 │  A key is stored for Anthropic, in Windows Credential    │
 │  Manager. The diff of the files you commit is sent to    │
@@ -2960,6 +3006,10 @@ and the only way to store one was `flick ai key set` — a fine way to keep a se
 way to discover that you can. A user who has an API key and wants commit messages has no reason to
 suspect a CLI verb exists, and the message box gives no hint, because a provider with no key is
 indistinguishable from no provider at all.
+
+**Ollama is the one entry that changes what the section means** rather than which service it points
+at: the key button is disabled and the status line says so, because there is nobody to authenticate
+to. It is also the one provider whose model is not optional, so that line names `ollama list`.
 
 So: the provider, and a button that opens the existing key prompt. Two controls, no model picker
 and no max-diff field — those are `aiModel` and `aiMaxDiffBytes` in `settings.json`, guessable once
@@ -3283,15 +3333,21 @@ record of why so they are not proposed again:
   tab rendering `Help.md`, and an About tab. Those are the settings whose JSON key nobody can guess
   before they have found the file, which is a different argument from the one that killed the
   action editor -- and the window is one screen with a Save button, not a second interface.
-- **The Ollama provider is not being built.** Anthropic and OpenAI cover the feature. A **GitHub
-  Copilot** provider was added afterwards, and it is not a reversal of this: it exists because a user
-  who already pays for Copilot should not need a second subscription, which is an argument Ollama
-  never had. Its section under **AI Commit Messages** carries the whole of it.
-- **Speculative generation is therefore not being built either.** This section requires it be
-  "automatically disabled when the provider is not local", and Ollama was the only local provider --
-  so with Ollama gone the feature could never legally enable itself. Implementing it would be dead
-  code by its own safety rule. **Copilot does not revive it**: it is a hosted API, so the diff still
-  leaves the machine. If a *local* provider is ever added, this comes back with it.
+- **The Ollama provider was not built, and then it was.** The original argument was that Anthropic
+  and OpenAI cover the feature, which was true of the *feature* and missed the point of the
+  provider: the other three all send source code to a third party, so a policy that forbids that
+  leaves the user with no AI at all rather than a slower one. **GitHub Copilot** was added first and
+  did not change this -- it is a hosted API, and it exists so that a user already paying for Copilot
+  needs no second subscription. Ollama answers a different question, and it is now built. Its part
+  of **AI Commit Messages** carries the whole of it.
+- **Speculative generation is unblocked, and still not built.** This section requires it be
+  "automatically disabled when the provider is not local", and with no local provider it could never
+  legally enable itself -- so it was dead code by its own safety rule. Ollama removes that
+  objection: with `aiOllamaUrl` on loopback the diff never leaves the machine, so the rule permits
+  it. It is still not built, because nothing about the argument *for* it has been re-made: it wants
+  a foreground-window watch, a 1.5 s dwell, a diff-hash cache and a setting, to save a wait that
+  a queued Enter already hides. It is a candidate now rather than an impossibility, which is the
+  only thing that changed.
 
 The context menu is still customisable, just not by clicking: `builtIns` in `actions.json` hides,
 relabels and reorders any built-in, and user actions add to every surface at once.
@@ -3609,16 +3665,27 @@ to a third party:
 
 ## The provider streams
 
-Three wire formats, all read a few bytes at a time so a reader that only works on a whole response
-does not pass:
+Four wire formats — three SSE and one not — all read a few bytes at a time so a reader that only
+works on a whole response does not pass:
 
 - Anthropic `content_block_delta` / `text_delta` concatenated, every other frame ignored
 - OpenAI `response.output_text.delta` concatenated, `[DONE]` not handed to a parser
 - Copilot `choices[0].delta.content` concatenated, and the two frames that carry no text —
   a delta that is only a role, and an empty `choices` — ignored rather than treated as a fault
+- Ollama's newline-delimited JSON concatenated, with no `data:` prefix and no blank-line separator,
+  and the `done: true` line — empty content plus timing statistics — neither appended nor treated as
+  a fault
+- Ollama's error, which is a bare string where the other three wrap it in an object, fails the
+  request rather than returning a silently empty message
+- Ollama with no model set is refused before a request is made at all, and the refusal names
+  `ollama list`
 - The stored GitHub token is exchanged and **never** sent to the completion endpoint, which the
-  other two providers cannot get wrong because their key *is* the header
-- The request body carries `max_tokens: 150`, `stream: true` and no `thinking` field
+  other two keyed providers cannot get wrong because their key *is* the header
+- The Ollama request carries **no** `Authorization` header at all, which is the local provider's
+  equivalent assertion: there is nobody to authenticate to, so a credential there would mean one had
+  been wired in where none exists
+- The request body carries `max_tokens: 150` (`num_predict` for Ollama), `stream: true` and no
+  `thinking` field
 - A fenced message is unwrapped
 
 ## The command-line grammar

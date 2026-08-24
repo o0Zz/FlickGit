@@ -291,6 +291,7 @@ ai.key.cleared = La clé d'API {0} a été supprimée.
 ai.key.cancelled = Aucune clé n'a été enregistrée.
 ai.key.failed = La clé n'a pas pu être enregistrée dans le Gestionnaire d'identifiants Windows.
 ai.key.noprovider = Aucun fournisseur d'IA n'est configuré, il n'y a donc pas de clé à enregistrer.
+ai.key.notneeded = {0} s'exécute sur cette machine : il n'y a aucune clé à enregistrer.
 
 # ---- erreurs ----
 error.title = FlickGit
@@ -389,6 +390,7 @@ settings.ai.key.clear = Supprimer la clé
 settings.ai.key.stored = Une clé est enregistrée pour {0}, dans le Gestionnaire d'identification Windows. Le diff des fichiers que vous committez est envoyé à ce fournisseur.
 # {0} provider name
 settings.ai.key.missing = Aucune clé enregistrée pour {0}. Rien ne sera généré tant qu'il n'y en a pas.
+settings.ai.key.notneeded = Ollama s'exécute sur {0} et ne nécessite aucune clé. Renseignez aiModel dans settings.json avec le modèle voulu — `ollama list` les affiche.
 
 settings.advanced = Tout le reste se configure dans ces deux fichiers :
 settings.advanced.open = Ouvrir le dossier de configuration

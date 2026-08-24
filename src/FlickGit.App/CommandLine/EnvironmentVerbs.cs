@@ -129,6 +129,15 @@ public sealed class EnvironmentVerbs(
             return VerbResult.Exit(ExitCodes.ConfigurationError);
         }
 
+        if (!AiOptions.RequiresKey(provider))
+        {
+            //Refused rather than stored. A key filed for Ollama would be read by nothing, and
+            //leaving the verb to accept one would suggest the local provider is somehow half
+            //configured until you do.
+            output.Fail(Strings.Get("app.name"), Strings.Get("ai.key.notneeded", provider.ToString()));
+            return VerbResult.Exit(ExitCodes.ConfigurationError);
+        }
+
         switch (action?.Trim().ToLowerInvariant())
         {
             case "clear":
@@ -179,9 +188,27 @@ public sealed class EnvironmentVerbs(
             return VerbResult.Exit(ExitCodes.Success);
         }
 
-        output.Line($"model        {ai.Options.ResolvedModel}");
-        output.Line($"api key      {(ai.HasKey ? $"stored ({CredentialStore.AiTarget(provider)})" : "not set — store one with `flick ai key set`")}");
-        output.Line("diffs        the diff of the files being committed is sent to this provider");
+        //Named rather than left empty, because "no model" is the one configuration error Ollama can
+        //have and the whole of its fix is one `ollama list` away.
+        output.Line($"model        {(ai.Options.ResolvedModel is { Length: > 0 } model ? model : "not set — required for Ollama; run `ollama list`")}");
+
+        if (provider == AiProvider.Ollama)
+        {
+            output.Line($"endpoint     {ai.Options.OllamaUrl}");
+            output.Line("api key      not needed — Ollama runs locally");
+
+            //The reason to run it. Said plainly here because this verb is where the privacy question
+            //is answered for every other provider.
+            output.Line(ai.Options.OllamaUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+                    || ai.Options.OllamaUrl.Contains("127.0.0.1", StringComparison.Ordinal)
+                ? "diffs        stay on this machine"
+                : "diffs        are sent to the Ollama host named above");
+        }
+        else
+        {
+            output.Line($"api key      {(ai.HasKey ? $"stored ({CredentialStore.AiTarget(provider)})" : "not set — store one with `flick ai key set`")}");
+            output.Line("diffs        the diff of the files being committed is sent to this provider");
+        }
         output.Line($"max diff     {ai.Options.MaxDiffBytes / 1024} KB (hard ceiling {DiffPayload.TokenCeilingBytes / 1024} KB of payload)");
 
         //Only worth a round trip when a request could actually be made.
@@ -355,10 +382,18 @@ public sealed class EnvironmentVerbs(
 
         string name = provider.ToString().ToLowerInvariant();
 
-        if (!ai.HasKey)
+        //A missing key is only a fault for a provider that needs one -- otherwise this line reported
+        //a perfectly configured Ollama as "no key", which is the sort of thing a doctor is read to
+        //rule out rather than to invent.
+        if (ai.RequiresKey && !ai.HasKey)
             return $"{name} (no key)";
 
-        return $"{name} ({ai.Options.ResolvedModel})";
+        //And the model is only optional for the three that have a default. Ollama has none, so an
+        //empty one is the fault worth naming here.
+        if (ai.Options.ResolvedModel is not { Length: > 0 } model)
+            return $"{name} (no model — set aiModel; `ollama list` shows what is installed)";
+
+        return $"{name} ({model})";
     }
 
     /// <summary>

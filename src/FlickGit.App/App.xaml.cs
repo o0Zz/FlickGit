@@ -236,6 +236,10 @@ public partial class App : Application
                     new CopilotToken(http, configuration.ReadKey, logger),
                     logger),
 
+                //The local one. No key delegate at all, which is the difference that matters:
+                //there is nobody to authenticate to.
+                AiProvider.Ollama => new OllamaGenerator(http, configuration.Options, logger),
+
                 _ => new DisabledAiGenerator(),
             };
         });
@@ -436,7 +440,12 @@ public partial class App : Application
         //the user nothing.
         if (services.GetRequiredService<AiTextService>().IsUsable)
         {
-            var warmup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            //The budget is the provider's, not a constant: for the hosted three this is a TLS
+            //handshake and five seconds is generous, while for Ollama the warm-up *is* the model
+            //load -- tens of seconds, and the whole reason to do it at logon rather than inside the
+            //user's first commit.
+            var warmup = new CancellationTokenSource(
+                services.GetRequiredService<AiConfiguration>().Options.WarmUpBudget);
 
             _ = services.GetRequiredService<IAiGenerator>()
                 .ProbeAsync(warmup.Token)

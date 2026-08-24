@@ -44,6 +44,8 @@ public sealed class AnthropicGenerator(
                 request.Headers.Add("x-api-key", key);
                 request.Headers.Add("anthropic-version", Version);
             },
+            AiFraming.ServerSentEvents,
+            options.Silence,
             Read,
             cancellationToken);
     }

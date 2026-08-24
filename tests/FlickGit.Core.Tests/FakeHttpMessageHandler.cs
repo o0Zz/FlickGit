@@ -22,6 +22,15 @@ internal sealed class FakeHttpMessageHandler(
     /// <summary>The request body that was sent, so a test can assert on what left the machine.</summary>
     public string? SentBody { get; private set; }
 
+    /// <summary>
+    /// The <c>Authorization</c> header, or null when there was none.
+    ///
+    /// Recorded so a test can assert on its <i>absence</i>: the local provider has nobody to
+    /// authenticate to, and a header there would mean a credential had been wired in where none
+    /// exists.
+    /// </summary>
+    public string? SentAuthorization { get; private set; }
+
     public int Requests { get; private set; }
 
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -29,6 +38,7 @@ internal sealed class FakeHttpMessageHandler(
         CancellationToken cancellationToken)
     {
         Requests++;
+        SentAuthorization = request.Headers.Authorization?.ToString();
 
         if (request.Content is not null)
             SentBody = await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);

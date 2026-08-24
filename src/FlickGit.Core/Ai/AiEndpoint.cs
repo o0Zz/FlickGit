@@ -15,6 +15,19 @@ namespace FlickGit.Ai;
 /// actually differs — the URL, the headers, the request shape and which frame carries text — arrives
 /// as arguments, which is why there is still no base class.
 /// </summary>
+/// <summary>
+/// How a streamed body is cut into frames.
+///
+/// Two, because two exist: the hosted three send <c>text/event-stream</c> and Ollama's native API
+/// sends one JSON object per line. A third would be a third member; there is no general framing
+/// abstraction here and there does not need to be.
+/// </summary>
+internal enum AiFraming
+{
+    ServerSentEvents,
+    LineDelimitedJson,
+}
+
 internal static class AiEndpoint
 {
     /// <summary>
@@ -41,6 +54,12 @@ internal static class AiEndpoint
     /// </list>
     /// </summary>
     /// <param name="authorise">Adds the provider's key header. The one thing that must not be logged.</param>
+    /// <param name="framing">How the body is cut into frames. Not every provider speaks SSE.</param>
+    /// <param name="silence">
+    /// How long the provider may say nothing before it is treated as gone. An argument rather than
+    /// the constant it used to be, because a local model's first silence is a multi-gigabyte read
+    /// off disk and a hosted one's is a fault — see <see cref="AiOptions.Silence"/>.
+    /// </param>
     /// <param name="readFrame">Pulls the text out of one frame, or returns null for a frame to ignore.</param>
     public static async IAsyncEnumerable<string> StreamAsync(
         HttpClient http,
@@ -48,11 +67,13 @@ internal static class AiEndpoint
         string endpoint,
         string json,
         Action<HttpRequestMessage> authorise,
+        AiFraming framing,
+        TimeSpan silence,
         Func<string, string?> readFrame,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(AiOptions.HardTimeout);
+        deadline.CancelAfter(silence);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
@@ -62,7 +83,9 @@ internal static class AiEndpoint
         };
 
         authorise(request);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(
+            framing == AiFraming.LineDelimitedJson ? "application/x-ndjson" : "text/event-stream"));
 
         HttpResponseMessage response;
 
@@ -75,7 +98,7 @@ internal static class AiEndpoint
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new AiUnavailableException(
-                $"{provider} did not answer within {AiOptions.HardTimeout.TotalSeconds:F0} s.");
+                $"{provider} did not answer within {silence.TotalSeconds:F0} s.");
         }
         catch (HttpRequestException ex)
         {
@@ -91,9 +114,11 @@ internal static class AiEndpoint
 
             //Enumerated by hand rather than with `await foreach`, because C# forbids a catch around
             //a `yield return` and telling a stall apart from an Esc is the whole point below.
-            await using IAsyncEnumerator<string> frames = ServerSentEvents
-                .ReadAsync(body, deadline.Token)
-                .GetAsyncEnumerator(deadline.Token);
+            IAsyncEnumerable<string> source = framing == AiFraming.LineDelimitedJson
+                ? LineDelimitedJson.ReadAsync(body, deadline.Token)
+                : ServerSentEvents.ReadAsync(body, deadline.Token);
+
+            await using IAsyncEnumerator<string> frames = source.GetAsyncEnumerator(deadline.Token);
 
             while (true)
             {
@@ -113,12 +138,12 @@ internal static class AiEndpoint
                     //provider that went quiet truncated the message in silence, with no notice and
                     //no failure counted.
                     throw new AiUnavailableException(
-                        $"{provider} stopped sending after {AiOptions.HardTimeout.TotalSeconds:F0} s of silence. "
+                        $"{provider} stopped sending after {silence.TotalSeconds:F0} s of silence. "
                         + "The message above is unfinished.");
                 }
 
                 //A frame arrived, so the request is not hung and the clock starts again.
-                deadline.CancelAfter(AiOptions.HardTimeout);
+                deadline.CancelAfter(silence);
 
                 //The one sentinel that is not JSON. OpenAI sends it and Anthropic does not; handing it
                 //to a parser would be a spurious warning on every request that gets one.
