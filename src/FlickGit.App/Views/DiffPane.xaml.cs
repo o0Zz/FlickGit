@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using FlickGit.App.Localization;
@@ -11,8 +12,8 @@ using ICSharpCode.AvalonEdit.Highlighting;
 namespace FlickGit.App.Views;
 
 /// <summary>
-/// The side-by-side diff viewer: two AvalonEdit instances, a background renderer each, a number
-/// gutter each, and a connector strip between them. The right pane is editable.
+/// The side-by-side diff viewer: two AvalonEdit instances edge to edge, a background renderer each,
+/// a number gutter each, and an overview strip down the right-hand edge. The right pane is editable.
 ///
 /// <b>Alignment.</b> Both documents are built from the same <see cref="DiffRow"/> list, one
 /// document line per row, with a blank <i>filler</i> line where a side has no content. So document
@@ -41,11 +42,9 @@ public partial class DiffPane : UserControl
     private readonly DiffBackgroundRenderer _rightRenderer = new(isLeftPane: false);
     private readonly DiffLineNumberMargin _leftMargin = new(isLeftPane: true);
     private readonly DiffLineNumberMargin _rightMargin = new(isLeftPane: false);
-    private readonly DiffConnectorStrip _connector = new();
     private readonly DiffOverviewStrip _overview = new();
     private readonly DispatcherTimer _rediffTimer;
 
-    /// <summary>Guards the two-way scroll sync against feeding itself.</summary>
     /// <summary>
     /// How much unchanged text to leave above the first change when a file is opened.
     ///
@@ -54,17 +53,10 @@ public partial class DiffPane : UserControl
     /// </summary>
     private const int ContextLinesAboveFirstChange = 3;
 
-    private bool _syncing;
-
-    /// <summary>
-    /// The pane that raised a scroll while <see cref="_syncing"/> was up, to be reconciled when it
-    /// comes down. See <see cref="Sync"/>.
-    /// </summary>
-    private TextEditor? _pendingSource;
-
     /// <summary>
     /// The pane the current sync is moving. Its own scroll event is an echo, not a gesture, and
-    /// telling the two apart is what stops the panes dragging each other backwards.
+    /// telling the two apart is what stops the panes dragging each other backwards. See
+    /// <see cref="Sync"/> for why one field is now the whole guard.
     /// </summary>
     private TextEditor? _syncTarget;
 
@@ -108,7 +100,6 @@ public partial class DiffPane : UserControl
         LeftEditor.TextArea.LeftMargins.Add(_leftMargin);
         RightEditor.TextArea.LeftMargins.Add(_rightMargin);
 
-        ConnectorHost.Content = _connector;
         OverviewHost.Content = _overview;
 
         //Both directions, each guarded. One-way sync breaks the moment the user scrolls the pane
@@ -506,7 +497,6 @@ public partial class DiffPane : UserControl
         _rightRenderer.SetRows(rows);
         _leftMargin.SetRows(rows);
         _rightMargin.SetRows(rows);
-        _connector.SetRows(rows);
         _overview.SetRows(rows);
     }
 
@@ -563,7 +553,6 @@ public partial class DiffPane : UserControl
                 SetRows(rows);
                 LeftEditor.TextArea.TextView.InvalidateLayer(ICSharpCode.AvalonEdit.Rendering.KnownLayer.Background);
                 RightEditor.TextArea.TextView.InvalidateLayer(ICSharpCode.AvalonEdit.Rendering.KnownLayer.Background);
-                _connector.InvalidateVisual();
                 _overview.InvalidateVisual();
             }
             else
@@ -729,80 +718,63 @@ public partial class DiffPane : UserControl
             //is worse than none here; the change is at least on screen.
             RightEditor.ScrollToLine(line);
         }
-
-        //Left and right start level, so the connector is not drawn against a stale offset.
-        _connector.SetViewport(lineHeight, RightEditor.VerticalOffset);
     }
 
     /// <summary>
-    /// Copies one pane's scroll offset onto the other.
+    /// Copies one pane's scroll offset onto the other, in the same breath as the gesture that
+    /// caused it.
     ///
-    /// <b>The guard cannot be released synchronously, and that was the bug.</b>
-    /// <c>ScrollToVerticalOffset</c> does not move the view; it asks the <c>ScrollViewer</c> to move
-    /// it during the next arrange pass. So the target's own <c>ScrollOffsetChanged</c> arrives
-    /// <i>after</i> this method has returned and cleared the flag — and that echo then scrolled the
-    /// source back to where the target had just been put. With the wheel still turning, the two panes
-    /// take turns dragging each other backwards, which is the view jumping about under the cursor.
+    /// <b>The offset is pushed through <see cref="IScrollInfo"/> on the target's text view, not
+    /// through <c>TextEditor.ScrollToVerticalOffset</c>, and that is the whole of it.</b>
+    /// <c>ScrollToVerticalOffset</c> does not scroll; it asks the <c>ScrollViewer</c> to scroll
+    /// during the next arrange pass. So the move landed a frame late and — worse — the target's own
+    /// <c>ScrollOffsetChanged</c> arrived <i>after</i> this method had returned, which meant the
+    /// echo could not be recognised by anything as cheap as a flag. The guard had to be lowered at
+    /// <c>DispatcherPriority.Background</c> instead, and every gesture that arrived while it was up
+    /// was parked in a field and replayed later. Under a continuous wheel spin that made the target
+    /// pane update once per Background dispatch — starved by the very rendering the scroll was
+    /// causing — which is the second pane lagging behind the first.
     ///
-    /// So the flag is cleared at <c>Background</c> priority, which is below <c>Render</c> and
-    /// therefore runs after the arrange that applies the scroll — the echo lands while the guard is
-    /// still up and is ignored.
+    /// <c>IScrollInfo.SetVerticalOffset</c> is what the <c>ScrollViewer</c> itself calls, and it
+    /// moves the text view <i>synchronously</i>: the offset changes, <c>ScrollOffsetChanged</c> is
+    /// raised, and both happen before the call returns. So the echo lands inside the
+    /// <c>try</c> below, one field catches it, and there is nothing left to defer or replay. Both
+    /// panes are repainted from the same frame as the wheel notch.
+    ///
+    /// It also clamps, which is the other half of the old bug: the two documents have the same line
+    /// count but not the same longest line, so a horizontal offset the source can reach is one the
+    /// target may not. The clamped result comes back as a scroll event, and treating that as a
+    /// gesture is what used to drag the pane the user actually scrolled back to wherever the other
+    /// one could reach. It is an echo like any other now, and ignored like one.
     /// </summary>
     private void Sync(TextEditor source, TextEditor target)
     {
-        if (_syncing)
-        {
-            //The echo from the pane this sync just moved, which is not a user gesture.
-            //
-            //Recording it would be worse than dropping it. The two documents have the same number of
-            //lines but not the same longest line, so ScrollToHorizontalOffset *clamps* to the
-            //narrower one -- and reconciling from that clamped echo would drag the pane the user
-            //actually scrolled back to wherever the other one could reach. That is the snap-back.
-            if (ReferenceEquals(source, _syncTarget))
-                return;
-
-            //A real gesture: the wheel kept turning while the deferred scroll was being applied.
-            //Remembered rather than dropped, or the panes stay out of step until the next gesture
-            //happens to arrive at a quiet moment.
-            _pendingSource = source;
+        //The echo from the pane this sync is moving, which is not a user gesture.
+        if (ReferenceEquals(source, _syncTarget))
             return;
-        }
 
-        _syncing = true;
+        //The text views, not the editors: TextEditor.VerticalOffset reads the ScrollViewer, which
+        //has not caught up with its own IScrollInfo child yet at the moment this fires. Reading the
+        //stale value would sync the target to where the source was one notch ago.
+        Vector from = source.TextArea.TextView.ScrollOffset;
+        var to = (IScrollInfo)target.TextArea.TextView;
+
         _syncTarget = target;
 
-        //Queued before the work, so the guard comes down even if something below throws. It cannot
-        //run before this method returns: Background is dispatched, not called.
-        Dispatcher.BeginInvoke(ReleaseSyncGuard, DispatcherPriority.Background);
+        try
+        {
+            //Vertical offsets are copied outright, which is only correct because both documents have
+            //the same number of lines. Horizontal too: reading a long changed line means scrolling
+            //both halves together.
+            if (Math.Abs(to.VerticalOffset - from.Y) > 0.5)
+                to.SetVerticalOffset(from.Y);
 
-        //Vertical offsets are copied outright, which is only correct because both documents
-        //have the same number of lines. Horizontal too: reading a long changed line means
-        //scrolling both halves together.
-        if (Math.Abs(target.VerticalOffset - source.VerticalOffset) > 0.5)
-            target.ScrollToVerticalOffset(source.VerticalOffset);
-
-        if (Math.Abs(target.HorizontalOffset - source.HorizontalOffset) > 0.5)
-            target.ScrollToHorizontalOffset(source.HorizontalOffset);
-
-        _connector.SetViewport(source.TextArea.TextView.DefaultLineHeight, source.VerticalOffset);
-    }
-
-    /// <summary>
-    /// Lowers the guard and catches up on whatever arrived while it was up.
-    ///
-    /// One follow-up pass, not a loop: it re-syncs from the last pane the user actually scrolled, and
-    /// if the two are already level the difference checks in <see cref="Sync"/> do nothing and it
-    /// stops there.
-    /// </summary>
-    private void ReleaseSyncGuard()
-    {
-        _syncing = false;
-        _syncTarget = null;
-
-        TextEditor? pending = _pendingSource;
-        _pendingSource = null;
-
-        if (pending is not null)
-            Sync(pending, pending == LeftEditor ? RightEditor : LeftEditor);
+            if (Math.Abs(to.HorizontalOffset - from.X) > 0.5)
+                to.SetHorizontalOffset(from.X);
+        }
+        finally
+        {
+            _syncTarget = null;
+        }
     }
 }

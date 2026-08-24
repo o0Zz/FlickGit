@@ -123,7 +123,6 @@
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="14" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="11" />
             </Grid.ColumnDefinitions>
@@ -137,32 +136,35 @@
                                BorderThickness="0"
                                Background="{StaticResource SurfaceSunken}" />
 
-            <!-- One visual for the whole strip, not one per changed block. CLAUDE.md: "The
-                 connector strip between panes drawn as a single visual." -->
-            <ContentControl x:Name="ConnectorHost" Grid.Column="1" />
-
             <!-- Editable. IsReadOnly is set in code per file: binary files, oversized
-                 files and unresolved conflicts stay read-only. -->
+                 files and unresolved conflicts stay read-only.
+
+                 Directly against the left pane, with a one-pixel rule for the join rather than a
+                 band between them. There was a 14px connector strip here, tying each changed block
+                 to its counterpart; it read as a colour belonging to one of the editors rather than
+                 as a link between them, and the overview strip now answers "where are the changes"
+                 better than a band that only ever showed the rows already on screen. -->
             <avalon:TextEditor x:Name="RightEditor"
-                               Grid.Column="2"
+                               Grid.Column="1"
                                IsReadOnly="True"
                                ShowLineNumbers="False"
                                WordWrap="False"
                                HorizontalScrollBarVisibility="Auto"
                                VerticalScrollBarVisibility="Auto"
-                               BorderThickness="0"
+                               BorderThickness="1,0,0,0"
+                               BorderBrush="{StaticResource Border}"
                                Background="{StaticResource SurfaceSunken}" />
 
             <!-- The whole file's changes at a glance, beside the right editor's scrollbar. One
                  strip for both panes: the two documents are aligned row for row, so a second one
                  would be a copy of the first. -->
-            <ContentControl x:Name="OverviewHost" Grid.Column="3" />
+            <ContentControl x:Name="OverviewHost" Grid.Column="2" />
 
             <!-- Shown when the file is binary, too large, or nothing is selected. Covers the panes
                  rather than replacing them, so switching files does not rebuild the editors: they
                  are the expensive part of this control. -->
             <Border x:Name="Placeholder"
-                    Grid.ColumnSpan="4"
+                    Grid.ColumnSpan="3"
                     Background="{StaticResource SurfaceSunken}">
                 <TextBlock x:Name="PlaceholderText"
                            HorizontalAlignment="Center"

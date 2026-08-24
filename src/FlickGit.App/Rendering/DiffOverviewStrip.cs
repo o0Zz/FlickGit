@@ -21,8 +21,8 @@ namespace FlickGit.App.Rendering;
 /// be two things to keep in step.
 ///
 /// One <see cref="FrameworkElement"/> drawing at most three geometries, per CLAUDE.md's "never
-/// insert a visual element per line" — and unlike <see cref="DiffConnectorStrip"/> it does not
-/// repaint on scroll at all, because it maps the entire document rather than the visible window.
+/// insert a visual element per line" — and it does not repaint on scroll at all, because it maps
+/// the entire document rather than the visible window.
 /// </summary>
 public sealed class DiffOverviewStrip : FrameworkElement
 {
@@ -37,8 +37,8 @@ public sealed class DiffOverviewStrip : FrameworkElement
 
     public DiffOverviewStrip()
     {
-        //Decorative, as the connector strip is. It maps the file rather than offering a way to
-        //move through it, so swallowing a click here would only take one away from the editor.
+        //Decorative. It maps the file rather than offering a way to move through it, so
+        //swallowing a click here would only take one away from the editor underneath.
         IsHitTestVisible = false;
     }
 
@@ -54,7 +54,7 @@ public sealed class DiffOverviewStrip : FrameworkElement
 
         //A hairline against the editor, so an empty strip reads as part of the frame rather than as
         //a gap in it.
-        drawingContext.DrawRectangle(DiffBrushes.Border, pen: null, new Rect(0, 0, 1, ActualHeight));
+        drawingContext.DrawRectangle(DiffBrushes.OverviewBorder, pen: null, new Rect(0, 0, 1, ActualHeight));
 
         if (_rows.Count == 0 || ActualHeight <= 0)
             return;

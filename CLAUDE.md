@@ -659,28 +659,42 @@ character diffs. Do not write a Myers implementation.
   clicked the file to see. Three lines of context above it, matching what a unified hunk carries. The
   caret goes there too — `SelectedRows` reads the caret line, so leaving it on line 1 would make
   Stage hunk and Revert lines act on something off screen.
-- Synchronised scrolling locked to the diff alignment, not to raw line numbers
-
-  **Two traps, both of which produced the same symptom — the view jumping about under the cursor:**
+- **Synchronised scrolling locked to the diff alignment, not to raw line numbers — and pushed
+  through `IScrollInfo`, not through `TextEditor.ScrollToVerticalOffset`.** That one choice is what
+  makes the second pane move in the same frame as the first, and it is what the two traps below
+  reduce to.
 
   - **`ScrollToVerticalOffset` does not scroll.** It asks the `ScrollViewer` to move during the next
-    arrange pass, so the target pane's own `ScrollOffsetChanged` arrives *after* the sync method has
-    returned. A guard flag cleared in a `finally` is therefore already down when the echo lands, and
-    the echo scrolls the source back to where the target had just been put. With the wheel still
-    turning the two panes take turns dragging each other backwards. The guard has to come down at
-    `DispatcherPriority.Background`, which is below `Render` and so runs after that arrange.
-  - **The two panes do not have the same maximum horizontal offset**, because they do not have the
-    same longest line — so `ScrollToHorizontalOffset` *clamps* to the narrower document. That clamped
-    value comes back as a scroll event, and treating it as a gesture drags the pane the user actually
-    scrolled back to wherever the other one could reach. The echo has to be told apart from a real
-    gesture by remembering which pane the current sync is moving.
+    arrange pass. So the target landed a frame late, and the target's own `ScrollOffsetChanged`
+    arrived *after* the sync method had returned — meaning the echo could not be recognised by
+    anything as cheap as a flag cleared in a `finally`, and it scrolled the source back to where the
+    target had just been put. That was worked around by lowering the guard at
+    `DispatcherPriority.Background` and parking any gesture that arrived while it was up for a later
+    replay. It was correct and it was **visibly laggy**: under a continuous wheel spin the target
+    updated once per Background dispatch, starved by the very rendering the scrolling was causing.
 
-  A real gesture arriving while the guard is up is remembered and replayed once when it comes down,
-  not dropped: dropping it leaves the panes out of step until the next gesture happens to arrive at a
-  quiet moment.
+    `TextView` implements `IScrollInfo`, and `SetVerticalOffset` is what the `ScrollViewer` itself
+    calls. It moves the view *synchronously* — the offset changes and `ScrollOffsetChanged` is
+    raised before the call returns. So the echo lands inside the `try`, a single field catches it,
+    and the deferral, the parked gesture and the replay are all deleted rather than tuned.
+  - **The two panes do not have the same maximum horizontal offset**, because they do not have the
+    same longest line — so the offset *clamps* to the narrower document. That clamped value comes
+    back as a scroll event, and treating it as a gesture drags the pane the user actually scrolled
+    back to wherever the other one could reach. Recognising the echo is the whole fix, and the
+    synchronous push is what makes recognising it a one-line reference comparison.
+
+  **Read the offset off the `TextView`, never off the `TextEditor`.** `TextEditor.VerticalOffset`
+  reads the `ScrollViewer`, which has not yet caught up with its own `IScrollInfo` child when the
+  event fires — so it reports where the source was one notch ago, and syncing to it reintroduces
+  exactly the lag this replaced.
 - Change bars and line backgrounds via `IBackgroundRenderer` — never insert a visual element
   per line
-- The connector strip between panes drawn as a single visual
+- **The panes sit edge to edge, separated by a one-pixel rule.** There was a 14 px connector strip
+  between them, one visual tying each changed block to its counterpart. It went: at that width it
+  read as a colour belonging to one of the editors rather than as a link between them, and it only
+  ever showed the runs already on screen — which is the question the overview strip below answers
+  better, for the whole file at once. Per **Hard Requirement 1** the class and its three brushes were
+  deleted rather than hidden behind a zero width.
 - **An overview strip down the right-hand edge**, mapping the whole file to the pane's height:
   a green mark per insertion, red per deletion, blue per modified line, so the changes further
   down the file are visible without scrolling to find them. One strip for both panes, because

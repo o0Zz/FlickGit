@@ -30,8 +30,8 @@ internal static class DiffBrushes
     public static readonly Brush DeletedWord = Frozen("#FFF4C0C5");
 
     /// <summary>
-    /// Where there is nothing: a filler row in the editors, and the connector strip's own background.
-    /// One colour because it means one thing — this side has no line here.
+    /// Where there is nothing: a filler row in the editors, standing in for a line the other side
+    /// has and this one does not.
     /// </summary>
     public static readonly Brush Neutral = Frozen("#FFF6F6F8");
 
@@ -40,15 +40,6 @@ internal static class DiffBrushes
 
     /// <summary>The line numbers themselves, and any hairline drawn beside them.</summary>
     public static readonly Brush LineNumber = Frozen("#FF8A93A6");
-
-    /// <summary>The connector's tie for an insertion. Lighter than the row, so it reads as a link.</summary>
-    public static readonly Brush ConnectorInserted = Frozen("#FFCCEAD3");
-
-    /// <summary>The connector's tie for a deletion.</summary>
-    public static readonly Brush ConnectorDeleted = Frozen("#FFF2CDD1");
-
-    /// <summary>The connector's tie for a modified pair, which exists on both sides.</summary>
-    public static readonly Brush ConnectorModified = Frozen("#FFD9E2F0");
 
     /// <summary>
     /// The overview strip's marks. Saturated where the row colours are pale, and that is not an
@@ -64,7 +55,7 @@ internal static class DiffBrushes
     public static readonly Brush OverviewModified = Frozen("#FF7A93BE");
 
     /// <summary>The hairline between the overview strip and the editor beside it.</summary>
-    public static readonly Brush Border = Frozen("#FFDDE0E8");
+    public static readonly Brush OverviewBorder = Frozen("#FFDDE0E8");
 
     /// <summary>The abbreviated hash in the blame gutter. The accent, so the eye lands on it first.</summary>
     public static readonly Brush BlameSha = Frozen("#FF3A6EA5");
