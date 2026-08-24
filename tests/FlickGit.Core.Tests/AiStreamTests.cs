@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http;
 using FlickGit.Ai;
 using FlickGit.Logging;
 using Xunit;

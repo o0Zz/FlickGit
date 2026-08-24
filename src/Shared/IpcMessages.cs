@@ -1,12 +1,13 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+
+//System.IO explicitly: the generated *_wpftmp project the XAML pass compiles this file in does not
+//get the implicit usings, so Stream is unresolved there without it.
 using System.IO;
 using System.Security.Principal;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace FlickGit.Ipc;
 

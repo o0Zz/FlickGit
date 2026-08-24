@@ -1,8 +1,7 @@
 ﻿namespace FlickGit.Shared;
 
 /// <summary>
-/// The CLSIDs of the <c>IExplorerCommand</c> handlers, and the value names their configuration
-/// lives under.
+/// The CLSID of the context-menu handler, and the value names its configuration lives under.
 ///
 /// <b>Shared as source, compiled into both assemblies</b>, exactly as <c>IpcMessages.cs</c> is: the
 /// App writes these keys and the shell DLL reads them, so a GUID that disagreed between the two
@@ -108,15 +107,8 @@ internal static class ShellCommandIds
     /// <summary>The subkey under the handler's CLSID holding one subkey per menu entry.</summary>
     public const string ItemsKeyName = "Items";
 
-    /// <summary>
-    /// The <c>EXPCMDFLAGS</c> value <c>IExplorerCommand::GetFlags</c> reports, as a decimal string.
-    ///
-    /// In practice one of <see cref="SeparatorBefore"/> or <see cref="SeparatorAfter"/>, which is
-    /// what draws the bar that gives the FlickGit entries a block of their own. Decided by the App,
-    /// because it is the App that knows which entry is first and which is last — the DLL sees one
-    /// CLSID at a time and could not work it out.
-    /// </summary>
-    public const string ValueCommandFlags = "FlickGit.CommandFlags";
+    // The CommandFlags value on a static verb, which is what brackets the fallback block with a bar
+    // either side. The handler needs neither: it draws its own separators with MF_SEPARATOR.
 
     /// <summary><c>ECF_SEPARATORBEFORE</c>. A bar above this entry.</summary>
     public const uint SeparatorBefore = 0x20;

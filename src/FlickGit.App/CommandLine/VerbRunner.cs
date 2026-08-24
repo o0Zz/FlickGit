@@ -159,7 +159,7 @@ public sealed class VerbRunner(
             VerbKind.Clone => windowVerbs.Clone(verb.Path!, verb.Argument),
             VerbKind.Terminal => windowVerbs.Terminal(output, verb.Path),
 
-            VerbKind.PullRebase => await windowVerbs.PullAsync(output, repository!).ConfigureAwait(true),
+            VerbKind.PullRebase => await windowVerbs.PullAsync(repository!).ConfigureAwait(true),
             VerbKind.Log => await windowVerbs.LogAsync(repository!).ConfigureAwait(true),
             VerbKind.Repo => windowVerbs.Repo(repository!),
 

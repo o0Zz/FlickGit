@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using FlickGit.Ai;
 using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Infrastructure;

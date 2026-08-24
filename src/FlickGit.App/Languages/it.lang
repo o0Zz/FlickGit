@@ -218,7 +218,6 @@ action.confirm.process = {0}\n\nQuesto avvia un programma esterno a FlickGit:\n{
 action.confirm.yes = Esegui
 action.confirm.no = Annulla
 action.ran = {0} terminato.
-action.failed = {0} non è riuscito.
 palette.confirms = chiede conferma
 palette.tag.prompt = Digitare un nuovo nome di tag…
 palette.tag.willcreate = sarà creato su HEAD

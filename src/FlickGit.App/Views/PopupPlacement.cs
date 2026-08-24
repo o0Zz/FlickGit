@@ -3,25 +3,26 @@ using System.Runtime.InteropServices;
 namespace FlickGit.App.Views;
 
 /// <summary>
-/// Puts a window next to the mouse pointer, on the monitor the pointer is on.
+/// Places a window on the monitor the mouse pointer is on.
 ///
 /// <b>All of it in physical pixels, and all of it through <c>SetWindowPos</c>.</b> That is not an
 /// implementation preference. This process declares <c>PerMonitorV2</c> DPI awareness (see
 /// <c>app.manifest</c>, where the diff renderer's crispness depends on it), while WPF's
 /// <c>Window.Left</c>/<c>Top</c> and <c>SystemParameters.WorkArea</c> are device-independent units
 /// derived from the <i>primary</i> monitor's scale. On the ordinary laptop-plus-monitor desktop
-/// where one display is at 150% and the other at 100%, doing this arithmetic in DIPs puts the popup
+/// where one display is at 150% and the other at 100%, doing this arithmetic in DIPs puts the window
 /// on the wrong monitor or off the edge of the screen.
 ///
 /// Positioning before <c>Show()</c> has a second benefit: the window is already on the target
 /// monitor when it first paints, so WPF resolves that monitor's scale factor rather than laying out
 /// at the wrong one and rescaling on the <c>WM_DPICHANGED</c> that follows.
+///
+/// One placement, because there is one caller: the palette. The cursor-anchored placement beside it
+/// belonged to the quick-commit popup, and went when that surface did — the commit window keeps the
+/// position WPF gives it.
 /// </summary>
 internal static partial class PopupPlacement
 {
-    /// <summary>How far below and right of the pointer, so the popup does not sit under it.</summary>
-    private const int CursorOffset = 12;
-
     private const uint MonitorDefaultToNearest = 2;
 
     private const uint SwpNoSize = 0x0001;
@@ -29,62 +30,10 @@ internal static partial class PopupPlacement
     private const uint SwpNoActivate = 0x0010;
 
     /// <summary>
-    /// Moves <paramref name="handle"/> so it sits near the cursor and wholly inside the work area
-    /// of the monitor the cursor is on.
-    ///
-    /// A failure is swallowed: a popup in the wrong place is a great deal better than no popup, and
-    /// every call here is a Win32 function whose only failure mode is "the window went nowhere".
-    /// </summary>
-    public static void NearCursor(nint handle)
-    {
-        try
-        {
-            if (handle == 0 || !GetCursorPos(out Point cursor))
-                return;
-
-            nint monitor = MonitorFromPoint(cursor, MonitorDefaultToNearest);
-
-            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-
-            if (monitor == 0 || !GetMonitorInfoW(monitor, ref info) || !GetWindowRect(handle, out Rect bounds))
-                return;
-
-            //The real size, in real pixels. Available because the host called EnsureHandle and laid
-            //the content out during the pre-warm, so the window already knows how big it is.
-            int width = bounds.Right - bounds.Left;
-            int height = bounds.Bottom - bounds.Top;
-
-            Rect work = info.Work;
-
-            //Below-right of the pointer by default, flipped to above or left when that would put
-            //the popup past the edge -- rather than merely clamped, which would leave it under the
-            //pointer and swallow the first click.
-            int x = cursor.X + CursorOffset + width > work.Right
-                ? cursor.X - CursorOffset - width
-                : cursor.X + CursorOffset;
-
-            int y = cursor.Y + CursorOffset + height > work.Bottom
-                ? cursor.Y - CursorOffset - height
-                : cursor.Y + CursorOffset;
-
-            //A final clamp for the case where the popup is taller or wider than the work area it
-            //is being placed in, which a small secondary display makes real.
-            x = Math.Max(work.Left, Math.Min(x, Math.Max(work.Left, work.Right - width)));
-            y = Math.Max(work.Top, Math.Min(y, Math.Max(work.Top, work.Bottom - height)));
-
-            SetWindowPos(handle, 0, x, y, 0, 0, SwpNoSize | SwpNoZOrder | SwpNoActivate);
-        }
-        catch (Exception)
-        {
-            //Placement is cosmetic. Nothing here is worth failing the trigger over.
-        }
-    }
-
-    /// <summary>
     /// Centres <paramref name="handle"/> horizontally and puts it near the top of the monitor the
     /// pointer is on.
     ///
-    /// The palette's placement, and deliberately not <see cref="NearCursor"/>. A hotkey pressed from
+    /// The palette's placement, and deliberately not anchored to the cursor. A hotkey pressed from
     /// anywhere says nothing about where the pointer happens to be, so anchoring to it would put the
     /// palette somewhere different every time — and a surface driven entirely by the keyboard is
     /// usable without looking only if it appears in the same place twice.
@@ -148,7 +97,7 @@ internal static partial class PopupPlacement
         public int Size;
         public Rect Monitor;
 
-        /// <summary>The monitor minus the taskbar. What a popup must stay inside.</summary>
+        /// <summary>The monitor minus the taskbar. What the window must stay inside.</summary>
         public Rect Work;
 
         public uint Flags;

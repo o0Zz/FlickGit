@@ -85,7 +85,6 @@ public sealed class CommitFlowTests : IDisposable
             .Returns(["push"]);
 
     private CommitRequest Request(
-        FakeGitRunner git,
         string? targetBranch = null,
         bool create = false,
         bool push = false,
@@ -109,7 +108,7 @@ public sealed class CommitFlowTests : IDisposable
         //Staging is index-based and survives a switch, which is the whole reason it goes first.
         var git = HappyPath();
 
-        await Create(git).RunAsync(Request(git), CancellationToken.None);
+        await Create(git).RunAsync(Request(), CancellationToken.None);
 
         int add = git.Invocations.FindIndex(i => i.Args.Contains("add"));
         int commit = git.Invocations.FindIndex(i => i.Args.Contains("commit"));
@@ -124,7 +123,7 @@ public sealed class CommitFlowTests : IDisposable
         //user excluded, and the unticking would have done nothing.
         var git = HappyPath();
 
-        CommitRequest request = Request(git) with { PathsToUnstage = ["src/excluded.cs"] };
+        CommitRequest request = Request() with { PathsToUnstage = ["src/excluded.cs"] };
 
         await Create(git).RunAsync(request, CancellationToken.None);
 
@@ -138,7 +137,7 @@ public sealed class CommitFlowTests : IDisposable
         //A file whose only change was already staged and then reverted on disk stages to nothing.
         var git = HappyPath().Returns(["diff", "--cached", "--quiet"]);   // exit 0: nothing staged
 
-        CommitFlowResult result = await Create(git).RunAsync(Request(git), CancellationToken.None);
+        CommitFlowResult result = await Create(git).RunAsync(Request(), CancellationToken.None);
 
         Assert.Equal(CommitFlowOutcome.NothingToCommit, result.Outcome);
         Assert.True(git.NeverCalledWith("commit"));
@@ -153,7 +152,7 @@ public sealed class CommitFlowTests : IDisposable
         //signals that by leaving TargetBranch null, and the flow must not spend a process on it.
         var git = HappyPath();
 
-        CommitFlowResult result = await Create(git).RunAsync(Request(git), CancellationToken.None);
+        CommitFlowResult result = await Create(git).RunAsync(Request(), CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.True(git.NeverCalledWith("switch"));
@@ -167,7 +166,7 @@ public sealed class CommitFlowTests : IDisposable
         var git = HappyPath();
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, targetBranch: "develop"), CancellationToken.None);
+            .RunAsync(Request(targetBranch: "develop"), CancellationToken.None);
 
         Assert.True(result.Succeeded);
 
@@ -191,7 +190,7 @@ public sealed class CommitFlowTests : IDisposable
             .Returns(["status"], Stream("# branch.head feature/new", OneStagedFile));
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, targetBranch: "feature/new", create: true, push: true), CancellationToken.None);
+            .RunAsync(Request(targetBranch: "feature/new", create: true, push: true), CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.True(result.Pushed);
@@ -217,7 +216,7 @@ public sealed class CommitFlowTests : IDisposable
             .Returns(["check-ref-format"], exitCode: 1, stderr: "fatal: 'bad..name' is not a valid branch name");
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, targetBranch: "bad..name", create: true), CancellationToken.None);
+            .RunAsync(Request(targetBranch: "bad..name", create: true), CancellationToken.None);
 
         Assert.Equal(CommitFlowOutcome.InvalidBranchName, result.Outcome);
         Assert.Contains("not a valid branch name", result.Detail);
@@ -236,7 +235,7 @@ public sealed class CommitFlowTests : IDisposable
             "Please commit your changes or stash them before you switch branches.");
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, targetBranch: "develop"), CancellationToken.None);
+            .RunAsync(Request(targetBranch: "develop"), CancellationToken.None);
 
         Assert.Equal(CommitFlowOutcome.SwitchRefused, result.Outcome);
         Assert.Contains("src/a.cs", result.Files);
@@ -259,7 +258,7 @@ public sealed class CommitFlowTests : IDisposable
         FakeGitRunner git = SwitchChangesFile();
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, targetBranch: "develop"), CancellationToken.None);
+            .RunAsync(Request(targetBranch: "develop"), CancellationToken.None);
 
         Assert.Equal(CommitFlowOutcome.AbortedSelectionChanged, result.Outcome);
         Assert.Contains("src/a.cs", result.Files);
@@ -276,7 +275,7 @@ public sealed class CommitFlowTests : IDisposable
         FakeGitRunner git = SwitchChangesFile(changedPath: "src/untouched.cs");
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, targetBranch: "develop"), CancellationToken.None);
+            .RunAsync(Request(targetBranch: "develop"), CancellationToken.None);
 
         Assert.True(result.Succeeded);
     }
@@ -296,7 +295,7 @@ public sealed class CommitFlowTests : IDisposable
                 OneStagedFile));
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, push: true), CancellationToken.None);
+            .RunAsync(Request(push: true), CancellationToken.None);
 
         Assert.Equal(CommitFlowOutcome.PushRefused, result.Outcome);
         Assert.NotNull(result.Commit);
@@ -310,7 +309,7 @@ public sealed class CommitFlowTests : IDisposable
         var git = HappyPath();
 
         CommitFlowResult result = await Create(git)
-            .RunAsync(Request(git, push: true, consent: false), CancellationToken.None);
+            .RunAsync(Request(push: true, consent: false), CancellationToken.None);
 
         Assert.Equal(CommitFlowOutcome.Cancelled, result.Outcome);
         Assert.NotNull(result.Commit);
@@ -323,7 +322,7 @@ public sealed class CommitFlowTests : IDisposable
         //No Confirm callback at all. A guardrail that treated silence as consent would not be one.
         var git = HappyPath();
 
-        CommitRequest request = Request(git, push: true) with { Confirm = null };
+        CommitRequest request = Request(push: true) with { Confirm = null };
 
         CommitFlowResult result = await Create(git).RunAsync(request, CancellationToken.None);
 
@@ -337,7 +336,7 @@ public sealed class CommitFlowTests : IDisposable
         var git = HappyPath();
         bool asked = false;
 
-        CommitRequest request = Request(git) with
+        CommitRequest request = Request() with
         {
             Confirm = (_, _) =>
             {

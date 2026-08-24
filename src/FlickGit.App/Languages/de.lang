@@ -218,7 +218,6 @@ action.confirm.process = {0}\n\nDies startet ein Programm außerhalb von FlickGi
 action.confirm.yes = Ausführen
 action.confirm.no = Abbrechen
 action.ran = {0} abgeschlossen.
-action.failed = {0} fehlgeschlagen.
 palette.confirms = fragt vorher
 palette.tag.prompt = Neuen Tag-Namen eingeben…
 palette.tag.willcreate = wird auf HEAD erstellt

@@ -47,7 +47,7 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         //read; serialising them would add the whole `git show` latency to the click-to-
         //rendered budget for nothing.
         Task<FileText> leftTask = LoadBaseAsync(repository, file, mode, cancellationToken);
-        Task<FileText> rightTask = LoadWorkingCopyAsync(absolutePath, file, cancellationToken);
+        Task<FileText> rightTask = LoadWorkingCopyAsync(absolutePath, cancellationToken);
 
         FileText left = await leftTask.ConfigureAwait(false);
         FileText right = await rightTask.ConfigureAwait(false);
@@ -210,10 +210,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
             ? file.OldPath
             : file.Path;
 
-        string spec = mode == DiffComparisonMode.WorkingTreeVsHead
-            ? $"HEAD:{basePath}"
-            : $":{basePath}";
-
         return await LoadBlobAsync(repository, mode == DiffComparisonMode.WorkingTreeVsHead ? "HEAD" : string.Empty, basePath, cancellationToken).ConfigureAwait(false);
     }
 
@@ -250,7 +246,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
 
     private async Task<FileText> LoadWorkingCopyAsync(
         string absolutePath,
-        GitFileChange file,
         CancellationToken cancellationToken)
     {
         //A deleted file has no working copy. The right pane is empty and the diff is the

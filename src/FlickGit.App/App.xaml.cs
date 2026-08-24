@@ -27,7 +27,6 @@ using FlickGit.Git;
 using FlickGit.Ipc;
 using FlickGit.Logging;
 using FlickGit.Actions;
-using FlickGit.Models;
 using FlickGit.Palette;
 using FlickGit.Pulls;
 using FlickGit.Remotes;

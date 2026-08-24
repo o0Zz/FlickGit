@@ -373,7 +373,6 @@ action.confirm.process = {0}\n\nThis starts a program outside FlickGit:\n{1}
 action.confirm.yes = Run
 action.confirm.no = Cancel
 action.ran = {0} finished.
-action.failed = {0} failed.
 palette.confirms = asks first
 palette.tag.prompt = Type a new tag name…
 palette.tag.willcreate = will be created on HEAD

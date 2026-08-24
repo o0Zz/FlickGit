@@ -33,34 +33,6 @@ internal static unsafe class Com
     public static readonly Guid IUnknown = new("00000000-0000-0000-C000-000000000046");
     public static readonly Guid IClassFactory = new("00000001-0000-0000-C000-000000000046");
 
-    /// <summary>The interface this whole DLL exists to implement.</summary>
-    public static readonly Guid IExplorerCommand = new("a08ce4d0-fa25-44ab-b57c-c7b1c323e0b9");
-
-    /// <summary>
-    /// How the background of a folder is resolved. Explorer hands the handler a site instead of an
-    /// item array when the user right-clicks empty space, and the folder has to be dug out of it.
-    /// </summary>
-    public static readonly Guid IObjectWithSite = new("FC4801A3-2BA9-11CF-A229-00AA003D7352");
-
-    public static readonly Guid IServiceProvider = new("6d5140c1-7436-11ce-8034-00aa006009fa");
-
-    /// <summary>Also the service id it is asked for by. The shell uses the IID as the SID here.</summary>
-    public static readonly Guid IShellBrowser = new("000214E2-0000-0000-C000-000000000046");
-
-    public static readonly Guid IFolderView = new("cde725b0-ccc9-4519-917e-325d72fab4ce");
-    public static readonly Guid IPersistFolder2 = new("1AC3D9F0-175C-11d1-95BE-00609797EA4F");
-
-    /// <summary>`SIGDN_FILESYSPATH`. The only display name worth having: a real path.</summary>
-    public const uint SigdnFileSysPath = 0x80058000;
-
-    // ---- EXPCMDSTATE ---------------------------------------------------------------
-
-    public const uint EcsEnabled = 0x00;
-    public const uint EcsHidden = 0x02;
-
-    /// <summary>`ECF_DEFAULT`. No sub-commands, no separator, nothing special.</summary>
-    public const uint EcfDefault = 0x00;
-
     // ---- IContextMenu, which is how the block reaches TortoiseGit's position ---------
     //
     // A static verb can only be Top, default, or Bottom, and Explorer draws the whole static-verb
@@ -72,8 +44,6 @@ internal static unsafe class Com
 
     /// <summary>How Explorer tells the handler which folder, or which selection, was clicked.</summary>
     public static readonly Guid IShellExtInit = new("000214e8-0000-0000-c000-000000000046");
-
-    public static readonly Guid IDataObject = new("0000010e-0000-0000-c000-000000000046");
 
     /// <summary>
     /// `CMF_DEFAULTONLY`. Explorer is asking only for the default action — a double-click, not a
@@ -161,58 +131,6 @@ internal static unsafe class Com
 
     /// <summary>The vtable of a COM pointer: the machine word it starts with.</summary>
     public static void** Vtable(void* instance) => *(void***)instance;
-
-    /// <summary>
-    /// <c>IUnknown::QueryInterface</c>, slot 0.
-    /// </summary>
-    public static int QueryInterface(void* instance, Guid iid, out void* result)
-    {
-        void* answer = null;
-
-        //A local, because the interface identifier has to be addressable and an argument is not
-        //guaranteed to be.
-        Guid requested = iid;
-
-        int hr = ((delegate* unmanaged<void*, Guid*, void**, int>)Vtable(instance)[0])(
-            instance, &requested, &answer);
-
-        result = answer;
-        return hr;
-    }
-
-    /// <summary><c>IUnknown::Release</c>, slot 2. Null-safe, because every caller here would be.</summary>
-    public static void Release(void* instance)
-    {
-        if (instance is not null)
-            ((delegate* unmanaged<void*, uint>)Vtable(instance)[2])(instance);
-    }
-
-    /// <summary>
-    /// A string across the COM boundary, in the allocator the caller will free it with.
-    ///
-    /// <c>IExplorerCommand</c>'s out-strings are documented as the caller's to release with
-    /// <c>CoTaskMemFree</c>, so they must come from <c>CoTaskMemAlloc</c> —
-    /// <see cref="Marshal.StringToCoTaskMemUni"/> and nothing else. Any other allocator is a heap
-    /// corruption that surfaces minutes later somewhere in Explorer.
-    /// </summary>
-    public static int ReturnString(string? value, char** destination)
-    {
-        if (destination is null)
-            return E_POINTER;
-
-        *destination = null;
-
-        if (value is null)
-            return E_NOTIMPL;
-
-        nint allocated = Marshal.StringToCoTaskMemUni(value);
-
-        if (allocated == 0)
-            return E_OUTOFMEMORY;
-
-        *destination = (char*)allocated;
-        return S_OK;
-    }
 
     /// <summary>
     /// Builds a vtable in unmanaged memory.

@@ -259,7 +259,6 @@ action.confirm.process = {0}\n\nCela démarre un programme extérieur à FlickGi
 action.confirm.yes = Exécuter
 action.confirm.no = Annuler
 action.ran = {0} terminé.
-action.failed = {0} a échoué.
 palette.confirms = demande confirmation
 palette.tag.prompt = Saisissez un nom d'étiquette…
 palette.tag.willcreate = sera créée sur HEAD

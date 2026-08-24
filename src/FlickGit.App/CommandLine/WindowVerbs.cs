@@ -17,7 +17,6 @@ using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
-using FlickGit.Repositories;
 using FlickGit.Status;
 using FlickGit.Tags;
 
@@ -158,7 +157,7 @@ public sealed class WindowVerbs(
     }
 
     /// <summary>`flick pull-rebase`, with the submodule update as a distinct step.</summary>
-    public async Task<VerbResult> PullAsync(VerbOutput output, RepositoryInfo repository)
+    public async Task<VerbResult> PullAsync(RepositoryInfo repository)
     {
         var window = new ProgressWindow(Strings.Get("pull.title", repository.Name));
         window.Show();
