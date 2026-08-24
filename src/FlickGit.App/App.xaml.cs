@@ -19,6 +19,7 @@ using FlickGit.Cli;
 using FlickGit.Clone;
 using FlickGit.Commits;
 using FlickGit.Diagnostics;
+using FlickGit.Blame;
 using FlickGit.Diff;
 using FlickGit.History;
 using FlickGit.Git;
@@ -160,6 +161,7 @@ public partial class App : Application
         services.AddSingleton<RepositoryOverviewCache>();
         services.AddSingleton<DiffService>();
         services.AddSingleton<HistoryService>();
+        services.AddSingleton<BlameService>();
         services.AddSingleton<BranchService>();
         services.AddSingleton<CommitService>();
         services.AddSingleton<CommitFlow>();

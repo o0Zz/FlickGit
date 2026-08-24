@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using FlickGit.App.Localization;
 using FlickGit.App.Settings;
+using FlickGit.Blame;
 using FlickGit.Diagnostics;
 using FlickGit.Diff;
 using FlickGit.Git;
@@ -54,6 +55,8 @@ public partial class LogWindow : Window
     private readonly RepositoryInfo _repository;
     private readonly HistoryService _history;
     private readonly DiffService _diffs;
+    private readonly BlameService _blame;
+    private readonly FlickSettings _settings;
     private readonly OperationTimings _timings;
     private readonly ILog _log;
 
@@ -81,6 +84,7 @@ public partial class LogWindow : Window
         RepositoryInfo repository,
         HistoryService history,
         DiffService diffs,
+        BlameService blame,
         FlickSettings settings,
         OperationTimings timings,
         ILog log)
@@ -90,6 +94,8 @@ public partial class LogWindow : Window
         _repository = repository;
         _history = history;
         _diffs = diffs;
+        _blame = blame;
+        _settings = settings;
         _timings = timings;
         _log = log;
 
@@ -97,6 +103,7 @@ public partial class LogWindow : Window
         RepositoryText.Text = repository.Name;
         FilesHeader.Text = Strings.Get("log.files.header");
         LoadMoreButton.Content = Strings.Get("log.loadmore", HistoryService.PageSize);
+        BlameFileItem.Header = Strings.Get("log.blame");
         SavePatchButton.Content = Strings.Get("log.patch");
         CloseButton.Content = Strings.Get("log.close");
         PagingText.Text = Strings.Get("log.loading");
@@ -338,6 +345,35 @@ public partial class LogWindow : Window
             Diff.Show(null, isLoading: false);
 
         _ = range;
+    }
+
+    /// <summary>
+    /// Blame the selected file at the commit being looked at.
+    ///
+    /// The revision is the range's tip rather than the working tree, which is the whole reason this
+    /// entry is worth having here: "who wrote this line" is a different question at the commit you
+    /// are reading than it is on disk, and every other way into blame answers the second one.
+    /// </summary>
+    private async void OnBlameFile(object sender, RoutedEventArgs e)
+    {
+        if (_shown is not { } range || FileList.SelectedItem is not FileRow row)
+            return;
+
+        var window = new BlameWindow(
+            _repository,
+            row.Change.Path,
+            range.TipSpec,
+            _blame,
+            _settings,
+            _timings,
+            _log)
+        {
+            Owner = this,
+        };
+
+        window.Show();
+
+        await window.LoadAsync().ConfigureAwait(true);
     }
 
     private async void OnFileSelectionChanged(object sender, SelectionChangedEventArgs e)

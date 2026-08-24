@@ -30,6 +30,9 @@ FlickGit is built for developers who work across multiple repositories and switc
       and see the diff across all of them at once, not one at a time. A gapped selection says so,
       in words, before you read the diff. Read-only — nothing in the window touches the
       repository — with **Save as patch…** for handing the result to somebody else.
+- [x] **Blame, with the walk back** — right-click a *file* → **FlickGit ▸ Blame**. Click a line and
+      **Blame previous revision** re-blames the file as it was before that commit, following renames,
+      until Git says there is nothing before it. Back returns to the line you were following.
 - [x] **Repository palette** — `Ctrl+Alt+R`, repositories with something to do listed first, fuzzy
       filter, action mode, `Ctrl+Enter` to pull every repository that is behind.
 - [x] **Commit window** — file list with status letters and `+added / -removed` counts, and tick
@@ -84,19 +87,38 @@ encoding or line endings.
 **Requirements:** Windows 10 or 11, [Git for Windows](https://git-scm.com/download/win), and
 the [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
 
-1. Download the release archive and extract it anywhere — `%LOCALAPPDATA%\Programs\FlickGit`
-   is a good choice. Keep the whole layout together: `FlickGit.exe`, `flick.exe`, `Help.md`,
-   `Resources\` and `icons\`. The registry entries name `flick.exe` and `icons\*.ico` by path.
+Download `FlickGit-<version>-x64.msi` from the release and run it. No administrator
+rights: it installs into `%LOCALAPPDATA%\Programs\FlickGit` for the current user only.
+
+**Windows Explorer closes and restarts during the install.** That is the reason the installer
+exists rather than being a convenience over the zip — `FlickGit.Shell.dll` is loaded inside
+`explorer.exe`, and Windows cannot unload it, so restarting Explorer is the only way to
+replace the file. Open Explorer windows will close.
+
+The installer registers the context menu, adds the logon task that starts the resident
+service, and starts it immediately. Then right-click a folder inside a repository. On
+Windows 11 the entries live under **Show more options** (`Shift+F10`) — reaching the primary
+menu needs a signed MSIX package, which is the one part of Phase 6 still open.
+
+**Updating** is running the newer MSI. It replaces the installed version in place, and the
+close-Explorer/restart sequence is what makes that possible while the shell extension is
+loaded. Uninstalling from **Installed apps** removes the menu entries, the logon task and the
+files, and leaves `%LOCALAPPDATA%\FlickGit` — settings, `actions.json` and logs are yours.
+
+### Without the installer
+
+The release also ships a zip, for a portable install that touches nothing it is not asked to:
+
+1. Extract it anywhere — `%LOCALAPPDATA%\Programs\FlickGit` is a good choice. Keep the whole
+   layout together: `FlickGit.exe`, `flick.exe`, `Help.md`, `Resources\` and `icons\`. The
+   registry entries name `flick.exe` and `icons\*.ico` by path.
 2. Register the context menu:
 
    ```powershell
    .\flick.exe install-shell
    ```
 
-3. Right-click a folder inside a repository. On Windows 11 the entries live under
-   **Show more options** (`Shift+F10`) — reaching the primary menu needs `IExplorerCommand`
-   and a signed MSIX package, which is Phase 6.
-4. Start the resident service, so windows open instantly:
+3. Start the resident service, so windows open instantly:
 
    ```powershell
    .\flick.exe autostart on     # at every logon, 45 s after sign-in
@@ -104,7 +126,8 @@ the [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
    ```
 
 To undo the integration: `.\flick.exe uninstall-shell`. It removes exactly the keys it
-created and nothing else.
+created and nothing else. Replacing a portable install's files is where you have to close
+Explorer yourself first, for the reason above.
 
 ### Check the installation
 
@@ -131,6 +154,7 @@ flick switch <path> [branch]        picker when omitted, direct switch when name
 flick tag <path> [name]             tag window when omitted, creates it when named
 flick status <path>
 flick log <path>                    commit history; multi-select for a combined diff
+flick blame <file>                  who last touched each line, and what came before
 flick terminal <path>               open a terminal there
 flick clone <path> [url]            clone into a subdirectory of <path>
 flick run <id> [path]               run a catalog action by id
@@ -254,7 +278,19 @@ MSVC linker, because `flick.exe` is compiled with Native AOT:
 ```powershell
 dotnet publish src/FlickGit.App/FlickGit.App.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o artifacts/FlickGit
 dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj -c Release -r win-x64 -o artifacts/FlickGit
+dotnet publish src/FlickGit.Shell/FlickGit.Shell.csproj -c Release -r win-x64 -o artifacts/FlickGit
 ```
+
+Or build the installer, which runs those three publishes itself and packages what they produce:
+
+```powershell
+dotnet build src/FlickGit.Setup/FlickGit.Setup.wixproj -c Release -p:Version=1.2.3
+```
+
+The WiX toolset comes from NuGet as part of that build, so there is nothing else to install.
+`FlickGit.Setup` is not in `FlickGit.sln` on purpose: it packages publish output rather than
+compiling sources, so it cannot take part in a solution build. Pass `-p:SkipPayloadPublish=true`
+to package an `artifacts/FlickGit` you have already produced.
 
 ### Layout
 
@@ -264,9 +300,12 @@ src/
 │                     No Git logic, no dependencies. Budget: 30 ms start to exit.
 ├── FlickGit.App/     WPF -> FlickGit.exe. Tray icon, commit window, diff viewer,
 │                     registry integration, verb dispatch.
-└── FlickGit.Core/    net9.0, no UI dependency, enforced by an MSBuild target.
-                      Git process runner, repository detection, status and numstat
-                      parsing, diff, commit, pull, branch, the command-line grammar.
+├── FlickGit.Core/    net9.0, no UI dependency, enforced by an MSBuild target.
+│                     Git process runner, repository detection, status and numstat
+│                     parsing, diff, commit, pull, branch, the command-line grammar.
+└── FlickGit.Setup/   WiX -> the per-user MSI. Closes FlickGit and Explorer, installs,
+                      registers the menu and the logon task, restarts both. Outside
+                      the solution: it packages publish output, not sources.
 tests/
 └── FlickGit.Core.Tests/   The only test project. Parsers, the commit sequence, the
                           safety rules, the working tree, the command-line grammar.
@@ -329,11 +368,21 @@ Four repository settings turn it on:
 Signing runs on **tag builds only** — a signing policy is a finite resource and a release is the
 only build anybody downloads. `main` builds stay unsigned deliberately, and say so in the log.
 
+**The `.msi` is built from the signed binaries but is not itself signed.** It cannot ride the same
+submission, because it does not exist yet when that artifact is uploaded — so signing it needs a
+second artifact configuration and a second submission. That is left undone rather than half-built:
+an installer full of signed binaries is a coherent thing, and the download warning above is what
+the missing signature costs.
+
 ### Downloading an unsigned build
 
-Chrome and SmartScreen warn on an unsigned download from a publisher with no reputation, and
-repackaging as an `.msi` makes that worse rather than better: installers are treated as a more
-dangerous file type than archives. Until signing is live, bypass the browser:
+Chrome and SmartScreen warn on an unsigned download from a publisher with no reputation, and the
+`.msi` is warned about at least as loudly as the zip: installers are treated as a more dangerous
+file type than archives. **The installer is not an answer to this**, and was not built to be one —
+it exists because Explorer holds `FlickGit.Shell.dll` open and only an ordered close-and-restart
+can replace it. Signing is the only thing that removes the warning, whichever asset you take.
+
+Until signing is live, bypass the browser:
 
 ```powershell
 gh release download <tag> --pattern "*.zip"

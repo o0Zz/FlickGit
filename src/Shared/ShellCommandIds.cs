@@ -82,6 +82,17 @@ internal static class ShellCommandIds
     /// <summary><c>1</c> to put the entry under the <c>FlickGit</c> popup rather than at the top level.</summary>
     public const string ValueInSubmenu = "FlickGit.InSubmenu";
 
+    /// <summary>
+    /// Whether the item is drawn on a clicked <b>file</b>, and whether on a folder.
+    ///
+    /// Two values rather than one scope word, because the flags they come from are independent: an
+    /// action may sensibly be offered on both, and the handler is asked about one click at a time.
+    /// Today Blame is the only file item and everything else is folder-only.
+    /// </summary>
+    public const string ValueOnFiles = "FlickGit.OnFiles";
+
+    public const string ValueOnFolders = "FlickGit.OnFolders";
+
     /// <summary>The popup's own label, already localised.</summary>
     public const string ValueSubmenuLabel = "FlickGit.SubmenuLabel";
 

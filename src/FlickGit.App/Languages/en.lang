@@ -160,6 +160,8 @@ log.commit.meta = {0} · {1} · parent {2}
 log.commit.merge = Merge commit — the diff is against its first parent.
 # {0} file count, {1} added lines, {2} removed lines
 log.totals = {0} files · +{1} −{2}
+# Right-click on a file row. Blames it at the commit being viewed, not at the working tree.
+log.blame = Blame at this commit…
 log.patch = Save as patch…
 log.patch.filter = Patch files (*.patch)|*.patch|All files (*.*)|*.*
 # {0} file name
@@ -167,6 +169,41 @@ log.patch.saved = Saved {0}.
 log.patch.empty = This range produces no diff, so there was nothing to save.
 log.patch.failed = The patch could not be written.
 log.close = Close
+
+# ---- blame window ----
+
+# {0} file name
+blame.title = Blame — {0}
+blame.loading = Reading blame…
+blame.workingtree = working tree
+# {0} short hash
+blame.revision = at {0}
+# {0} short hash, {1} commit subject
+blame.revision.named = at {0} · {1}
+# {0} how many steps back the walk has taken
+blame.depth = {0} back
+blame.back = ← Back
+blame.close = Close
+# {0} short hash of the commit the walk would step to. The button names its target so pressing it
+# is never a guess.
+blame.previous = Blame previous revision ({0})
+# Shown on the disabled button when the selected line's commit is the first that touched the file.
+blame.previous.first = This is the first commit that touched the file
+# Shown on the disabled button before a line has been picked.
+blame.previous.none = Select a line to walk back
+# {0} author, {1} date, {2} line number
+blame.meta = {0} · {1} · line {2}
+# {0} line number
+blame.line = not committed yet · line {0}
+blame.uncommitted = Not committed yet
+# {0} line count, {1} how many distinct commits are responsible for them
+blame.lines = {0} lines · {1} commits
+blame.binary = This is a binary file, so there is nothing to blame line by line.
+blame.failed = The blame could not be read.
+# {0} the path that was given
+blame.notafile = Blame needs a file, not a folder:
+
+{0}
 
 # ---- push ----
 push.button = Push
@@ -276,6 +313,7 @@ action.push = Push
 action.switch = Switch branch…
 action.tag = Tags…
 action.log = Show log…
+action.blame = Blame…
 action.status = Repository status…
 action.clone = Clone…
 action.terminal = Open terminal here

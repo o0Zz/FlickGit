@@ -34,6 +34,9 @@ public enum VerbKind
     /// <summary>The log window: commit history, and the combined diff over a selected range.</summary>
     Log,
 
+    /// <summary>The blame window. Its path is a <b>file</b>, not a directory.</summary>
+    Blame,
+
     Clone,
 
     /// <summary>
@@ -148,6 +151,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "tag" => VerbKind.Tag,
             "status" => VerbKind.Status,
             "log" => VerbKind.Log,
+            "blame" => VerbKind.Blame,
             "terminal" => VerbKind.Terminal,
             "clone" => VerbKind.Clone,
             "palette" => VerbKind.Palette,
@@ -205,6 +209,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick tag <path> [name]             tag picker when omitted, else creates it
           flick status <path>
           flick log <path>                    commit history; multi-select for a combined diff
+          flick blame <file>                  who last touched each line, and what was there before
           flick terminal <path>               open a terminal there
           flick clone <path> [url]
           flick run <id> [path]               run a catalog action by id

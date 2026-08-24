@@ -242,6 +242,8 @@ src/
 │   │                        generator and `git apply --cached`
 │   ├── Commits/             CommitService, and CommitFlow -- the stage/switch/
 │   │                        verify/commit/push sequence
+│   ├── Blame/               BlameService and BlamePorcelainParser -- the annotation,
+│   │                        and Git's own `previous` that walks it back
 │   ├── History/             HistoryService, CommitLogParser and CommitRange --
 │   │                        the read-only log, and the oldest^..newest rule the
 │   │                        combined diff is
@@ -275,6 +277,14 @@ src/
     package and package identity, which is the part of Phase 6 still open. A
     ContextMenuHandler is honoured in the classic menu with an ordinary per-user COM
     registration, which is what this uses.
+
+src/FlickGit.Setup/          WiX -> FlickGit-<version>-x64.msi. A per-user install that
+                             closes FlickGit and Explorer, replaces the files, registers
+                             the menu and the logon task, and starts both again -- which
+                             is the only order in which a DLL loaded into explorer.exe can
+                             be replaced. Not in FlickGit.sln: it packages publish output
+                             rather than compiling sources, and runs the three publishes
+                             itself. See Installer.
 
 tests/
 └── FlickGit.Core.Tests/     The only test project, and there will not be a second
@@ -334,6 +344,7 @@ flick switch <path> [branch]         branch picker when omitted
 flick tag <path> [name]              tag window when omitted; creates it when named
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
+flick blame <file>                   who last touched each line, and what came before
 flick run <id> [path]                run a catalog action by id
 flick palette                        global repository palette
 flick settings
@@ -915,6 +926,107 @@ because a mislabelled header is how users lose work, that is the mistake worth m
 The current branch, `git log HEAD`, and no branch picker. `flick log <path> <rev>` is not built
 either — the ComboBox-shaped feature this would grow into is the full client the tool is not. What
 exists is a list, a selection and a diff.
+
+---
+
+# Blame
+
+Who last touched each line of a file — and, the reason this exists, **what was there before**.
+
+Reading one blame answers a question about the present. The commit it names is very often not the
+one that introduced the line, only the last to reformat, rename or move it. Stepping back is how you
+get past that to the change that actually did it, and it is the half most blame viewers leave out.
+
+```text
+┌─ Blame — VerbRunner.cs ──────────────────────────────────────────────────────┐
+│ src/FlickGit.App/CommandLine/VerbRunner.cs   at 6b04582 · Initial commit      │
+│                                                            1 back   [ ← Back ]│
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 6b04582 o0Zz     2026-08-22 │  1 │ using FlickGit.Actions;                    │
+│                             │  2 │ using FlickGit.Cli;                        │
+│ 498bb03 o0Zz     2026-08-23 │  3 │ using FlickGit.App.Localization;           │
+│                             │  4 │                                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 498bb03  Added multilanguage                                                 │
+│ o0Zz · 2026-08-23 10:14 · line 3                                             │
+│ 222 lines · 7 commits    [ Blame previous revision (6b04582) ]    [ Close ]   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Git computes the step, not the window
+
+```bash
+git blame --porcelain [<revision>] -- <path>
+```
+
+The porcelain stream emits, per commit, `previous <sha> <path>` — **the commit to blame next and the
+name the file had there**. So "blame the previous version" is the same command with those two
+values, and three things follow for free:
+
+- **Nothing appends `^` or resolves a parent.** The same rule `CommitRange.BaseSpec` already set: Git
+  hands over a bare object id, and no code here has to know Git's revision grammar.
+- **A rename is followed** by using the path Git reported rather than the one the walk arrived with.
+  The header changes to the old name, which is how the user learns a rename happened.
+- **`boundary` ends the walk** honestly. The button then says *"This is the first commit that touched
+  the file"* rather than being merely greyed out.
+
+Clicking a line selects it: the band names its commit, every other line that commit is responsible
+for lights up, and the button names where a step would land — `Blame previous revision (6b04582)` —
+so pressing it is never a guess. `Alt+←` and Back return, **restoring the caret line as well as the
+revision**, or stepping back and forward would lose the line the walk was following, which is the
+whole thing being followed.
+
+## The porcelain traps
+
+`--porcelain` is line-oriented, so it is the one parser in the product that does not go through
+`NulFieldReader` — and it is still machine-readable output rather than the human form CLAUDE.md
+forbids parsing: plain `git blame` is a column layout that moves with the terminal width and the
+user's `blame.*` settings.
+
+- **Metadata appears once per commit, not once per line.** Every later line of the same commit
+  carries the bare header, so commits are cached by sha and re-attached. A parser that expects the
+  block every time keeps the author on the first line of each run and blanks the rest.
+- **The content line is found by its leading TAB**, never by exhausting the known keys. A `summary`
+  is arbitrary user text and a `filename` is an arbitrary path; a commit message shaped like a header
+  field would otherwise shift the parse.
+- **A sha of forty zeros is "not committed yet"** — the ordinary result of blaming the working tree,
+  which is what a right-click on a file does. Git still emits a `previous` for it, so the walk works
+  from an unsaved edit and lands on the committed version, which is exactly "what was here before I
+  touched it".
+- **`author-time` is epoch seconds with a separate `author-tz`.** The zone is kept rather than
+  converted, so a commit made elsewhere reads as the hour its author saw.
+
+**No `--no-color`**, unlike every other command in the product: the porcelain format carries no
+colour whatever `color.ui` says, and Hard Requirement 2 rules out a flag that does nothing.
+**`blame.ignoreRevsFile` is deliberately honoured** — a user who configured a `.git-blame-ignore-revs`
+did it so a bulk reformat stops masking authorship, and overriding it would be overriding the answer
+they asked for. `-M` and `-C` are not passed: real options with a real cost that nobody asked for.
+
+**A binary file is refused by us, not by Git.** `git blame` does not fail on one, it blames it into
+nonsense — one "line" per run of bytes that happened to contain a newline. The parsed text is sniffed
+for NUL and the window says so instead of showing mojibake.
+
+## The gutter is a margin, not a column
+
+One read-only AvalonEdit editor with a `BlameMargin`, so the annotation stays put while a long line
+scrolls sideways and the code keeps its syntax highlighting. Per CLAUDE.md's "never insert a visual
+element per line", a whole screen costs one `DrawingContext`; a list of rows would cost a `Grid` and
+four `TextBlock`s each.
+
+**The annotation is drawn once per run of the same commit**, not once per line. Twenty consecutive
+lines repeating one hash is how a blame becomes unreadable — the eye is looking for where authorship
+*changes*, and only the first line of a run carries that.
+
+## What it deliberately does not do
+
+> **No checkout, reset, revert, cherry-pick, rebase, amend or tag-at-commit.**
+
+The same boundary the log window holds, and for the same reason: reading history changes nothing, so
+it belongs in a tool that is not a complete Git client. `BlameService` reaches Git only through
+`ReadAsync`, and a test asserts every invocation is a read.
+
+Scope of the listing: the current branch's history of that one file. No `-L` line range, no author
+filter, no "blame this at a branch" picker.
 
 ---
 
@@ -1811,6 +1923,98 @@ root folders — one handler, one slot, no per-file tracking.
 
 ---
 
+# Installer
+
+`src/FlickGit.Setup` builds `FlickGit-<version>-x64.msi`. It exists for **one file**:
+`FlickGit.Shell.dll` is loaded into `explorer.exe` and `DllCanUnloadNow` returns `S_FALSE`
+forever, so from the first right-click the DLL is locked for as long as Explorer lives. Unzipping
+over it fails, and the fix — kill Explorer, copy, re-register, restart Explorer — is a *sequence*,
+which is the one thing an archive cannot be.
+
+```text
+close FlickGit -> close Explorer -> replace files -> register -> start Explorer -> start FlickGit
+```
+
+**Per-user, no elevation.** The registry entries are `HKCU`, the settings are in `%LOCALAPPDATA%`
+and the autostart is a per-user logon task; a per-machine package would write one user's `HKCU`
+keys and be wrong for everybody else. Installs into `%LOCALAPPDATA%\Programs\FlickGit`, the path
+the README already recommended. Updating is running the newer MSI — one `UpgradeCode`, forever, and
+`MajorUpgrade`.
+
+**Registration goes through `flick.exe`, not through MSI registry rows.** The context menu is a
+projection of the Action Catalog, so what the keys should say depends on the user's `actions.json`.
+An installer cannot know that, and a second implementation of it would be a second answer to the
+same question. So `install-shell`, `uninstall-shell`, `autostart on` and `autostart off` are custom
+actions, and there is exactly one piece of code that writes those keys.
+
+## The sequence is the package
+
+Six things decide where each action sits, and every one of them is a bug if it is got wrong.
+
+- **The kills are immediate, and scheduled before `InstallValidate`.** That is where Windows
+  Installer decides whether a file it is about to replace is in use, and it runs *before* the script
+  that copies anything. A deferred kill would land after the user had already been offered a reboot
+  for a lock we were about to remove deliberately. `MSIRESTARTMANAGERCONTROL=Disable` for the same
+  reason: the Restart Manager would otherwise reach the same two processes first.
+- **`install-shell` is deferred**, for the mirror-image reason. An immediate action scheduled
+  `After="InstallFiles"` still runs before a single file exists, because the copying happens inside
+  `InstallFinalize`. Only a deferred action runs in file order.
+- **Every deferred action is `Impersonate="yes"`, without exception.** A deferred action that does
+  not impersonate runs as **SYSTEM** even in a per-user install with no elevation anywhere — so
+  `install-shell` would register the menu into SYSTEM's hive and report success.
+- **The starts are immediate and go through `Start-Process`.** Nothing can be sequenced after
+  `InstallFinalize` inside the script, and MSI *waits* for an exe action to exit — so an action that
+  ran `FlickGit.exe` directly would hang the installer until somebody quit the tray icon.
+- **FlickGit is started five seconds after Explorer**, and that delay is load-bearing. The resident
+  service's first act is to add its tray icon, and `Shell_NotifyIcon` fails while the notification
+  area does not exist yet — which is Explorer's state for a second or two after it starts. Launched
+  immediately, FlickGit died on `TryCreate failed` on *every* install: no tray icon, no pipe, no
+  resident service, and an installer that had reported success.
+- **Nothing runs twice during an upgrade.** `MajorUpgrade` removes the old product inside the new
+  one's transaction, which runs the old package's sequence too — so without `NOT
+  UPGRADINGPRODUCTCODE` the outgoing package would unregister the menu and put a live Explorer back
+  in front of the file copy that is about to replace its DLL.
+
+Two smaller ones, in the same spirit: an exe action's working directory is its `Directory`
+attribute, so the kills and the Explorer restart use `SystemFolder` — on a first install
+`INSTALLFOLDER` does not exist yet and on an uninstall it is already gone, and an action whose
+working directory is missing fails to start at all, silently, under `Return="ignore"`. And
+`install-shell` is the only action allowed to fail the install: a package that copied the files and
+quietly did not register the menu is the exact failure this thing exists to prevent.
+
+## Version, ICEs, prerequisite
+
+**Three fields, not four.** Windows Installer compares only `major.minor.build` when deciding
+whether one package upgrades another, so the commit count the rest of the build carries is invisible
+to it — two builds off one tag would look like one product version and the second would install
+*beside* the first. `build.yml` therefore computes a separate `msiversion`: the tag on a tag build,
+`0.0.<commits>` otherwise, deliberately not derived from the nearest tag so a `main` build cannot
+pass itself off as the release it came after. `AllowSameVersionUpgrades` covers the rest.
+
+**Four ICEs are suppressed and each is argued with in the csproj.** ICE38, ICE64 and ICE91 are all
+the same objection — a per-user install into the user's profile — from a model in which every package
+has a per-machine variant. ICE61 fires *because* of `AllowSameVersionUpgrades`. Nothing else is
+suppressed, and ICE03 is why: it caught a `CustomAction.Target` over the 255-character limit, which
+would have been a truncated command line nobody would have noticed.
+
+**The .NET Desktop Runtime is checked with a directory probe**, not a registry search, and that is
+forced rather than chosen: the .NET installer records what it installed as registry *value names*
+(`9.0.19`), so nothing can ask "any 9.x". The probe catches the machine with no desktop runtime at
+all, which is the case worth catching; one that has only .NET 8 falls through to the .NET host's own
+dialog, which names the exact download.
+
+## Not tested, and that is the rule
+
+Hard Requirement 4 puts everything outside `FlickGit.Core` out of scope, and an installer is the
+clearest case of it: what could be asserted is the content of the MSI tables, and what actually
+breaks is the *order* — which only shows up by installing. So it is verified by running it, and the
+verbose log (`msiexec /i … /l*v`) is the artefact to read: every custom action's placement and exit
+code is in it. The runs worth doing are a first install, an upgrade over a version whose DLL Explorer
+has already loaded, an uninstall (which must leave `%LOCALAPPDATA%\FlickGit` alone), and both of
+those silently with `/qn`.
+
+---
+
 # Clone
 
 Shown when the right-clicked folder is **not inside a repository**. This is the only action
@@ -1995,6 +2199,21 @@ FlickGit                          ▸
       ├── Repository status…
       └── Open terminal here
 ```
+
+**Folder or file** — the menu is one `IContextMenu` handler now, so it is asked once per click and
+answers for the thing that was clicked. A right-clicked **file** gets its own, much shorter block:
+
+```text
+… the rest of the Explorer context menu …
+─────────────────────────────────────────
+FlickGit                          ▸
+      └── Blame…
+```
+
+Nothing else applies to a file, and the folder entries are absent rather than greyed out. This is the
+one thing a static registry verb cannot do — a verb is written once and drawn on every file on the
+machine, repository or not — which is why the file surface is handler-only and has no static
+fallback. `ActionSurfaces.File` is what puts an action here.
 
 Two entries in the context menu itself, because those are the two the user performs all day.
 **Show log… was considered for a third and left in the submenu**, on that same rule: the root
@@ -2290,6 +2509,8 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | AI request timeout                         | —      | 8 s        |
 | Log window painted, first 200 commits      | 250 ms | 600 ms     |
 | Commit selection settled -> file list      | 150 ms | 400 ms     |
+| Blame painted, 2,000-line file             | 250 ms | 600 ms     |
+| Blame previous revision, one step          | 200 ms | 500 ms     |
 | Commit + push, warm, excluding network      | 400 ms | 1 s        |
 | `IExplorerCommand::GetState`               | 20 ms  | 50 ms      |
 | `IExplorerCommand::GetTitle` (branch read) | 20 ms  | 50 ms      |
@@ -2508,10 +2729,17 @@ repository rather than a person. That is also why there is a `LICENSE` file: an 
 is the eligibility requirement, and the README had claimed MIT for some time without one being
 present.
 
-**Repackaging as an `.msi` does not help and was considered.** Chrome's download protection keys on
-publisher reputation and treats installers as a *more* dangerous file type than archives, so an
-unsigned MSI from a new publisher is warned about at least as loudly as a zip — with SmartScreen's
-unknown-publisher wall added when it runs. The container is not what is being objected to.
+**Repackaging as an `.msi` does not help *with this*, and that half stands.** Chrome's download
+protection keys on publisher reputation and treats installers as a *more* dangerous file type than
+archives, so an unsigned MSI from a new publisher is warned about at least as loudly as a zip — with
+SmartScreen's unknown-publisher wall added when it runs. The container is not what is being objected
+to.
+
+There is now an MSI anyway, and **for the other problem this section names three paragraphs up**:
+"the DLL stays locked while Explorer runs: replacing the binary needs an Explorer restart". A zip
+cannot do that in the right order and an installer can. See **Installer** for the sequence. It
+carries the signed binaries and is not itself signed, so nothing above changes: whichever asset is
+downloaded is warned about until signing is live.
 
 **The sparse MSIX package remains the only part that cannot work without a certificate at all.**
 
@@ -2559,8 +2787,13 @@ regardless.
 The log window: a commit list, a message, a file list and the read-only diff — and the reason it
 exists, **the combined diff over a multi-selection**. Its own section above carries the rules.
 
-Definition of value: the user can answer "what changed between these commits" without leaving
-FlickGit, and can hand the answer to somebody else as a `.patch`.
+Then **blame**, with the walk back through `previous` that is the reason to have it — and with it
+the first FlickGit entry on a *file* rather than a folder, which is what `ActionSurfaces.File` and
+the handler's `*` registration exist for.
+
+Definition of value: the user can answer "what changed between these commits" and "who wrote this
+line, and what was here before" without leaving FlickGit, and can hand the first answer to
+somebody else as a `.patch`.
 
 This is the first feature that is not on the commit path at all, and the thing that makes it
 belong in a tool that is "not a complete Git client" is that it *performs nothing*. Reading
@@ -2585,6 +2818,9 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - `--numstat -z`: a rename, a binary file reporting `-`, and a path containing a literal `=>`
 - `--name-status -z`: the ordinary letters, and a rename whose score is glued to the letter and
   which consumes two extra fields
+- `blame --porcelain`: metadata reused across a commit's later lines, `previous` and `boundary`,
+  the forty-zero sha, a content line found by its tab rather than by known keys, and the author's
+  own timezone
 - the `git log` format: every field of one record, a message containing the field separator and
   newlines, the root commit's empty `%P`, and a merge's parents
 - `CommitRange.Resolve`: newest-first ordering, a gapped selection and its implicit count, the
@@ -2665,7 +2901,7 @@ does not pass:
 ## Verified by running it, not by a test
 
 The resident service, the named pipe, the tray icon, the registry writer, autostart, notifications,
-window reuse, and every window — the log window included: its list, its multi-selection, its gap
+window reuse, and every window — the log and blame windows included: its list, its multi-selection, its gap
 disclosure and the patch it saves are checked by opening it and by running `git apply --check` on
 the result. Checked by hand when the feature is built — start the service, run
 the verb, read `flick diag timings`, confirm the numbers against **Performance Targets** — and

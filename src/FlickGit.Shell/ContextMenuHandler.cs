@@ -53,6 +53,16 @@ internal static unsafe partial class ContextMenuHandler
         /// </summary>
         public char* Folder;
 
+        /// <summary>
+        /// The clicked item is a file rather than a folder.
+        ///
+        /// Recorded in <c>Initialize</c> rather than tested in <c>QueryContextMenu</c> only because
+        /// that is where the path arrives; either way it is one attribute query on a local path. The
+        /// handler is registered on <c>*</c> as well as on Directory now, so without this every
+        /// folder action would be offered on a file, and Blame on a directory.
+        /// </summary>
+        public int IsFile;
+
         /// <summary>How many items were added, so <c>InvokeCommand</c> can bound-check the offset.</summary>
         public int ItemCount;
 
@@ -238,8 +248,24 @@ internal static unsafe partial class ContextMenuHandler
                 instance->Folder = null;
             }
 
+            instance->IsFile = 0;
+
             if (path is { Length: > 0 })
+            {
                 instance->Folder = (char*)Marshal.StringToCoTaskMemUni(path);
+
+                //Directory.Exists rather than File.Exists: the question is "is this a container",
+                //and a path that is neither -- a deleted item, something on a disconnected share --
+                //is treated as a file, which offers the smaller menu rather than the wrong one.
+                try
+                {
+                    instance->IsFile = Directory.Exists(path) ? 0 : 1;
+                }
+                catch
+                {
+                    instance->IsFile = 1;
+                }
+            }
 
             //S_OK even with nothing resolved. QueryContextMenu then adds no items, which is the
             //correct outcome for This PC, a library, or a search result -- and failing here makes
@@ -284,7 +310,13 @@ internal static unsafe partial class ContextMenuHandler
             //the menu does not come and go for reasons the user cannot see.
             bool insideRepository = answer.Verdict != RepositoryVerdict.NotARepository;
 
-            MenuItem[] shown = [.. items.Where(i => insideRepository || !i.NeedsRepository)];
+            bool isFile = instance->IsFile != 0;
+
+            MenuItem[] shown =
+            [
+                .. items.Where(i => (isFile ? i.OnFiles : i.OnFolders)
+                                    && (insideRepository || !i.NeedsRepository)),
+            ];
 
             if (shown.Length == 0)
                 return Com.ItemsAdded(0);

@@ -7,6 +7,7 @@ using FlickGit.App.Views;
 using FlickGit.Branches;
 using FlickGit.Cli;
 using FlickGit.App.Settings;
+using FlickGit.Blame;
 using FlickGit.Clone;
 using FlickGit.Diagnostics;
 using FlickGit.Diff;
@@ -41,6 +42,7 @@ public sealed class WindowVerbs(
     CloneService clones,
     TagService tags,
     HistoryService history,
+    BlameService blame,
     DiffService diffs,
     FlickSettings settings,
     OperationTimings timings,
@@ -93,7 +95,7 @@ public sealed class WindowVerbs(
     {
         var clock = Stopwatch.StartNew();
 
-        var window = new LogWindow(repository, history, diffs, settings, timings, log);
+        var window = new LogWindow(repository, history, diffs, blame, settings, timings, log);
 
         window.Show();
 
@@ -108,6 +110,46 @@ public sealed class WindowVerbs(
         await window.LoadFirstPageAsync().ConfigureAwait(true);
 
         timings.Record("window.log.populated", clock.Elapsed);
+
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// The blame window, for `flick blame` and for the file entry in the Explorer menu.
+    ///
+    /// The only verb whose path is a <b>file</b> rather than a directory, which is why it is the only
+    /// one that has to say so when it is handed the wrong kind: every other verb treats a folder as
+    /// the thing to act on, and blaming one is not a smaller version of blaming a file, it is a
+    /// question with no answer.
+    /// </summary>
+    public async Task<VerbResult> BlameAsync(VerbOutput output, RepositoryInfo repository, string path)
+    {
+        string full = Path.GetFullPath(path);
+
+        if (Directory.Exists(full))
+        {
+            output.Say(Strings.Get("app.name"), Strings.Get("blame.notafile", full));
+            return VerbResult.Exit(ExitCodes.NotARepository);
+        }
+
+        //Git speaks repository-relative paths with forward slashes, whatever Explorer handed over.
+        string relative = Path.GetRelativePath(repository.Root, full).Replace('\\', '/');
+
+        var clock = Stopwatch.StartNew();
+
+        var window = new BlameWindow(repository, relative, revision: null, blame, settings, timings, log);
+
+        window.Show();
+
+        //The stub granted this process foreground rights before sending the request; without this
+        //the window comes up behind Explorer.
+        window.Activate();
+
+        timings.Record("window.blame.visible", clock.Elapsed);
+
+        await window.LoadAsync().ConfigureAwait(true);
+
+        timings.Record("window.blame.populated", clock.Elapsed);
 
         return VerbResult.Stay();
     }

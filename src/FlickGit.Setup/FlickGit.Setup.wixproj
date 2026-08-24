@@ -1,0 +1,145 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <!-- The installer.
+
+       Deliberately NOT in FlickGit.sln. Every other project in the repository compiles from
+       source; this one packages *publish output*, which means it cannot take part in
+       `dotnet build FlickGit.sln` without either building the wrong thing or forcing a publish
+       into the solution build. It is built by name instead:
+
+           dotnet build src/FlickGit.Setup/FlickGit.Setup.wixproj -c Release
+
+       which runs the three publishes itself (see PublishPayload below) and produces one MSI.
+
+       The WiX toolset arrives through the SDK reference above — a NuGet restore, not a machine
+       install — so `dotnet` stays the only tool this repository asks for. Native AOT still needs
+       the MSVC linker, exactly as `dotnet publish` on the CLI stub already does. -->
+
+  <PropertyGroup>
+    <!-- FlickGit-1.2.3-x64.msi. `Version` comes from Directory.Build.props (0.0.0 unreleased) and
+         is overridden on the command line by CI.
+
+         THREE FIELDS, NOT FOUR, and that is not a cosmetic choice: Windows Installer compares only
+         major.minor.build when it decides whether one package upgrades another. The fourth field
+         the rest of the build carries — `git describe`'s commit count — is invisible to it, so
+         two builds off one tag would look like the same product version. build.yml computes a
+         separate three-field number for this reason; see its `msiversion` output. -->
+    <OutputName>FlickGit-$(Version)-x64</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+
+    <!-- The payload: what gets packaged. Defaults to the same staging directory build.yml
+         publishes into, so the local build and CI put files in the same place. -->
+    <PayloadDir Condition="'$(PayloadDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\FlickGit</PayloadDir>
+
+    <!-- CI has already published and signed the payload by the time it builds this, so it passes
+         true and the target below does nothing. Locally the default is to publish. -->
+    <SkipPayloadPublish Condition="'$(SkipPayloadPublish)' == ''">false</SkipPayloadPublish>
+
+    <!-- Handed to the compiler as $(var.PayloadDir). The <Files> glob in Package.wxs is a
+         compile-time string rather than an MSBuild item, so it cannot see MSBuild properties
+         except through here. -->
+    <DefineConstants>PayloadDir=$(PayloadDir);ProductVersion=$(Version)</DefineConstants>
+
+    <!-- Directory.Build.props turns warnings into errors, and it is right to: a nullability
+         warning in code that edits the user's working tree is a NullReferenceException waiting
+         to happen. That argument does not reach a WiX package, where the warnings are advisory
+         (an unversioned file in a component, an ICE opinion about a shortcut) and one of them
+         would otherwise stop a release build from producing anything. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- The two internal consistency evaluators that a per-user install cannot satisfy, and the
+         only ones suppressed.
+
+         ICE38 wants every component whose files land in the user profile to use an HKCU registry
+         value as its key path rather than a file. It is asking for the mechanism that lets one
+         machine hold a different answer per user — which is a question this package does not have,
+         because it is per-user and nothing else: there is no per-machine variant it could be
+         confused with. Satisfying it would also mean one hand-written registry value per file,
+         which is incompatible with harvesting the payload at all.
+
+         ICE64 wants every user-profile directory listed in the RemoveFile table, which dates from
+         roaming profiles and advertised features. The uninstall is verified by running it — the
+         install folder is gone afterwards — rather than by satisfying the evaluator.
+
+         ICE91 is the same argument as ICE38 in warning form: it points out that the install
+         directory does not vary with ALLUSERS. It does not, there is no per-machine variant, and
+         it fires once per file — fifteen lines of output saying the package is what it says it is.
+
+         ICE61 fires *because* of AllowSameVersionUpgrades above: the maximum version an upgrade
+         removes is no longer strictly below this one. That is the setting, not a mistake in it.
+
+         The last two are warnings rather than errors, and are suppressed for one reason: a build
+         whose output is thirty lines of expected noise is a build in which a new warning is
+         invisible.
+
+         Nothing else is suppressed. An ICE has to be argued with in this comment before it is
+         added to this list. -->
+    <SuppressIces>ICE38;ICE64;ICE91;ICE61</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WixUI_InstallDir: a licence, a folder to change, a progress bar. The only extension used
+         and the only one needed — the custom actions below are plain exe actions, so
+         WixToolset.Util.wixext is not pulled in for them. -->
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <RepoRoot>$(MSBuildThisFileDirectory)..\..\</RepoRoot>
+  </PropertyGroup>
+
+  <Target Name="PublishPayload" BeforeTargets="BeforeBuild" Condition="'$(SkipPayloadPublish)' != 'true'">
+
+    <!-- The same three publishes build.yml runs, in the same order, into one directory.
+
+         Both executables must end up side by side: flick.exe resolves FlickGit.exe beside itself,
+         and the registry command lines name flick.exe and icons\*.ico by path. A layout that
+         nested or renamed either one installs a context menu whose entries do nothing.
+
+         `dotnet publish` rather than a copy of bin\: Native AOT only runs on publish, so a build
+         output has no native flick.exe and no native FlickGit.Shell.dll — and a package missing
+         the DLL silently installs a menu with no branch name in it. -->
+
+    <Message Importance="high" Text="Publishing the payload into $(PayloadDir)" />
+
+    <!-- Emptied first, and that is not tidiness. `dotnet publish` copies into a directory without
+         taking anything out of it, so a file that a previous version produced and this one does
+         not — a renamed icon, a dropped dependency — would be picked up by the glob below and
+         shipped in every MSI from then on. Nobody would notice, because the file works. -->
+    <RemoveDir Directories="$(PayloadDir)" />
+
+    <Exec WorkingDirectory="$(RepoRoot)"
+          Command="dotnet publish src/FlickGit.App/FlickGit.App.csproj -c $(Configuration) -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=none -p:Version=$(Version) -p:AssemblyVersion=$(Version) -p:FileVersion=$(Version) -o &quot;$(PayloadDir)&quot;" />
+
+    <Exec WorkingDirectory="$(RepoRoot)"
+          Command="dotnet publish src/FlickGit.Shell/FlickGit.Shell.csproj -c $(Configuration) -r win-x64 -p:DebugType=none -p:Version=$(Version) -p:AssemblyVersion=$(Version) -p:FileVersion=$(Version) -o &quot;$(PayloadDir)&quot;" />
+
+    <Exec WorkingDirectory="$(RepoRoot)"
+          Command="dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj -c $(Configuration) -r win-x64 -p:DebugType=none -p:Version=$(Version) -p:AssemblyVersion=$(Version) -p:FileVersion=$(Version) -o &quot;$(PayloadDir)&quot;" />
+  </Target>
+
+  <Target Name="ForceRelink" BeforeTargets="BeforeBuild">
+    <!-- The version is a property, and WiX's up-to-date check does not look at it: build 0.9.1 and
+         then 1.0.0 without cleaning, and the link step decides its inputs have not changed while
+         the copy step goes looking for FlickGit-1.0.0-x64.msi, which was never produced. The error
+         it gives ("could not copy … because it was not found") describes the symptom and not the
+         cause.
+
+         Deleting the intermediate package makes every build link again. That costs a second or two,
+         against a payload publish that costs a minute. -->
+    <ItemGroup>
+      <StaleIntermediatePackage Include="$(IntermediateOutputPath)**\*.msi;$(IntermediateOutputPath)**\*.wixpdb" />
+    </ItemGroup>
+
+    <Delete Files="@(StaleIntermediatePackage)" />
+  </Target>
+
+  <Target Name="CheckPayload" BeforeTargets="BeforeBuild">
+    <!-- The three files the package is worthless without, named individually rather than left to
+         a glob that would happily produce an MSI containing nothing. -->
+    <Error Condition="!Exists('$(PayloadDir)\FlickGit.exe')" Text="FlickGit.exe is missing from $(PayloadDir). Publish the payload, or point -p:PayloadDir at one that exists." />
+    <Error Condition="!Exists('$(PayloadDir)\flick.exe')" Text="flick.exe is missing from $(PayloadDir)." />
+    <Error Condition="!Exists('$(PayloadDir)\FlickGit.Shell.dll')" Text="FlickGit.Shell.dll is missing from $(PayloadDir). Native AOT only runs on publish, so a `dotnet build` output cannot be packaged." />
+  </Target>
+
+</Project>

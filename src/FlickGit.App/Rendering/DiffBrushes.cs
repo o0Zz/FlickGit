@@ -50,6 +50,17 @@ internal static class DiffBrushes
     /// <summary>The connector's tie for a modified pair, which exists on both sides.</summary>
     public static readonly Brush ConnectorModified = Frozen("#FFD9E2F0");
 
+    /// <summary>The abbreviated hash in the blame gutter. The accent, so the eye lands on it first.</summary>
+    public static readonly Brush BlameSha = Frozen("#FF3A6EA5");
+
+    /// <summary>
+    /// Every line the selected commit is responsible for.
+    ///
+    /// Deliberately fainter than any diff colour: it answers "where else did this commit touch the
+    /// file" while the code stays the thing being read.
+    /// </summary>
+    public static readonly Brush BlameSelected = Frozen("#FFEAF1FA");
+
     private static Brush Frozen(string hex)
     {
         var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)!);

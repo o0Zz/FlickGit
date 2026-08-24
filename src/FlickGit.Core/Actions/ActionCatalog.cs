@@ -270,6 +270,7 @@ public sealed class ActionCatalog
             {
                 "menu" => ActionSurfaces.Menu,
                 "palette" => ActionSurfaces.Palette,
+                "file" => ActionSurfaces.File,
                 _ => ActionSurfaces.None,
             };
         }
@@ -351,6 +352,11 @@ public sealed class ActionCatalog
         //still not a root entry because CLAUDE.md's two root entries are the two the user
         //*performs* all day -- and this one performs nothing.
         new("log", "log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
+
+        //The file menu, which is this entry and nothing else so far. Its order only sorts it against
+        //other file entries, of which there are none -- but the stride is kept so a second one has
+        //somewhere to go.
+        new("blame", "blame", VerbKind.Blame, 100, ActionSurfaces.File, "blame.ico", InMore: true, NeedsRepository: true),
 
         new("switch", "switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Branch),

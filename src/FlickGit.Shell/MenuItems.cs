@@ -12,13 +12,17 @@ namespace FlickGit.Shell;
 /// <param name="ShowBranch">Append the checked-out branch to the label.</param>
 /// <param name="NeedsRepository">Omit the item entirely outside a repository.</param>
 /// <param name="InSubmenu">Goes under the <c>FlickGit</c> popup rather than at the top level.</param>
+/// <param name="OnFiles">Drawn when a file was clicked.</param>
+/// <param name="OnFolders">Drawn when a folder, a drive or a folder background was clicked.</param>
 internal sealed record MenuItem(
     string Label,
     string Verb,
     string? Icon,
     bool ShowBranch,
     bool NeedsRepository,
-    bool InSubmenu);
+    bool InSubmenu,
+    bool OnFiles,
+    bool OnFolders);
 
 /// <summary>
 /// The menu, as the App wrote it into the registry.
@@ -92,7 +96,9 @@ internal static class MenuItems
                     item.GetValue(ShellCommandIds.ValueIcon) as string is { Length: > 0 } icon ? icon : null,
                     IsSet(item, ShellCommandIds.ValueShowBranch),
                     IsSet(item, ShellCommandIds.ValueNeedsRepository),
-                    IsSet(item, ShellCommandIds.ValueInSubmenu)));
+                    IsSet(item, ShellCommandIds.ValueInSubmenu),
+                    IsSet(item, ShellCommandIds.ValueOnFiles),
+                    IsSet(item, ShellCommandIds.ValueOnFolders)));
             }
 
             return [.. loaded];

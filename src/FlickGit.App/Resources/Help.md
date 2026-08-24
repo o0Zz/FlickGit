@@ -124,6 +124,19 @@ Nothing in this window changes the repository. There is no checkout, reset, reve
 cherry-pick here, and the diff is read-only on both sides. **Save as patch…** writes the diff you
 are looking at to a file you choose.
 
+## Blame
+
+Right-click a **file** → **FlickGit ▸ Blame**, or `flick blame <file>`. Each line is labelled with
+the commit that last touched it.
+
+Click a line and press **Blame previous revision** to see the file as it was *before* that commit —
+again and again, following the file across renames, until Git says there is nothing before it. That
+is how you get past the reformat that touched every line to the change that actually wrote one.
+**Back** returns, to the same line you were following.
+
+Nothing here changes the repository. You can also reach it from the log window: right-click a file
+there to blame it at the commit you are reading rather than at the working tree.
+
 ## Command line
 
 Everything in the menus is also a verb. `<path>` defaults to the current directory.
@@ -133,6 +146,7 @@ flick commit <path>              flick switch <path> [branch]
 flick pull-rebase <path>         flick tag <path> [name]
 flick push <path>                flick status <path>
 flick log <path>                 commit history + combined diffs
+flick blame <file>               who wrote each line
 flick palette                    flick clone <path> [url]
 flick settings                   flick terminal <path>
                                  flick run <id> [path]

@@ -12,8 +12,30 @@
 public enum ActionSurfaces
 {
     None = 0,
+
+    /// <summary>The Explorer context menu on a folder, a drive, or a folder's background.</summary>
     Menu = 1,
+
     Palette = 2,
+
+    /// <summary>
+    /// The Explorer context menu on a <b>file</b>.
+    ///
+    /// Its own surface rather than a flag on <see cref="Menu"/>, because the two lists are drawn on
+    /// different clicks and share nothing: committing a folder makes sense and blaming one does not.
+    ///
+    /// Reachable only through the <c>IContextMenu</c> handler, never as a static registry verb. A
+    /// static verb cannot hide itself, so registering one under <c>*</c> would put a FlickGit
+    /// submenu on every file on the machine, repository or not.
+    /// </summary>
+    File = 4,
+
+    /// <summary>
+    /// Both the folder menu and the palette — what an action gets when it does not say.
+    ///
+    /// Deliberately <i>not</i> including <see cref="File"/>: adding it here would turn every
+    /// existing action, and every user action in actions.json, into a file entry.
+    /// </summary>
     All = Menu | Palette,
 }
 

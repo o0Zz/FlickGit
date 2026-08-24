@@ -120,6 +120,28 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// </summary>
     private static readonly string[] ClassKeyNames = [MenuKeyName, "FlickGit.Menu.More"];
 
+    /// <summary>
+    /// The classes the context-menu handler is registered under.
+    ///
+    /// Derived from <see cref="VerbParents"/> until files arrived, and now its own list because the
+    /// two no longer line up: <c>*</c> takes the handler but no static verb. A static verb cannot
+    /// hide itself, so registering one there would put a FlickGit submenu on every file on the
+    /// machine, repository or not — whereas the handler is asked each time and answers with nothing.
+    ///
+    /// The cost of <c>*</c> is that Explorer loads this DLL on every file right-click. That is the
+    /// price of a file entry at all: there is no per-repository class to register under, and
+    /// enumerating extensions is not a smaller version of the same thing.
+    /// </summary>
+    private static readonly string[] HandlerOwners =
+    [
+        "Directory",
+        @"Directory\Background",
+        "Drive",
+
+        //All files. The handler draws only what the click asks for -- see ValueOnFiles.
+        "*",
+    ];
+
     /// <summary>Where a COM class registers itself, under <c>Software\Classes</c>.</summary>
     private const string ClsidPath = "CLSID";
 
@@ -262,11 +284,10 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             foreach (string name in ClassKeyNames)
                 classes.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
 
-            //The handler registration, under each parent class it was written to.
-            foreach (string parent in VerbParents)
+            //The handler registration, under each class it was written to. The same list the install
+            //uses, or the one that is only in the other list is the one that leaks.
+            foreach (string owner in HandlerOwners)
             {
-                string owner = parent[..parent.LastIndexOf(@"\shell", StringComparison.Ordinal)];
-
                 using RegistryKey? handlers = classes.OpenSubKey(
                     $@"{owner}\{ShellCommandIds.ContextMenuHandlersPath}", writable: true);
 
@@ -431,12 +452,13 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         foreach (GitAction action in submenuActions)
             WriteItem(items, ref order, cliPath, action, inSubmenu: true);
 
-        foreach (string parent in VerbParents)
-        {
-            //VerbParents name the verb container -- "Directory\shell". A handler goes under the
-            //class itself, so the trailing segment is dropped: Directory, Directory\Background, Drive.
-            string owner = parent[..parent.LastIndexOf(@"\shell", StringComparison.Ordinal)];
+        //The file entries, which are always in the submenu: a file's FlickGit block is one hover
+        //deep, and there is no everyday file action worth a root entry the way Commit is.
+        foreach (GitAction action in catalog.For(ActionSurfaces.File))
+            WriteItem(items, ref order, cliPath, action, inSubmenu: true);
 
+        foreach (string owner in HandlerOwners)
+        {
             using RegistryKey handler = classes.CreateSubKey(
                                             $@"{owner}\{ShellCommandIds.ContextMenuHandlersPath}\{ShellCommandIds.HandlerKeyName}",
                                             writable: true)
@@ -464,6 +486,18 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
         item.SetValue(ShellCommandIds.ValueNeedsRepository, action.RequiresRepository ? "1" : "0", RegistryValueKind.String);
         item.SetValue(ShellCommandIds.ValueInSubmenu, inSubmenu ? "1" : "0", RegistryValueKind.String);
+
+        //Which click this item answers. The handler is registered on files and on folders alike, so
+        //without this every folder action would appear on a file -- and Blame on a directory.
+        item.SetValue(
+            ShellCommandIds.ValueOnFiles,
+            action.Surfaces.HasFlag(ActionSurfaces.File) ? "1" : "0",
+            RegistryValueKind.String);
+
+        item.SetValue(
+            ShellCommandIds.ValueOnFolders,
+            action.Surfaces.HasFlag(ActionSurfaces.Menu) ? "1" : "0",
+            RegistryValueKind.String);
 
         //Only the Commit entry. On Pull it would read as "pull *into* this branch" -- true, and
         //saying nothing the entry above it has not already said.

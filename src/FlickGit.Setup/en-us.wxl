@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  One overridden string, and it earns its file.
+
+  The installer closes Windows Explorer and starts it again, which is the one thing about it a
+  user cannot guess and would reasonably be alarmed by. There is nowhere else to say so: the
+  licence page is the licence, and the progress bar is too late. WixUI declares its own strings
+  Overridable, so redefining this one here replaces it.
+
+  The line breaks are character references rather than actual newlines. An XML parser normalises
+  a literal newline inside an attribute value to a space, so writing the paragraphs out over
+  several lines produces one run-on paragraph in the dialog.
+-->
+
+<WixLocalization Culture="en-us" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+
+  <String Id="WelcomeDlgDescription" Value="The Setup Wizard will install [ProductName] on your computer.&#13;&#10;&#13;&#10;Windows Explorer will be closed and restarted during the installation. FlickGit's context menu runs inside Explorer, so this is the only way to replace it — any open Explorer windows will close.&#13;&#10;&#13;&#10;Click Next to continue or Cancel to exit." />
+
+</WixLocalization>

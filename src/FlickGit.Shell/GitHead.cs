@@ -45,7 +45,13 @@ internal static class GitHead
 
         try
         {
-            var directory = new DirectoryInfo(folder);
+            //The handler is registered on files as well as folders now, so this is genuinely handed
+            //a file path. Starting at its directory rather than at the file is not just tidier: the
+            //walk would otherwise spend its first probe looking for C:\repo\src\a.cs\.git, and
+            //MaxDepth is a real limit rather than a formality on a deep tree.
+            string start = Directory.Exists(folder) ? folder : Path.GetDirectoryName(folder) ?? folder;
+
+            var directory = new DirectoryInfo(start);
 
             for (int depth = 0; depth < MaxDepth && directory is not null; depth++)
             {

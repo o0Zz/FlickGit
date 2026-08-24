@@ -56,8 +56,28 @@ jobs:
             $version = "0.0.0.$commits"
           }
 
+          # A SECOND VERSION, FOR THE MSI, AND IT HAS TO BE ITS OWN NUMBER.
+          #
+          # Windows Installer compares only major.minor.build when it decides whether one package
+          # upgrades another. The fourth field above -- the commit count -- is invisible to it, so
+          # feeding it the same string would make every build off one tag look like the same
+          # product version, and the second one would install *beside* the first.
+          #
+          # A tag gets the tag. Anything else gets 0.0.<commits>, deliberately not derived from the
+          # nearest tag: a `main` MSI must not be able to pass itself off as the release it came
+          # after, and it is a test artifact either way -- only tag builds are attached to a
+          # release. 65535 is the ceiling Windows Installer puts on that field.
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -match '^v(\d+\.\d+\.\d+)$') {
+            $msiversion = $matches[1]
+          } else {
+            $commits = [int](git rev-list --count HEAD).Trim()
+            $msiversion = "0.0.$([Math]::Min($commits, 65535))"
+          }
+
           Write-Host "Computed version: $version (git describe: $(if ($describe) { $describe } else { 'none' }))"
+          Write-Host "Installer version: $msiversion"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "msiversion=$msiversion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Restore
         run: dotnet restore $env:SOLUTION
@@ -207,6 +227,47 @@ jobs:
 
       # ---------------------------------------------------------------------------------------
 
+      # AFTER the signing block, and that ordering is the point: the package is built from the
+      # staging directory the signed binaries were copied over, so the MSI carries them.
+      #
+      # THE MSI ITSELF IS NOT SIGNED. It cannot ride the submission above -- it does not exist yet
+      # when that artifact is uploaded -- so signing it needs a second artifact configuration on
+      # SignPath's side and a second submission here. That is a distribution improvement rather
+      # than a functional one, and it is left undone rather than half-built: an MSI full of signed
+      # binaries is a coherent thing, and README's "Downloading an unsigned build" already says
+      # what the download warning costs.
+      #
+      # Built on every branch, not only on tags, because a packaging break should show up in the
+      # build that caused it rather than at the moment somebody cuts a release. Only the tag build
+      # is attached to one.
+      - name: Build the MSI installer
+        shell: pwsh
+        run: |
+          dotnet build src/FlickGit.Setup/FlickGit.Setup.wixproj `
+            -c $env:CONFIGURATION `
+            -p:Version=${{ steps.version.outputs.msiversion }} `
+            -p:SkipPayloadPublish=true `
+            -p:PayloadDir="$((Resolve-Path $env:STAGING).Path)"
+
+          # Found rather than named: the WiX SDK puts its output under a culture subdirectory, and
+          # a hard-coded path here would be a second place that has to know the version.
+          $msi = Get-ChildItem src/FlickGit.Setup/bin -Recurse -Filter *.msi |
+                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          if (-not $msi) { throw "The WiX build produced no .msi." }
+
+          New-Item -ItemType Directory -Force artifacts/installer | Out-Null
+          Copy-Item $msi.FullName artifacts/installer/
+          Write-Host "Installer: $($msi.Name) ($([Math]::Round($msi.Length / 1MB, 1)) MB)"
+          "msi=artifacts/installer/$($msi.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlickGit-${{ steps.version.outputs.msiversion }}-installer
+          path: ${{ env.msi }}
+          if-no-files-found: error
+
       - name: Package the release asset
         if: github.ref_type == 'tag'
         shell: pwsh
@@ -215,6 +276,8 @@ jobs:
           Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
           "zip=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      # Both assets. The MSI is the way in; the zip stays for the portable install, which is the
+      # one that works without touching Explorer or the registry at all.
       - name: Draft GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
@@ -222,4 +285,6 @@ jobs:
           draft: true
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          files: ${{ env.zip }}
+          files: |
+            ${{ env.zip }}
+            ${{ env.msi }}

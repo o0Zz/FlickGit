@@ -231,6 +231,12 @@
                         </Style>
                     </ListBox.ItemContainerStyle>
 
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem x:Name="BlameFileItem" Click="OnBlameFile" />
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+
                     <!-- The commit window's row template minus the tick box, which is the one
                          column that would be a lie here: nothing in this window is committed. -->
                     <ListBox.ItemTemplate>

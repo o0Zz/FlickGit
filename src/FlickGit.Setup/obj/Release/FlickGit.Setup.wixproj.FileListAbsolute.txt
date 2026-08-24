@@ -1,0 +1,6 @@
+C:\dev\FlickGit\src\FlickGit.Setup\obj\Release\FlickGit.Setup.wixproj.CoreCompileInputs.cache
+C:\dev\FlickGit\src\FlickGit.Setup\obj\Release\FlickGit.Setup.wixproj.BindTracking-en-us.txt
+C:\dev\FlickGit\src\FlickGit.Setup\bin\Release\en-us\FlickGit-0.0.0-x64.msi
+C:\dev\FlickGit\src\FlickGit.Setup\bin\Release\en-us\FlickGit-0.0.0-x64.wixpdb
+C:\dev\FlickGit\src\FlickGit.Setup\obj\Release\en-us\FlickGit-0.0.0-x64.msi
+C:\dev\FlickGit\src\FlickGit.Setup\obj\Release\en-us\FlickGit-0.0.0-x64.wixpdb

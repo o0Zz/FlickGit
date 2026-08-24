@@ -1,0 +1,119 @@
+<Window x:Class="FlickGit.App.Views.BlameWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+        Title="Blame"
+        Width="1100" Height="760"
+        MinWidth="720" MinHeight="440"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Surface}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- 0 header: file, revision, Back -->
+            <RowDefinition Height="*" />      <!-- 1 the annotated file -->
+            <RowDefinition Height="Auto" />   <!-- 2 the selected line's commit -->
+            <RowDefinition Height="Auto" />   <!-- 3 footer -->
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,0,0,1"
+                Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="PathText" Style="{StaticResource HeaderTitle}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="RevisionText" Style="{StaticResource Muted}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <TextBlock x:Name="DepthText"
+                           Grid.Column="1"
+                           VerticalAlignment="Center"
+                           Margin="12,0"
+                           FontSize="11"
+                           Style="{StaticResource Muted}" />
+
+                <Button x:Name="BackButton"
+                        Grid.Column="2"
+                        MinWidth="90"
+                        Padding="8,3"
+                        IsEnabled="False"
+                        Click="OnBack" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <!-- One read-only editor. ShowLineNumbers is off because BlameMargin carries both the
+                 annotation and the line number, and two gutters would disagree about width. -->
+            <avalon:TextEditor x:Name="Editor"
+                               IsReadOnly="True"
+                               ShowLineNumbers="True"
+                               WordWrap="False"
+                               HorizontalScrollBarVisibility="Auto"
+                               VerticalScrollBarVisibility="Auto"
+                               BorderThickness="0"
+                               Background="{StaticResource SurfaceSunken}" />
+
+            <!-- Covers the editor rather than replacing it: the editor is the expensive part of this
+                 window and rebuilding it per load would be paying that twice. -->
+            <Border x:Name="Placeholder"
+                    Background="{StaticResource Surface}"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="PlaceholderText"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="520"
+                           TextAlignment="Center"
+                           Style="{StaticResource Muted}" />
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,1,0,0"
+                Padding="14,8">
+            <StackPanel>
+                <TextBlock x:Name="CommitText" TextWrapping="Wrap" FontWeight="SemiBold" />
+                <TextBlock x:Name="CommitMeta" Margin="0,4,0,0" FontSize="11" Style="{StaticResource Muted}" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,1,0,0"
+                Padding="14,10">
+            <Grid>
+                <TextBlock x:Name="StatusText"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0"
+                           TextTrimming="CharacterEllipsis"
+                           Style="{StaticResource Muted}" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="PreviousButton"
+                            Style="{StaticResource PrimaryButton}"
+                            MinWidth="230"
+                            Padding="10,4"
+                            IsEnabled="False"
+                            Click="OnBlamePrevious" />
+
+                    <Button x:Name="CloseButton"
+                            Margin="16,0,0,0"
+                            MinWidth="80"
+                            Padding="8,3"
+                            IsCancel="True"
+                            Click="OnClose" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

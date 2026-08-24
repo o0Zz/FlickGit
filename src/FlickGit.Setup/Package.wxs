@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  The FlickGit installer.
+
+  Its reason for existing is one file: FlickGit.Shell.dll, a Native AOT COM server that Explorer
+  loads *into itself* and whose DllCanUnloadNow returns S_FALSE forever, because the .NET runtime
+  cannot be unloaded and reinitialised in a live process. Once anybody has right-clicked, the DLL
+  is locked for as long as explorer.exe lives — so the zip install cannot replace it, and an
+  update means killing Explorer by hand at the right moment.
+
+  An installer is the only thing that can put that in the right order:
+
+      close FlickGit -> close Explorer -> replace the files -> re-register -> start both again
+
+  Everything below is either that sequence or the packaging it needs. What this is NOT is an
+  answer to the download warning: an unsigned .msi is treated no better than an unsigned .zip by
+  SmartScreen, and README's "Downloading an unsigned build" still holds. This is about the lock.
+
+  Per-user throughout, and not by accident: the product's registry entries are HKCU, its settings
+  are in %LOCALAPPDATA%, and its autostart is a per-user logon task. A per-machine package would
+  write one user's HKCU keys and then be wrong for everybody else on the machine.
+-->
+
+<!--
+  The UpgradeCode below is PERMANENT. It is how every future package recognises this one as the
+  thing it replaces; changing it turns an upgrade into a second product installed beside the
+  first. Hard Requirement 1 licences breaking our own formats freely, and this is one of the two
+  exceptions in the repository — the other being the shell handler's CLSID, for the same reason:
+  it is written into the user's machine, where nothing of ours can reach it again.
+-->
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="FlickGit"
+           Manufacturer="o0Zz"
+           Version="$(var.ProductVersion)"
+           Scope="perUser"
+           Compressed="yes"
+           InstallerVersion="500"
+           UpgradeCode="506AC3B5-A7FE-4E8B-B27E-513184427B3C">
+
+    <SummaryInformation Description="FlickGit — fast Git actions from Windows Explorer" />
+
+    <!-- ONE FILE. Without this the build puts the payload in a cab1.cab *beside* the .msi, which
+         `Compressed="yes"` above does not prevent: that attribute says the sources are compressed,
+         not that the cabinet lives inside the package. A release asset that needs a second file
+         nobody downloaded is an installer that fails on every machine but the one it was built on.
+
+         Caught by looking at the output directory, and it is worth installing from a copy of the
+         .msi on its own for exactly this reason. -->
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Updating is running the newer MSI, and that is the whole update story.
+
+         AllowSameVersionUpgrades because the version is derived from `git describe`: two builds of
+         the same tag carry the same three fields, and without this the second one installs beside
+         the first instead of over it. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  Schedule="afterInstallInitialize"
+                  DowngradeErrorMessage="A newer version of FlickGit is already installed. Uninstall it first if you want to go back." />
+
+    <!-- We close FlickGit and Explorer ourselves, before InstallValidate, so the Restart Manager
+         has nothing left to find. Left enabled it would reach the same two processes first and
+         offer the user a reboot instead — for a file we are about to unlock deliberately. -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+
+    <Property Id="ARPPRODUCTICON" Value="FlickGit.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/o0Zz/FlickGit" />
+    <Icon Id="FlickGit.ico" SourceFile="$(var.PayloadDir)\Resources\flickgit.ico" />
+
+    <!-- FlickGit.exe is framework-dependent, so the .NET Desktop Runtime has to be there before
+         `flick install-shell` below can run at all.
+
+         A directory probe rather than a RegistrySearch, and that is forced rather than chosen: the
+         .NET installer records what it installed as registry *value names* ("9.0.19"), so no
+         search can ask the question "any 9.x". This catches the machine with no desktop runtime at
+         all, which is the case worth catching; one that has only .NET 8 falls through to the .NET
+         host's own dialog, which names the exact download. -->
+    <Property Id="DOTNETDESKTOP">
+      <DirectorySearch Id="DotNetShared" Path="[ProgramFiles64Folder]dotnet\shared\Microsoft.WindowsDesktop.App" />
+    </Property>
+
+    <Launch Condition="Installed OR DOTNETDESKTOP"
+            Message="FlickGit needs the .NET 9 Desktop Runtime (x64), which is not installed. Get it from https://dotnet.microsoft.com/download/dotnet/9.0 and run this installer again." />
+
+    <!-- %LOCALAPPDATA%\Programs\FlickGit, which is the path the README has always recommended and
+         the one a per-user install belongs in. Changeable on the install-folder page. -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="FlickGit" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="FlickGit" Level="1">
+      <ComponentGroupRef Id="Payload" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <!-- The published layout, harvested whole.
+
+         Harvested rather than listed file by file because the list changes for reasons that have
+         nothing to do with packaging: a new language file, another icon, a dependency AvalonEdit
+         brings in. Nothing here should need editing for that.
+
+         Both executables land in one directory, which is a requirement rather than a convenience:
+         flick.exe resolves FlickGit.exe beside itself, and every registry command line names
+         flick.exe and icons\*.ico by path.
+
+         The one exclusion is real rather than defensive: the Native AOT linker writes flick.pdb
+         into the publish directory whatever -p:DebugType is set to, and it is thirteen megabytes
+         against a two-megabyte package. Nothing else needs excluding — the .lib and .exp the
+         linker also produces stay in the project's native\ directory and never reach a publish. -->
+    <ComponentGroup Id="Payload" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PayloadDir)\**">
+        <Exclude Files="$(var.PayloadDir)\**\*.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <!-- One shortcut, for the resident service. No arguments: FlickGit.exe with none is the tray
+         verb. Nothing else in the product is worth a Start-menu entry — the whole point is that
+         the surfaces are Explorer's context menu and a hotkey. -->
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="*">
+      <Shortcut Id="FlickGitShortcut"
+                Name="FlickGit"
+                Description="Fast Git actions from Windows Explorer"
+                Target="[INSTALLFOLDER]FlickGit.exe"
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="FlickGit.ico" />
+
+      <!-- A per-user component needs an HKCU key path; a shortcut cannot be one. -->
+      <RegistryValue Root="HKCU" Key="Software\o0Zz\FlickGit" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!--
+      ================================================================================
+      The sequence. Everything above is packaging; this is what the installer is for.
+      ================================================================================
+
+      Five things decide the Execute and Position columns below, and each of them is a bug if it
+      is got wrong:
+
+      1. THE KILLS ARE IMMEDIATE, AND BEFORE InstallValidate. That is where Windows Installer
+         decides whether any file it is about to replace is in use — and it runs before the
+         script that copies anything. A deferred kill would land after the user had already been
+         shown a FilesInUse dialog offering a reboot.
+
+      2. RegisterShell IS DEFERRED, for the mirror-image reason. An immediate action scheduled
+         After="InstallFiles" still runs before a single file exists on disk, because the copying
+         happens inside InstallFinalize. Only a deferred action runs in file order.
+
+      3. EVERY DEFERRED ACTION IS Impersonate="yes", without exception. A deferred action that
+         does not impersonate runs as SYSTEM even in a per-user install with no elevation
+         anywhere — and `flick install-shell` writes HKCU, so it would register the context menu
+         into SYSTEM's registry hive and report success.
+
+      4. THE STARTS ARE IMMEDIATE, because nothing can be sequenced after InstallFinalize inside
+         the script, and they go through Start-Process because MSI *waits* for an exe action to
+         exit. A deferred action that ran FlickGit.exe directly would hang the installer until
+         the user quit the tray icon. They are also not simultaneous — FlickGit cannot be started
+         the instant Explorer is, and StartFlickGit below says why.
+
+      5. NOTHING RUNS TWICE DURING AN UPGRADE. MajorUpgrade removes the old product inside this
+         transaction, which runs the old package's sequence too — so without NOT
+         UPGRADINGPRODUCTCODE the outgoing package would unregister the menu and put a live
+         Explorer back in front of the file copy that is about to replace its DLL.
+
+      The working directory of an exe action is its Directory attribute, so the kills and the
+      Explorer restart use SystemFolder rather than INSTALLFOLDER: on a first install the install
+      folder does not exist yet, on an uninstall it is already gone, and an exe action whose
+      working directory is missing fails to start at all — silently, under Return="ignore".
+    -->
+
+    <CustomAction Id="StopFlickGit"
+                  Directory="SystemFolder"
+                  ExeCommand="&quot;[System64Folder]taskkill.exe&quot; /F /IM FlickGit.exe"
+                  Execute="immediate"
+                  Return="ignore" />
+
+    <!-- Explorer, always: on an install, an upgrade and an uninstall. It is the only way to get
+         the lock off FlickGit.Shell.dll, and msiexec owns the progress window, so nothing the
+         user is looking at goes with it. -->
+    <CustomAction Id="StopExplorer"
+                  Directory="SystemFolder"
+                  ExeCommand="&quot;[System64Folder]taskkill.exe&quot; /F /IM explorer.exe"
+                  Execute="immediate"
+                  Return="ignore" />
+
+    <!-- Registration goes through flick.exe rather than being written as MSI registry rows, and
+         that is deliberate: the context menu is a projection of the Action Catalog, so what the
+         keys should say depends on the user's own actions.json. An MSI cannot know it, and a
+         second implementation of it would be a second answer to the same question. -->
+    <CustomAction Id="RegisterShell"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]flick.exe&quot; install-shell"
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="check" />
+
+    <CustomAction Id="RegisterAutostart"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]flick.exe&quot; autostart on"
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="ignore" />
+
+    <CustomAction Id="UnregisterShell"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]flick.exe&quot; uninstall-shell"
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="ignore" />
+
+    <!-- Removed on uninstall, or the logon task survives as a task pointing at a deleted exe. -->
+    <CustomAction Id="UnregisterAutostart"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]flick.exe&quot; autostart off"
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="ignore" />
+
+    <!-- Only if nothing brought it back already: Winlogon restarts the shell on its own in some
+         configurations, and running explorer.exe when a shell is already up opens a File Explorer
+         window in the user's face at the end of an install. -->
+    <CustomAction Id="StartExplorer"
+                  Directory="SystemFolder"
+                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -WindowStyle Hidden -Command &quot;if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }&quot;"
+                  Execute="immediate"
+                  Return="ignore" />
+
+    <!-- Started only once the shell is back, and the wait is not padding.
+
+         The resident service's first act is to add its tray icon, and Shell_NotifyIcon fails while
+         the notification area does not exist yet — which is the state Explorer is in for a second
+         or two after it starts. Launched immediately after StartExplorer, FlickGit died on
+         `TryCreate failed` on every install: no tray icon, no pipe, no resident service, and an
+         installer that had reported success.
+
+         So the taskbar is given time to appear. Explorer itself is already running by now —
+         StartExplorer above is synchronous, so MSI waited for it — which is why this is a plain
+         delay and not a poll for the process. The five seconds are a guess, and a generous one on
+         purpose: the failure it avoids is silent, and lasts until the next logon.
+
+         It cannot grow much longer either way. CustomAction.Target holds 255 characters, and ICE03
+         is what says so — which is why the check that caught it is not in the suppression list. -->
+    <CustomAction Id="StartFlickGit"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -WindowStyle Hidden -Command &quot;Start-Sleep -Seconds 5; Start-Process -FilePath '[INSTALLFOLDER]FlickGit.exe'&quot;"
+                  Execute="immediate"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="StopFlickGit" Before="StopExplorer" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="StopExplorer" Before="InstallValidate" Condition="NOT UPGRADINGPRODUCTCODE" />
+
+      <Custom Action="UnregisterAutostart" Before="UnregisterShell" Condition="(REMOVE=&quot;ALL&quot;) AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="UnregisterShell" Before="RemoveFiles" Condition="(REMOVE=&quot;ALL&quot;) AND NOT UPGRADINGPRODUCTCODE" />
+
+      <!-- NOT REMOVE rather than NOT Installed, so a repair re-registers the menu. Repair is the
+           one thing to reach for when the keys have been lost, and it would be an odd thing for
+           it not to fix.
+
+           RegisterShell is the only action allowed to fail the install (Return="check"). A
+           package that copied the files and quietly did not register the menu is exactly the
+           failure this installer exists to prevent. -->
+      <Custom Action="RegisterShell" After="InstallFiles" Condition="NOT REMOVE" />
+      <Custom Action="RegisterAutostart" After="RegisterShell" Condition="NOT REMOVE" />
+
+      <Custom Action="StartExplorer" After="InstallFinalize" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="StartFlickGit" After="StartExplorer" Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+
+  </Package>
+</Wix>
