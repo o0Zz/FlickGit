@@ -844,12 +844,23 @@ than pretending.
   its whole hunk exactly as the caret does. One `ContextMenu` for the two editors, because two would
   be two places for "the same items on the same rows" to stop being true — and no menu at all when
   the pane is read-only, where three items that all refuse say less than nothing.
-- **The panes sit edge to edge, separated by a one-pixel rule.** There was a 14 px connector strip
-  between them, one visual tying each changed block to its counterpart. It went: at that width it
-  read as a colour belonging to one of the editors rather than as a link between them, and it only
-  ever showed the runs already on screen — which is the question the overview strip below answers
-  better, for the whole file at once. Per **Hard Requirement 1** the class and its three brushes were
-  deleted rather than hidden behind a zero width.
+- **The panes are separated by a 4 px `GridSplitter`, and the split is draggable.** It was a fixed
+  50/50 with a one-pixel rule, which left a long line in the right-hand version reachable only by
+  scrolling sideways or resizing the whole window — neither of which takes the space from the pane
+  that has it to spare. Dragging widens one pane by narrowing the other, which is the same control
+  and the same markup as the three splitters already in the commit and log windows, and it is the
+  rule between the panes rather than something drawn beside one.
+
+  **The ratio is not persisted and there is no setting for it.** The resident service keeps one
+  pre-warmed `DiffPane`, so a drag survives switching files and reopening the window for the rest of
+  the session; a `settings.json` key would be **Hard Requirement 2**'s setting nobody asked for.
+
+  This is *not* the 14 px connector strip that used to sit here, one visual tying each changed block
+  to its counterpart. That went: at that width it read as a colour belonging to one of the editors
+  rather than as a link between them, and it only ever showed the runs already on screen — which is
+  the question the overview strip below answers better, for the whole file at once. Per **Hard
+  Requirement 1** the class and its three brushes were deleted rather than hidden behind a zero
+  width, and a splitter is a control the user acts on, not a decoration between the panes.
 - **An overview strip down the right-hand edge**, mapping the whole file to the pane's height:
   a green mark per insertion, red per deletion, blue per modified line, so the changes further
   down the file are visible without scrolling to find them. One strip for both panes, because
