@@ -442,7 +442,6 @@ settings.language.restart = Saved. Restart FlickGit to see the new language.
 
 settings.section.ai = COMMIT MESSAGES (AI)
 settings.ai.provider = Written by
-settings.ai.provider.disabled = Nobody — I write my own
 settings.ai.key = Set API key…
 settings.ai.key.clear = Remove key
 # {0} provider name

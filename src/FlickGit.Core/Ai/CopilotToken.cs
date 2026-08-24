@@ -162,7 +162,17 @@ public sealed class CopilotToken(HttpClient http, Func<string?> gitHubToken, ILo
 
         403 => "This GitHub account has no Copilot subscription, or the token is not allowed to use it.",
 
-        404 => "GitHub does not offer Copilot to this account.",
+        //Almost always a personal access token rather than an account without Copilot. The endpoint
+        //is undocumented and issues no scope a PAT can be granted -- the fine-grained "Copilot Chat"
+        //and "Copilot Editor Context" permissions apply to the *documented* /copilot/* endpoints on
+        //api.github.com, not to copilot_internal -- so it answers 404 for one no matter what was
+        //ticked. Named here rather than only in the paste box, because this is the message the user
+        //actually reaches: "does not offer Copilot to this account" sent them to check a
+        //subscription that was never the problem.
+        404 => "GitHub would not exchange this token. A personal access token does not work here, "
+             + "whatever Copilot permissions it was granted — FlickGit needs the OAuth token an "
+             + "editor holds. Look for \"oauth_token\" in "
+             + @"%LOCALAPPDATA%\github-copilot\apps.json and store that with `flick ai key set`.",
 
         >= 500 => $"GitHub is having trouble ({(int)status}). Try again in a moment.",
 

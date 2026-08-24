@@ -404,12 +404,23 @@ public partial class SettingsWindow : Window
     /// </summary>
     private sealed record ProviderChoice(AiProvider Provider)
     {
+        /// <summary>
+        /// The service's name and nothing else.
+        ///
+        /// It used to name the model too — "Anthropic — Claude Haiku 4.5" — which was a second place
+        /// for the default to be written down, and wrong the moment <c>aiModel</c> was set to
+        /// anything. The model is <c>aiModel</c> in settings.json, empty meaning the provider's
+        /// default, and <c>flick ai</c> prints the one actually resolved.
+        ///
+        /// Not localised: three of the four are product names, and translating the fourth alone
+        /// would be the odd one out in the list rather than a kindness.
+        /// </summary>
         public override string ToString() => Provider switch
         {
-            AiProvider.Anthropic => "Anthropic — Claude Haiku 4.5",
-            AiProvider.OpenAi => "OpenAI — GPT-5.6 Luna",
-            AiProvider.Copilot => "GitHub Copilot — your subscription",
-            _ => Strings.Get("settings.ai.provider.disabled"),
+            AiProvider.Anthropic => "Anthropic",
+            AiProvider.OpenAi => "OpenAI",
+            AiProvider.Copilot => "GitHubCopilot",
+            _ => "Disabled",
         };
     }
 

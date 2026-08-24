@@ -316,7 +316,6 @@ settings.language.restart = Enregistré. Redémarrez FlickGit pour voir la nouve
 
 settings.section.ai = MESSAGES DE COMMIT (IA)
 settings.ai.provider = Rédigés par
-settings.ai.provider.disabled = Personne — je les écris moi-même
 settings.ai.key = Définir la clé API…
 settings.ai.key.clear = Supprimer la clé
 # {0} provider name

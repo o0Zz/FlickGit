@@ -275,7 +275,6 @@ settings.language.restart = Gespeichert. FlickGit neu starten, um die neue Sprac
 
 settings.section.ai = COMMIT-NACHRICHTEN (KI)
 settings.ai.provider = Geschrieben von
-settings.ai.provider.disabled = Niemandem — ich schreibe selbst
 settings.ai.key = API-Schlüssel festlegen…
 settings.ai.key.clear = Schlüssel entfernen
 # {0} provider name

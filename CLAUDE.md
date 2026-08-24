@@ -1543,9 +1543,14 @@ Three things about this are worth knowing before it is extended or relied on:
   so FlickGit sends an editor's. That, and `copilot_internal`, make this **an undocumented API
   that GitHub may change or close without notice** — which is why the default provider is still
   Anthropic and why a Copilot failure has to degrade like any other.
-- **A personal access token does not work.** The exchange wants the OAuth token an editor
-  already holds, so the key prompt names `%LOCALAPPDATA%\github-copilot\apps.json` rather than
-  leaving the user to deduce it from a 401. This is the only provider whose prompt differs.
+- **A personal access token does not work**, and a *fine-grained* one with "Copilot Chat" and
+  "Copilot Editor Context" granted does not work either — those permissions apply to the documented
+  `/copilot/*` endpoints on `api.github.com`, not to `copilot_internal`, which issues no scope a PAT
+  can be granted at all. The exchange wants the OAuth token an editor already holds, so the key
+  prompt names `%LOCALAPPDATA%\github-copilot\apps.json`; this is the only provider whose prompt
+  differs. **The 404 says so too**, because the prompt is not where the user finds out: a PAT is
+  stored happily and only fails on the first generation, and "GitHub does not offer Copilot to this
+  account" sent them to check a subscription that was never the problem.
 
 The base model spends no premium request, which is why it is the default rather than a faster
 tier: a default that 404s on some subscriptions is worse than a slower one that works on all of
@@ -2526,8 +2531,8 @@ one. Three tabs and nothing else:
 │                                                          │
 │  COMMIT MESSAGES (AI)                                    │
 │  Written by                                              │
-│  [ Anthropic — Claude Haiku 4.5                     ▾ ]  │
-│    Anthropic · OpenAI · GitHub Copilot · nobody          │
+│  [ Anthropic                                        ▾ ]  │
+│    Disabled · Anthropic · OpenAI · GitHubCopilot         │
 │  [ Set API key… ]  [ Remove key ]                        │
 │  A key is stored for Anthropic, in Windows Credential    │
 │  Manager. The diff of the files you commit is sent to    │
@@ -2567,7 +2572,13 @@ indistinguishable from no provider at all.
 
 So: the provider, and a button that opens the existing key prompt. Two controls, no model picker
 and no max-diff field — those are `aiModel` and `aiMaxDiffBytes` in `settings.json`, guessable once
-the provider is on, and neither is a thing anyone changes twice. **No consent checkbox either**; see
+the provider is on, and neither is a thing anyone changes twice.
+
+**The picker names the service and nothing else** — `Disabled`, `Anthropic`, `OpenAI`,
+`GitHubCopilot`. It used to name the model with it ("Anthropic — Claude Haiku 4.5"), which was a
+second place for the default to be written down and wrong the moment `aiModel` was set to anything.
+The model is `aiModel`: empty means the provider's default, and `flick ai` prints the one actually
+resolved, which is the single answer to "what is it using". **No consent checkbox either**; see
 **Privacy and secrets** for why the one that was here was removed rather than moved.
 
 Rules the window follows:
@@ -2838,9 +2849,10 @@ generation and the queued Enter moved to the commit window rather than dying wit
 is the part worth checking against this list: everything above still exists.
 
 **Still open:** the two Explorer-scoped input hooks (`WH_KEYBOARD_LL` for a key,
-`WH_MOUSE_LL` for a side button). They are selectable in settings.json and currently fall back to
-the global hotkey with a logged warning and a `diag doctor` line that says so. The hotkey is the
-shipped default and the whole feature works without them.
+`WH_MOUSE_LL` for a side button). **There is no settings value for either**, which is what the
+Explorer Trigger section requires: `TriggerKind` is `Hotkey` or `None`, and both do exactly what
+they say. A third name that silently registered a global hotkey instead would be a setting nobody
+could use. The hotkey is the shipped default and the whole feature works without them.
 
 ## Phase 5 — Customisation
 

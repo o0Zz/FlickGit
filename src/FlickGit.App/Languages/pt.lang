@@ -275,7 +275,6 @@ settings.language.restart = Guardado. Reinicie o FlickGit para ver o novo idioma
 
 settings.section.ai = MENSAGENS DE COMMIT (IA)
 settings.ai.provider = Escritas por
-settings.ai.provider.disabled = Ninguém — escrevo eu
 settings.ai.key = Definir chave de API…
 settings.ai.key.clear = Remover a chave
 # {0} provider name

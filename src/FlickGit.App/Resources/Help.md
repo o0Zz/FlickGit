@@ -84,17 +84,48 @@ The right side is a real editor, not a preview.
 
 ## Commit messages by AI
 
-Off until you turn it on, because it means a diff leaves your machine.
-
 Everything you need is in **Settings**, under *Commit messages (AI)*:
 
-1. Pick who writes them — **Anthropic** (Claude Haiku 4.5) or **OpenAI** (GPT-5.6 Luna).
+1. Pick who writes them — **Anthropic**, **OpenAI** or **GitHubCopilot**.
 2. Press **Set API key…** and paste your key. It goes into Windows Credential Manager, never
    into a settings file, and is never shown back to you.
-3. Tick **Allow the diff to be sent to this provider**. Nothing leaves your machine until you do.
 
 Press **Save**. The commit window then grows a **Generate with AI** button, and writes a message
 for you as soon as it opens.
+
+Choosing a provider and storing a key for it is what turns this on: from then on, the diff of the
+files you are committing is sent to that provider. Choose **Disabled** and nothing is sent.
+
+### Getting a GitHub token for Copilot
+
+Copilot is the odd one out. It refuses a personal access token — `github_pat_…` or `ghp_…` — no
+matter which permissions you grant it. It wants the `gho_…` OAuth token an editor signs in with.
+
+If you have VS Code:
+
+1. Sign out of GitHub and back in — the **Accounts** icon, bottom-left — with Copilot enabled.
+2. Open `%LOCALAPPDATA%\github-copilot\apps.json`.
+3. Copy the value of `oauth_token`. It starts with `gho_`.
+4. Paste it into **Set API key…**.
+
+If you do not, ask GitHub directly. Run this:
+
+```
+curl -s -X POST https://github.com/login/device/code -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "scope=read:user"
+```
+
+Open [github.com/login/device](https://github.com/login/device), type in the `user_code` it
+printed, and approve. Then run this, with the `device_code` from the first reply:
+
+```
+curl -s -X POST https://github.com/login/oauth/access_token -H "Accept: application/json" -d "client_id=Iv1.b507a08c87ecfe98" -d "device_code=PASTE_IT_HERE" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"
+```
+
+The `access_token` in the reply is the `gho_…` to paste into **Set API key…**.
+
+That client id is the GitHub App VS Code's Copilot uses, which is why the token it hands back is
+one Copilot accepts. If FlickGit later says GitHub would not exchange your token, it has expired
+or been revoked — do the same steps again.
 
 The same thing from a terminal:
 
@@ -104,9 +135,12 @@ flick ai key set      store the API key (Windows Credential Manager)
 flick ai key clear    remove it
 ```
 
-`aiModel`, `aiMaxDiffBytes` and `aiConventionalCommits` in `settings.json` are the rest of it. The
-diff is capped before it is sent, lock files and generated code are excluded, and anything matching
-a secret pattern is redacted or dropped.
+`aiModel`, `aiMaxDiffBytes` and `aiConventionalCommits` in `settings.json` are the rest of it.
+Leave `aiModel` empty and each provider uses its own default; set it to any model id that provider
+accepts to override. `flick ai` prints the one actually in use.
+
+The diff is capped before it is sent, lock files and generated code are excluded, and anything
+matching a secret pattern is redacted or dropped.
 
 The AI is never a dependency. If it is slow, unreachable or unconfigured, the message box is an
 ordinary text box and every button still works.

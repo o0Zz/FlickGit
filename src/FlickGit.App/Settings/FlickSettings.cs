@@ -107,8 +107,8 @@ public sealed class FlickSettings
     public List<string> PaletteScanRoots { get; set; } = [];
 
     /// <summary>
-    /// Which service writes the commit message: <c>anthropic</c>, <c>openai</c> or
-    /// <c>disabled</c>.
+    /// Which service writes the commit message: <c>anthropic</c>, <c>openai</c>, <c>copilot</c>
+    /// or <c>disabled</c>.
     ///
     /// <b>Naming one, with a key stored for it, is the consent.</b> There is nothing else a
     /// configured provider could be for: every message it writes is written from a diff.
@@ -183,8 +183,8 @@ public sealed class FlickSettings
 
             if (loaded.SchemaVersion > CurrentSchemaVersion)
             {
-                //Refused, not migrated. This build does not know what a version 2 file
-                //means, and guessing would drop whatever it holds on the next save.
+                //Refused, not migrated. This build does not know what a newer file means, and
+                //guessing would drop whatever it holds on the next save.
                 error =
                     $"settings.json was written by a newer version of FlickGit " +
                     $"(schema {loaded.SchemaVersion}, this build understands {CurrentSchemaVersion}).\n\n" +
