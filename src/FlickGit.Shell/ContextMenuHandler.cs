@@ -67,7 +67,7 @@ internal static unsafe partial class ContextMenuHandler
         public int ItemCount;
 
         /// <summary>
-        /// Which entry each command offset maps to, as indices into <see cref="MenuItems.All"/>.
+        /// Which entry each command offset maps to, as indices into <see cref="MenuRegistry.All"/>.
         /// Allocated by <c>QueryContextMenu</c>, freed with the object.
         /// </summary>
         public int* ItemMap;
@@ -299,7 +299,7 @@ internal static unsafe partial class ContextMenuHandler
             Instance* instance = Self(self);
             string? folder = instance->Folder is null ? null : Marshal.PtrToStringUni((nint)instance->Folder);
 
-            MenuItem[] items = MenuItems.All();
+            MenuItem[] items = MenuRegistry.All();
 
             if (items.Length == 0 || folder is null)
                 return Com.ItemsAdded(0);
@@ -394,7 +394,7 @@ internal static unsafe partial class ContextMenuHandler
         }
 
         if (submenu != 0)
-            InsertSubmenu(menu, submenuPosition, submenu, MenuConfig.SubmenuLabel(), MenuConfig.SubmenuIcon());
+            InsertSubmenu(menu, submenuPosition, submenu, MenuRegistry.SubmenuLabel(), MenuRegistry.SubmenuIcon());
 
         InsertSeparator(menu, position);
 
@@ -498,7 +498,7 @@ internal static unsafe partial class ContextMenuHandler
             if (offset < 0 || offset >= instance->ItemCount || instance->ItemMap is null)
                 return Com.E_INVALIDARG;
 
-            MenuItem[] items = MenuItems.All();
+            MenuItem[] items = MenuRegistry.All();
             int which = instance->ItemMap[offset];
 
             if (which < 0 || which >= items.Length)
@@ -506,7 +506,7 @@ internal static unsafe partial class ContextMenuHandler
 
             string? folder = instance->Folder is null ? null : Marshal.PtrToStringUni((nint)instance->Folder);
 
-            return Launcher.Start(MenuConfig.ExePath(), items[which].Verb, folder) ? Com.S_OK : Com.E_FAIL;
+            return Launcher.Start(MenuRegistry.ExePath(), items[which].Verb, folder) ? Com.S_OK : Com.E_FAIL;
         }
         catch
         {

@@ -107,22 +107,13 @@ internal static class ShellCommandIds
     /// <summary>The subkey under the handler's CLSID holding one subkey per menu entry.</summary>
     public const string ItemsKeyName = "Items";
 
-    // The CommandFlags value on a static verb, which is what brackets the fallback block with a bar
-    // either side. The handler needs neither: it draws its own separators with MF_SEPARATOR.
-
-    /// <summary><c>ECF_SEPARATORBEFORE</c>. A bar above this entry.</summary>
-    public const uint SeparatorBefore = 0x20;
-
-    /// <summary><c>ECF_SEPARATORAFTER</c>. A bar below it.</summary>
-    public const uint SeparatorAfter = 0x40;
-
     /// <summary>
     /// The file name the App looks for beside itself, and registers only if it is really there.
     ///
     /// A handler pointing at a CLSID whose DLL is missing is worse than no handler: Explorer cannot
-    /// create the object and drops the entry, so a plain `dotnet build` -- which produces no native
-    /// DLL, because Native AOT only runs on publish -- would silently delete two working menu
-    /// entries. So the registration is conditional, and the static verbs stay exactly as they were.
+    /// create the object and drops the entry. A plain `dotnet build` produces no native DLL, because
+    /// Native AOT only runs on publish, so the App refuses to register at all rather than writing a
+    /// registration that draws nothing.
     /// </summary>
     public const string DllFileName = "FlickGit.Shell.dll";
 }

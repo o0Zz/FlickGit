@@ -322,10 +322,11 @@ src/
     ├── Exports.cs              DllGetClassObject, DllCanUnloadNow, IClassFactory.
     ├── ContextMenuHandler.cs   The one COM object: IContextMenu + IShellExtInit.
     ├── Selection.cs            The clicked folder, from a PIDL or a CF_HDROP.
-    ├── MenuItems.cs            The menu, as the App wrote it into the CLSID key.
+    ├── MenuRegistry.cs         The menu, as the App wrote it into the CLSID key:
+    │                           flick.exe's path, the submenu's label and icon, and
+    │                           every item. One key, so one class and one read.
     ├── MenuIcons.cs            An .ico as a 32bpp menu bitmap. InsertMenu takes text
     │                           only, so the alpha has to be drawn by hand.
-    ├── MenuConfig.cs           flick.exe's path and the submenu's label.
     ├── GitHead.cs              The branch, from .git/HEAD. No git.exe, no pipe.
     └── RepositoryLookup.cs     One answer per right-click instead of four.
 
@@ -2327,10 +2328,16 @@ HKCU\Software\Classes\FlickGit.Menu\shell\110switch
 - **Every key the tool creates is named `FlickGit.*`.** The root entries are several keys now,
   so an uninstall finds them by enumerating that one prefix -- which is what keeps "never
   modify keys the tool did not create" structural rather than a promise.
-- **Static verbs are the fallback layout, not the shipped one.** When `FlickGit.Shell.dll` is
-  present the whole block comes from a `ContextMenuHandler` instead — see **The context menu is a
-  handler** below, which is the third and final answer to a question this document got wrong twice.
-  What follows describes the fallback, which is what a `dotnet build` working tree gets.
+- **Static verbs are gone. The block is a `ContextMenuHandler` and nothing else** — see **The
+  context menu is a handler** below, which is the third and final answer to a question this document
+  got wrong twice. What the verb layout above records is why it could not stay: the placement it
+  reaches is the wrong block, and `MUIVerb` is a static string, so the branch in the Commit label and
+  hiding an entry outside a repository are both impossible from it. They were kept for a while as a
+  fallback for a `dotnet build` working tree, which has no Native AOT DLL; that bought a developer
+  convenience and cost a second write path, a second read-back and a second shape for "is it
+  installed" — which is what left the settings checkbox unticked on a working install. `Install`
+  now refuses when the DLL is missing and says to publish. `Uninstall` still removes verbs an
+  earlier version wrote.
 - **The block is bracketed by separators**, via `CommandFlags = 0x20` (`ECF_SEPARATORBEFORE`) on the
   first entry and `0x40` (`ECF_SEPARATORAFTER`) on the last. Bars, but in the wrong block — see
   below.
@@ -2388,8 +2395,9 @@ Two costs, both real:
   loaded and drawn into a 32-bit top-down DIB and attached with `SetMenuItemInfo`. A menu bitmap
   without an alpha channel renders transparent pixels as black squares, which is worse than no icon
   — hence `CreateDIBSection` plus `DrawIconEx`, not `CopyImage`.
-- **The static verbs and the handler are mutually exclusive.** Registering both is the menu twice
-  over, so `Install` writes one or the other and the DLL's presence decides which.
+- **The DLL is required, not preferred.** Registering both layouts would be the menu twice over, and
+  keeping the loser as a fallback was the bug above, so `Install` refuses without
+  `FlickGit.Shell.dll` beside `flick.exe`.
 
 **On Windows 11 all of this appears only under "Show more options" (Shift+F10).** The primary menu
 needs the sparse MSIX package, which is still open; the global hotkey is the real fast path anyway.
@@ -3041,10 +3049,19 @@ Rules the window follows:
 
 ## Help
 
-The Help tab renders `Help.md`, a Markdown file shipped **beside `FlickGit.exe`** rather than
-embedded. That is the whole point of it: the file can be opened in any editor, changed, and
-reloaded from the tab without a build. **Edit Help.md** opens it in whatever handles `.md`;
-**Reload** re-reads it.
+The Help tab renders `Help.md`, a Markdown file shipped **beside `FlickGit.exe`**. It is
+**read-only, and shown once when the window opens** — there is no Edit button, no Reload button and
+no path along the bottom.
+
+There were all three, on the reasoning that shipping the page as a file rather than compiling it in
+meant it could be rewritten without a build. That was true of the *file* and wrong about the *tab*:
+this is documentation, and a row of controls beneath it invites the user to maintain a page they
+came to read. Per Hard Requirement 1 the two buttons, the path label and their four language keys
+were deleted rather than hidden.
+
+What that leaves is a loose file with nobody editing it, and the honest consequence is that it could
+be embedded like the `.lang` files — which would also remove the only way the page can go missing.
+It is not, yet; the install layout and the MSI's file list both name it.
 
 The renderer is ours, some three hundred lines: headings, paragraphs with soft wrap, lists,
 quotes, rules, fenced code, and `**bold**` / `*italic*` / `` `code` `` / `[text](url)`. Not a
@@ -3052,8 +3069,9 @@ Markdown library — CLAUDE.md fixes the dependency list at three MIT packages, 
 one tab rendering one file we ship ourselves is not that trade. Anything the renderer does not
 understand shows as its own source text, which for a help page is a legible failure.
 
-A missing or unreadable file is reported *as the page*, with the path, because "where would I
-put one?" is the only question that follows.
+A missing or unreadable file is still reported *as the page*, with the path — but the wording
+changed with the buttons. It used to say "create it and press **Reload**", which was an invitation;
+with nothing to press it is a broken install, and the page says so and names reinstalling.
 
 ## About
 
@@ -3411,8 +3429,11 @@ loads an in-process COM server, and the registration is `HKCU` only — so there
 shell requires one. Three things are worth knowing before assuming that holds everywhere:
 
 - **Smart App Control** refuses unsigned binaries when it is on. It only enables itself on a clean
-  Windows 11 install, but on such a machine the DLL will not load and the entries fall back to the
-  static verbs — which is why those are still written.
+  Windows 11 install, but on such a machine the DLL will not load and there is **no FlickGit menu at
+  all**. This used to claim the entries fell back to the static verbs, and they never did: the layout
+  was chosen by the file being *present*, not by Explorer managing to *load* it — which cannot be
+  known from outside `explorer.exe` — so such a machine got the handler registered and no verbs
+  either way. A fallback that could not fire is why the verbs were deleted rather than kept.
 - **AV and EDR** see an unsigned DLL loading into `explorer.exe`, which is a textbook malware shape.
   Same exposure this document already notes for the input hook, and most likely to matter to someone
   who downloaded a release rather than built one.
@@ -3472,8 +3493,9 @@ Five things that were not obvious until it ran:
   DLL stays locked while Explorer runs: replacing the binary needs an Explorer restart, though an
   uninstall takes effect immediately because it only removes registry keys.
 - **The handler is registered only when the DLL is actually beside `flick.exe`.** Native AOT runs on
-  publish, so a `dotnet build` working tree has no native DLL. Without it the menu falls back to
-  static registry verbs, which is a working menu in the wrong block rather than no menu at all.
+  publish, so a `dotnet build` working tree has no native DLL, and `Install` refuses there rather
+  than writing a CLSID with nothing behind it. It used to fall back to static verbs — a working menu
+  in the wrong block — and that fallback is deleted; see **The context menu is a handler**.
 - **`IExplorerCommand` was the wrong interface, and the reason is placement.** It shipped, it worked,
   and it was replaced by `IContextMenu` — because a verb-hosted handler inherits the verb's position,
   and no verb can reach the block Explorer reserves for shell extensions. See **The context menu is
