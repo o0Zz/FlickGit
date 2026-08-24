@@ -378,8 +378,10 @@ public sealed class ActionCatalog
         //is not one yet.
         new("clone", "clone", VerbKind.Clone, 140, ActionSurfaces.Menu, "clone.ico", InMore: true),
 
-        new("status", "status", VerbKind.Status, 150, ActionSurfaces.All, "status.ico", InMore: true,
-            NeedsRepository: true),
+        //No `status` entry, and 150 is left free for whatever wants it. `flick status` prints text,
+        //and a menu or palette click has no console to print into -- so the entry fell back to the
+        //commit window, which is the root entry above it under a second name. The verb stays; the
+        //duplicate does not.
 
         //No repository requirement: a terminal in a folder is useful whatever the folder is.
         new("terminal", "terminal", VerbKind.Terminal, 160, ActionSurfaces.All, "terminal.ico", InMore: true),

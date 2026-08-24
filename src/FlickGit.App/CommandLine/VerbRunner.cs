@@ -167,12 +167,10 @@ public sealed class VerbRunner(
             //`repository` was resolved from its directory.
             VerbKind.Blame => await windowVerbs.BlameAsync(output, repository!, verb.Path!).ConfigureAwait(true),
 
-            //`status` is text when there is a console to print into, and the commit window when
-            //there is not: it is reachable from the context menu, where a window is what the user
-            //expects.
-            VerbKind.Status => output.HasConsole
-                ? await repositoryVerbs.StatusAsync(output, repository!).ConfigureAwait(true)
-                : await windowVerbs.CommitAsync(output, repository!).ConfigureAwait(true),
+            //`status` is text, always. It used to open the commit window when there was no console to
+            //print into, which is every click -- so the catalog's entry for it was the root Commit
+            //entry under a second name. The entry is gone and the verb is the terminal's.
+            VerbKind.Status => await repositoryVerbs.StatusAsync(output, repository!).ConfigureAwait(true),
 
             //`switch` with a branch named is a script's command and answers with an exit code;
             //bare, it is a picker. CLAUDE.md: "branch picker when omitted".

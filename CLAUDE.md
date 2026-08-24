@@ -2231,7 +2231,6 @@ FlickGit                          ▸
       ├── Repository settings…
       ├── Clone…
       ├── Fetch (prune)
-      ├── Repository status…
       └── Open terminal here
 ```
 
@@ -2266,6 +2265,16 @@ stays a flag (`InMoreSubmenu`) rather than a tree: never more than two levels.
 `Commit / Push…` is a single entry, not two. The commit surface carries both buttons and the
 branch ComboBox, so there is nothing left for a separate "commit in new branch" or "commit to
 main" entry — both are reachable by typing in the ComboBox.
+
+**There is no `Repository status…` entry, and `status` is not in the Action Catalog at all.** It was
+in the submenu and in the palette, and it opened the **commit window** — because `flick status`
+answers in text, a click has no console to print into, and `VerbRunner` fell back to a window. So the
+seventh item in the submenu was the first item in the menu under a second name, differing in nothing:
+same host, same pre-warmed window, same view model. `flick status <path>` stays, because printing the
+file list for a script or a terminal is the one thing no other surface does — but the catalog is what
+the menu and the palette are projections of, so a CLI-only verb does not belong in it. Per **Hard
+Requirement 1** the entry and its six `action.status` language keys were deleted rather than hidden
+behind `ActionSurfaces.None`, which would have been a row nothing reads.
 
 ---
 

@@ -235,8 +235,8 @@ once. It is hand-edited: the settings window covers the common switches, not the
     }
   ],
   "builtIns": {
-    "status": { "hidden": true },
-    "push":   { "menuOrder": 115 }
+    "tag":  { "hidden": true },
+    "push": { "menuOrder": 115 }
   }
 }
 ```
