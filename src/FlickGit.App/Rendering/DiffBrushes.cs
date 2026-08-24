@@ -50,6 +50,22 @@ internal static class DiffBrushes
     /// <summary>The connector's tie for a modified pair, which exists on both sides.</summary>
     public static readonly Brush ConnectorModified = Frozen("#FFD9E2F0");
 
+    /// <summary>
+    /// The overview strip's marks. Saturated where the row colours are pale, and that is not an
+    /// inconsistency: a row colour sits behind text and must not fight it, while a two-pixel mark
+    /// on a grey column has nothing to lose contrast to and everything to gain from having it.
+    /// </summary>
+    public static readonly Brush OverviewInserted = Frozen("#FF4CA45C");
+
+    /// <summary>The overview strip's mark for a deletion.</summary>
+    public static readonly Brush OverviewDeleted = Frozen("#FFCC5A61");
+
+    /// <summary>The overview strip's mark for a modified pair.</summary>
+    public static readonly Brush OverviewModified = Frozen("#FF7A93BE");
+
+    /// <summary>The hairline between the overview strip and the editor beside it.</summary>
+    public static readonly Brush Border = Frozen("#FFDDE0E8");
+
     /// <summary>The abbreviated hash in the blame gutter. The accent, so the eye lands on it first.</summary>
     public static readonly Brush BlameSha = Frozen("#FF3A6EA5");
 

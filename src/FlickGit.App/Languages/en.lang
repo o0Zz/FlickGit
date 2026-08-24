@@ -205,6 +205,55 @@ blame.notafile = Blame needs a file, not a folder:
 
 {0}
 
+# ---- repository window ----
+# {0} repository name
+repo.title = Repository — {0}
+repo.section.identity = IDENTITY
+# {0} the inherited identity, as "Name <address>"
+repo.identity.global = Use the global identity — {0}
+repo.identity.global.none = Use the global identity (there is none configured yet)
+repo.identity.local = Set an identity for this repository
+repo.name = Name
+repo.email = Email
+repo.identity.needed = An identity needs both a name and an email address.
+repo.section.remotes = REMOTES
+repo.remote.name = Remote
+repo.remote.url = URL
+repo.remote.add = Add
+repo.remote.save = Save remote
+repo.remote.remove = Remove
+# Marks the remote the current branch pushes to.
+repo.remote.tracked = tracked
+# {0} a push URL that differs from the fetch URL
+repo.remote.push = push: {0}
+repo.remote.none = No remotes yet, so there is nowhere to push.
+repo.remote.hint = Remote changes apply as soon as you press the button. Select a row to rename it or point it somewhere else.
+# {0} the remote
+repo.remote.added = Added {0}.
+# {0} the old name, {1} the new one
+repo.remote.renamed = Renamed {0} to {1}.
+# {0} the remote, {1} its new URL
+repo.remote.urlset = {0} now points at {1}.
+# {0} the remote
+repo.remote.removed = Removed {0}.
+repo.remote.confirm.title = Remove a remote?
+# {0} the remote
+repo.remote.confirm = Remove '{0}'?
+
+Its remote-tracking branches go with it, and any branch that tracked it is left with no upstream. Nothing in your working tree is touched.
+repo.remote.confirm.yes = Remove
+repo.section.defaults = FLICKGIT, FOR THIS REPOSITORY
+repo.primarybranch = Primary branch
+repo.primarybranch.hint = Empty resolves it from origin/HEAD, then main, then master. Only the "committing to the primary branch" warning reads it.
+repo.upstream.unasked = FlickGit has not asked yet whether a new branch may create an upstream here.
+repo.upstream.allowed = A new branch may create an upstream here.
+repo.upstream.refused = A new branch may not create an upstream here.
+repo.upstream.askagain = Ask again
+repo.upstream.reset = FlickGit will ask again the next time you push a new branch.
+repo.detached = HEAD is detached, so no branch is tracking a remote.
+repo.save = Save
+repo.close = Close
+
 # ---- push ----
 push.button = Push
 push.success = Pushed {0} to {1}.
@@ -313,6 +362,7 @@ action.tag = Tags…
 action.log = Show log…
 action.blame = Blame…
 action.status = Repository status…
+action.repo = Repository settings…
 action.clone = Clone…
 action.terminal = Open terminal here
 

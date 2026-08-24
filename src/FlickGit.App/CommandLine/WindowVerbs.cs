@@ -9,12 +9,14 @@ using FlickGit.Cli;
 using FlickGit.App.Settings;
 using FlickGit.Blame;
 using FlickGit.Clone;
+using FlickGit.Config;
 using FlickGit.Diagnostics;
 using FlickGit.Diff;
 using FlickGit.History;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Pulls;
+using FlickGit.Remotes;
 using FlickGit.Repositories;
 using FlickGit.Status;
 using FlickGit.Tags;
@@ -41,6 +43,8 @@ public sealed class WindowVerbs(
     PullService pulls,
     CloneService clones,
     TagService tags,
+    RepositoryConfigService repositoryConfig,
+    RemoteService remotes,
     HistoryService history,
     BlameService blame,
     DiffService diffs,
@@ -216,6 +220,26 @@ public sealed class WindowVerbs(
     public VerbResult TagPicker(RepositoryInfo repository)
     {
         var window = new TagsWindow(repository, tags);
+
+        window.Show();
+
+        //The stub granted this process foreground rights before sending the request; without this the
+        //window comes up behind Explorer.
+        window.Activate();
+
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// The repository window: `flick repo`.
+    ///
+    /// Per call rather than pre-warmed, for the reason <see cref="TagPicker"/> gives -- it is on no
+    /// latency budget in CLAUDE.md's table, and a window kept for the session is a window whose state
+    /// has to be provably reset between two uses.
+    /// </summary>
+    public VerbResult Repo(RepositoryInfo repository)
+    {
+        var window = new RepositoryWindow(repository, repositoryConfig, remotes);
 
         window.Show();
 

@@ -1,6 +1,6 @@
 using FlickGit.App.Localization;
-using FlickGit.App.Settings;
 using FlickGit.Commits;
+using FlickGit.Config;
 using FlickGit.Models;
 
 namespace FlickGit.App.CommandLine;
@@ -17,7 +17,7 @@ namespace FlickGit.App.CommandLine;
 /// different one from the commit window, and a guardrail asked from the wrong owner appears behind
 /// the surface that asked it.
 /// </summary>
-public sealed class UpstreamConsent(FlickSettings settings)
+public sealed class UpstreamConsent(RepositoryConfigService config)
 {
     /// <param name="ask">
     /// Shows the question and waits. Title, question, affirmative label, negative label; true only
@@ -39,7 +39,7 @@ public sealed class UpstreamConsent(FlickSettings settings)
                 Strings.Get("commit.button.cancel")).ConfigureAwait(true);
         }
 
-        if (settings.UpstreamAnswerFor(repository.Root) is { } remembered)
+        if (await config.ReadUpstreamAnswerAsync(repository, CancellationToken.None).ConfigureAwait(true) is { } remembered)
             return remembered;
 
         bool allow = await ask(
@@ -48,8 +48,9 @@ public sealed class UpstreamConsent(FlickSettings settings)
             Strings.Get("push.upstream.yes"),
             Strings.Get("push.upstream.no")).ConfigureAwait(true);
 
-        //Remembered either way. A user who said no once should not be asked again on every commit.
-        settings.RememberUpstreamAnswer(repository.Root, allow);
+        //Remembered either way, in the repository's own config. A user who said no once should not be
+        //asked again on every commit.
+        await config.WriteUpstreamAnswerAsync(repository, allow, CancellationToken.None).ConfigureAwait(true);
         return allow;
     }
 }

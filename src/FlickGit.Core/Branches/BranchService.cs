@@ -1,5 +1,6 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using FlickGit.Config;
 using FlickGit.Git;
 using FlickGit.Models;
 
@@ -13,7 +14,7 @@ namespace FlickGit.Branches;
 /// "Resolving this must never block the menu or the popup" — so the result is cached per
 /// repository and every caller has to be able to carry on without it.
 /// </summary>
-public sealed class BranchService(IGitProcessRunner git)
+public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService config)
 {
     private readonly ConcurrentDictionary<string, string> _primaryBranchCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -73,15 +74,26 @@ public sealed class BranchService(IGitProcessRunner git)
     /// <summary>
     /// Which branch this repository treats as primary, for the warning strip.
     ///
-    /// Order, per CLAUDE.md: the user's setting, then the remote's HEAD, then <c>main</c>,
-    /// then <c>master</c>. The remote HEAD is asked for before the two guesses because a
-    /// repository that still uses <c>master</c> should not be warned about <c>main</c>.
+    /// Order: this repository's own <c>flickgit.primaryBranch</c>, then the user's setting, then the
+    /// remote's HEAD, then <c>main</c>, then <c>master</c>. The remote HEAD is asked for before the
+    /// two guesses because a repository that still uses <c>master</c> should not be warned about
+    /// <c>main</c>.
+    ///
+    /// <b>Neither configured answer is cached, and that is deliberate.</b> The override is one
+    /// <c>config --get</c> — cheap, and always current, so the repository window writing it needs no
+    /// way to invalidate anything and the warning strip is right on the very next open. Only the
+    /// answer that costs a ref lookup is cached.
     /// </summary>
     public async Task<string> ResolvePrimaryBranchAsync(
         RepositoryInfo repository,
         string? configuredPrimaryBranch,
         CancellationToken cancellationToken)
     {
+        //The repository's own answer first: the more specific setting wins, which is the whole point
+        //of having a per-repository one.
+        if (await config.ReadPrimaryBranchOverrideAsync(repository, cancellationToken).ConfigureAwait(false) is { } local)
+            return local;
+
         if (!string.IsNullOrWhiteSpace(configuredPrimaryBranch))
             return configuredPrimaryBranch.Trim();
 

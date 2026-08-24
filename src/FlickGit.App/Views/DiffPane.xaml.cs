@@ -42,6 +42,7 @@ public partial class DiffPane : UserControl
     private readonly DiffLineNumberMargin _leftMargin = new(isLeftPane: true);
     private readonly DiffLineNumberMargin _rightMargin = new(isLeftPane: false);
     private readonly DiffConnectorStrip _connector = new();
+    private readonly DiffOverviewStrip _overview = new();
     private readonly DispatcherTimer _rediffTimer;
 
     /// <summary>Guards the two-way scroll sync against feeding itself.</summary>
@@ -108,6 +109,7 @@ public partial class DiffPane : UserControl
         RightEditor.TextArea.LeftMargins.Add(_rightMargin);
 
         ConnectorHost.Content = _connector;
+        OverviewHost.Content = _overview;
 
         //Both directions, each guarded. One-way sync breaks the moment the user scrolls the pane
         //that is not the master, which is whichever one the pointer happens to be over.
@@ -505,6 +507,7 @@ public partial class DiffPane : UserControl
         _leftMargin.SetRows(rows);
         _rightMargin.SetRows(rows);
         _connector.SetRows(rows);
+        _overview.SetRows(rows);
     }
 
     // ---- editing ------------------------------------------------------------------
@@ -561,6 +564,7 @@ public partial class DiffPane : UserControl
                 LeftEditor.TextArea.TextView.InvalidateLayer(ICSharpCode.AvalonEdit.Rendering.KnownLayer.Background);
                 RightEditor.TextArea.TextView.InvalidateLayer(ICSharpCode.AvalonEdit.Rendering.KnownLayer.Background);
                 _connector.InvalidateVisual();
+                _overview.InvalidateVisual();
             }
             else
             {

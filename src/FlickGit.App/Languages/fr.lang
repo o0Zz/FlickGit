@@ -113,6 +113,46 @@ tag.confirm.local = Supprimer l'étiquette {0} de ce dépôt ?\n\nUne étiquette
 tag.confirm.remote = Supprimer l'étiquette {0} de ce dépôt et de {1} ?\n\nCeux qui l'ont déjà récupérée gardent leur copie, et une étiquette n'a pas de reflog : impossible de revenir en arrière depuis ici.
 tag.confirm.yes = Supprimer
 
+# ---- fenêtre dépôt ----
+repo.title = Dépôt — {0}
+repo.section.identity = IDENTITÉ
+repo.identity.global = Utiliser l'identité globale — {0}
+repo.identity.global.none = Utiliser l'identité globale (aucune n'est configurée)
+repo.identity.local = Définir une identité pour ce dépôt
+repo.name = Nom
+repo.email = E-mail
+repo.identity.needed = Une identité demande à la fois un nom et une adresse e-mail.
+repo.section.remotes = DÉPÔTS DISTANTS
+repo.remote.name = Distant
+repo.remote.url = URL
+repo.remote.add = Ajouter
+repo.remote.save = Enregistrer
+repo.remote.remove = Supprimer
+repo.remote.tracked = suivi
+repo.remote.push = push : {0}
+repo.remote.none = Aucun dépôt distant, donc nulle part où pousser.
+repo.remote.hint = Les modifications des dépôts distants s'appliquent dès l'appui sur le bouton. Sélectionnez une ligne pour la renommer ou la faire pointer ailleurs.
+repo.remote.added = {0} ajouté.
+repo.remote.renamed = {0} renommé en {1}.
+repo.remote.urlset = {0} pointe maintenant vers {1}.
+repo.remote.removed = {0} supprimé.
+repo.remote.confirm.title = Supprimer un dépôt distant ?
+repo.remote.confirm = Supprimer « {0} » ?
+
+Ses branches de suivi disparaissent avec lui, et toute branche qui le suivait se retrouve sans branche amont. Rien n'est touché dans votre copie de travail.
+repo.remote.confirm.yes = Supprimer
+repo.section.defaults = FLICKGIT, POUR CE DÉPÔT
+repo.primarybranch = Branche principale
+repo.primarybranch.hint = Vide, elle est déduite de origin/HEAD, puis main, puis master. Seul l'avertissement « commit sur la branche principale » la lit.
+repo.upstream.unasked = FlickGit n'a pas encore demandé si une nouvelle branche peut créer une branche amont ici.
+repo.upstream.allowed = Une nouvelle branche peut créer une branche amont ici.
+repo.upstream.refused = Une nouvelle branche ne peut pas créer de branche amont ici.
+repo.upstream.askagain = Redemander
+repo.upstream.reset = FlickGit redemandera au prochain push d'une nouvelle branche.
+repo.detached = HEAD est détachée, donc aucune branche ne suit de dépôt distant.
+repo.save = Enregistrer
+repo.close = Fermer
+
 # ---- push ----
 push.button = Push
 push.success = {0} poussée vers {1}.
@@ -209,6 +249,7 @@ action.push = Push
 action.switch = Changer de branche…
 action.tag = Étiquettes…
 action.status = État du dépôt…
+action.repo = Paramètres du dépôt…
 action.clone = Cloner…
 action.terminal = Ouvrir un terminal ici
 

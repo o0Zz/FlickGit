@@ -50,6 +50,16 @@ public enum VerbKind
     /// </summary>
     Tag,
 
+    /// <summary>
+    /// The repository window: the identity it commits as, its remotes, and FlickGit's own
+    /// per-repository defaults.
+    ///
+    /// <c>repo</c> rather than <c>config</c>, because <c>flick settings</c> is already FlickGit's own
+    /// configuration and two verbs a token apart from meaning opposite things is a grammar nobody
+    /// remembers.
+    /// </summary>
+    Repo,
+
     /// <summary>Opens a terminal at the folder. Present in the menu since Phase 1.</summary>
     Terminal,
     Palette,
@@ -152,6 +162,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "status" => VerbKind.Status,
             "log" => VerbKind.Log,
             "blame" => VerbKind.Blame,
+            "repo" => VerbKind.Repo,
             "terminal" => VerbKind.Terminal,
             "clone" => VerbKind.Clone,
             "palette" => VerbKind.Palette,
@@ -210,6 +221,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick status <path>
           flick log <path>                    commit history; multi-select for a combined diff
           flick blame <file>                  who last touched each line, and what was there before
+          flick repo <path>                   the identity it commits as, its remotes, its defaults
           flick terminal <path>               open a terminal there
           flick clone <path> [url]
           flick run <id> [path]               run a catalog action by id

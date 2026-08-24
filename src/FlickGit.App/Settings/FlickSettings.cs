@@ -23,8 +23,16 @@ namespace FlickGit.App.Settings;
 /// </summary>
 public sealed class FlickSettings
 {
-    /// <summary>Bumped when a property is removed or its meaning changes. Adding one does not need a bump.</summary>
-    public const int CurrentSchemaVersion = 1;
+    /// <summary>
+    /// Bumped when a property is removed or its meaning changes. Adding one does not need a bump.
+    ///
+    /// 2 dropped <c>allowUpstreamCreation</c>, a dictionary keyed by repository path. The answer it
+    /// held is a fact about a repository, so it moved into that repository's own config as
+    /// <c>flickgit.allowUpstreamCreation</c> — where it cannot go stale when the repository is moved
+    /// and can be seen and reset from the repository window. Per CLAUDE.md's Hard Requirement 1 the
+    /// key is deleted rather than migrated: every repository asks once more, and then never again.
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -135,31 +143,10 @@ public sealed class FlickSettings
     public bool AiDiffConsentShown { get; set; }
 
     /// <summary>
-    /// Per-repository answer to "create an upstream for this branch?", keyed by repository root.
-    ///
-    /// CLAUDE.md, "Push": "Ask before creating an upstream. Remember the answer per repository."
-    /// Per repository rather than globally, because publishing a branch is a decision about a
-    /// particular remote — a user who happily pushes new branches to their own fork may not want
-    /// to create them on a shared origin.
-    /// </summary>
-    public Dictionary<string, bool> AllowUpstreamCreation { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
     /// Most-recently-used repository roots, newest first. Behind the tray's Recent menu, and the MRU
     /// rank Phase 5's palette scores by.
     /// </summary>
     public List<string> RecentRepositories { get; set; } = [];
-
-    /// <summary>Recalls the remembered answer, or null when this repository has not been asked.</summary>
-    public bool? UpstreamAnswerFor(string repositoryRoot) =>
-        AllowUpstreamCreation.TryGetValue(repositoryRoot, out bool allowed) ? allowed : null;
-
-    /// <summary>Remembers the answer and persists it. Called once per repository.</summary>
-    public void RememberUpstreamAnswer(string repositoryRoot, bool allowed)
-    {
-        AllowUpstreamCreation[repositoryRoot] = allowed;
-        Save();
-    }
 
     [JsonIgnore]
     public static string DirectoryPath =>

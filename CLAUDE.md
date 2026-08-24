@@ -255,7 +255,11 @@ src/
 │   │                        CommitContextBuilder) and the two providers. AiEndpoint
 │   │                        is the request both of them make.
 │   ├── Branches/            BranchService, SwitchService
-│   ├── Remotes/             PushService
+│   ├── Config/              RepositoryConfigService -- the identity, the
+│   │                        remotes and the two flickgit.* keys, out of
+│   │                        one `config --local --list -z`
+│   ├── Remotes/             PushService, and RemoteService -- adding,
+│   │                        renaming, re-pointing and removing one
 │   └── Pulls/ Clone/ Secrets/ Matching/ Logging/ Diagnostics/ Models/
 │
 └── FlickGit.Shell/          Native AOT COM DLL, loaded into explorer.exe. Draws the
@@ -345,6 +349,7 @@ flick tag <path> [name]              tag window when omitted; creates it when na
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
 flick blame <file>                   who last touched each line, and what came before
+flick repo <path>                    identity, remotes and this repository's defaults
 flick run <id> [path]                run a catalog action by id
 flick palette                        global repository palette
 flick settings
@@ -676,6 +681,13 @@ character diffs. Do not write a Myers implementation.
 - Change bars and line backgrounds via `IBackgroundRenderer` — never insert a visual element
   per line
 - The connector strip between panes drawn as a single visual
+- **An overview strip down the right-hand edge**, mapping the whole file to the pane's height:
+  a green mark per insertion, red per deletion, blue per modified line, so the changes further
+  down the file are visible without scrolling to find them. One strip for both panes, because
+  the two documents are aligned row for row and a second would be a copy — and no viewport
+  marker, because it sits immediately beside the right editor's own scrollbar and the thumb
+  already says where the view is. Marks are merged in *pixel* space, with a two-pixel floor so
+  a single changed line in a long file does not round away to nothing.
 - Monospace, DPI-aware; tab width from the file's `.editorconfig` when present
 - Syntax highlighting via AvalonEdit `.xshd` definitions
 
@@ -1157,12 +1169,20 @@ warning strip.
 
 Resolution order:
 
-1. User setting
-2. Remote HEAD — `git symbolic-ref refs/remotes/origin/HEAD`
-3. `main`
-4. `master`
+1. **`flickgit.primaryBranch`, in the repository's own config**
+2. User setting
+3. Remote HEAD — `git symbolic-ref refs/remotes/origin/HEAD`
+4. `main`
+5. `master`
 
-Cache the result per repository. Resolving this must never block the menu or the popup: if
+The repository's own answer goes first, because the more specific setting wins: a user with `main`
+configured globally and one repository still on `develop` would otherwise be warned about the wrong
+branch on every commit — the friction this exists to add, aimed at the wrong target. See
+**Repository Settings**.
+
+Cache the result per repository — but **only the answer that costs a ref lookup**. Neither
+configured value is cached: the override is one `config --get`, so it is always current and the
+window that writes it needs no way to invalidate anything. Resolving this must never block the menu or the popup: if
 resolution has not completed, show the popup without the warning strip rather than waiting.
 
 Switching to the primary branch follows the ordinary switch rules — check
@@ -2194,6 +2214,7 @@ FlickGit                          ▸
       ├── Switch branch…
       ├── Tags…
       ├── Push
+      ├── Repository settings…
       ├── Clone…
       ├── Fetch (prune)
       ├── Repository status…
@@ -2276,6 +2297,92 @@ shipped -- so neither surface can offer a language the exe was not built with.
 An unknown code is refused with exit code 4 and the list, never silently ignored;
 `diag doctor` names the requested code alongside the one actually in use, so "I set it to sv and
 nothing changed" is answerable.
+
+---
+
+# Repository Settings
+
+FlickGit's own settings are `flick settings`. **This is the other kind**: the repository's own, one
+repository at a time, reached from the FlickGit submenu, the palette and `flick repo <path>`.
+
+```text
+┌─ Repository — d360-portal ─────────────────────────────────────────────┐
+│ C:\dev\d360-portal                                                    │
+│ IDENTITY                                                              │
+│  ( ) Use the global identity — Thierry Quemerais <t.q@…>              │
+│  (•) Set an identity for this repository                              │
+│      Name  [ Thierry Quemerais ]   Email [ t.q@… ]                    │
+│ REMOTES                                                               │
+│  origin    https://dev.azure.com/org/proj/_git/repo         tracked   │
+│  fork      git@github.com:o0Zz/FlickGit.git      push: ssh://…        │
+│      Remote [ fork ]  URL [ … ]    [ Add ] [ Save remote ]  [ Remove ]│
+│ FLICKGIT, FOR THIS REPOSITORY                                         │
+│  Primary branch [ develop ]   empty resolves it from origin/HEAD      │
+│  A new branch may create an upstream here.       [ Ask again ]        │
+├───────────────────────────────────────────────────────────────────────┤
+│ StatusText                                     [ Save ]    [ Close ]  │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+It exists because two things a user needs constantly had no surface at all. **Which identity does
+this repository commit as** — inherited from global config unless overridden, and the commit
+window gives no hint, so getting it wrong is only visible afterwards in the log. And **where does
+this push to** — nothing in the product ever showed a remote's URL: `PushService` reads the remote
+*names* and picks `origin`, and that was the whole of remote visibility.
+
+## One read, and no `git remote -v`
+
+```bash
+git -C <repo> --no-optional-locks config --local --list -z
+```
+
+returns the identity, every remote and the `flickgit.*` keys in a single process — so there is one
+parser rather than two, and `git remote -v` is never parsed. That is output shaped for a terminal,
+which **Coding Guidelines** forbids. Three more reads go out beside it, in parallel: `config --get
+user.name` and `--get user.email`, which are what distinguish an override from an inheritance, and
+`symbolic-ref --short --quiet HEAD`, which is what lets a remote row be marked *tracked*.
+
+Two traps, both encoded with a comment saying why:
+
+- **`config --list` lower-cases the section and the final component and leaves the subsection
+  alone.** So `flickgit.primaryBranch` comes back as `flickgit.primarybranch` while
+  `remote.MyFork.url` keeps its capitals. Every key is matched case-insensitively and a remote name
+  never is — and since a remote may itself contain dots, the name is everything between the first
+  separator and the last, not the second field.
+- **`config --unset` exits 5 when the key was not there.** That is the ordinary answer for "use the
+  global identity" on a repository that never overrode it, and reporting it would put a Git error in
+  front of a user whose request was already satisfied. Exit 5 is success; every other non-zero exit
+  is not.
+
+## FlickGit's two per-repository keys
+
+`flickgit.primaryBranch` and `flickgit.allowUpstreamCreation`, in the repository's own config rather
+than in `settings.json`. A path-keyed dictionary in a global file goes stale the moment the
+repository is moved and is invisible from the place it applies; `.git/config` is neither, and it is
+not committed, so nothing leaks into the repository's history. See **Persistence** for what that
+replaced.
+
+## Two save rules, on purpose
+
+**A remote edit applies when its button is pressed**, the way creating a tag does: each one is a
+single Git command with its own button, and **Remove** confirms first — it takes the
+remote-tracking branches with it and leaves any branch that tracked it with no upstream, which is
+more than the row the user is looking at. **The identity and the two defaults apply on Save**, the
+way the settings window's do, because they are a form rather than a list of commands. The footer says
+which is which.
+
+A rename and a re-point in one press run **rename first**. The other order points the old name at
+the new URL and then renames it — which works, until the rename fails and leaves a remote nobody
+asked for pointing somewhere new.
+
+## What it deliberately does not do
+
+> **No network. No credentials. No global config. No `git init`.**
+
+Nothing here fetches, runs `ls-remote`, or checks that a URL resolves — the next push answers
+that, in Git's own words, and a window that took a round trip before letting a button be pressed is a
+window nobody uses. An identity for *every* repository on the machine is `git config --global`'s
+business. And per **Clone**, a folder that is not a repository gets the clone dialog, not this.
 
 ---
 
@@ -2395,6 +2502,14 @@ of its own, so the version, the help page and the repository link live in one pl
 Both JSON files carry `schemaVersion`. An unknown future version is refused with a clear
 message rather than silently migrated downward. Writes are atomic: write temp, then
 `File.Replace`.
+
+**Almost nothing per-repository lives in `settings.json` any more.** `schemaVersion` 2 dropped
+`allowUpstreamCreation`, a dictionary keyed by repository path, and the answer it held is now
+`flickgit.allowUpstreamCreation` in the repository's own config — where it cannot go stale when
+the repository is moved, and can be seen and reset. Per **Hard Requirement 1** the key was deleted
+rather than migrated: every repository asks once more, and then never again. `primaryBranch` stays
+here as the global default that `flickgit.primaryBranch` overrides, and the recent list stays because
+it is a fact about the *user*, not about any one repository.
 
 **API keys are never written to these files.** Windows Credential Manager or DPAPI only.
 
@@ -2795,6 +2910,20 @@ Definition of value: the user can answer "what changed between these commits" an
 line, and what was here before" without leaving FlickGit, and can hand the first answer to
 somebody else as a `.patch`.
 
+## Phase 8 — The repository's own settings
+
+The **Repository** window: the identity it commits as, its remotes, and the two preferences FlickGit
+keeps per repository. Its own section above carries the rules.
+
+Definition of value: "which identity does this commit as" and "where does this push to" are
+answerable, and changeable, without a terminal.
+
+Two things came with it. `flickgit.primaryBranch` and `flickgit.allowUpstreamCreation` live in the
+repository's own config, which is what removed the last path-keyed dictionary from `settings.json`
+(**Persistence**), and `RemoteService` is the first code in the product that writes a remote at all
+— `PushService` and `TagService` still only ever read the *names*, which is all either of them
+needs.
+
 This is the first feature that is not on the commit path at all, and the thing that makes it
 belong in a tool that is "not a complete Git client" is that it *performs nothing*. Reading
 history is the one everyday operation that changes no state and had no surface. The list of what
@@ -2818,6 +2947,9 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - `--numstat -z`: a rename, a binary file reporting `-`, and a path containing a literal `=>`
 - `--name-status -z`: the ordinary letters, and a rename whose score is glued to the letter and
   which consumes two extra fields
+- `config --local --list -z`: the key ending at the *first* newline so a value keeps its own, a key
+  set with no value at all, a remote whose capitals survive and whose name contains a dot, a
+  `remote.*.fetch` refspec that is not a URL, and `--unset` exiting 5 for a key that was never there
 - `blame --porcelain`: metadata reused across a commit's later lines, `previous` and `boundary`,
   the forty-zero sha, a content line found by its tab rather than by known keys, and the author's
   own timezone

@@ -369,6 +369,11 @@ public sealed class ActionCatalog
 
         new("push", "push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
 
+        //Next to push on purpose: "which origin does this go to" is the question that sends the user
+        //looking for it, and the answer is one row of this window.
+        new("repo", "repo", VerbKind.Repo, 130, ActionSurfaces.All, "status.ico", InMore: true,
+            NeedsRepository: true),
+
         //Not on the palette: the palette lists repositories, and cloning is what you do when there
         //is not one yet.
         new("clone", "clone", VerbKind.Clone, 140, ActionSurfaces.Menu, "clone.ico", InMore: true),

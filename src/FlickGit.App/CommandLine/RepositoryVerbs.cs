@@ -1,8 +1,8 @@
 using FlickGit.App.Localization;
-using FlickGit.App.Settings;
 using FlickGit.App.Views;
 using FlickGit.Branches;
 using FlickGit.Cli;
+using FlickGit.Config;
 using FlickGit.Models;
 using FlickGit.Remotes;
 using FlickGit.Status;
@@ -28,7 +28,7 @@ public sealed class RepositoryVerbs(
     SwitchService switches,
     PushService pushes,
     TagService tags,
-    FlickSettings settings)
+    RepositoryConfigService config)
 {
     /// <summary>`flick status` — the file list as text.</summary>
     public async Task<VerbResult> StatusAsync(VerbOutput output, RepositoryInfo repository)
@@ -169,8 +169,11 @@ public sealed class RepositoryVerbs(
 
                 return VerbResult.Exit(ExitCodes.RefusedForSafety);
 
-            case PushAction.SetUpstream when !ConsentToUpstream(repository, plan):
-                return VerbResult.Exit(ExitCodes.UserCancelled);
+            case PushAction.SetUpstream:
+                if (!await ConsentToUpstreamAsync(repository, plan).ConfigureAwait(true))
+                    return VerbResult.Exit(ExitCodes.UserCancelled);
+
+                break;
         }
 
         PushOutcome outcome = await pushes.ExecuteAsync(repository, plan, CancellationToken.None).ConfigureAwait(true);
@@ -194,9 +197,9 @@ public sealed class RepositoryVerbs(
     /// A dialog even from the command line: this is consent to publish a branch to a remote other
     /// people read, and there is no terminal to prompt on.
     /// </summary>
-    private bool ConsentToUpstream(RepositoryInfo repository, PushPlan plan)
+    private async Task<bool> ConsentToUpstreamAsync(RepositoryInfo repository, PushPlan plan)
     {
-        if (settings.UpstreamAnswerFor(repository.Root) is { } remembered)
+        if (await config.ReadUpstreamAnswerAsync(repository, CancellationToken.None).ConfigureAwait(true) is { } remembered)
             return remembered;
 
         bool allow = ConfirmWindow.Ask(
@@ -206,7 +209,7 @@ public sealed class RepositoryVerbs(
             Strings.Get("push.upstream.yes"),
             Strings.Get("push.upstream.no"));
 
-        settings.RememberUpstreamAnswer(repository.Root, allow);
+        await config.WriteUpstreamAnswerAsync(repository, allow, CancellationToken.None).ConfigureAwait(true);
         return allow;
     }
 }

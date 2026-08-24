@@ -1,5 +1,6 @@
 using FlickGit.Branches;
 using FlickGit.Commits;
+using FlickGit.Config;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Pulls;
@@ -60,7 +61,7 @@ public sealed class CommitFlowTests : IDisposable
         return new CommitFlow(
             new StatusService(git, new UntrackedFileMeasurer()),
             new CommitService(git, repositories, NullLog.Instance),
-            new BranchService(git),
+            new BranchService(git, new RepositoryConfigService(git)),
             new SwitchService(git, repositories, NullLog.Instance),
             new PushService(git, repositories),
             new PullService(git, repositories),

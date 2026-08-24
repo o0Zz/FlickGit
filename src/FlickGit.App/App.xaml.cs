@@ -18,6 +18,7 @@ using FlickGit.Branches;
 using FlickGit.Cli;
 using FlickGit.Clone;
 using FlickGit.Commits;
+using FlickGit.Config;
 using FlickGit.Diagnostics;
 using FlickGit.Blame;
 using FlickGit.Diff;
@@ -168,6 +169,8 @@ public partial class App : Application
         services.AddSingleton<PullService>();
         services.AddSingleton<SwitchService>();
         services.AddSingleton<PushService>();
+        services.AddSingleton<RemoteService>();
+        services.AddSingleton<RepositoryConfigService>();
         services.AddSingleton<TagService>();
         services.AddSingleton<CloneService>();
 

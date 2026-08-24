@@ -125,6 +125,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="14" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="11" />
             </Grid.ColumnDefinitions>
 
             <avalon:TextEditor x:Name="LeftEditor"
@@ -152,11 +153,16 @@
                                BorderThickness="0"
                                Background="{StaticResource SurfaceSunken}" />
 
+            <!-- The whole file's changes at a glance, beside the right editor's scrollbar. One
+                 strip for both panes: the two documents are aligned row for row, so a second one
+                 would be a copy of the first. -->
+            <ContentControl x:Name="OverviewHost" Grid.Column="3" />
+
             <!-- Shown when the file is binary, too large, or nothing is selected. Covers the panes
                  rather than replacing them, so switching files does not rebuild the editors: they
                  are the expensive part of this control. -->
             <Border x:Name="Placeholder"
-                    Grid.ColumnSpan="3"
+                    Grid.ColumnSpan="4"
                     Background="{StaticResource SurfaceSunken}">
                 <TextBlock x:Name="PlaceholderText"
                            HorizontalAlignment="Center"
