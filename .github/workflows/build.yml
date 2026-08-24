@@ -24,7 +24,7 @@ jobs:
       STAGING: artifacts/FlickGit
       SIGNED: artifacts/signed
 
-      # The two release assets, side by side, so one artifact upload puts both at its root.
+      # Where the two files a release is cut from are assembled: the .msi and the portable .zip.
       RELEASE: artifacts/release
 
       # Empty until the SignPath Foundation application is approved and the secret is added, which
@@ -142,8 +142,8 @@ jobs:
       # The signing input, and only that: SignPath fetches this artifact from GitHub by id rather
       # than having files pushed to it, so it has to exist before signing. Conditioned on exactly
       # what the signing step is conditioned on, so the two are never out of step -- and so a build
-      # that is not being signed does not publish a third artifact holding the same loose binaries
-      # the zip below already carries.
+      # that is not being signed does not publish a second artifact holding the same loose binaries
+      # the portable artifact below already carries.
       - name: Upload the signing input
         id: artifact
         if: env.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag'
@@ -234,19 +234,6 @@ jobs:
 
       # ---------------------------------------------------------------------------------------
 
-      # AFTER the signing block, and that ordering is the point: the package is built from the
-      # staging directory the signed binaries were copied over, so the MSI carries them.
-      #
-      # THE MSI ITSELF IS NOT SIGNED. It cannot ride the submission above -- it does not exist yet
-      # when that artifact is uploaded -- so signing it needs a second artifact configuration on
-      # SignPath's side and a second submission here. That is a distribution improvement rather
-      # than a functional one, and it is left undone rather than half-built: an MSI full of signed
-      # binaries is a coherent thing, and README's "Downloading an unsigned build" already says
-      # what the download warning costs.
-      #
-      # Built on every branch, not only on tags, because a packaging break should show up in the
-      # build that caused it rather than at the moment somebody cuts a release. Only the tag build
-      # is attached to one.
       - name: Build the MSI installer
         shell: pwsh
         run: |
@@ -268,28 +255,30 @@ jobs:
           Write-Host "Installer: $($msi.Name) ($([Math]::Round($msi.Length / 1MB, 1)) MB)"
           "msi=$env:RELEASE/$($msi.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      # Built on every branch rather than only on tags, for the same reason the MSI is: the zip is
-      # half of what a build is downloaded for, and a `main` build nobody can install is not worth
-      # producing. Into the same directory as the MSI, which is what puts the two side by side.
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlickGit-${{ steps.version.outputs.msiversion }}-installer
+          path: ${{ env.msi }}
+          if-no-files-found: error
+
+      # The staging directory itself rather than a zip of it: GitHub is going to zip whatever this
+      # points at, so uploading the .zip would make the portable build an archive inside an archive.
+      - name: Upload the portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlickGit-${{ steps.version.outputs.version }}-portable
+          path: ${{ env.STAGING }}
+          if-no-files-found: error
+
       - name: Package the portable zip
+        if: github.ref_type == 'tag'
         shell: pwsh
         run: |
           $zip = "$env:RELEASE/FlickGit-${{ steps.version.outputs.version }}.zip"
           Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
           "zip=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      # ONE artifact holding both files at its root, rather than one artifact each.
-      #
-      # GitHub serves every artifact as a zip and there is no opt-out, so an artifact containing
-      # only the .msi is an .msi that has to be unwrapped before it can be run. Uploading the
-      # directory instead means the one download opens onto the zip and the MSI side by side --
-      # which is the same pair the release below attaches, assembled once.
-      - name: Upload the release assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: FlickGit-${{ steps.version.outputs.version }}
-          path: ${{ env.RELEASE }}
-          if-no-files-found: error
 
       # Both assets. The MSI is the way in; the zip stays for the portable install, which is the
       # one that works without touching Explorer or the registry at all.
