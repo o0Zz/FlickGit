@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace FlickGit.Shell;
@@ -394,7 +394,7 @@ internal static unsafe partial class ContextMenuHandler
         }
 
         if (submenu != 0)
-            InsertSubmenu(menu, submenuPosition, submenu, MenuConfig.SubmenuLabel());
+            InsertSubmenu(menu, submenuPosition, submenu, MenuConfig.SubmenuLabel(), MenuConfig.SubmenuIcon());
 
         InsertSeparator(menu, position);
 
@@ -451,11 +451,27 @@ internal static unsafe partial class ContextMenuHandler
         }
     }
 
-    private static void InsertSubmenu(nint menu, uint position, nint submenu, string label)
+    private static void InsertSubmenu(nint menu, uint position, nint submenu, string label, string? icon)
     {
         fixed (char* text = label)
         {
-            InsertMenuW(menu, position, Com.MfByPosition | Com.MfPopup, (uint)submenu, text);
+            if (!InsertMenuW(menu, position, Com.MfByPosition | Com.MfPopup, (uint)submenu, text))
+                return;
+        }
+
+        if (MenuIcons.Bitmap(icon) is var bitmap && bitmap != 0)
+        {
+            var info = new Com.MenuItemInfo
+            {
+                Size = (uint)sizeof(Com.MenuItemInfo),
+                Mask = Com.MiimBitmap,
+                BitmapItem = bitmap,
+            };
+
+            //By *position*, unlike an item: the popup parent carries no command id, so there is
+            //nothing to address it by. The position is known here because the slot was reserved
+            //before the children were added.
+            SetMenuItemInfoW(menu, position, true, &info);
         }
     }
 

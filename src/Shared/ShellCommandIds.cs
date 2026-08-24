@@ -1,4 +1,4 @@
-namespace FlickGit.Shared;
+﻿namespace FlickGit.Shared;
 
 /// <summary>
 /// The CLSIDs of the <c>IExplorerCommand</c> handlers, and the value names their configuration
@@ -95,6 +95,15 @@ internal static class ShellCommandIds
 
     /// <summary>The popup's own label, already localised.</summary>
     public const string ValueSubmenuLabel = "FlickGit.SubmenuLabel";
+
+    /// <summary>
+    /// The full path of the <c>.ico</c> drawn beside the popup's label.
+    ///
+    /// Its own value rather than an <see cref="ValueIcon"/> on some item, because the popup is not an
+    /// item: it carries no command id and is not in <see cref="ItemsKeyName"/> at all. Written by the
+    /// App for the reason every path here is — the DLL resolves nothing of its own.
+    /// </summary>
+    public const string ValueSubmenuIcon = "FlickGit.SubmenuIcon";
 
     /// <summary>The subkey under the handler's CLSID holding one subkey per menu entry.</summary>
     public const string ItemsKeyName = "Items";

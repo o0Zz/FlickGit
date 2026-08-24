@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using FlickGit.Actions;
 using FlickGit.Shared;
 using FlickGit.App.Localization;
@@ -427,6 +427,13 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         clsid.SetValue(ShellCommandIds.ValueExe, cliPath, RegistryValueKind.String);
         clsid.SetValue(ShellCommandIds.ValueSubmenuLabel, Strings.Get("shell.menu.root"), RegistryValueKind.String);
 
+        //The popup's own icon. The static-verb fallback brands it with `FlickGit.exe,0`, which a
+        //handler cannot use: `InsertMenu` takes no icon and `MenuIcons` loads an .ico *file*, so the
+        //file the exe's resource was built from is named instead. Written only when it is there, so a
+        //missing file leaves the value absent rather than pointing the DLL at nothing.
+        if (AppIconPath(cliPath) is { } appIcon)
+            clsid.SetValue(ShellCommandIds.ValueSubmenuIcon, appIcon, RegistryValueKind.String);
+
         using (RegistryKey server = clsid.CreateSubKey("InprocServer32", writable: true)
                                    ?? throw new InvalidOperationException("Could not register the handler's server."))
         {
@@ -605,6 +612,20 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     {
         string verb = action.Cli is { Length: > 0 } cli ? cli : $"run {action.Id}";
         return $"\"{cliPath}\" {verb} \"%V\"";
+    }
+
+    /// <summary>
+    /// The product icon beside the executables, or null when it is not there.
+    ///
+    /// Not in <c>icons\</c> with the per-action ones: it is the icon the two executables were built
+    /// with, and the tray and the About tab already read it from this path.
+    /// </summary>
+    private static string? AppIconPath(string cliPath)
+    {
+        string icon = Path.Combine(
+            Path.GetDirectoryName(cliPath) ?? string.Empty, "Resources", "flickgit.ico");
+
+        return File.Exists(icon) ? icon : null;
     }
 
     private static void SetIcon(RegistryKey key, string cliPath, string? iconFileName)
