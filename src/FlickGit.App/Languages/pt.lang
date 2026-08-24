@@ -102,6 +102,29 @@ switch.stash = Stash, mudar, repor
 switch.none = Nenhum ramo corresponde.
 switch.stashkept = As suas alterações continuam no stash. Recupere-as com:\n\ngit stash pop {0}
 
+# ---- branch delete / create, from the Switch branch window ----
+switch.create = Criar «{0}»
+switch.create.kind = novo
+switch.menu.delete = Eliminar o ramo…
+switch.menu.deleteremote = Eliminar em {0}…
+switch.created = {0} criado, e mudou para ele.
+branch.delete.title = Eliminar o ramo
+branch.delete.local = Eliminar o ramo local «{0}»?
+
+Só esta cópia desaparece. O que já foi enviado permanece no remoto.
+branch.delete.remote = Eliminar «{0}» em {1}?
+
+Desaparece para todos os que usam esse remoto, e o FlickGit não pode desfazer.
+branch.delete.yes = Eliminar
+branch.delete.unmerged = «{0}» tem commits que não estão integrados em mais lado nenhum.
+
+Ao eliminá-lo ficam acessíveis apenas a partir do reflog.
+branch.delete.force = Eliminar mesmo assim
+branch.delete.current = «{0}» é o ramo em que está. Mude para outro primeiro.
+branch.deleted = {0} eliminado.
+branch.deleted.remote = {0} eliminado em {1}.
+branch.delete.noremote = «{0}» não começa pelo nome de um remoto configurado.
+
 # ---- janela das etiquetas ----
 tag.title = Etiquetas — {0}
 tag.new = Nova etiqueta

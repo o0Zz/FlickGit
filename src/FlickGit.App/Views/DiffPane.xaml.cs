@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using FlickGit.App.Localization;
@@ -73,6 +74,23 @@ public partial class DiffPane : UserControl
     private IReadOnlyList<DiffRow> _rows = [];
     private SideBySideDiff? _diff;
 
+    /// <summary>
+    /// The three items of the right-click menu, held so their enabled state and their refusal
+    /// tooltip can be set as it opens.
+    /// </summary>
+    private readonly MenuItem _revertItem = new();
+    private readonly MenuItem _stageItem = new();
+    private readonly MenuItem _unstageItem = new();
+
+    /// <summary>
+    /// The rows the right-click menu was opened over.
+    ///
+    /// Per invocation rather than read at click time, because by then the menu has taken focus and
+    /// the pointer has moved: what the user aimed at has to be resolved while they are still aiming
+    /// at it.
+    /// </summary>
+    private IReadOnlySet<int> _menuRows = new HashSet<int>();
+
     /// <summary>An untracked file has no index entry, so there is nothing for a patch to apply to.</summary>
     private bool _untracked;
     private CancellationTokenSource? _rediffCancellation;
@@ -118,6 +136,8 @@ public partial class DiffPane : UserControl
 
         RightEditor.TextChanged += OnRightTextChanged;
 
+        BuildContextMenu();
+
         _rediffTimer = new DispatcherTimer { Interval = RediffDelay };
         _rediffTimer.Tick += (_, _) =>
         {
@@ -145,30 +165,20 @@ public partial class DiffPane : UserControl
     /// </remarks>
     public event Func<IReadOnlySet<int>, bool, Task>? HunkStageRequested;
 
-    /// <summary>True when the editor holds unsaved changes. Blocks closing.</summary>
     /// <summary>
-    /// The diff rows the caret or selection covers, as indices into the current diff.
+    /// The diff rows a range of editor lines covers, as indices into the current diff.
     ///
-    /// The editor holds one line per diff row -- that is how the two panes stay aligned -- so an
-    /// editor line number is a row index plus one. That equivalence is only true while the document
-    /// is unmodified, which is why <see cref="CanStageHunk"/> refuses once it is dirty.
+    /// The editors hold one line per diff row -- that is how the two panes stay aligned -- so an
+    /// editor line number is a row index plus one, in either pane. That equivalence is only true
+    /// while the document is unmodified, which is why <see cref="WhyCannotStage"/> refuses once it
+    /// is dirty.
     /// </summary>
-    private IReadOnlySet<int> SelectedRows()
+    private IReadOnlySet<int> RowsBetween(int firstLine, int lastLine)
     {
-        if (_diff is null)
-            return new HashSet<int>();
-
-        int firstLine = RightEditor.TextArea.Caret.Line;
-        int lastLine = firstLine;
-
-        if (RightEditor.SelectionLength > 0)
-        {
-            firstLine = RightEditor.Document.GetLineByOffset(RightEditor.SelectionStart).LineNumber;
-            lastLine = RightEditor.Document
-                .GetLineByOffset(RightEditor.SelectionStart + RightEditor.SelectionLength).LineNumber;
-        }
-
         var rows = new HashSet<int>();
+
+        if (_diff is null)
+            return rows;
 
         //_rows, not _diff.Rows: the live alignment, which is what the document in front of the user
         //actually is. The two are the same until an edit re-diffs, and staging refuses on a dirty
@@ -191,13 +201,131 @@ public partial class DiffPane : UserControl
         return rows;
     }
 
+    /// <summary>The rows one editor's caret or selection covers.</summary>
+    private IReadOnlySet<int> RowsIn(TextEditor editor)
+    {
+        int first = editor.TextArea.Caret.Line;
+        int last = first;
+
+        if (editor.SelectionLength > 0)
+        {
+            first = editor.Document.GetLineByOffset(editor.SelectionStart).LineNumber;
+            last = editor.Document.GetLineByOffset(editor.SelectionStart + editor.SelectionLength).LineNumber;
+        }
+
+        return RowsBetween(first, last);
+    }
+
+    /// <summary>What the buttons in the editing bar act on: the right pane's caret or selection.</summary>
+    private IReadOnlySet<int> SelectedRows() => RowsIn(RightEditor);
+
+    /// <summary>
+    /// The right-click menu, on <b>both</b> panes.
+    ///
+    /// It exists for the left one. The left pane is where the change the user wants to undo is
+    /// <i>shown</i> — the red line is the thing being pointed at — and until now the only way to act
+    /// on it was to find the same row in the right pane and press a button in the bar above. So the
+    /// menu resolves its rows from whichever editor was clicked, and the left pane's read-only
+    /// document is no obstacle: reverting writes to the right pane, staging writes to the index, and
+    /// neither touches the side the click came from.
+    ///
+    /// One <see cref="ContextMenu"/> for the two editors rather than one each. The items are the
+    /// same items acting on the same rows, and two menus would be two places for that to stop being
+    /// true.
+    /// </summary>
+    private void BuildContextMenu()
+    {
+        //Revert first: it is the one this menu was added for, and it is the only one of the three
+        //that means anything when the click came from the left pane's red.
+        _revertItem.Header = Strings.Get("hunk.revert");
+        _revertItem.Click += (_, _) => _ = RevertRowsAsync(_menuRows);
+
+        _stageItem.Header = Strings.Get("hunk.stage");
+        _stageItem.Click += (_, _) => RaiseHunk(_menuRows, unstage: false);
+
+        _unstageItem.Header = Strings.Get("hunk.unstage");
+        _unstageItem.Click += (_, _) => RaiseHunk(_menuRows, unstage: true);
+
+        //A disabled item shows no tooltip unless asked, and the tooltip is the refusal -- which is
+        //the only thing a greyed-out item has left to say.
+        foreach (MenuItem item in new[] { _revertItem, _stageItem, _unstageItem })
+            ToolTipService.SetShowOnDisabled(item, true);
+
+        var menu = new ContextMenu();
+        menu.Items.Add(_revertItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(_stageItem);
+        menu.Items.Add(_unstageItem);
+
+        LeftEditor.ContextMenu = menu;
+        RightEditor.ContextMenu = menu;
+
+        LeftEditor.ContextMenuOpening += (_, e) => OnContextMenuOpening(LeftEditor, e);
+        RightEditor.ContextMenuOpening += (_, e) => OnContextMenuOpening(RightEditor, e);
+    }
+
+    private void OnContextMenuOpening(TextEditor editor, ContextMenuEventArgs e)
+    {
+        if (_diff?.IsEditable != true)
+        {
+            //A historical diff, a binary file, or nothing loaded. Three items that all refuse say
+            //less than no menu at all -- and the editing bar is hidden in exactly these cases for
+            //the same reason.
+            e.Handled = true;
+            return;
+        }
+
+        _menuRows = RowsUnder(editor, e);
+
+        string? revert = WhyCannotRevert(_menuRows);
+        string? stage = WhyCannotStage(_menuRows);
+
+        _revertItem.IsEnabled = revert is null;
+        _revertItem.ToolTip = revert;
+
+        _stageItem.IsEnabled = stage is null;
+        _stageItem.ToolTip = stage;
+
+        _unstageItem.IsEnabled = stage is null;
+        _unstageItem.ToolTip = stage;
+    }
+
+    /// <summary>
+    /// The rows a right-click aimed at, in whichever pane it landed in.
+    ///
+    /// A click inside the selection means the selection, and anywhere else means the line under the
+    /// pointer — the way every list in Windows behaves, and the reason the click does not have to be
+    /// preceded by a drag to act on one hunk.
+    /// </summary>
+    private IReadOnlySet<int> RowsUnder(TextEditor editor, ContextMenuEventArgs e)
+    {
+        //Shift+F10 has no pointer to ask, and reports -1 for both coordinates. The caret is what it
+        //means.
+        if (e.CursorLeft < 0 || e.CursorTop < 0)
+            return RowsIn(editor);
+
+        if (editor.GetPositionFromPoint(Mouse.GetPosition(editor)) is not { } position)
+            return RowsIn(editor);
+
+        if (editor.SelectionLength > 0)
+        {
+            int first = editor.Document.GetLineByOffset(editor.SelectionStart).LineNumber;
+            int last = editor.Document.GetLineByOffset(editor.SelectionStart + editor.SelectionLength).LineNumber;
+
+            if (position.Line >= first && position.Line <= last)
+                return RowsBetween(first, last);
+        }
+
+        return RowsBetween(position.Line, position.Line);
+    }
+
     /// <summary>
     /// Why hunk staging is unavailable, or null when it is available.
     ///
     /// Every refusal is a sentence rather than a disabled button with no explanation, because each
     /// one has a different fix.
     /// </summary>
-    private string? WhyCannotStage()
+    private string? WhyCannotStage(IReadOnlySet<int> rows)
     {
         if (_diff is null || !_diff.IsEditable)
             return null;
@@ -215,8 +343,6 @@ public partial class DiffPane : UserControl
         //Not merely "is anything selected": a caret parked on a context line outside every hunk
         //selects a row that stages nothing, and a button that is enabled and then does nothing is
         //worse than one that explains itself.
-        IReadOnlySet<int> rows = SelectedRows();
-
         return rows.Any(row => Hunks.IsChange(_rows[row]))
             ? null
             : Strings.Get("hunk.nothing");
@@ -225,8 +351,9 @@ public partial class DiffPane : UserControl
     private void UpdateHunkButtons()
     {
         bool editable = _diff?.IsEditable == true;
+        IReadOnlySet<int> rows = SelectedRows();
 
-        string? refusal = editable ? WhyCannotStage() : null;
+        string? refusal = editable ? WhyCannotStage(rows) : null;
         bool can = editable && refusal is null;
 
         StageHunkButton.IsEnabled = can;
@@ -238,23 +365,24 @@ public partial class DiffPane : UserControl
         //selection. It does not need a clean document, because it edits the document rather than
         //describing it to Git -- and it does not need a tracked file, because the left side of an
         //untracked file is empty and "revert to nothing" is a legitimate thing to ask for.
-        string? revertRefusal = editable ? WhyCannotRevert() : null;
+        string? revertRefusal = editable ? WhyCannotRevert(rows) : null;
 
         RevertHunkButton.IsEnabled = editable && revertRefusal is null;
         RevertHunkButton.ToolTip = revertRefusal;
     }
 
     /// <summary>Why reverting is unavailable, or null when it is available.</summary>
-    private string? WhyCannotRevert()
+    private string? WhyCannotRevert(IReadOnlySet<int> rows)
     {
         if (_diff is null || !_diff.IsEditable)
             return null;
 
-        return SelectedRows().Any(row => Hunks.IsChange(_rows[row]))
+        return rows.Any(row => Hunks.IsChange(_rows[row]))
             ? null
             : Strings.Get("hunk.nothing");
     }
 
+    /// <summary>True when the editor holds unsaved changes. Blocks closing.</summary>
     public bool IsDirty
     {
         get => _isDirty;
@@ -598,7 +726,7 @@ public partial class DiffPane : UserControl
         _ = SaveRequested(RealText());
     }
 
-    private void OnRevertHunk(object sender, RoutedEventArgs e) => _ = RevertSelectionAsync();
+    private void OnRevertHunk(object sender, RoutedEventArgs e) => _ = RevertRowsAsync(SelectedRows());
 
     /// <summary>
     /// Puts the selected lines back the way the left pane has them.
@@ -614,12 +742,12 @@ public partial class DiffPane : UserControl
     /// lines are filler on both sides, and the filler layout is the alignment — so recomputing it is
     /// the only way to leave the two panes describing the same file.
     /// </summary>
-    private async Task RevertSelectionAsync()
+    private async Task RevertRowsAsync(IReadOnlySet<int> rows)
     {
         if (_diff is null || RightEditor.IsReadOnly)
             return;
 
-        if (Hunks.RevertRows(_rows, SelectedRows()) is not { } reverted)
+        if (Hunks.RevertRows(_rows, rows) is not { } reverted)
             return;
 
         //Any re-diff already queued from earlier typing would otherwise land after this one and
@@ -632,10 +760,10 @@ public partial class DiffPane : UserControl
 
         //Off the UI thread, like every other re-diff here: a revert on a large file is the same
         //amount of work as a keystroke on one.
-        IReadOnlyList<DiffRow> rows = await Task.Run(
+        IReadOnlyList<DiffRow> rebuilt = await Task.Run(
             () => DiffService.Rediff(baseText, reverted, wordLevel)).ConfigureAwait(true);
 
-        BuildDocuments(rows, preserveCaret: true);
+        BuildDocuments(rebuilt, preserveCaret: true);
 
         //Dirty, because the file on disk still has what was just taken out of the editor. The user
         //saves when they are satisfied, or closes and is asked.
@@ -644,16 +772,14 @@ public partial class DiffPane : UserControl
         UpdateHunkButtons();
     }
 
-    private void OnStageHunk(object sender, RoutedEventArgs e) => RaiseHunk(unstage: false);
+    private void OnStageHunk(object sender, RoutedEventArgs e) => RaiseHunk(SelectedRows(), unstage: false);
 
-    private void OnUnstageHunk(object sender, RoutedEventArgs e) => RaiseHunk(unstage: true);
+    private void OnUnstageHunk(object sender, RoutedEventArgs e) => RaiseHunk(SelectedRows(), unstage: true);
 
-    private void RaiseHunk(bool unstage)
+    private void RaiseHunk(IReadOnlySet<int> rows, bool unstage)
     {
-        if (HunkStageRequested is null || WhyCannotStage() is not null)
+        if (HunkStageRequested is null || WhyCannotStage(rows) is not null)
             return;
-
-        IReadOnlySet<int> rows = SelectedRows();
 
         if (rows.Count > 0)
             _ = HunkStageRequested(rows, unstage);

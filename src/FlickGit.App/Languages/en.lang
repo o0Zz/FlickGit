@@ -120,6 +120,29 @@ switch.none = No branch matches.
 # {0} stash reference
 switch.stashkept = Your changes are still in the stash. Recover them with:\n\ngit stash pop {0}
 
+# ---- branch delete / create, from the Switch branch window ----
+switch.create = Create '{0}'
+switch.create.kind = new
+switch.menu.delete = Delete branch…
+switch.menu.deleteremote = Delete on {0}…
+switch.created = Created {0} and switched to it.
+branch.delete.title = Delete branch
+branch.delete.local = Delete the local branch '{0}'?
+
+Only this copy goes. Anything already pushed stays on the remote.
+branch.delete.remote = Delete '{0}' on {1}?
+
+This deletes it for everyone using that remote, and FlickGit cannot undo it.
+branch.delete.yes = Delete
+branch.delete.unmerged = '{0}' has commits that are not merged anywhere else.
+
+Deleting it now leaves them reachable only from the reflog.
+branch.delete.force = Delete it anyway
+branch.delete.current = '{0}' is the branch you are on. Switch somewhere else first.
+branch.deleted = Deleted {0}.
+branch.deleted.remote = Deleted {0} on {1}.
+branch.delete.noremote = '{0}' does not begin with the name of a configured remote.
+
 # ---- tags window ----
 # {0} repository name
 tag.title = Tags — {0}

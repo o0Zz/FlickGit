@@ -1,6 +1,7 @@
 using DiffPlex;
 using DiffPlex.DiffBuilder;
 using DiffPlex.DiffBuilder.Model;
+using DiffPlex.Model;
 using FlickGit.Git;
 using FlickGit.History;
 using FlickGit.Models;
@@ -31,7 +32,25 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     private const long SideBySideCeilingBytes = 2 * 1024 * 1024;
     private const int SideBySideCeilingLines = 50_000;
 
-    private static readonly SideBySideDiffBuilder Builder = new(new Differ());
+    /// <summary>
+    /// Pairing a change block costs O(deleted x inserted) similarity comparisons, each walking one
+    /// line. Above this the block is paired positionally instead -- see <see cref="Pair"/>. A
+    /// hundred deletions against a hundred insertions is a method rewritten whole, where the
+    /// correspondence between one old line and one new one is not a question with an answer.
+    /// </summary>
+    private const int PairingCeiling = 10_000;
+
+    /// <summary>Added to every pair's score, so that an alignment pairing more lines wins a tie.</summary>
+    private const double PairBonus = 0.3;
+
+    /// <summary>How much of a line <see cref="Similarity"/> looks at.</summary>
+    private const int SimilarityCeiling = 400;
+
+    /// <summary>The half of a row where this side has no line at all.</summary>
+    private static readonly DiffSide Filler = new(null, string.Empty, []);
+
+    private static readonly Differ LineDiffer = new();
+    private static readonly SideBySideDiffBuilder Builder = new(LineDiffer);
 
     public async Task<SideBySideDiff> ComputeAsync(
         RepositoryInfo repository,
@@ -298,67 +317,287 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     }
 
     /// <summary>
-    /// Turns DiffPlex's model into aligned rows.
+    /// Turns DiffPlex's line diff into aligned rows.
     ///
     /// DiffPlex is used rather than a hand-rolled Myers implementation — CLAUDE.md says so
-    /// outright — but its model is not exposed beyond this method. The App renders
-    /// <see cref="DiffRow"/>, so the diff library is replaceable and the renderers are
-    /// testable without it.
+    /// outright — but only for the <i>line</i> diff and for the word-level pass inside a pair. The
+    /// alignment within a change block is this method's own, and that is the point of it.
+    ///
+    /// <b>Why not <c>SideBySideDiffBuilder</c>, which does the whole job.</b> It pairs a block's
+    /// deleted lines with its inserted lines <i>positionally</i> — the first deletion against the
+    /// first insertion, and so on until one side runs out. When the two counts differ that is the
+    /// wrong correspondence, and it is visible: deleting one line while inserting three above it
+    /// pairs the deleted line with the first of the three, so the red line sits beside an insertion
+    /// it has nothing to do with and the line that actually replaced it lands two rows lower. The
+    /// user sees a replacement whose halves are not on the same row — and the word-level
+    /// highlighting inside that pair is highlighting the difference between two unrelated lines.
+    ///
+    /// So each block is paired by similarity instead, order-preserving, with the lines that paired
+    /// with nothing emitted around the pairs. Everything outside a block is unchanged and needs no
+    /// such choice.
+    ///
+    /// The result is what the App renders: one <see cref="DiffRow"/> per screen row on both sides,
+    /// which is what makes synchronised scrolling an index copy that cannot drift.
     /// </summary>
     private static IReadOnlyList<DiffRow> BuildRows(string leftText, string rightText, bool wordLevel)
     {
-        SideBySideDiffModel model = Builder.BuildDiffModel(leftText, rightText, ignoreWhitespace: false);
+        DiffResult lines = LineDiffer.CreateLineDiffs(leftText, rightText, ignoreWhitespace: false);
 
-        //DiffPlex pads both panes to equal length with "imaginary" lines, which is the
-        //alignment this whole viewer depends on: row N is row N in both editors, so
-        //synchronised scrolling is index-based and cannot drift.
-        int count = Math.Max(model.OldText.Lines.Count, model.NewText.Lines.Count);
-        var rows = new List<DiffRow>(count);
+        string[] left = lines.PiecesOld;
+        string[] right = lines.PiecesNew;
 
-        for (int i = 0; i < count; i++)
+        var rows = new List<DiffRow>(Math.Max(left.Length, right.Length));
+        int a = 0;
+        int b = 0;
+
+        foreach (DiffBlock block in lines.DiffBlocks)
         {
-            DiffPiece? oldPiece = i < model.OldText.Lines.Count ? model.OldText.Lines[i] : null;
-            DiffPiece? newPiece = i < model.NewText.Lines.Count ? model.NewText.Lines[i] : null;
+            while (a < block.DeleteStartA && b < right.Length)
+                rows.Add(Unchanged(left, right, a++, b++));
 
-            DiffLineKind kind = Classify(oldPiece, newPiece);
-            bool wantSpans = wordLevel && kind == DiffLineKind.Modified;
+            AppendBlock(
+                rows,
+                left, block.DeleteStartA, block.DeleteCountA,
+                right, block.InsertStartB, block.InsertCountB,
+                wordLevel);
 
-            rows.Add(new DiffRow(
-                kind,
-                ToSide(oldPiece, wantSpans),
-                ToSide(newPiece, wantSpans)));
+            a = block.DeleteStartA + block.DeleteCountA;
+            b = block.InsertStartB + block.InsertCountB;
         }
+
+        while (a < left.Length && b < right.Length)
+            rows.Add(Unchanged(left, right, a++, b++));
 
         return rows;
     }
 
-    private static DiffLineKind Classify(DiffPiece? left, DiffPiece? right)
+    /// <summary>
+    /// Emits one change block: the pairs its lines fall into, with the lines that paired with
+    /// nothing around them.
+    ///
+    /// An insertion that comes before the pair it precedes is emitted first, so the rows come out in
+    /// the order the two files have them.
+    /// </summary>
+    private static void AppendBlock(
+        List<DiffRow> rows,
+        string[] left, int leftStart, int leftCount,
+        string[] right, int rightStart, int rightCount,
+        bool wordLevel)
     {
-        ChangeType leftType = left?.Type ?? ChangeType.Imaginary;
-        ChangeType rightType = right?.Type ?? ChangeType.Imaginary;
+        int[] pairs = Pair(left, leftStart, leftCount, right, rightStart, rightCount);
+        int taken = 0;
 
-        if (leftType == ChangeType.Imaginary && rightType == ChangeType.Imaginary)
-            return DiffLineKind.Filler;
+        for (int i = 0; i < leftCount; i++)
+        {
+            if (pairs[i] < 0)
+            {
+                rows.Add(Deleted(left, leftStart + i));
+                continue;
+            }
 
-        if (leftType == ChangeType.Imaginary)
-            return DiffLineKind.Inserted;
+            for (; taken < pairs[i]; taken++)
+                rows.Add(Inserted(right, rightStart + taken));
 
-        if (rightType == ChangeType.Imaginary)
-            return DiffLineKind.Deleted;
+            rows.Add(Modified(left, leftStart + i, right, rightStart + pairs[i], wordLevel));
+            taken = pairs[i] + 1;
+        }
 
-        if (leftType == ChangeType.Unchanged && rightType == ChangeType.Unchanged)
-            return DiffLineKind.Unchanged;
-
-        return DiffLineKind.Modified;
+        for (; taken < rightCount; taken++)
+            rows.Add(Inserted(right, rightStart + taken));
     }
 
-    private static DiffSide ToSide(DiffPiece? piece, bool wantSpans)
+    /// <summary>
+    /// Which insertion each deletion in a block was replaced by, as indices within the block, or
+    /// −1 for a line that replaced nothing and was replaced by nothing.
+    ///
+    /// An order-preserving best alignment scored by <see cref="Similarity"/> — a diff of the block
+    /// against itself, which is the only honest answer to "which of these three insertions is the
+    /// one that replaced this deletion". A positional guess is right exactly when the two counts
+    /// are equal, which is the case where it does not matter.
+    /// </summary>
+    private static int[] Pair(
+        string[] left, int leftStart, int leftCount,
+        string[] right, int rightStart, int rightCount)
     {
-        if (piece is null || piece.Type == ChangeType.Imaginary)
-            return new DiffSide(null, string.Empty, []);
+        var pairs = new int[leftCount];
+        Array.Fill(pairs, -1);
 
-        string text = piece.Text ?? string.Empty;
-        return new DiffSide(piece.Position, text, wantSpans ? ChangedSpans(piece) : []);
+        if (leftCount == 0 || rightCount == 0)
+            return pairs;
+
+        if ((long)leftCount * rightCount > PairingCeiling)
+        {
+            //Positional, which is what DiffPlex itself does. A block this large is a rewrite, and
+            //in a rewrite the correspondence between one old line and one new line does not mean
+            //anything -- so the cheap answer is also the honest one.
+            for (int i = 0; i < Math.Min(leftCount, rightCount); i++)
+                pairs[i] = i;
+
+            return pairs;
+        }
+
+        //Each line's bigrams counted once, rather than once per candidate it is compared against.
+        var leftBigrams = new Bigrams[leftCount];
+        var rightBigrams = new Bigrams[rightCount];
+
+        for (int i = 0; i < leftCount; i++)
+            leftBigrams[i] = Bigrams.Of(left[leftStart + i]);
+
+        for (int j = 0; j < rightCount; j++)
+            rightBigrams[j] = Bigrams.Of(right[rightStart + j]);
+
+        //What each candidate pair is worth, computed once so the backtrack reads the same numbers
+        //the forward pass did rather than recomputing every similarity a second time.
+        var score = new double[leftCount, rightCount];
+
+        for (int i = 0; i < leftCount; i++)
+        {
+            for (int j = 0; j < rightCount; j++)
+                score[i, j] = Similarity(leftBigrams[i], rightBigrams[j]) + PairBonus;
+        }
+
+        //best[i, j] is the highest score reachable having considered the block's first i deletions
+        //and first j insertions.
+        var best = new double[leftCount + 1, rightCount + 1];
+
+        for (int i = 1; i <= leftCount; i++)
+        {
+            for (int j = 1; j <= rightCount; j++)
+                best[i, j] = Math.Max(
+                    best[i - 1, j - 1] + score[i - 1, j - 1],
+                    Math.Max(best[i - 1, j], best[i, j - 1]));
+        }
+
+        int x = leftCount;
+        int y = rightCount;
+
+        while (x > 0 && y > 0)
+        {
+            //Never an exact equality on a double: the pairing term is one of the three values the
+            //maximum was taken from, so it can only be at or below it, and a tolerance is enough to
+            //recognise whether it is the one that won.
+            if (best[x - 1, y - 1] + score[x - 1, y - 1] >= best[x, y] - 1e-9)
+            {
+                pairs[x - 1] = y - 1;
+                x--;
+                y--;
+            }
+            else if (best[x - 1, y] >= best[x, y - 1])
+            {
+                x--;
+            }
+            else
+            {
+                y--;
+            }
+        }
+
+        return pairs;
+    }
+
+    /// <summary>
+    /// How alike two lines are, from 0 to 1: the Sørensen–Dice coefficient over their character
+    /// bigrams, plus <see cref="PairBonus"/> at the call site.
+    ///
+    /// Bigrams rather than anything anchored to position, because the question is "is this the same
+    /// line, edited" and an edit shifts everything after it — a prefix comparison answers no to a
+    /// character inserted at the front.
+    ///
+    /// The bonus the caller adds is what breaks a tie towards pairing. Without it an alignment that
+    /// pairs nothing scores the same as one pairing two unrelated lines, and the backtrack would
+    /// render a plain one-for-one replacement as a deletion stacked above an insertion — the layout
+    /// this whole thing exists to avoid.
+    /// </summary>
+    private static double Similarity(Bigrams left, Bigrams right)
+    {
+        if (left.Total + right.Total == 0)
+            return 0;
+
+        int shared = 0;
+
+        foreach ((int bigram, int count) in left.Counts)
+        {
+            if (right.Counts.TryGetValue(bigram, out int other))
+                shared += Math.Min(count, other);
+        }
+
+        return 2.0 * shared / (left.Total + right.Total);
+    }
+
+    /// <summary>
+    /// One line's character bigrams, counted, packed two chars to an int.
+    ///
+    /// Kept beside its total because the Dice coefficient needs both, and recounting the dictionary
+    /// once per comparison is the whole cost of the pairing when a block is large.
+    /// </summary>
+    private readonly record struct Bigrams(Dictionary<int, int> Counts, int Total)
+    {
+        public static Bigrams Of(string text)
+        {
+            //A minified bundle or an embedded blob is one line of any length, and this feeds a
+            //comparison made once per candidate pair. The head of a line is what identifies it;
+            //the rest is not worth the quadratic.
+            int length = Math.Min(text.Length, SimilarityCeiling);
+
+            var counts = new Dictionary<int, int>(length + 1);
+
+            //U+0000 either end, a character no text line contains, so the first and last real
+            //characters are anchored the way every other one is.
+            char previous = '\0';
+
+            for (int i = 0; i <= length; i++)
+            {
+                char current = i == length ? '\0' : text[i];
+                int bigram = (previous << 16) | current;
+
+                counts[bigram] = counts.TryGetValue(bigram, out int seen) ? seen + 1 : 1;
+                previous = current;
+            }
+
+            return new Bigrams(counts, length + 1);
+        }
+    }
+
+    private static DiffRow Unchanged(string[] left, string[] right, int a, int b) =>
+        new(DiffLineKind.Unchanged,
+            new DiffSide(a + 1, left[a], []),
+            new DiffSide(b + 1, right[b], []));
+
+    private static DiffRow Deleted(string[] left, int a) =>
+        new(DiffLineKind.Deleted, new DiffSide(a + 1, left[a], []), Filler);
+
+    private static DiffRow Inserted(string[] right, int b) =>
+        new(DiffLineKind.Inserted, Filler, new DiffSide(b + 1, right[b], []));
+
+    private static DiffRow Modified(string[] left, int a, string[] right, int b, bool wordLevel)
+    {
+        (IReadOnlyList<DiffSpan> leftSpans, IReadOnlyList<DiffSpan> rightSpans) =
+            wordLevel ? WordSpans(left[a], right[b]) : ([], []);
+
+        return new DiffRow(
+            DiffLineKind.Modified,
+            new DiffSide(a + 1, left[a], leftSpans),
+            new DiffSide(b + 1, right[b], rightSpans));
+    }
+
+    /// <summary>
+    /// The word-level ranges inside one paired line, from a side-by-side diff of that line against
+    /// its counterpart.
+    ///
+    /// The builder is asked per pair rather than once for the whole file, because the pairs are this
+    /// class's own and the builder's would be the positional ones <see cref="BuildRows"/> rejects.
+    /// Two single lines produce exactly one row, whose sub-pieces are the words.
+    /// </summary>
+    private static (IReadOnlyList<DiffSpan> Left, IReadOnlyList<DiffSpan> Right) WordSpans(string left, string right)
+    {
+        SideBySideDiffModel model = Builder.BuildDiffModel(left, right, ignoreWhitespace: false);
+
+        DiffPiece? oldPiece = model.OldText.Lines.Count > 0 ? model.OldText.Lines[0] : null;
+        DiffPiece? newPiece = model.NewText.Lines.Count > 0 ? model.NewText.Lines[0] : null;
+
+        return (
+            oldPiece is null ? [] : ChangedSpans(oldPiece),
+            newPiece is null ? [] : ChangedSpans(newPiece));
     }
 
     /// <summary>

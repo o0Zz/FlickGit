@@ -43,6 +43,7 @@ public sealed class WindowVerbs(
     PaletteWindowHost palette,
     StatusService status,
     SwitchService switches,
+    BranchService branches,
     PullService pulls,
     CloneService clones,
     TagService tags,
@@ -193,7 +194,7 @@ public sealed class WindowVerbs(
             .GetStatusAsync(repository, CancellationToken.None)
             .ConfigureAwait(true);
 
-        var picker = new SwitchBranchWindow(repository, switches, state.Branch);
+        var picker = new SwitchBranchWindow(repository, switches, branches, state.Branch);
 
         AppWindow.Present(picker);
 

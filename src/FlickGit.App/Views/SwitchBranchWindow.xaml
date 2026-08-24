@@ -44,12 +44,22 @@
             </Grid>
         </Border>
 
+        <!-- Right-click acts on the row under the pointer, which is why the menu is built in
+             ContextMenuOpening rather than declared here: what a row offers depends on what it is.
+             A remote row cannot be deleted locally, the current branch cannot be deleted at all,
+             and the synthetic "create" row is not a branch yet. -->
         <ListBox x:Name="BranchList"
                  Grid.Row="1"
                  BorderThickness="0"
                  Background="{StaticResource Surface}"
                  HorizontalContentAlignment="Stretch"
-                 MouseDoubleClick="OnAccept">
+                 MouseDoubleClick="OnAccept"
+                 PreviewMouseRightButtonDown="OnRowRightClick"
+                 ContextMenuOpening="OnContextMenuOpening">
+            <ListBox.ContextMenu>
+                <ContextMenu x:Name="RowMenu" />
+            </ListBox.ContextMenu>
+
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="Padding" Value="6,3" />
@@ -64,9 +74,10 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding Name}"
+                        <TextBlock Text="{Binding Display}"
                                    FontFamily="Cascadia Mono, Consolas, Courier New"
-                                   TextTrimming="CharacterEllipsis" />
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{Binding Brush}" />
 
                         <!-- Remote-tracking branches are labelled rather than merely sorted below
                              the local ones: switching to one creates a local branch, which is a

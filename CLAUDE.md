@@ -127,7 +127,8 @@ useless without. It does not chase coverage.
   list — and `CommitRange.Resolve`, where a wrong index becomes a diff of the wrong commits.
 - **The commit sequence.** `CommitFlow` — stage, switch, verify, commit, push, in that order.
 - **The safety rules.** A blocked switch changes nothing; a stash restores only the one it created;
-  a diverged push is refused; `add -A` never appears in an argument list; untracked and
+  a diverged push is refused; `add -A` never appears in an argument list; `branch -D` never appears
+  unless force was asked for and the current branch costs no Git call at all; untracked and
   secret-matching files are not staged by default.
 - **The working tree.** Encoding, BOM and line-ending round trips, and the one value that may ever
   be written to a file. The "legible and verifiable" exception above lives here.
@@ -683,6 +684,23 @@ For an untracked file, the left side is empty.
 Use **DiffPlex** for the line diff, with a word-level pass inside changed line pairs for
 character diffs. Do not write a Myers implementation.
 
+**But not DiffPlex's side-by-side alignment.** `SideBySideDiffBuilder` pairs a change block's
+deletions with its insertions *positionally* — first with first, second with second, until one side
+runs out — and when the two counts differ that is the wrong correspondence. One line replaced with
+two insertions above it in the same block pairs the deleted line with the first insertion, so the
+red and the green of a plain replacement land on **different rows**, and the word-level highlighting
+inside that pair is the difference between two unrelated lines.
+
+`DiffService.BuildRows` therefore takes the line diff and does its own pairing: an order-preserving
+best alignment inside each block, scored by the Sørensen–Dice coefficient over the two lines'
+character bigrams, plus a constant that breaks a tie towards pairing so a one-for-one replacement of
+two dissimilar lines still shares a row rather than becoming a red row stacked above a green one.
+Bigrams rather than anything anchored to position, because the question is "is this the same line,
+edited" and an edit shifts everything after it. A block big enough that the O(D×I) comparison is not
+free is a rewrite, in which the correspondence between one old line and one new line means nothing
+anyway — so above a ceiling it falls back to the positional pairing, and says so in a comment rather
+than pretending.
+
 ## Editor component
 
 **AvalonEdit**, two instances, left read-only and right editable.
@@ -722,6 +740,16 @@ character diffs. Do not write a Myers implementation.
   exactly the lag this replaced.
 - Change bars and line backgrounds via `IBackgroundRenderer` — never insert a visual element
   per line
+- **Right-click acts on the row under the pointer, in either pane.** Revert, Stage hunk and
+  Unstage hunk, the same three the editing bar carries and against the same rows. It is on the
+  **left** pane that it earns its place: the left pane is where the change being undone is *shown*,
+  and reaching it otherwise meant finding the same row in the right pane and going up to a button.
+  The left document being read-only is no obstacle — reverting writes to the right pane and staging
+  writes to the index, so neither touches the side the click came from. A click inside the selection
+  means the selection; anywhere else means the line under the pointer, and a single row expands to
+  its whole hunk exactly as the caret does. One `ContextMenu` for the two editors, because two would
+  be two places for "the same items on the same rows" to stop being true — and no menu at all when
+  the pane is read-only, where three items that all refuse say less than nothing.
 - **The panes sit edge to edge, separated by a one-pixel rule.** There was a 14 px connector strip
   between them, one visual tying each changed block to its counterpart. It went: at that width it
   read as a colour belonging to one of the editors rather than as a link between them, and it only
@@ -775,9 +803,9 @@ and it will happen on the first CRLF repository otherwise.
 ## Reverting lines
 
 The right pane is editable, so the other half of editing is putting something back. **Select lines
-in the right pane and press `Revert lines`, and the left side's version of those lines replaces
-them.** Landing the caret anywhere inside a hunk without selecting takes the whole hunk, the same
-rule hunk staging already uses.
+and press `Revert lines`, or right-click a change in either pane, and the left side's version of
+those lines replaces them.** Landing the caret anywhere inside a hunk without selecting takes the
+whole hunk, the same rule hunk staging already uses.
 
 One rule makes this safe enough to offer on a single click, for an operation that otherwise reads as
 "discard my work":
@@ -2301,6 +2329,45 @@ The stash path follows the same rules as the pull fallback: create a uniquely id
 stash, switch, restore **only that stash**, and never pop an unrelated one. If the restore
 conflicts, stop and tell the user the stash still exists and how to reach it.
 
+## Creating and deleting, from the same list
+
+This window is the only surface in the product that creates or deletes a branch outside of a commit.
+
+**Create is the filter box**, not a New button and not a second window: type a name that matches
+nothing and the last row becomes *Create '<name>'*, in the accent colour. That is the gesture the
+commit window's ComboBox already uses — "type a new name to create it" — so there is one way to name
+a new branch in FlickGit rather than two. It creates from **HEAD**, per **Branch Selector**, not from
+whichever row is highlighted: the list has meant "where do I want to go" up to that point, and making
+the selection silently mean "and from here" would be a second meaning nothing announces. `switch -c`
+runs only after `check-ref-format` has approved the name.
+
+**Delete is a right-click**, on the row under the pointer — the `ListBox` is told to select it first,
+because a menu built for the previously selected row deletes the wrong branch. What the menu offers
+is what the row *is*, and an item that does not apply is absent rather than greyed:
+
+| row | menu |
+|---|---|
+| the current branch | nothing — it is deletable by nothing, here or in Git |
+| a local branch | **Delete branch…** |
+| a remote-tracking branch | **Delete on `<remote>`…**, naming where it would land |
+| the create row | nothing — there is no branch yet |
+
+**`branch -D` is never reached by the window deciding to reach it.** A delete runs `branch -d`. When
+Git refuses because the branch is unmerged, that refusal gets its own second question naming what is
+at stake, and only an answer to *that* calls back with force. Two questions, neither remembered,
+which is what **Safety Rules**' "explicit user intent, expressed in the moment" means for the one
+entry on that list this surface can reach.
+
+**Deleting on a remote is the only thing in FlickGit that destroys state other people share**, and
+the only one with no local undo — so it is confirmed in its own words, saying so. It pushes
+`refs/heads/<branch>`, never the bare name, for the reason `TagService.DeleteAsync` gives: `git push
+origin --delete release` is ambiguous when a tag of that name exists, and here the wrong guess
+deletes a tag, which has no reflog. The remote is resolved against the configured remotes rather
+than split at the first slash — a branch may contain slashes, so `origin/feature/x` is only
+resolvable by knowing `origin` is a remote. A prefix that is not one is refused rather than pushed
+at. There is no force and no lease; `push --delete` removes the remote-tracking ref itself, so
+nothing here prunes anything by hand.
+
 ---
 
 # Context Menu Layout
@@ -3116,6 +3183,11 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - Secret-matching files are excluded even when tracked and modified
 - A blocked `git switch` leaves the working tree and index untouched
 - Stash-switch-restore restores only the stash it created, and reports a conflicting restore
+- `branch -d` is what an ordinary delete runs; an unmerged refusal is reported rather than escalated,
+  and `-D` appears only when force was explicitly asked for
+- Deleting the current branch runs no Git command at all, force or not
+- A remote branch deletion pushes a fully qualified `refs/heads/…` ref, with no force and no lease,
+  and a name whose prefix is not a configured remote resolves to nothing rather than being guessed
 - A diverged push is refused, with no state change
 - No argument list ever contains `add -A`, `add .`, `reset --hard`, `clean -fd` or `push --force`
 - Every read carries `--no-optional-locks`
@@ -3126,6 +3198,9 @@ The one place where thoroughness is the point rather than the cost:
 
 - Round-trip save preserves UTF-8 with BOM, UTF-8 without, UTF-16LE, CRLF, LF, mixed endings, and
   the absence of a trailing newline
+- A change block pairs each deletion with the insertion that replaced it, not with whichever
+  insertion happens to sit at the same offset — with the word-level spans computed against the line
+  actually paired, and both panes still holding exactly one entry per row
 - Reverting lines reconstructs the file: a modified line goes back, an insertion is dropped, a
   deletion is restored, an unselected change survives, a trailing newline is neither gained nor
   lost, and reverting every row reproduces the left side exactly
