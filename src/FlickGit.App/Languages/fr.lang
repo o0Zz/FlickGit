@@ -156,6 +156,52 @@ tag.confirm.local = Supprimer l'étiquette {0} de ce dépôt ?\n\nUne étiquette
 tag.confirm.remote = Supprimer l'étiquette {0} de ce dépôt et de {1} ?\n\nCeux qui l'ont déjà récupérée gardent leur copie, et une étiquette n'a pas de reflog : impossible de revenir en arrière depuis ici.
 tag.confirm.yes = Supprimer
 
+# ---- fenêtre du journal ----
+log.title = Journal — {0}
+log.files.header = Fichiers modifiés
+log.loaded = {0} commits chargés
+log.loadmore = En charger {0} de plus
+log.loading = Lecture de l'historique…
+log.end = C'est tout l'historique.
+log.empty = Ce dépôt n'a encore aucun commit.
+log.failed = L'historique n'a pas pu être lu.
+log.select.prompt = Sélectionnez un commit pour voir ce qu'il a changé.
+log.hint = Sélectionnez plusieurs commits pour voir leur diff combiné.
+log.range.one = {0}
+log.range.many = {0} commits · {1}^..{2}
+log.range.root = {0} commits · du premier commit à {1}
+log.range.gap = dont {0} que vous n'avez pas sélectionnés
+log.commit.meta = {0} · {1} · parent {2}
+log.commit.merge = Commit de fusion — le diff est calculé contre son premier parent.
+log.totals = {0} fichiers · +{1} −{2}
+log.blame = Blame à ce commit…
+log.patch = Enregistrer en patch…
+log.patch.filter = Fichiers patch (*.patch)|*.patch|Tous les fichiers (*.*)|*.*
+log.patch.saved = {0} enregistré.
+log.patch.empty = Cette plage ne produit aucun diff, il n'y avait donc rien à enregistrer.
+log.patch.failed = Le patch n'a pas pu être écrit.
+log.close = Fermer
+
+# ---- fenêtre blame ----
+blame.title = Blame — {0}
+blame.loading = Lecture du blame…
+blame.workingtree = copie de travail
+blame.revision = à {0}
+blame.revision.named = à {0} · {1}
+blame.depth = {0} en arrière
+blame.back = ← Retour
+blame.close = Fermer
+blame.previous = Blame de la révision précédente ({0})
+blame.previous.first = C'est le premier commit qui a touché ce fichier
+blame.previous.none = Sélectionnez une ligne pour remonter
+blame.meta = {0} · {1} · ligne {2}
+blame.line = pas encore commité · ligne {0}
+blame.uncommitted = Pas encore commité
+blame.lines = {0} lignes · {1} commits
+blame.binary = C'est un fichier binaire, il n'y a donc rien à annoter ligne par ligne.
+blame.failed = Le blame n'a pas pu être lu.
+blame.notafile = Le blame demande un fichier, pas un dossier :\n\n{0}
+
 # ---- fenêtre dépôt ----
 repo.title = Dépôt — {0}
 repo.section.identity = IDENTITÉ
@@ -269,6 +315,7 @@ ai.disabled.hint = Donnez à "aiProvider" la valeur "anthropic", "openai" ou "co
 
 ai.key.title = Clé d'API {0}
 ai.key.prompt = FlickGit a besoin d'une clé d'API pour rédiger vos messages de commit. Elle est stockée dans le Gestionnaire d'identifiants Windows, jamais dans un fichier de paramètres, et ne vous est jamais réaffichée.
+ai.key.prompt.copilot = FlickGit a besoin du jeton GitHub que votre éditeur utilise pour Copilot. Cherchez « oauth_token » dans :\n\n%LOCALAPPDATA%\github-copilot\apps.json\n\nIl est stocké dans le Gestionnaire d'identifiants Windows, jamais dans un fichier de paramètres, et ne vous est jamais réaffiché. Un personal access token ne fonctionnera pas.
 ai.key.target = Enregistrée sous : {0}
 ai.key.save = Enregistrer
 ai.key.stored = Une clé est enregistrée pour {0} ({1}).
@@ -313,6 +360,8 @@ action.push = Push
 action.pr = Pull request…
 action.switch = Changer de branche…
 action.tag = Étiquettes…
+action.log = Afficher le journal…
+action.blame = Blame…
 action.repo = Paramètres du dépôt…
 action.clone = Cloner…
 action.terminal = Ouvrir un terminal ici

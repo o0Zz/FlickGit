@@ -156,6 +156,90 @@ tag.confirm.local = Eliminare il tag {0} da questo repository?\n\nUn tag non ha 
 tag.confirm.remote = Eliminare il tag {0} da questo repository e da {1}?\n\nChi lo ha già scaricato conserva la sua copia, e un tag non ha reflog: da qui non si può annullare.
 tag.confirm.yes = Elimina
 
+# ---- finestra del log ----
+log.title = Log — {0}
+log.files.header = File modificati
+log.loaded = {0} commit caricati
+log.loadmore = Carica altri {0}
+log.loading = Lettura della cronologia…
+log.end = Questa è tutta la cronologia.
+log.empty = Questo repository non ha ancora commit.
+log.failed = Non è stato possibile leggere la cronologia.
+log.select.prompt = Seleziona un commit per vedere che cosa ha cambiato.
+log.hint = Seleziona più commit per vedere il loro diff combinato.
+log.range.one = {0}
+log.range.many = {0} commit · {1}^..{2}
+log.range.root = {0} commit · dal primo commit a {1}
+log.range.gap = inclusi {0} che non hai selezionato
+log.commit.meta = {0} · {1} · genitore {2}
+log.commit.merge = Commit di merge — il diff è rispetto al suo primo genitore.
+log.totals = {0} file · +{1} −{2}
+log.blame = Blame a questo commit…
+log.patch = Salva come patch…
+log.patch.filter = File patch (*.patch)|*.patch|Tutti i file (*.*)|*.*
+log.patch.saved = {0} salvato.
+log.patch.empty = Questo intervallo non produce alcun diff, quindi non c'era nulla da salvare.
+log.patch.failed = Non è stato possibile scrivere la patch.
+log.close = Chiudi
+
+# ---- finestra di blame ----
+blame.title = Blame — {0}
+blame.loading = Lettura del blame…
+blame.workingtree = copia di lavoro
+blame.revision = a {0}
+blame.revision.named = a {0} · {1}
+blame.depth = {0} indietro
+blame.back = ← Indietro
+blame.close = Chiudi
+blame.previous = Blame della revisione precedente ({0})
+blame.previous.first = Questo è il primo commit che ha toccato il file
+blame.previous.none = Seleziona una riga per tornare indietro
+blame.meta = {0} · {1} · riga {2}
+blame.line = non ancora committato · riga {0}
+blame.uncommitted = Non ancora committato
+blame.lines = {0} righe · {1} commit
+blame.binary = Questo è un file binario, quindi non c'è nulla da attribuire riga per riga.
+blame.failed = Non è stato possibile leggere il blame.
+blame.notafile = Il blame richiede un file, non una cartella:\n\n{0}
+
+# ---- finestra del repository ----
+repo.title = Repository — {0}
+repo.section.identity = IDENTITÀ
+repo.identity.global = Usa l'identità globale — {0}
+repo.identity.global.none = Usa l'identità globale (non ne è ancora configurata nessuna)
+repo.identity.local = Imposta un'identità per questo repository
+repo.name = Nome
+repo.email = E-mail
+repo.identity.needed = Un'identità richiede sia un nome sia un indirizzo e-mail.
+repo.section.remotes = REMOTI
+repo.remote.name = Remoto
+repo.remote.url = URL
+repo.remote.add = Aggiungi
+repo.remote.save = Salva remoto
+repo.remote.remove = Rimuovi
+repo.remote.tracked = tracciato
+repo.remote.push = push: {0}
+repo.remote.none = Nessun remoto, quindi non c'è dove fare push.
+repo.remote.hint = Le modifiche ai remoti si applicano appena premi il pulsante. Seleziona una riga per rinominarla o farla puntare altrove.
+repo.remote.added = {0} aggiunto.
+repo.remote.renamed = {0} rinominato in {1}.
+repo.remote.urlset = {0} ora punta a {1}.
+repo.remote.removed = {0} rimosso.
+repo.remote.confirm.title = Rimuovere un remoto?
+repo.remote.confirm = Rimuovere «{0}»?\n\nI suoi rami di tracciamento remoto se ne vanno con lui, e ogni ramo che lo tracciava resta senza upstream. Nella tua copia di lavoro non viene toccato nulla.
+repo.remote.confirm.yes = Rimuovi
+repo.section.defaults = FLICKGIT, PER QUESTO REPOSITORY
+repo.primarybranch = Ramo principale
+repo.primarybranch.hint = Vuoto, viene risolto da origin/HEAD, poi main, poi master. Solo l'avviso «commit sul ramo principale» lo legge.
+repo.upstream.unasked = FlickGit non ha ancora chiesto se un nuovo ramo può creare un upstream qui.
+repo.upstream.allowed = Un nuovo ramo può creare un upstream qui.
+repo.upstream.refused = Un nuovo ramo non può creare un upstream qui.
+repo.upstream.askagain = Chiedi di nuovo
+repo.upstream.reset = FlickGit chiederà di nuovo al prossimo push di un nuovo ramo.
+repo.detached = HEAD è staccata, quindi nessun ramo traccia un remoto.
+repo.save = Salva
+repo.close = Chiudi
+
 # ---- push ----
 push.button = Push
 push.success = {0} inviato a {1}.
@@ -167,6 +251,34 @@ push.pullfirst.title = Indietro rispetto al remoto
 push.pullfirst.ask = {0} è indietro rispetto a {1}. Fare pull con rebase e poi push?
 push.pullfirst.yes = Pull (rebase) e push
 push.refused.title = Push rifiutato
+
+# ---- pull request ----
+pr.title = Pull request — {0}
+pr.field.title = Titolo
+pr.field.description = Descrizione
+pr.draft = Bozza
+pr.deletebranch = Elimina {0} dopo il merge
+pr.generate = Scrivi con l'IA
+pr.create = Crea la pull request
+pr.open = Apri
+pr.hint = ⏎ crea   esc chiudi
+pr.generating = Scrittura della descrizione…
+pr.notitle = Una pull request ha bisogno di un titolo.
+pr.summary = {0} commit · {1} file · +{2} −{3}
+pr.summary.empty = {0} non ha commit che {1} non abbia già.
+pr.nothing = Non c'è nulla da descrivere: questo ramo non aggiunge alcun commit.
+pr.alreadyopen = {0} è già aperta per questo ramo: {1}
+pr.created = Pull request {0} creata  {1}
+pr.pushed = {0} è stato inviato al remoto, ma la pull request non è stata creata.
+pr.error.title = Pull request
+pr.step.pushing = Invio del ramo…
+pr.step.authorising = Verifica delle credenziali…
+pr.step.checking = Ricerca di una pull request esistente…
+pr.step.creating = Creazione della pull request…
+pr.token.title = Token per {0}
+pr.token.prompt.github = FlickGit ha bisogno di un token che possa aprire pull request su {0}.\nCrea un personal access token con l'ambito «repo» (classico), oppure «Pull requests: read and write» (fine-grained).
+pr.token.prompt.gitlab = FlickGit ha bisogno di un token che possa aprire merge request su {0}.\nCrea un personal access token con l'ambito «api», nel tuo profilo GitLab sotto Access Tokens.
+pr.token.prompt.azure = FlickGit ha bisogno di un token che possa aprire pull request su {0}.\nCrea un personal access token con l'ambito «Code (read and write)», da Impostazioni utente → Personal access tokens.
 
 # ---- clone ----
 clone.title = Clona in {0}
@@ -203,6 +315,7 @@ ai.disabled.hint = Impostare "aiProvider" su "anthropic", "openai" oppure "copil
 
 ai.key.title = Chiave API {0}
 ai.key.prompt = FlickGit ha bisogno di una chiave API per scrivere i messaggi di commit. Viene salvata in Gestione credenziali di Windows, mai in un file di impostazioni, e non viene mai rimostrata.
+ai.key.prompt.copilot = FlickGit ha bisogno del token GitHub che il tuo editor usa per Copilot. Cerca «oauth_token» in:\n\n%LOCALAPPDATA%\github-copilot\apps.json\n\nViene conservato in Gestione credenziali di Windows, mai in un file di impostazioni, e non ti viene mai rimostrato. Un personal access token non funziona.
 ai.key.target = Salvata come: {0}
 ai.key.save = Salva
 ai.key.stored = È salvata una chiave per {0} ({1}).
@@ -212,6 +325,7 @@ ai.key.cleared = La chiave API {0} è stata rimossa.
 ai.key.cancelled = Nessuna chiave è stata salvata.
 ai.key.failed = La chiave non è stata salvata in Gestione credenziali di Windows.
 ai.key.noprovider = Nessun provider di IA configurato, quindi non c'è alcuna chiave da salvare.
+ai.key.notneeded = {0} viene eseguito su questa macchina, quindi non c'è alcuna chiave da conservare.
 
 # ---- errori ----
 error.title = FlickGit
@@ -243,8 +357,12 @@ palette.empty.norepos = Ancora nessun repository. Fare un commit da Esplora file
 action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
 action.push = Push
+action.pr = Pull request…
 action.switch = Cambia ramo…
 action.tag = Tag…
+action.log = Mostra il log…
+action.blame = Blame…
+action.repo = Impostazioni del repository…
 action.clone = Clona…
 action.terminal = Apri un terminale qui
 
@@ -308,6 +426,7 @@ settings.ai.key.clear = Rimuovi la chiave
 settings.ai.key.stored = Una chiave è memorizzata per {0}, in Gestione credenziali di Windows. Il diff dei file di cui fa commit viene inviato a questo fornitore.
 # {0} provider name
 settings.ai.key.missing = Nessuna chiave memorizzata per {0}. Senza chiave non verrà generato nulla.
+settings.ai.key.notneeded = Ollama è in esecuzione su {0} e non richiede chiavi. Imposta aiModel in settings.json sul modello desiderato — esegui `ollama list` per vederli.
 
 settings.advanced = Tutto il resto si configura in questi due file:
 settings.advanced.open = Apri la cartella di configurazione

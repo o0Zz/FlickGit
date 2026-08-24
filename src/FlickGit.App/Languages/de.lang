@@ -156,6 +156,90 @@ tag.confirm.local = Den Tag {0} aus diesem Repository löschen?\n\nEin Tag hat k
 tag.confirm.remote = Den Tag {0} aus diesem Repository und aus {1} löschen?\n\nWer ihn schon geholt hat, behält seine Kopie, und ein Tag hat kein Reflog — das lässt sich von hier aus nicht rückgängig machen.
 tag.confirm.yes = Löschen
 
+# ---- Log-Fenster ----
+log.title = Log — {0}
+log.files.header = Geänderte Dateien
+log.loaded = {0} Commits geladen
+log.loadmore = {0} weitere laden
+log.loading = Historie wird gelesen…
+log.end = Das ist die gesamte Historie.
+log.empty = Dieses Repository hat noch keine Commits.
+log.failed = Die Historie konnte nicht gelesen werden.
+log.select.prompt = Wählen Sie einen Commit, um zu sehen, was er geändert hat.
+log.hint = Wählen Sie mehrere Commits, um ihren kombinierten Diff zu sehen.
+log.range.one = {0}
+log.range.many = {0} Commits · {1}^..{2}
+log.range.root = {0} Commits · vom ersten Commit bis {1}
+log.range.gap = darunter {0}, die Sie nicht ausgewählt haben
+log.commit.meta = {0} · {1} · Parent {2}
+log.commit.merge = Merge-Commit — der Diff geht gegen seinen ersten Parent.
+log.totals = {0} Dateien · +{1} −{2}
+log.blame = Blame bei diesem Commit…
+log.patch = Als Patch speichern…
+log.patch.filter = Patch-Dateien (*.patch)|*.patch|Alle Dateien (*.*)|*.*
+log.patch.saved = {0} gespeichert.
+log.patch.empty = Dieser Bereich erzeugt keinen Diff, es gab also nichts zu speichern.
+log.patch.failed = Der Patch konnte nicht geschrieben werden.
+log.close = Schließen
+
+# ---- Blame-Fenster ----
+blame.title = Blame — {0}
+blame.loading = Blame wird gelesen…
+blame.workingtree = Arbeitsverzeichnis
+blame.revision = bei {0}
+blame.revision.named = bei {0} · {1}
+blame.depth = {0} zurück
+blame.back = ← Zurück
+blame.close = Schließen
+blame.previous = Vorherige Revision blamen ({0})
+blame.previous.first = Das ist der erste Commit, der diese Datei berührt hat
+blame.previous.none = Wählen Sie eine Zeile, um zurückzugehen
+blame.meta = {0} · {1} · Zeile {2}
+blame.line = noch nicht committet · Zeile {0}
+blame.uncommitted = Noch nicht committet
+blame.lines = {0} Zeilen · {1} Commits
+blame.binary = Das ist eine Binärdatei, es gibt also nichts Zeile für Zeile zu blamen.
+blame.failed = Der Blame konnte nicht gelesen werden.
+blame.notafile = Blame braucht eine Datei, keinen Ordner:\n\n{0}
+
+# ---- Repository-Fenster ----
+repo.title = Repository — {0}
+repo.section.identity = IDENTITÄT
+repo.identity.global = Globale Identität verwenden — {0}
+repo.identity.global.none = Globale Identität verwenden (es ist noch keine eingerichtet)
+repo.identity.local = Eine Identität für dieses Repository festlegen
+repo.name = Name
+repo.email = E-Mail
+repo.identity.needed = Eine Identität braucht sowohl einen Namen als auch eine E-Mail-Adresse.
+repo.section.remotes = REMOTES
+repo.remote.name = Remote
+repo.remote.url = URL
+repo.remote.add = Hinzufügen
+repo.remote.save = Remote speichern
+repo.remote.remove = Entfernen
+repo.remote.tracked = verfolgt
+repo.remote.push = Push: {0}
+repo.remote.none = Noch keine Remotes, es gibt also nichts, wohin gepusht werden könnte.
+repo.remote.hint = Änderungen an Remotes gelten, sobald Sie die Schaltfläche drücken. Wählen Sie eine Zeile, um sie umzubenennen oder woandershin zeigen zu lassen.
+repo.remote.added = {0} hinzugefügt.
+repo.remote.renamed = {0} in {1} umbenannt.
+repo.remote.urlset = {0} zeigt jetzt auf {1}.
+repo.remote.removed = {0} entfernt.
+repo.remote.confirm.title = Remote entfernen?
+repo.remote.confirm = „{0}“ entfernen?\n\nSeine Remote-Tracking-Branches verschwinden mit ihm, und jeder Branch, der ihn verfolgt hat, bleibt ohne Upstream zurück. In Ihrem Arbeitsverzeichnis wird nichts angefasst.
+repo.remote.confirm.yes = Entfernen
+repo.section.defaults = FLICKGIT, FÜR DIESES REPOSITORY
+repo.primarybranch = Hauptbranch
+repo.primarybranch.hint = Leer wird er aus origin/HEAD, dann main, dann master aufgelöst. Nur die Warnung „Commit auf den Hauptbranch“ liest ihn.
+repo.upstream.unasked = FlickGit hat noch nicht gefragt, ob ein neuer Branch hier einen Upstream anlegen darf.
+repo.upstream.allowed = Ein neuer Branch darf hier einen Upstream anlegen.
+repo.upstream.refused = Ein neuer Branch darf hier keinen Upstream anlegen.
+repo.upstream.askagain = Erneut fragen
+repo.upstream.reset = FlickGit fragt beim nächsten Push eines neuen Branches erneut.
+repo.detached = HEAD ist detached, also verfolgt kein Branch ein Remote.
+repo.save = Speichern
+repo.close = Schließen
+
 # ---- Push ----
 push.button = Push
 push.success = {0} nach {1} gepusht.
@@ -167,6 +251,34 @@ push.pullfirst.title = Hinter dem Remote
 push.pullfirst.ask = {0} liegt hinter {1}. Mit Rebase pullen und dann pushen?
 push.pullfirst.yes = Pull (Rebase) und Push
 push.refused.title = Push abgelehnt
+
+# ---- Pull Requests ----
+pr.title = Pull Request — {0}
+pr.field.title = Titel
+pr.field.description = Beschreibung
+pr.draft = Entwurf
+pr.deletebranch = {0} nach dem Merge löschen
+pr.generate = Mit KI schreiben
+pr.create = Pull Request erstellen
+pr.open = Öffnen
+pr.hint = ⏎ erstellen   esc schließen
+pr.generating = Beschreibung wird geschrieben…
+pr.notitle = Ein Pull Request braucht einen Titel.
+pr.summary = {0} Commits · {1} Dateien · +{2} −{3}
+pr.summary.empty = {0} hat keine Commits, die {1} nicht schon hat.
+pr.nothing = Es gibt nichts zu beschreiben: dieser Branch fügt keine Commits hinzu.
+pr.alreadyopen = {0} ist für diesen Branch bereits offen: {1}
+pr.created = Pull Request {0} erstellt  {1}
+pr.pushed = {0} wurde zum Remote gepusht, aber der Pull Request wurde nicht erstellt.
+pr.error.title = Pull Request
+pr.step.pushing = Branch wird gepusht…
+pr.step.authorising = Anmeldeinformationen werden geprüft…
+pr.step.checking = Suche nach einem bestehenden Pull Request…
+pr.step.creating = Pull Request wird erstellt…
+pr.token.title = Token für {0}
+pr.token.prompt.github = FlickGit braucht ein Token, das auf {0} Pull Requests öffnen kann.\nErstellen Sie ein Personal Access Token mit dem Scope „repo“ (klassisch) oder „Pull requests: read and write“ (fine-grained).
+pr.token.prompt.gitlab = FlickGit braucht ein Token, das auf {0} Merge Requests öffnen kann.\nErstellen Sie ein Personal Access Token mit dem Scope „api“, in Ihrem GitLab-Profil unter Access Tokens.
+pr.token.prompt.azure = FlickGit braucht ein Token, das auf {0} Pull Requests öffnen kann.\nErstellen Sie ein Personal Access Token mit dem Scope „Code (read and write)“, unter Benutzereinstellungen → Personal Access Tokens.
 
 # ---- Klonen ----
 clone.title = Klonen nach {0}
@@ -203,6 +315,7 @@ ai.disabled.hint = "aiProvider" auf "anthropic", "openai" oder "copilot" setzen 
 
 ai.key.title = {0}-API-Schlüssel
 ai.key.prompt = FlickGit braucht einen API-Schlüssel, um Ihre Commit-Nachrichten zu schreiben. Er wird in der Windows-Anmeldeinformationsverwaltung gespeichert, nie in einer Einstellungsdatei, und Ihnen nie wieder angezeigt.
+ai.key.prompt.copilot = FlickGit braucht das GitHub-Token, das Ihr Editor für Copilot verwendet. Suchen Sie nach „oauth_token“ in:\n\n%LOCALAPPDATA%\github-copilot\apps.json\n\nEs wird in der Windows-Anmeldeinformationsverwaltung gespeichert, nie in einer Einstellungsdatei, und Ihnen nie wieder angezeigt. Ein Personal Access Token funktioniert nicht.
 ai.key.target = Gespeichert als: {0}
 ai.key.save = Speichern
 ai.key.stored = Für {0} ({1}) ist ein Schlüssel gespeichert.
@@ -212,6 +325,7 @@ ai.key.cleared = Der {0}-API-Schlüssel wurde entfernt.
 ai.key.cancelled = Es wurde kein Schlüssel gespeichert.
 ai.key.failed = Der Schlüssel konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden.
 ai.key.noprovider = Es ist kein KI-Anbieter eingerichtet, also gibt es auch keinen Schlüssel zu speichern.
+ai.key.notneeded = {0} läuft auf diesem Rechner, es gibt also keinen Schlüssel zu speichern.
 
 # ---- Fehler ----
 error.title = FlickGit
@@ -243,8 +357,12 @@ palette.empty.norepos = Noch keine Repositorys. Einmal aus dem Explorer heraus c
 action.commit = Commit / Push…
 action.pull-rebase = Pull (Rebase)
 action.push = Push
+action.pr = Pull Request…
 action.switch = Branch wechseln…
 action.tag = Tags…
+action.log = Log anzeigen…
+action.blame = Blame…
+action.repo = Repository-Einstellungen…
 action.clone = Klonen…
 action.terminal = Terminal hier öffnen
 
@@ -308,6 +426,7 @@ settings.ai.key.clear = Schlüssel entfernen
 settings.ai.key.stored = Für {0} ist ein Schlüssel in der Windows-Anmeldeinformationsverwaltung gespeichert. Der Diff der Dateien, die Sie committen, wird an diesen Anbieter gesendet.
 # {0} provider name
 settings.ai.key.missing = Für {0} ist kein Schlüssel gespeichert. Ohne Schlüssel wird nichts erzeugt.
+settings.ai.key.notneeded = Ollama läuft auf {0} und braucht keinen Schlüssel. Setzen Sie aiModel in settings.json auf das gewünschte Modell — `ollama list` zeigt sie an.
 
 settings.advanced = Alles Weitere wird in diesen beiden Dateien eingestellt:
 settings.advanced.open = Konfigurationsordner öffnen
