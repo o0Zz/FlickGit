@@ -3,8 +3,8 @@
 Fast Git actions from Windows Explorer. Right-click, review, commit — without opening a full
 Git client.
 
-This page is a plain Markdown file sitting next to `FlickGit.exe`. Edit it, press **Reload**,
-and what you wrote is what this tab shows.
+Branches, worktrees and tags each have a window of their own. Everything is a keystroke or one
+right-click away.
 
 ---
 
@@ -36,11 +36,12 @@ Right-click a folder — the repository root, any folder inside it, or the empty
 folder you are browsing.
 
 **Commit / Push** shows the branch you are on — `Commit / Push (main)…` — and both top-level
-entries disappear on a folder that is not a Git repository. That needs `FlickGit.Shell.dll` next to
-`flick.exe`; without it the entries still work, they are just plain labels that always show.
+entries disappear on a folder that is not a Git repository.
 
-Replacing that DLL needs Explorer restarted, because Explorer keeps it loaded once it has drawn a
-menu with it. Turning the menu off in **Settings** takes effect immediately either way.
+The whole block is drawn by `FlickGit.Shell.dll`, which lives beside `flick.exe`. Replacing that
+file needs Explorer restarted, because Explorer keeps it loaded once it has drawn a menu with it —
+which is what the installer does for you. Turning the menu off in **Settings** takes effect
+immediately either way.
 
 On Windows 11 the entries live under **Show more options** (Shift+F10). That is a limitation of
 registry context menus, not a setting: the Windows 11 top-level menu needs a signed package.
@@ -48,8 +49,10 @@ registry context menus, not a setting: the Windows 11 top-level menu needs a sig
 - **Commit / Push…** and **Pull (rebase)** are entries in the menu itself, at the bottom, one
   click from the right-click. Pull runs a submodule update afterwards when the repository has a
   `.gitmodules`.
-- **FlickGit ▸** holds the rest: Branches…, Tags…, Push, Clone…, Repository status, Open
-  terminal here, and any action you added yourself.
+- **FlickGit ▸** holds the rest: Show log…, Branches…, Tags…, Push, Pull request…, Repository
+  settings…, Clone…, Open terminal here, and any action you added yourself.
+- Right-click a **file** rather than a folder and the submenu holds **Blame…**, which is all that
+  applies to one.
 
 **Clone…** lives in that submenu rather than replacing the menu outside a repository: a registry
 entry is written once and shown on every folder, so it cannot tell where you clicked. It prefills
@@ -81,6 +84,45 @@ The right side is a real editor, not a preview.
 - The header always says what you are comparing against: `Working tree ↔ HEAD` or
   `Working tree ↔ Index`. Editing while looking at the staged diff edits the **working tree** —
   a strip appears offering to restage.
+
+## Branches, worktrees and tags
+
+**FlickGit ▸ Branches…**, or `flick switch`. Type to filter; local branches first, then the
+remote-tracking ones. Type a name that matches nothing and the last row offers to **create** it,
+from HEAD. Right-click a row to delete it — `branch -d`, never `-D` unless a second question
+explicitly asks for it, and deleting on a remote says so in its own words.
+
+If Git refuses a switch, you are told which files block it and offered **stash, switch, restore**
+as an explicit choice. Nothing is stashed for you, and only the stash FlickGit created is ever
+restored.
+
+### Worktrees
+
+A worktree is a second checkout of the same repository, in its own folder, on its own branch — so
+you can look at `main` without putting away what you are doing on your feature branch. Git allows
+at most one per branch, which is why they live on the branch rows here rather than in a window of
+their own.
+
+Right-click a branch:
+
+- **Create worktree…** — pick the parent folder; the leaf name is derived for you. It has to be
+  outside the repository, or the new checkout would show up as untracked files.
+- **Open folder** — the primary action on a row that already has one. Such a branch cannot be
+  switched to in this checkout, and the row says `worktree` instead of `Local`.
+- **Remove worktree…** — asks first. The folder is deleted; the branch and its commits stay. If
+  there are uncommitted changes there, Git refuses and FlickGit does not offer to force it: delete
+  the folder in Explorer instead, where it goes to the Recycle Bin.
+- **Clean up missing worktrees…** — when the folder is gone but Git still records it, which is why
+  that branch still cannot be switched to. It clears only records whose folder no longer exists.
+
+### Tags
+
+**FlickGit ▸ Tags…**, or `flick tag`. List, create, publish and delete, all in one window.
+Nothing is ever forced, and deleting always asks first — the remote goes first, and no window open
+costs a network round trip.
+
+Double-click a tag to check it out. That is the one thing in FlickGit that **detaches HEAD**, so it
+asks once and the window then tells you how to come back.
 
 ## Commit messages by AI
 
@@ -306,8 +348,9 @@ Two more live in the repository's own `.git/config`, because they are facts abou
 rather than about you: `flickgit.pullRequestTarget` and `flickgit.forge` (see **Pull requests**),
 alongside `flickgit.primaryBranch` and `flickgit.allowUpstreamCreation`.
 
-Both files are read at startup. Restart FlickGit after editing them, and run `flick diag doctor` to
-see what they resolved to.
+`settings.json` and `actions.json` are read at startup, so restart FlickGit after editing either
+one; the two prompt files are read on every generation and need nothing. `flick diag doctor` shows
+what all of them resolved to.
 
 ## What FlickGit will not do
 
