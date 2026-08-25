@@ -49,6 +49,8 @@ public sealed class CommitViewModel : ObservableObject
     private string? _statusText;
 
     private FileChangeItem? _selectedFile;
+    private IReadOnlyList<FileChangeItem> _selectedFiles = [];
+    private string? _requestedDiffPath;
     private SideBySideDiff? _currentDiff;
     private bool _isDiffLoading;
 
@@ -96,8 +98,8 @@ public sealed class CommitViewModel : ObservableObject
         RefreshCommand = new AsyncCommand(RefreshAsync, () => !IsBusy, ReportError);
         SelectAllCommand = new RelayCommand(() => SetAllSelected(true));
         SelectNoneCommand = new RelayCommand(() => SetAllSelected(false));
-        DeleteFileCommand = new AsyncCommand(DeleteSelectedFileAsync, () => CanDeleteFile, ReportError);
-        RevertFileCommand = new AsyncCommand(RevertSelectedFileAsync, () => CanRevertFile, ReportError);
+        DeleteFileCommand = new AsyncCommand(DeleteSelectedFilesAsync, () => CanDeleteFile, ReportError);
+        RevertFileCommand = new AsyncCommand(RevertSelectedFilesAsync, () => CanRevertFile, ReportError);
 
         //Replaces whatever is in the box, unlike the automatic pass when the window opens: the user
         //pressed a button labelled "generate".
@@ -128,8 +130,12 @@ public sealed class CommitViewModel : ObservableObject
     /// <summary>
     /// Asks the user a yes/no question and waits. A callback rather than a dialog call, because a
     /// view model must not construct windows.
+    ///
+    /// The last argument puts Enter on the affirmative, and only the two Recycle-Bin-backed questions
+    /// here pass true -- see <see cref="RevertSelectedFilesAsync"/>. The signature carries it rather
+    /// than a second delegate sitting beside this one: there is one dialog, so there is one callback.
     /// </summary>
-    public Func<string, string, string, string, Task<bool>>? ConfirmAsync { get; set; }
+    public Func<string, string, string, string, bool, Task<bool>>? ConfirmAsync { get; set; }
 
     /// <summary>
     /// Whether the diff pane holds an unsaved edit. Only the revert confirmation reads it: an edit
@@ -288,18 +294,33 @@ public sealed class CommitViewModel : ObservableObject
         && _currentStatus.Files.Any(f => f.IsSelected);
 
     /// <summary>
+    /// The highlighted rows Delete can act on.
+    ///
     /// A row whose file is already gone -- deleted from the working tree, or removed with
-    /// <c>git rm</c> -- is greyed out rather than offered and then refused. The <c>D</c> on the row
-    /// already says the answer.
+    /// <c>git rm</c> -- is filtered out rather than refused later. The <c>D</c> on the row already says
+    /// the answer, and in a selection of ten it is the only honest way to count what will happen.
     /// </summary>
-    public bool CanDeleteFile => !_isBusy && _selectedFile is { IsOnDisk: true };
+    private List<FileChangeItem> Deletable => [.. _selectedFiles.Where(f => f.IsOnDisk)];
 
     /// <summary>
-    /// The reasons a file is not revertable are <see cref="RestoreService.CanRevert"/>'s, and they
-    /// are all one reason: HEAD does not have this path.
+    /// The highlighted rows Revert can act on.
+    ///
+    /// The reasons a file is not revertable are <see cref="RestoreService.CanRevert"/>'s, and they are
+    /// all one reason: HEAD does not have this path. Filtered rather than refused, because Ctrl+A over
+    /// a list holding one untracked file is the ordinary way to reach a mass revert -- the question
+    /// says how many rows it will leave alone instead of the menu item going dead.
     /// </summary>
-    public bool CanRevertFile =>
-        !_isBusy && _selectedFile is { } file && RestoreService.CanRevert(file.Change);
+    private List<FileChangeItem> Revertable =>
+        [.. _selectedFiles.Where(f => RestoreService.CanRevert(f.Change))];
+
+    /// <summary>What the context menu's labels count, so they name what the click would touch.</summary>
+    public int DeletableCount => Deletable.Count;
+
+    public int RevertableCount => Revertable.Count;
+
+    public bool CanDeleteFile => !_isBusy && Deletable.Count > 0;
+
+    public bool CanRevertFile => !_isBusy && Revertable.Count > 0;
 
     /// <summary>
     /// False hides the button rather than showing a permanently dead one -- with no key stored there
@@ -309,18 +330,54 @@ public sealed class CommitViewModel : ObservableObject
 
     public bool CloseAfterCommit => _settings.CloseCommitWindowAfterSuccess;
 
+    /// <summary>
+    /// The anchor row -- the list's <c>SelectedItem</c>, which under <c>Extended</c> selection is one of
+    /// possibly several highlighted rows. It is what the diff pane, the restage strip and a save are
+    /// about, all of which concern exactly one file.
+    ///
+    /// <b>It no longer loads the diff.</b> <see cref="SetSelectedFiles"/> does, because the decision
+    /// depends on how many rows are highlighted and this setter cannot see that.
+    /// </summary>
     public FileChangeItem? SelectedFile
     {
         get => _selectedFile;
         set
         {
-            if (!Set(ref _selectedFile, value))
-                return;
-
-            RaiseCommandStates();
-
-            _ = LoadDiffAsync(value);
+            if (Set(ref _selectedFile, value))
+                RaiseCommandStates();
         }
+    }
+
+    /// <summary>
+    /// Adopts the list's whole selection. The window pushes it here on every
+    /// <c>SelectionChanged</c>, because <c>ListBox.SelectedItems</c> is not bindable.
+    /// </summary>
+    public void SetSelectedFiles(IReadOnlyList<FileChangeItem> files)
+    {
+        _selectedFiles = files;
+        RaiseCommandStates();
+
+        //One row shows its diff. A multi-selection has no single file to show, so the pane goes back to
+        //its prompt -- which is also the answer to "which of these ten am I looking at".
+        if (files.Count == 1)
+        {
+            //Unless it is already the one being shown. Adopt loads the anchor's diff itself, and the
+            //list's selection push arrives immediately behind it naming that same row -- so without this
+            //every refresh would cancel the computation in flight and start it again, two `git show`
+            //calls to paint one pane. It is also what keeps an unsaved edit on screen when a
+            //multi-selection collapses back to the file it belongs to.
+            if (!string.Equals(_requestedDiffPath, files[0].Path, StringComparison.Ordinal))
+                _ = LoadDiffAsync(files[0]);
+
+            return;
+        }
+
+        //Except while the pane holds an unsaved edit. Clearing it goes through DiffPane.Show, which
+        //drops IsDirty and the undo history with it, and losing a working-tree edit to a Ctrl+click is
+        //exactly the silent discard this product must not have. The edit stays on screen; the revert
+        //confirmation still says the Recycle Bin will not have it.
+        if (IsEditorDirty?.Invoke() != true)
+            _ = LoadDiffAsync(null);
     }
 
     public SideBySideDiff? CurrentDiff
@@ -356,6 +413,8 @@ public sealed class CommitViewModel : ObservableObject
 
         _diffs.Reset(repository);
         _selectedFile = null;
+        _selectedFiles = [];
+        _requestedDiffPath = null;
         Files.Clear();
         CurrentDiff = null;
         IsDiffLoading = false;
@@ -460,6 +519,12 @@ public sealed class CommitViewModel : ObservableObject
         _ = LoadBranchesAsync();
 
         _selectedFile = Files.FirstOrDefault(f => f.Path == previouslySelectedPath) ?? Files.FirstOrDefault();
+
+        //A refresh collapses the selection to the anchor: the rows a mass revert acted on are gone, and
+        //the ones left are not what the user picked. Assigned here rather than left to the list's
+        //SelectionChanged, which does not fire when the same row stays selected -- and the two commands
+        //read this, not the anchor.
+        _selectedFiles = _selectedFile is null ? [] : [_selectedFile];
         Raise(nameof(SelectedFile));
 
         if (_selectedFile is not null)
@@ -661,6 +726,10 @@ public sealed class CommitViewModel : ObservableObject
     /// </summary>
     private async Task LoadDiffAsync(FileChangeItem? file)
     {
+        //What the pane has been asked to show, which is not the same as what it is showing: a cold diff
+        //is in flight for a while. SetSelectedFiles compares against this to avoid asking twice.
+        _requestedDiffPath = file?.Path;
+
         if (file is null)
         {
             _diffs.Cancel();
@@ -691,131 +760,216 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Deletes the selected file from the working tree, to the Recycle Bin.
+    /// Deletes every selected file that is still on disk, to the Recycle Bin.
     ///
-    /// <b>The only destructive thing this window does, so it is the only thing here that asks
-    /// first.</b> The Recycle Bin is what keeps the answer recoverable if it was the wrong one.
+    /// <b>One of the two destructive things this window does, and the Recycle Bin is what lets it ask
+    /// once rather than twice.</b> It is also why Enter answers the question: the answer is undoable by
+    /// a gesture the user already knows, and a dialog per file is what the multi-selection exists to
+    /// stop.
     ///
-    /// No Git command runs. Deleting a tracked file leaves an ordinary <c>D</c> row the user can
-    /// commit or put back with <c>git restore</c>; deleting an untracked one simply removes it. The
-    /// warning that distinguishes those two is why the question has a second line.
+    /// No Git command runs. Deleting a tracked file leaves an ordinary <c>D</c> row the user can commit
+    /// or put back with <c>git restore</c>; deleting an untracked one simply removes it. The warning
+    /// that distinguishes those two is why the question has a second line, and over a selection it
+    /// counts the untracked ones rather than naming them.
     /// </summary>
-    private async Task DeleteSelectedFileAsync()
+    private async Task DeleteSelectedFilesAsync()
     {
-        if (_selectedFile is not { } file || !file.IsOnDisk)
+        List<FileChangeItem> files = Deletable;
+
+        if (files.Count == 0 || _isBusy)
             return;
+
+        string question;
+        string body;
+
+        if (files.Count == 1)
+        {
+            question = Strings.Get("delete.question", files[0].Path);
+            body = Strings.Get(files[0].IsUntracked ? "delete.untracked" : "delete.tracked");
+        }
+        else
+        {
+            question = Strings.Get("delete.question.many", files.Count);
+            body = Strings.Get("delete.body.many");
+
+            int untracked = files.Count(f => f.IsUntracked);
+
+            if (untracked > 0)
+                body += "\n\n" + Strings.Get("delete.untracked.many", untracked);
+        }
 
         bool confirmed = await (ConfirmAsync?.Invoke(
             Strings.Get("delete.title"),
-            Strings.Get("delete.question", file.Path)
-                + "\n\n"
-                + Strings.Get(file.IsUntracked ? "delete.untracked" : "delete.tracked"),
+            question + "\n\n" + body,
             Strings.Get("delete.yes"),
-            Strings.Get("delete.no")) ?? Task.FromResult(false)).ConfigureAwait(true);
+            Strings.Get("delete.no"),
+            //Enter accepts: every file named here goes to the Recycle Bin, which is the whole reason one
+            //question is enough for it.
+            true) ?? Task.FromResult(false)).ConfigureAwait(true);
 
         if (!confirmed)
             return;
 
-        DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
+        int deleted = 0;
+        IsBusy = true;
 
-        if (!outcome.Succeeded)
+        try
         {
-            //A null message means the shell already said why, in its own words.
-            if (outcome.Message is { Length: > 0 } message)
-                RaiseError(Strings.Get("delete.title"), message);
+            foreach (FileChangeItem file in files)
+            {
+                DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
 
-            return;
+                if (!outcome.Succeeded)
+                {
+                    //A null message means the shell already said why, in its own words, so there is
+                    //nothing of ours to add but the count -- and nothing at all when it is zero.
+                    if (Reason(outcome.Message, deleted, "delete.partial") is { } reason)
+                        RaiseError(Strings.Get("delete.title"), reason);
+
+                    return;
+                }
+
+                //Keyed by path alone, so the cached diff of a file that no longer exists would be
+                //rendered by the next click on whatever takes its place in the list.
+                _diffs.Invalidate(file.Path);
+                deleted++;
+            }
         }
+        finally
+        {
+            IsBusy = false;
 
-        //Keyed by path alone, so the cached diff of a file that no longer exists would be rendered by
-        //the next click on whatever takes its place in the list.
-        _diffs.Invalidate(file.Path);
-
-        await RefreshAsync().ConfigureAwait(true);
+            //Always, including on the failure above: some files are gone and the list has to say so.
+            await RefreshAsync().ConfigureAwait(true);
+        }
 
         //After the refresh: Adopt does not clear this, but a status line set before it would be
         //reporting on a list that had not been rebuilt yet.
-        StatusText = Strings.Get("delete.done", file.Path);
+        StatusText = deleted == 1
+            ? Strings.Get("delete.done", files[0].Path)
+            : Strings.Get("delete.done.many", deleted);
     }
 
     /// <summary>
-    /// Puts the selected file back the way HEAD has it, sending the copy on disk to the Recycle Bin
-    /// on the way.
+    /// Puts every revertable selected file back the way HEAD has it, sending each copy on disk to the
+    /// Recycle Bin on the way.
     ///
     /// <b>The Recycle Bin is what earns this a single question.</b> <c>git restore</c> discards
     /// uncommitted work outright -- the working-tree version is in no object Git holds, so nothing in
-    /// the repository can bring it back.
+    /// the repository can bring it back. It is also what makes Enter safe as the answer: undoable by a
+    /// gesture the user already knows, and aiming at a dialog per file is exactly the cost the
+    /// multi-selection exists to remove.
     ///
-    /// <b>Bin first, restore second, and the order is not arbitrary.</b> A locked or protected file
-    /// fails the bin, and failing there means nothing has happened yet.
+    /// <b>Bin first, restore second, per file, and neither order is arbitrary.</b> A locked or
+    /// protected file fails the bin, and failing there means nothing has happened to it yet. Doing it
+    /// one file at a time rather than binning the whole selection and then restoring it is the same
+    /// argument one level up: a failure half way leaves one file binned and unreplaced instead of all
+    /// of them. That is why <see cref="RestoreService.RevertAsync"/> still takes a single path.
+    ///
+    /// <b>A row HEAD does not have is skipped, not refused.</b> Ctrl+A over a list holding one
+    /// untracked file is the ordinary way to reach this, so the question says how many rows it will
+    /// leave alone instead of the menu item going dead.
     /// </summary>
-    private async Task RevertSelectedFileAsync()
+    private async Task RevertSelectedFilesAsync()
     {
-        if (_selectedFile is not { } file || !CanRevertFile)
+        List<FileChangeItem> files = Revertable;
+
+        if (files.Count == 0 || _isBusy)
             return;
 
         string body = Strings.Get("revert.body");
+        int skipped = _selectedFiles.Count - files.Count;
+
+        if (skipped > 0)
+            body += "\n\n" + Strings.Get("revert.skipped", skipped);
 
         //An unsaved edit never reached the disk, so it is not in the copy about to be binned. The
         //dialog says so rather than implying the bin covers it.
         if (IsEditorDirty?.Invoke() == true)
             body += "\n\n" + Strings.Get("revert.dirty");
 
+        string question = files.Count == 1
+            ? Strings.Get("revert.question", files[0].Path)
+            : Strings.Get("revert.question.many", files.Count);
+
         bool confirmed = await (ConfirmAsync?.Invoke(
             Strings.Get("revert.title"),
-            Strings.Get("revert.question", file.Path) + "\n\n" + body,
+            question + "\n\n" + body,
             Strings.Get("revert.yes"),
-            Strings.Get("revert.no")) ?? Task.FromResult(false)).ConfigureAwait(true);
+            Strings.Get("revert.no"),
+            //Enter accepts: every version about to be overwritten goes to the Recycle Bin first.
+            true) ?? Task.FromResult(false)).ConfigureAwait(true);
 
         if (!confirmed)
             return;
 
-        //Nothing on disk to preserve when the change *is* a deletion -- the row's D means the file is
-        //already gone, and the revert is what brings it back.
-        bool binned = false;
+        int reverted = 0;
+        IsBusy = true;
 
-        if (file.IsOnDisk)
+        try
         {
-            DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
-
-            if (!outcome.Succeeded)
+            foreach (FileChangeItem file in files)
             {
-                //A null message means the shell already said why, in its own words.
-                if (outcome.Message is { Length: > 0 } message)
-                    RaiseError(Strings.Get("revert.title"), message);
+                //Nothing on disk to preserve when the change *is* a deletion -- the row's D means the
+                //file is already gone, and the revert is what brings it back.
+                bool binned = false;
 
-                return;
+                if (file.IsOnDisk)
+                {
+                    DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
+
+                    if (!outcome.Succeeded)
+                    {
+                        //A null message means the shell already said why, in its own words, so there is
+                        //nothing of ours to add but the count -- and nothing at all when it is zero.
+                        if (Reason(outcome.Message, reverted, "revert.partial") is { } reason)
+                            RaiseError(Strings.Get("revert.title"), reason);
+
+                        return;
+                    }
+
+                    binned = true;
+                }
+
+                RestoreResult result = await _restore
+                    .RevertAsync(_repository, file.Path, CancellationToken.None)
+                    .ConfigureAwait(true);
+
+                if (!result.Succeeded)
+                {
+                    //Halfway: this file has been binned and not replaced. Say what happened rather than
+                    //leaving the user to find out, and the Recycle Bin is the next action.
+                    RaiseError(
+                        Strings.Get("revert.title"),
+                        Reason(
+                            Strings.Get("revert.failed", file.Path)
+                                + "\n\n"
+                                + (result.Error ?? string.Empty)
+                                + (binned ? "\n\n" + Strings.Get("revert.binned") : string.Empty),
+                            reverted,
+                            "revert.partial")!);
+
+                    return;
+                }
+
+                //Keyed by path alone, so the cached diff of the pre-revert content would be rendered by
+                //the next click on this row.
+                _diffs.Invalidate(file.Path);
+                reverted++;
             }
-
-            binned = true;
         }
-
-        RestoreResult result = await _restore
-            .RevertAsync(_repository, file.Path, CancellationToken.None)
-            .ConfigureAwait(true);
-
-        if (!result.Succeeded)
+        finally
         {
-            //Halfway: the file has been binned and not replaced. Say what happened rather than leaving the
-            //user to find out, and the Recycle Bin is the next action.
-            RaiseError(
-                Strings.Get("revert.title"),
-                Strings.Get("revert.failed", file.Path)
-                    + "\n\n"
-                    + (result.Error ?? string.Empty)
-                    + (binned ? "\n\n" + Strings.Get("revert.binned") : string.Empty));
+            IsBusy = false;
 
+            //Always, including on the failure above: the working tree and the index have both moved for
+            //every file that got through, and the list is what says which.
             await RefreshAsync().ConfigureAwait(true);
-            return;
         }
 
-        //Keyed by path alone, so the cached diff of the pre-revert content would be rendered by the
-        //next click on this row.
-        _diffs.Invalidate(file.Path);
-
-        await RefreshAsync().ConfigureAwait(true);
-
-        StatusText = Strings.Get("revert.done", file.Path);
+        StatusText = reverted == 1
+            ? Strings.Get("revert.done", files[0].Path)
+            : Strings.Get("revert.done.many", reverted);
     }
 
     /// <summary>
@@ -1116,6 +1270,18 @@ public sealed class CommitViewModel : ObservableObject
 
     private void RaiseError(string title, string message) => ErrorRaised?.Invoke(title, message);
 
+    /// <summary>
+    /// What to show when a bin or a restore refused part way through a selection.
+    ///
+    /// <paramref name="message"/> is null when the shell already told the user why -- a cancelled
+    /// Recycle Bin prompt -- so the only thing left to say is how many files went before it, and there
+    /// is nothing to say at all when the answer is none.
+    /// </summary>
+    private static string? Reason(string? message, int done, string partialKey) =>
+        message is { Length: > 0 } given
+            ? done == 0 ? given : given + "\n\n" + Strings.Get(partialKey, done)
+            : done == 0 ? null : Strings.Get(partialKey, done);
+
     private void ReportError(Exception exception)
     {
         _log.Error($"Commit window operation failed: {exception}");
@@ -1183,6 +1349,8 @@ public sealed class CommitViewModel : ObservableObject
         return _consent.AnswerAsync(
             _repository,
             question,
-            (title, body, yes, no) => ConfirmAsync?.Invoke(title, body, yes, no) ?? Task.FromResult(false));
+            //False: publishing a branch has no undo, so Enter must not be what agrees to it.
+            (title, body, yes, no) =>
+                ConfirmAsync?.Invoke(title, body, yes, no, false) ?? Task.FromResult(false));
     }
 }

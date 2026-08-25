@@ -69,6 +69,12 @@ delete.missing = {0} non è più sul disco.
 delete.outside = {0} è fuori da {1} e non verrà eliminato.
 delete.reparsepoint = {0} è un collegamento simbolico o una giunzione. FlickGit non elimina attraverso di essi.
 delete.failed = Impossibile eliminare {0}:\n\n{1}
+delete.menu.many = Elimina {0} file…
+delete.question.many = Eliminare {0} file?
+delete.body.many = Finiscono tutti nel cestino. Git ha ancora quelli tracciati, quindi quelle eliminazioni diventano modifiche da confermare — o da annullare con git restore.
+delete.untracked.many = {0} di essi non sono tracciati. Git non li ha mai visti, quindi il cestino è l'unico modo per recuperarli.
+delete.done.many = {0} file eliminati
+delete.partial = {0} file sono stati eliminati prima di questo.
 
 # ---- ripristinare un file ----
 revert.menu = Ripristina il file…
@@ -81,6 +87,11 @@ revert.no = Mantieni
 revert.done = {0} ripristinato
 revert.failed = Impossibile ripristinare {0}:
 revert.binned = La versione che era sul disco è nel Cestino.
+revert.menu.many = Ripristina {0} file…
+revert.question.many = Ripristinare {0} file?
+revert.skipped = {0} dei file selezionati non sono in HEAD — non tracciati, aggiunti, rinominati o in conflitto — e restano esattamente come sono.
+revert.done.many = {0} file ripristinati
+revert.partial = {0} file sono stati ripristinati prima di questo.
 
 # ---- menu contestuale di un file ----
 # Clic destro su un *file*, accanto a Blame. `add` lo mette nell'indice — per un file che Git non ha

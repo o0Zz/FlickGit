@@ -76,6 +76,13 @@ internal static class FilterList
     /// walk</b>, which is the commit window's implementation and the one that survives a row template
     /// built from <c>Run</c>s: those are <c>ContentElement</c>s rather than <c>Visual</c>s, and
     /// <c>VisualTreeHelper.GetParent</c> throws on one.
+    ///
+    /// <b>A click inside a multi-selection means the selection; anywhere else means the one row under
+    /// the pointer.</b> The diff pane's context menu already works that way, and the commit window's
+    /// file list is <c>Extended</c> -- where a bare <c>IsSelected = true</c> would <i>add</i> the
+    /// clicked row to whatever was highlighted, so a right-click on an unrelated file would revert it
+    /// along with three others. For the pickers, which are single-selection, clearing and re-selecting
+    /// one row is what the assignment already did.
     /// </summary>
     /// <returns>False when the click was not on a row, so the caller can suppress the menu.</returns>
     public static bool SelectRowUnderPointer(ListBox list, object? originalSource)
@@ -86,7 +93,12 @@ internal static class FilterList
         if (list.ContainerFromElement(source) is not ListBoxItem row)
             return false;
 
-        row.IsSelected = true;
+        if (!row.IsSelected)
+        {
+            list.SelectedItems.Clear();
+            row.IsSelected = true;
+        }
+
         return true;
     }
 }

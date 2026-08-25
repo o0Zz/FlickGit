@@ -23,14 +23,25 @@
                        LineHeight="18" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-                <!-- The affirmative is not IsDefault. Enter should not commit the user to the
-                     consequential half of a guardrail question they have not read. -->
+                <!-- Which of the two is the default button is decided per question, in the
+                     constructor, and it is the only thing about this dialog that is not fixed.
+
+                     A guardrail's affirmative is not the default. Enter must not commit the user to the
+                     consequential half of a question they have not read, and there is no way back from
+                     publishing a branch or overwriting a file that changed under the editor.
+
+                     The two that do default to the affirmative — revert and delete, from the commit
+                     window's file list — send the copy on disk to the Recycle Bin before anything else
+                     happens. That is what earns them one question instead of two, and it is what makes
+                     Enter safe here: the answer is undoable by a gesture the user already knows. Both
+                     are also performed over a multi-selection, where aiming at a dialog per file is the
+                     cost that selection exists to remove.
+
+                     Esc is "no" either way, which is IsCancel's job and never the default button's. -->
                 <Button x:Name="YesButton" MinWidth="120" Click="OnYes" />
                 <Button x:Name="NoButton"
                         MinWidth="100"
                         Margin="8,0,0,0"
-                        Style="{StaticResource PrimaryButton}"
-                        IsDefault="True"
                         IsCancel="True"
                         Click="OnNo" />
             </StackPanel>

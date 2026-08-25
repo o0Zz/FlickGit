@@ -72,9 +72,13 @@ public sealed class RestoreService(IGitProcessRunner git, RepositoryService repo
     /// </summary>
     /// <remarks>
     /// The path is passed after <c>--</c> and as its own argument, so a file named like an option
-    /// cannot become one. There is deliberately no overload taking a list: this is reached from a
-    /// right-click on one row, and a method that could take every path is a method that could be
-    /// handed all of them.
+    /// cannot become one.
+    ///
+    /// <b>There is deliberately no overload taking a list</b>, and reverting a multi-selection does not
+    /// want one: the caller loops, because each file's copy on disk goes to the Recycle Bin
+    /// immediately before its restore. Binning the whole selection and then restoring it in one command
+    /// would leave every file binned and none replaced when the restore fails; interleaving leaves one.
+    /// So the safer shape is also the one that keeps this method naming a single path.
     /// </remarks>
     public async Task<RestoreResult> RevertAsync(
         RepositoryInfo repository,

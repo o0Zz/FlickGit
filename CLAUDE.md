@@ -574,6 +574,15 @@ esc        close
 file list as well as the message box — and it goes through the view model's own command, so it obeys
 the same "not while busy" rule the button does instead of stacking refreshes on a slow repository.
 
+**Enter also accepts the two confirmations this window raises** — Revert and Delete — where every
+other guardrail dialog in the product leaves Enter on the negative. That is `ConfirmWindow`'s
+`defaultIsAffirmative`, and the two questions that pass it are exactly the two that send the copy on
+disk to the **Recycle Bin** before anything else happens. The recoverability is what earns them one
+question rather than two in the first place; it is the same thing that makes Enter a safe answer, and
+without it a mass revert costs a mouse trip to a dialog per file. The guardrails that keep Enter
+meaning "no" are the ones with no undo: publishing a branch, pulling before a push, overwriting a
+file that changed under the editor, deleting a branch on a remote.
+
 **Enter commits rather than inserting a newline**, which is the one thing about this window nobody
 can guess — so the footer says so whenever there is no outcome to report in its place.
 
@@ -694,18 +703,19 @@ normally, because `git restore --staged` matches against HEAD rather than agains
 This is the second entry in a list that now has three staging states — whole file, chosen hunks,
 already-staged deletion — and all three are "leave the index alone" for different reasons.
 
-## Deleting one, from the list
+## Deleting, from the list
 
-Right-click a row, **Delete file…**, confirm. The file goes to the **Recycle Bin**, and no Git
-command runs at all.
+Select one row or several, right-click, **Delete file…**, confirm. Every file goes to the **Recycle
+Bin**, and no Git command runs at all.
 
 The Recycle Bin is the whole design, not a nicety. **Safety Rules** forbids discarding uncommitted
 work, and an untracked file is uncommitted work Git has never seen — `git restore` cannot bring it
 back, because there is nothing to restore it from. A shell delete makes a destructive operation
 recoverable by a gesture the user already knows, which is what earns it a single question instead of
 a warning nobody could act on. It is the same argument **Reverting lines** makes: the safety comes
-from the operation being undoable, not from a second dialog. It is also what **Reverting one**
-below borrows, which is why the two items sit on one menu.
+from the operation being undoable, not from a second dialog. It is also what **Reverting** below
+borrows, which is why the two items sit on one menu — and what lets Enter answer the question, per
+the keyboard map above.
 
 Because nothing is staged, the two cases resolve themselves and the confirmation says which is
 which:
@@ -714,8 +724,10 @@ which:
   `git restore`
 - an **untracked** file simply stops existing, and the Recycle Bin is the only way back
 
-A row whose file is already gone — `.D` or a `git rm`-ed `D.` — has the item greyed out rather than
-offered and then refused. The letter on the row already says the answer.
+A row whose file is already gone — `.D` or a `git rm`-ed `D.` — is **filtered out of the selection
+rather than refused later**. The letter on the row already says the answer, and over a selection of
+ten it is the only honest way to count what the click will do: the menu item reads *Delete 4 files…*
+for a five-row selection holding one of those, and goes dead only when it would touch nothing at all.
 
 Two guards, both refusals rather than best efforts, and the first is Core's own rather than a second
 copy of it: **nothing outside the resolved repository root is deleted**
@@ -727,10 +739,14 @@ somewhere else entirely.
 Windows shell facility, and Core is `net9.0` precisely so that it cannot. What is in Core is the
 part worth testing, which was already there.
 
-## Reverting one, from the list
+**It takes one path, and the caller loops.** Deleting five files is five calls, in list order, and
+the first refusal stops it and says how many went before — which is what the Recycle Bin's own
+prompt, cancellable per file, forces anyway.
 
-Right-click a row, **Revert file…**, confirm, and the file goes back the way HEAD has it — the
-working tree **and** the index:
+## Reverting, from the list
+
+Select one row or several, right-click, **Revert file…**, confirm, and each file goes back the way
+HEAD has it — the working tree **and** the index:
 
 ```bash
 git restore --source=HEAD --staged --worktree -- "<file>"
@@ -745,13 +761,23 @@ letter goes away for.
 of **Safety Rules** meet here. The forbidden spellings — `git restore .`, `git checkout -- .` — are
 forbidden because they take the *whole* working tree unasked; this one names the single path the
 user right-clicked, after a confirmation, which is the "explicit user intent, expressed in the
-moment" the same section allows. The other half, *never discard uncommitted work*, is kept the way
-**Deleting one** keeps it: **the copy on disk goes to the Recycle Bin first**, and only then does
+moment" the same section allows. It names one path per call and the caller loops, which is what keeps
+that true of a selection of forty. The other half, *never discard uncommitted work*, is kept the way
+**Deleting** keeps it: **the copy on disk goes to the Recycle Bin first**, and only then does
 Git overwrite it. Bin first and restore second, never the reverse — a locked file fails the bin,
 and failing there means nothing has happened yet.
 
-**A file HEAD does not have is greyed out**, the same rule Delete follows for a row whose file is
-already gone. Every refusal is that one question, and one of them is not merely useless:
+**Per file, not per selection**, and that is the reason `RestoreService.RevertAsync` still refuses to
+take a list. Binning all forty and then restoring all forty would leave forty files binned and none
+replaced when the restore fails; interleaving leaves one. The first failure stops the loop, names the
+file in Git's own words, says the version is in the Recycle Bin, and says how many files were
+reverted before it.
+
+**A file HEAD does not have is skipped, not refused** — filtered out of the selection the same way
+Delete filters a row whose file is already gone. `Ctrl+A` over a list holding one untracked file is
+the ordinary way to reach a mass revert, so the menu item names the count it would actually touch and
+the confirmation says how many rows it will leave exactly as they are. Every exclusion is that one
+question — is this path in HEAD — and one of them is not merely useless:
 
 | Row | Why not |
 |---|---|
@@ -767,6 +793,29 @@ handed to this" is exactly the kind of rule a click cannot be trusted to reveal.
 adds a line when the diff pane holds an unsaved edit: that edit was never written to disk, so it is
 not what the Recycle Bin receives, and a dialog promising recoverability has to be right about what
 it is promising.
+
+## What a multi-selection does to the diff pane
+
+**Nothing, and that is the point.** The file list is `SelectionMode="Extended"` — the log window's
+gesture set, for the log window's reason: under `Multiple` a bare click toggles, and a bare click has
+to mean "just this one". With two or more rows highlighted there is no single file the right-hand pane
+could be about, so it goes back to its prompt.
+
+`SelectedItem` stays bound as the **anchor** row, which is what a diff, a restage strip and a save are
+each about. `SelectedItems` is not bindable, so the rest of the selection reaches the view model from
+the list's `SelectionChanged` — and `SetSelectedFiles` is the one path that loads a diff, because the
+decision depends on a count the `SelectedFile` setter cannot see.
+
+**Except while the pane holds an unsaved edit, where the pane is left alone.** Clearing it goes
+through `DiffPane.Show`, which drops `IsDirty` and the undo history with it — so a `Ctrl+click` would
+silently discard a working-tree edit, which is the one thing **Definition of Done** makes
+unconditional. The edit stays on screen, and the revert confirmation still says the Recycle Bin will
+not have it.
+
+**Right-click follows the diff pane's rule**: a click inside the selection means the selection,
+anywhere else means the row under the pointer. `FilterList.SelectRowUnderPointer` owns it, and under
+`Extended` it has to — a bare `IsSelected = true` there *adds* the clicked row to whatever was
+highlighted, which is how a right-click on one file reverts four others.
 
 ---
 
@@ -3101,12 +3150,12 @@ confirm: staging discards nothing, and unticking the row in the commit window is
 out.
 
 **Remove deletes the file and stages the deletion** — TortoiseGit's Delete, and a different operation
-from the file list's **Deleting one**, which sends the file to the Recycle Bin and runs no Git command
+from the file list's **Deleting**, which sends the file to the Recycle Bin and runs no Git command
 at all. Four rules make it safe enough to sit behind one question:
 
 - **Nothing is forced.** `git rm` without `-f` refuses a file whose content differs from both HEAD and
   the index, so "never discard uncommitted work" is enforced by Git rather than by us. What is left
-  is recoverable: HEAD still has the content, and **Reverting one** puts it back.
+  is recoverable: HEAD still has the content, and **Reverting** puts it back.
 - **An untracked file is refused before the question is asked**, because Git's own answer —
   `fatal: pathspec … did not match any files` — is accurate about a question the user did not ask.
   The exit code stays Git's, so a script branches on the same number either way.
@@ -4005,8 +4054,9 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - A remote branch deletion pushes a fully qualified `refs/heads/…` ref, with no force and no lease,
   and a name whose prefix is not a configured remote resolves to nothing rather than being guessed
 - A diverged push is refused, with no state change
-- Reverting a file names one path after `--` and takes both sides from HEAD, and a row HEAD does
-  not have — untracked, added, renamed, conflicted — is refused before any command runs
+- Reverting a file names one path after `--` and takes both sides from HEAD — one path per call
+  however many rows were selected, because the caller loops — and a row HEAD does not have —
+  untracked, added, renamed, conflicted — never reaches a command at all
 - The file menu's `git rm` names one path after `--` and carries no `-f` and no `-r`, and both it and
   `git add` pass the path as `:(literal)…` so a bracketed file name cannot glob onto another file
 - An untracked path answers "not tracked" from one `ls-files -z` read, and no `rm` runs at all

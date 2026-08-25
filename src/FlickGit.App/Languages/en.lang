@@ -82,6 +82,17 @@ delete.outside = {0} is outside {1} and will not be deleted.
 delete.reparsepoint = {0} is a symlink or junction. FlickGit will not delete through one.
 # {0} repository-relative path, {1} the reason Windows gave
 delete.failed = {0} could not be deleted:\n\n{1}
+# {0} how many files the menu item would act on
+delete.menu.many = Delete {0} files…
+# {0} how many files
+delete.question.many = Delete {0} files?
+delete.body.many = They all go to the Recycle Bin. Git still has the tracked ones, so those deletions become changes you can commit — or undo with git restore.
+# {0} how many of them Git has never seen
+delete.untracked.many = {0} of them are untracked. Git has never seen those, so the Recycle Bin is the only way back.
+# {0} how many files were deleted
+delete.done.many = Deleted {0} files
+# {0} how many were deleted before the failure reported above this line
+delete.partial = {0} files were deleted before this one.
 
 # ---- reverting a file ----
 # The commit window's file list, right-click. Puts the file back the way HEAD has it, sending
@@ -98,6 +109,16 @@ revert.no = Keep
 revert.done = Reverted {0}
 revert.failed = {0} could not be reverted:
 revert.binned = The version that was on disk is in the Recycle Bin.
+# {0} how many files the menu item would act on -- the revertable ones only
+revert.menu.many = Revert {0} files…
+# {0} how many files
+revert.question.many = Revert {0} files?
+# {0} how many selected rows HEAD does not have, and so will not be touched
+revert.skipped = {0} of the selected files are not in HEAD — untracked, added, renamed or conflicted — and are left exactly as they are.
+# {0} how many files were reverted
+revert.done.many = Reverted {0} files
+# {0} how many were reverted before the failure reported above this line
+revert.partial = {0} files were reverted before this one.
 
 # ---- the Explorer file menu ----
 # Right-click a *file*, beside Blame. `add` stages it, which for a file Git has never seen is what

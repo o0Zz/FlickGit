@@ -69,6 +69,12 @@ delete.missing = {0} já não está no disco.
 delete.outside = {0} está fora de {1} e não será eliminado.
 delete.reparsepoint = {0} é uma ligação simbólica ou uma junção. O FlickGit não elimina através de uma.
 delete.failed = Não foi possível eliminar {0}:\n\n{1}
+delete.menu.many = Eliminar {0} ficheiros…
+delete.question.many = Eliminar {0} ficheiros?
+delete.body.many = Vão todos para a reciclagem. O Git continua a ter os controlados, por isso essas eliminações tornam-se alterações que pode confirmar — ou desfazer com git restore.
+delete.untracked.many = {0} deles não são controlados. O Git nunca os viu, por isso a reciclagem é a única forma de os recuperar.
+delete.done.many = {0} ficheiros eliminados
+delete.partial = {0} ficheiros foram eliminados antes deste.
 
 # ---- reverter um ficheiro ----
 revert.menu = Reverter ficheiro…
@@ -81,6 +87,11 @@ revert.no = Manter
 revert.done = {0} revertido
 revert.failed = Não foi possível reverter {0}:
 revert.binned = A versão que estava em disco está na Reciclagem.
+revert.menu.many = Reverter {0} ficheiros…
+revert.question.many = Reverter {0} ficheiros?
+revert.skipped = {0} dos ficheiros selecionados não estão em HEAD — não controlados, adicionados, renomeados ou em conflito — e ficam exatamente como estão.
+revert.done.many = {0} ficheiros revertidos
+revert.partial = {0} ficheiros foram revertidos antes deste.
 
 # ---- menu de contexto de um ficheiro ----
 # Clique com o botão direito num *ficheiro*, ao lado de Blame. `add` prepara-o — o que, num ficheiro

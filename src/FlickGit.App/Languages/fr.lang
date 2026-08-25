@@ -69,6 +69,12 @@ delete.missing = {0} n'est plus sur le disque.
 delete.outside = {0} est en dehors de {1} et ne sera pas supprimé.
 delete.reparsepoint = {0} est un lien symbolique ou une jonction. FlickGit ne supprime pas au travers.
 delete.failed = {0} n'a pas pu être supprimé :\n\n{1}
+delete.menu.many = Supprimer {0} fichiers…
+delete.question.many = Supprimer {0} fichiers ?
+delete.body.many = Ils partent tous à la corbeille. Git connaît toujours les fichiers suivis : leurs suppressions deviennent des modifications à valider — ou à annuler avec git restore.
+delete.untracked.many = {0} d'entre eux ne sont pas suivis. Git ne les a jamais vus : la corbeille est le seul moyen de les récupérer.
+delete.done.many = {0} fichiers supprimés
+delete.partial = {0} fichiers ont été supprimés avant celui-ci.
 
 # ---- rétablir un fichier ----
 revert.menu = Rétablir le fichier…
@@ -81,6 +87,11 @@ revert.no = Conserver
 revert.done = {0} rétabli
 revert.failed = {0} n'a pas pu être rétabli :
 revert.binned = La version qui était sur le disque est dans la corbeille.
+revert.menu.many = Rétablir {0} fichiers…
+revert.question.many = Rétablir {0} fichiers ?
+revert.skipped = {0} des fichiers sélectionnés ne sont pas dans HEAD — non suivis, ajoutés, renommés ou en conflit — et restent exactement en l'état.
+revert.done.many = {0} fichiers rétablis
+revert.partial = {0} fichiers ont été rétablis avant celui-ci.
 
 # ---- menu contextuel d'un fichier ----
 # Clic droit sur un *fichier*, à côté de Blame. `add` l'indexe — ce qui, pour un fichier que Git n'a

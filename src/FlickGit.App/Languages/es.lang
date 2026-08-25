@@ -69,6 +69,12 @@ delete.missing = {0} ya no está en el disco.
 delete.outside = {0} está fuera de {1} y no se eliminará.
 delete.reparsepoint = {0} es un enlace simbólico o una unión. FlickGit no elimina a través de uno.
 delete.failed = No se pudo eliminar {0}:\n\n{1}
+delete.menu.many = Eliminar {0} archivos…
+delete.question.many = ¿Eliminar {0} archivos?
+delete.body.many = Todos van a la papelera de reciclaje. Git sigue teniendo los rastreados, así que esas eliminaciones se convierten en cambios que puedes confirmar — o deshacer con git restore.
+delete.untracked.many = {0} de ellos no están rastreados. Git nunca los ha visto, así que la papelera de reciclaje es la única forma de recuperarlos.
+delete.done.many = {0} archivos eliminados
+delete.partial = Se eliminaron {0} archivos antes de este.
 
 # ---- revertir un archivo ----
 revert.menu = Revertir archivo…
@@ -81,6 +87,11 @@ revert.no = Conservar
 revert.done = {0} revertido
 revert.failed = No se pudo revertir {0}:
 revert.binned = La versión que estaba en el disco está en la Papelera de reciclaje.
+revert.menu.many = Revertir {0} archivos…
+revert.question.many = ¿Revertir {0} archivos?
+revert.skipped = {0} de los archivos seleccionados no están en HEAD — sin rastrear, añadidos, renombrados o en conflicto — y se quedan exactamente como están.
+revert.done.many = {0} archivos revertidos
+revert.partial = Se revirtieron {0} archivos antes de este.
 
 # ---- menú contextual de un archivo ----
 # Clic derecho sobre un *archivo*, junto a Blame. `add` lo prepara — que para un archivo que Git

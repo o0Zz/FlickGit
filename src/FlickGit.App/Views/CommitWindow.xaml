@@ -139,10 +139,19 @@
                     </Grid>
                 </Border>
 
+                <!-- Extended, not Multiple, and the same choice the log window's list makes: click,
+                     Ctrl+click, Shift+click and Shift+arrow. Under Multiple a bare click toggles, and
+                     a bare click has to mean "just this one".
+
+                     SelectedItem stays bound because it is the *anchor* row — what the diff pane
+                     shows and what a save is about. SelectedItems is not bindable, so the rest of the
+                     selection is pushed to the view model from SelectionChanged. -->
                 <ListBox Grid.Row="1"
                          x:Name="FileList"
                          ItemsSource="{Binding Files}"
                          SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                         SelectionMode="Extended"
+                         SelectionChanged="OnFileListSelectionChanged"
                          BorderThickness="0,0,1,0"
                          BorderBrush="{StaticResource Border}"
                          Background="{StaticResource Surface}"
@@ -153,16 +162,17 @@
                          ContextMenuOpening="OnFileListContextMenuOpening">
                     <!-- On the ListBox rather than on each row, so PlacementTarget is the list and
                          its DataContext is the view model. A menu declared per row would be looking
-                         at a FileChangeItem, which owns no commands. The row it acts on is the
-                         selected one, and ContextMenuOpening is what makes the right-clicked row
-                         the selected one before the menu is drawn. -->
+                         at a FileChangeItem, which owns no commands. The rows it acts on are the
+                         selected ones, and ContextMenuOpening is what settles which those are before
+                         the menu is drawn — and labels each item with how many it would touch. -->
                     <ListBox.ContextMenu>
                         <ContextMenu>
                             <!-- Revert above Delete, and separated from it. They are the two
                                  destructive things this window does and they are not the same
                                  destructive thing: Revert puts a tracked file back the way HEAD has
                                  it, Delete removes the file itself. Both go through the Recycle Bin,
-                                 which is what lets either sit behind one question. -->
+                                 which is what lets either sit behind one question — and what lets
+                                 Enter answer it. -->
                             <MenuItem x:Name="RevertFileMenuItem"
                                       Command="{Binding PlacementTarget.DataContext.RevertFileCommand,
                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" />

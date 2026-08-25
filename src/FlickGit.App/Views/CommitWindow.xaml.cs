@@ -45,8 +45,6 @@ public partial class CommitWindow : Window
         GenerateButton.Content = Strings.Get("commit.button.generate");
         HintText.Text = Strings.Get("commit.hint");
         CloseButton.Content = Strings.Get("common.close");
-        DeleteFileMenuItem.Header = Strings.Get("delete.menu");
-        RevertFileMenuItem.Header = Strings.Get("revert.menu");
 
         DataContextChanged += OnDataContextChanged;
 
@@ -97,8 +95,8 @@ public partial class CommitWindow : Window
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
         //The view model decides *when* to ask; the window owns the only thing that can actually ask.
-        _viewModel.ConfirmAsync = (title, question, yes, no) =>
-            Task.FromResult(ConfirmWindow.Ask(this, title, question, yes, no));
+        _viewModel.ConfirmAsync = (title, question, yes, no, defaultIsAffirmative) =>
+            Task.FromResult(ConfirmWindow.Ask(this, title, question, yes, no, defaultIsAffirmative));
 
         //Asked only by the revert confirmation, so it can say that an unsaved edit is not what goes to
         //the Recycle Bin.
@@ -144,20 +142,47 @@ public partial class CommitWindow : Window
     }
 
     /// <summary>
-    /// Makes the right-clicked row the selected one, so the menu acts on what the pointer is over.
+    /// Hands the whole selection to the view model. <c>ListBox.SelectedItems</c> is not bindable, so
+    /// this is the only way it can be known -- the log window's list does the same.
+    /// </summary>
+    private void OnFileListSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        _viewModel?.SetSelectedFiles([.. FileList.SelectedItems.OfType<FileChangeItem>()]);
+
+    /// <summary>
+    /// Settles which rows the menu is about, then labels it with how many.
     ///
     /// A ListBox does not select on right-click, and without this the menu would silently target
     /// whatever was selected before -- which for a Delete is the wrong file, with the correct path
-    /// shown in a confirmation the user is not reading closely.
+    /// shown in a confirmation the user is not reading closely. Under Extended selection the rule
+    /// gains a second half, which <see cref="FilterList.SelectRowUnderPointer"/> owns: a click inside
+    /// the selection means the selection, anywhere else means the row under the pointer.
     ///
     /// A click that missed every row leaves the previous selection alone, and only suppresses the
     /// menu when there was none: right-clicking the empty space below the list with a file already
     /// chosen is a reasonable way to reach that file's menu.
+    ///
+    /// <b>The labels count what each item would actually touch</b>, not what is highlighted -- so a
+    /// five-row selection holding one untracked file offers "Revert 4 files...". A menu saying five
+    /// and reverting four would be the count the user checked the dialog against.
     /// </summary>
     private void OnFileListContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         if (!FilterList.SelectRowUnderPointer(FileList, e.OriginalSource) && FileList.SelectedItem is null)
+        {
             e.Handled = true;
+            return;
+        }
+
+        if (_viewModel is null)
+            return;
+
+        RevertFileMenuItem.Header = Label("revert", _viewModel.RevertableCount);
+        DeleteFileMenuItem.Header = Label("delete", _viewModel.DeletableCount);
+
+        //Zero keeps the singular wording: the item is disabled, and "Revert 0 files..." says less than
+        //the label the user already knows.
+        static string Label(string feature, int count) =>
+            count > 1 ? Strings.Get(feature + ".menu.many", count) : Strings.Get(feature + ".menu");
     }
 
     /// <summary>
