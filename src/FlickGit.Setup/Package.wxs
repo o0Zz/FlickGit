@@ -61,6 +61,28 @@
                   Schedule="afterInstallInitialize"
                   DowngradeErrorMessage="A newer version of FlickGit is already installed. Uninstall it first if you want to go back." />
 
+    <!-- The five-minute "Validating install".
+
+         InstallValidate is not a formality: it walks *every logical drive on the machine* and asks
+         each one how much space is free, so that it can prove the install fits. On a corporate
+         laptop that means the mapped network drives too — and a mapped drive whose server resolves
+         but does not answer costs an SMB timeout apiece, in a call nothing can cancel. Four of them
+         is the reported five minutes, spent proving that a three-megabyte package fits in three
+         hundred gigabytes.
+
+         MSIFASTINSTALL is the switch for exactly this, and all three of its bits apply here:
+
+           1  no System Restore point — this installs into %LOCALAPPDATA% and writes HKCU, so there
+              is nothing a machine-wide checkpoint could restore that an uninstall does not
+           2  file costing only, skipping the per-volume space check above — the actual fix
+           4  fewer progress messages, which is free once the phase it was reporting is gone
+
+         MSIRESTARTMANAGERCONTROL was the first answer to this symptom and it was the wrong one.
+         It is not merely absent, it must stay absent: `Disable` selects the pre-Vista in-use
+         detection, which snapshots every running process and walks its module list, and *that*
+         costs four to five minutes of its own. Two different five-minute stalls wearing the same
+         progress text is why this comment names both. -->
+    <Property Id="MSIFASTINSTALL" Value="7" />
 
     <Property Id="ARPPRODUCTICON" Value="FlickGit.ico" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/o0Zz/FlickGit" />
