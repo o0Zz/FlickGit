@@ -315,7 +315,7 @@ ai.nokey = Não há nenhuma chave de API guardada. Adicione uma com `flick ai ke
 ai.empty = O fornecedor não devolveu nada. Escreva a mensagem à mão.
 ai.degraded = As mensagens de commit falharam {0} vezes seguidas.\n\n{1}
 ai.usage = Utilização: flick ai  |  flick ai key [set|clear]
-ai.disabled.hint = Defina "aiProvider" como "anthropic", "openai" ou "copilot" em:\n\n{0}
+ai.disabled.hint = Defina "aiProvider" como "anthropic", "openai", "copilot" ou "ollama" em:\n\n{0}
 
 ai.key.title = Chave de API {0}
 ai.key.prompt = O FlickGit precisa de uma chave de API para escrever as suas mensagens de commit. É guardada no Gestor de Credenciais do Windows, nunca num ficheiro de definições, e nunca lhe é mostrada de novo.
@@ -423,6 +423,7 @@ settings.language.restart = Guardado. Reinicie o FlickGit para ver o novo idioma
 
 settings.section.ai = MENSAGENS DE COMMIT (IA)
 settings.ai.provider = Escritas por
+settings.ai.provider.disabled = Desativado
 settings.ai.key = Definir chave de API…
 settings.ai.key.clear = Remover a chave
 # {0} provider name

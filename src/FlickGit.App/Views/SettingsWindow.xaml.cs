@@ -387,15 +387,28 @@ public partial class SettingsWindow : Window
     {
         /// <summary>
         /// The service's name and nothing else -- naming the model too would be a second place for the
-        /// default to be written down, wrong the moment <c>aiModel</c> is set. Not localised: three of the
-        /// four are product names.
+        /// default to be written down, wrong the moment <c>aiModel</c> is set. The four services are
+        /// product names and are never translated; <c>Disabled</c> is a word, so it comes from the
+        /// language file like every other string a window shows.
+        /// <para>
+        /// <b>One arm per member, and the discard names no provider.</b> It used to read
+        /// <c>_ =&gt; "Disabled"</c>, which is what made Ollama render as a second <c>Disabled</c> row for
+        /// as long as it existed: it was in the list, selectable, and saved correctly -- only its name
+        /// was another provider's, and the status line underneath contradicted the label. A discard
+        /// arm is unavoidable, since a switch expression must be exhaustive over the underlying
+        /// <c>int</c>; what is avoidable is it carrying a label of its own, so it falls back to the
+        /// enum's name. A provider added to <see cref="AiProvider"/> and forgotten here then shows as
+        /// itself rather than as something else.
+        /// </para>
         /// </summary>
         public override string ToString() => Provider switch
         {
+            AiProvider.Disabled => Strings.Get("settings.ai.provider.disabled"),
             AiProvider.Anthropic => "Anthropic",
             AiProvider.OpenAi => "OpenAI",
             AiProvider.Copilot => "GitHubCopilot",
-            _ => "Disabled",
+            AiProvider.Ollama => "Ollama",
+            _ => Provider.ToString(),
         };
     }
 

@@ -315,7 +315,7 @@ ai.nokey = Es ist kein API-Schlüssel gespeichert. Mit `flick ai key set` einen 
 ai.empty = Der Anbieter hat nichts zurückgegeben. Bitte selbst eine Nachricht schreiben.
 ai.degraded = Die Commit-Nachricht ist {0}-mal hintereinander fehlgeschlagen.\n\n{1}
 ai.usage = Verwendung: flick ai  |  flick ai key [set|clear]
-ai.disabled.hint = "aiProvider" auf "anthropic", "openai" oder "copilot" setzen in:\n\n{0}
+ai.disabled.hint = "aiProvider" auf "anthropic", "openai", "copilot" oder "ollama" setzen in:\n\n{0}
 
 ai.key.title = {0}-API-Schlüssel
 ai.key.prompt = FlickGit braucht einen API-Schlüssel, um Ihre Commit-Nachrichten zu schreiben. Er wird in der Windows-Anmeldeinformationsverwaltung gespeichert, nie in einer Einstellungsdatei, und Ihnen nie wieder angezeigt.
@@ -423,6 +423,7 @@ settings.language.restart = Gespeichert. FlickGit neu starten, um die neue Sprac
 
 settings.section.ai = COMMIT-NACHRICHTEN (KI)
 settings.ai.provider = Geschrieben von
+settings.ai.provider.disabled = Deaktiviert
 settings.ai.key = API-Schlüssel festlegen…
 settings.ai.key.clear = Schlüssel entfernen
 # {0} provider name
