@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -120,6 +120,107 @@ internal static class ForgeApi
             return new ForgeResponse(false, default, string.Empty, SecretDetector.Redact(ex.Message));
         }
     }
+
+    /// <summary>
+    /// The tail every <c>CreateAsync</c> shares: a refusal becomes a sentence, and an answer becomes
+    /// the request that was created.
+    ///
+    /// Here rather than three times over, because two of the three lines are the same in all three
+    /// clients and the third — "accepted the request but its answer could not be read" — is the same
+    /// sentence with the service's name in it. GitHub had extracted its half into a private helper
+    /// and the other two had inlined it, which is what two copies of a thing look like just before
+    /// they become three.
+    /// </summary>
+    /// <param name="forge">What to call the service in the sentence.</param>
+    /// <param name="read">Reads one request object. The one genuinely per-service part.</param>
+    public static PullRequestOutcome Complete(
+        string forge,
+        ForgeRepository repository,
+        ForgeResponse response,
+        Func<JsonElement, PullRequestRef?> read)
+    {
+        if (!response.Succeeded)
+        {
+            string message = Describe(forge, repository.Host, response, MessageFrom(response.Body));
+
+            return response.Unauthorised
+                ? PullRequestOutcome.Rejected(message)
+                : PullRequestOutcome.Failed(message);
+        }
+
+        return Parse(response.Body, read) is { } created
+            ? PullRequestOutcome.Ok(created)
+            : PullRequestOutcome.Failed($"{forge} accepted the request but its answer could not be read.");
+    }
+
+    /// <summary>One request object out of a response body, or null for anything unreadable.</summary>
+    public static PullRequestRef? Parse(string body, Func<JsonElement, PullRequestRef?> read)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(body);
+            return read(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The first readable request in a list answer, or null.
+    /// </summary>
+    /// <param name="wrappedIn">
+    /// The property holding the array, for a service that wraps it. Azure DevOps answers
+    /// <c>{ "count": 1, "value": [ … ] }</c> where the other two return a bare array; null means bare.
+    /// </param>
+    public static PullRequestRef? ParseFirst(
+        string body,
+        Func<JsonElement, PullRequestRef?> read,
+        string? wrappedIn = null)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(body);
+            JsonElement root = document.RootElement;
+
+            if (wrappedIn is not null && !root.TryGetProperty(wrappedIn, out root))
+                return null;
+
+            return root.ValueKind == JsonValueKind.Array
+                ? root.EnumerateArray().Select(read).FirstOrDefault(found => found is not null)
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A number and two strings out of one request object, the shape all three answers share.
+    ///
+    /// The <i>names</i> differ and that is the whole of the difference: GitHub's number is
+    /// <c>number</c> and GitLab's is <c>iid</c> rather than <c>id</c>, which is globally unique and
+    /// appears nowhere in its interface. A missing or non-numeric id is what makes the object
+    /// unreadable, because it is the one field with no sensible default.
+    /// </summary>
+    /// <param name="webUrl">The property carrying the address, or null for Azure DevOps, which sends none.</param>
+    public static PullRequestRef? ReadRequest(JsonElement element, string number, string? webUrl)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return null;
+
+        if (!element.TryGetProperty(number, out JsonElement id) || id.ValueKind != JsonValueKind.Number)
+            return null;
+
+        return new PullRequestRef(id.GetInt32(), Text(element, webUrl), Text(element, "title"));
+    }
+
+    private static string Text(JsonElement element, string? property) =>
+        property is not null && element.TryGetProperty(property, out JsonElement value)
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
 
     /// <summary>
     /// Turns a refusal into a sentence naming the next action.

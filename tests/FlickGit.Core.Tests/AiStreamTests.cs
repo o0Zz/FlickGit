@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using FlickGit.Ai;
 using FlickGit.Logging;
@@ -28,7 +28,14 @@ public class AiStreamTests
     /// </summary>
     private static readonly AiPrompt Prompt = new(
         CommitPrompt.For(conventionalCommits: false),
-        new CommitContext("diff --git a/src/A.cs b/src/A.cs\n+new\n", ["M src/A.cs"], [], "main", Truncated: false)
+        new AiContext(
+                "Branch: main",
+                Subjects: [],
+                Files: ["M src/A.cs"],
+                Excluded: [],
+                "diff --git a/src/A.cs b/src/A.cs\n+new\n",
+                Truncated: false,
+                "Summarise")
             .ToPromptText(),
         AiOptions.CommitMaxTokens);
 

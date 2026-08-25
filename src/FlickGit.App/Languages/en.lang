@@ -139,7 +139,6 @@ switch.create = Create '{0}'
 switch.create.kind = new
 switch.menu.delete = Delete branch…
 switch.menu.deleteremote = Delete on {0}…
-switch.created = Created {0} and switched to it.
 branch.delete.title = Delete branch
 branch.delete.local = Delete the local branch '{0}'?\n\nOnly this copy goes. Anything already pushed stays on the remote.
 branch.delete.remote = Delete '{0}' on {1}?\n\nThis deletes it for everyone using that remote, and FlickGit cannot undo it.
@@ -198,6 +197,10 @@ log.empty = This repository has no commits yet.
 log.failed = The history could not be read.
 log.select.prompt = Select a commit to see what it changed.
 log.hint = Select several commits to see their combined diff.
+# {0} the commit's own number in the branch's history — how many commits it has behind
+# it, itself included. Shown in the list and in the row's tooltip, because a build stamps that
+# number into its version as the revision.
+log.revision = revision {0}
 # {0} short hash. One commit needs no range: the diff is the commit.
 log.range.one = {0}
 # {0} count, {1} oldest short hash, {2} newest short hash

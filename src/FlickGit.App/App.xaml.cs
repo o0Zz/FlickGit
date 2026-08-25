@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Windows;
@@ -207,8 +207,7 @@ public partial class App : Application
         //AI. The provider is chosen here, once, from settings -- this is the only place allowed to
         //know which implementation a setting names, and the only place that could.
         services.AddSingleton<AiConfiguration>();
-        services.AddSingleton<CommitContextBuilder>();
-        services.AddSingleton<PullRequestContextBuilder>();
+        services.AddSingleton<AiContextBuilder>();
         services.AddSingleton(_ => BuildHttpClient());
         services.AddSingleton<IAiGenerator>(provider =>
         {

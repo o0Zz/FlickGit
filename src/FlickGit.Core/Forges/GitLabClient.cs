@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FlickGit.Logging;
 
 namespace FlickGit.Forges;
@@ -52,18 +52,7 @@ public sealed class GitLabClient(HttpClient http, ILog log) : IPullRequestClient
             request => ForgeApi.Bearer(request, token),
             cancellationToken).ConfigureAwait(false);
 
-        if (!response.Succeeded)
-        {
-            string message = ForgeApi.Describe("GitLab", repository.Host, response, ForgeApi.MessageFrom(response.Body));
-
-            return response.Unauthorised
-                ? PullRequestOutcome.Rejected(message)
-                : PullRequestOutcome.Failed(message);
-        }
-
-        return Read(response.Body) is { } created
-            ? PullRequestOutcome.Ok(created)
-            : PullRequestOutcome.Failed("GitLab accepted the request but its answer could not be read.");
+        return ForgeApi.Complete("GitLab", repository, response, Read);
     }
 
     public async Task<PullRequestRef?> FindOpenAsync(
@@ -86,24 +75,11 @@ public sealed class GitLabClient(HttpClient http, ILog log) : IPullRequestClient
             request => ForgeApi.Bearer(request, token),
             cancellationToken).ConfigureAwait(false);
 
-        if (!response.Succeeded)
-        {
-            log.Debug($"Looking for an open GitLab merge request failed: {response.Status}");
-            return null;
-        }
+        if (response.Succeeded)
+            return ForgeApi.ParseFirst(response.Body, Read);
 
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(response.Body);
-
-            return document.RootElement.ValueKind == JsonValueKind.Array
-                ? document.RootElement.EnumerateArray().Select(Read).FirstOrDefault(r => r is not null)
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        log.Debug($"Looking for an open GitLab merge request failed: {response.Status}");
+        return null;
     }
 
     /// <summary>
@@ -135,30 +111,7 @@ public sealed class GitLabClient(HttpClient http, ILog log) : IPullRequestClient
     private static Uri Endpoint(ForgeRepository repository) =>
         new(repository.ApiBase, $"projects/{repository.EncodedPath}/merge_requests");
 
-    private static PullRequestRef? Read(string body)
-    {
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(body);
-            return Read(document.RootElement);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static PullRequestRef? Read(JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-            return null;
-
-        if (!element.TryGetProperty("iid", out JsonElement iid) || iid.ValueKind != JsonValueKind.Number)
-            return null;
-
-        string url = element.TryGetProperty("web_url", out JsonElement web) ? web.GetString() ?? string.Empty : string.Empty;
-        string title = element.TryGetProperty("title", out JsonElement name) ? name.GetString() ?? string.Empty : string.Empty;
-
-        return new PullRequestRef(iid.GetInt32(), url, title);
-    }
+    /// <summary><c>iid</c>, never <c>id</c> — see the class remarks.</summary>
+    private static PullRequestRef? Read(JsonElement element) =>
+        ForgeApi.ReadRequest(element, number: "iid", webUrl: "web_url");
 }

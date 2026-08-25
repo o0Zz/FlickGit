@@ -32,15 +32,12 @@ namespace FlickGit.App.Shell;
 /// is inserted, a repository-requiring item simply not inserted outside a repository, and the
 /// separators drawn with <c>MF_SEPARATOR</c> instead of asked for.
 ///
-/// <b>The static verbs were deleted rather than kept as a fallback.</b> They were written when
-/// <c>FlickGit.Shell.dll</c> was absent — which is only ever a <c>dotnet build</c> working tree, since
-/// Native AOT runs on publish — and the safety net they were also credited with does not exist: the
-/// choice is made by the file being present, not by Explorer managing to load it, so a machine where
-/// Smart App Control or WDAC refuses the unsigned DLL gets the handler registered and no verbs, and
-/// therefore no menu rather than a degraded one. A second write path, a second read-back and a second
-/// shape for <see cref="IsInstalled"/> bought a developer convenience and nothing else; per Hard
-/// Requirement 1 it went in one change. <see cref="Install"/> now refuses when the DLL is missing and
-/// says to publish, and <see cref="Uninstall"/> still removes verbs an earlier version wrote.
+/// <b>There is no static-verb fallback, and there must not be one.</b> Registering both layouts is
+/// the menu twice over, and a fallback cannot fire anyway: the choice would be made by the DLL being
+/// present, not by Explorer managing to load it, and whether Smart App Control or WDAC refused an
+/// unsigned in-process server is not knowable from outside <c>explorer.exe</c>. So
+/// <see cref="Install"/> refuses when the DLL is missing beside <c>flick.exe</c> — which is only ever
+/// a <c>dotnet build</c> working tree, since Native AOT runs on publish — and says to publish.
 ///
 /// On Windows 11 the block appears under "Show more options" (Shift+F10). That is a limitation of the
 /// classic menu, not of this code — the Windows 11 <i>primary</i> menu needs a sparse MSIX package,
@@ -48,54 +45,15 @@ namespace FlickGit.App.Shell;
 /// </summary>
 public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 {
-    /// <summary>
-    /// The prefix on every key this tool creates under a <c>shell</c> parent.
-    ///
-    /// Load-bearing for <see cref="Uninstall"/>: the root entries are several keys now, so removal
-    /// finds them by this prefix. Nothing else on a Windows machine uses it, so "keys the tool did
-    /// not create" stay outside the filter by construction.
-    /// </summary>
-    private const string KeyPrefix = "FlickGit.";
-
-    /// <summary>The submenu definition, referenced by <c>ExtendedSubCommandsKey</c>.</summary>
-    private const string MenuKeyName = "FlickGit.Menu";
-
     private const string ClassesPath = @"Software\Classes";
-
-    /// <summary>
-    /// The <c>shell</c> parents an earlier version registered static verbs under.
-    ///
-    /// <b>Read by <see cref="Uninstall"/> only.</b> Nothing writes a verb any more — see the class
-    /// remarks — but a machine that ran a version which did still has the keys, and an uninstall
-    /// that could not reach them would leave a menu entry behind pointing at a deleted exe.
-    /// </summary>
-    private static readonly string[] VerbParents =
-    [
-        @"Directory\shell",
-        @"Directory\Background\shell",
-
-        //Drive roots. Right-clicking D:\ when D: is a repository is a real case on
-        //machines that keep a work drive, and "Directory" does not cover it.
-        @"Drive\shell",
-    ];
-
-    /// <summary>
-    /// Class-level keys this tool creates, deleted by name because enumerating
-    /// <c>Software\Classes</c> to find them would mean walking every file association on the machine.
-    ///
-    /// <c>FlickGit.Menu.More</c> is no longer written — the submenu <i>is</i> the former More list,
-    /// now that the everyday actions are root verbs — and is named here only so that an install
-    /// which created it does not leave it behind.
-    /// </summary>
-    private static readonly string[] ClassKeyNames = [MenuKeyName, "FlickGit.Menu.More"];
 
     /// <summary>
     /// The classes the context-menu handler is registered under.
     ///
-    /// Derived from <see cref="VerbParents"/> until files arrived, and now its own list because the
-    /// two no longer line up: <c>*</c> takes the handler but no static verb. A static verb cannot
-    /// hide itself, so registering one there would put a FlickGit submenu on every file on the
-    /// machine, repository or not — whereas the handler is asked each time and answers with nothing.
+    /// <c>*</c> is the one that is not a folder: it is what puts Blame on a right-clicked file. Only
+    /// a handler can be registered there — a static verb cannot hide itself, so one under <c>*</c>
+    /// would draw a FlickGit submenu on every file on the machine, repository or not, whereas the
+    /// handler is asked on each click and answers with nothing.
     ///
     /// The cost of <c>*</c> is that Explorer loads this DLL on every file right-click. That is the
     /// price of a file entry at all: there is no per-repository class to register under, and
@@ -197,10 +155,18 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// <summary>
     /// Removes exactly the keys this tool created, and nothing else.
     ///
-    /// CLAUDE.md: "Never enumerate or modify registry keys the tool did not create." The root
-    /// entries are several keys now, so they are found by enumeration rather than by name — but the
-    /// filter is <see cref="KeyPrefix"/>, so nothing without FlickGit's own name in it is reachable
-    /// from here.
+    /// CLAUDE.md: "Never enumerate or modify registry keys the tool did not create." Every key
+    /// removed here is named by <see cref="HandlerOwners"/> or by <see cref="ShellCommandIds"/>,
+    /// which are the same two lists <see cref="Install"/> writes from — so the two cannot disagree
+    /// about what belongs to FlickGit.
+    ///
+    /// <b>It removes one layout, because <see cref="Install"/> writes one.</b> It reached for two:
+    /// the static verbs under <c>Directory\shell</c>, the <c>FlickGit.Menu</c> class keys, and the
+    /// per-verb <c>IExplorerCommand</c> CLSIDs an earlier version wrote. Nothing creates any of them
+    /// any more, so that was a cleanup path for an install this build cannot produce — which is
+    /// exactly the migration code Hard Requirement 1 rules out. A machine carrying those keys from an
+    /// old version keeps them; they name a CLSID with no DLL behind it, which Explorer draws nothing
+    /// for.
     /// </summary>
     public InstallResult Uninstall()
     {
@@ -209,19 +175,6 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             using RegistryKey? classes = Registry.CurrentUser.OpenSubKey(ClassesPath, writable: true);
             if (classes is null)
                 return new InstallResult(true, "Nothing to remove.");
-
-            foreach (string parent in VerbParents)
-            {
-                using RegistryKey? shell = classes.OpenSubKey(parent, writable: true);
-                if (shell is null)
-                    continue;
-
-                foreach (string name in OwnedKeyNames(shell))
-                    shell.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
-            }
-
-            foreach (string name in ClassKeyNames)
-                classes.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
 
             //The handler registration, under each class it was written to. The same list the install
             //uses, or the one that is only in the other list is the one that leaks.
@@ -233,17 +186,11 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
                 handlers?.DeleteSubKeyTree(ShellCommandIds.HandlerKeyName, throwOnMissingSubKey: false);
             }
 
-            //By name, from the compiled-in list -- never by enumerating CLSID, which is every COM
-            //class on the machine. This is why ShellCommandIds calls its GUIDs permanent: a renumbered
-            //one is a key nothing can find to delete, and RetiredClsids exists so the per-verb
-            //handlers an earlier version wrote are still removable.
+            //By name, never by enumerating CLSID, which is every COM class on the machine. This is
+            //why ShellCommandIds calls its GUID permanent: a renumbered one is a key nothing can
+            //find to delete.
             using (RegistryKey? clsids = classes.OpenSubKey(ClsidPath, writable: true))
-            {
                 clsids?.DeleteSubKeyTree(ShellCommandIds.MenuHandlerClsid, throwOnMissingSubKey: false);
-
-                foreach (string retired in ShellCommandIds.RetiredClsids)
-                    clsids?.DeleteSubKeyTree(retired, throwOnMissingSubKey: false);
-            }
 
             log.Info("Shell integration removed.");
             return new InstallResult(true, Strings.Get("shell.removed"));
@@ -254,17 +201,6 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             return new InstallResult(false, $"The context menu could not be removed:\n\n{ex.Message}");
         }
     }
-
-    /// <summary>
-    /// FlickGit's own keys under one <c>shell</c> parent.
-    ///
-    /// The bare name "FlickGit" matches as well as the prefix, so the single submenu verb written by
-    /// the layout this replaced is removed rather than left sitting beside the new root entries.
-    /// </summary>
-    private static string[] OwnedKeyNames(RegistryKey shell) =>
-        [.. shell.GetSubKeyNames()
-            .Where(n => n.StartsWith(KeyPrefix, StringComparison.OrdinalIgnoreCase)
-                        || n.Equals("FlickGit", StringComparison.OrdinalIgnoreCase))];
 
     /// <summary>
     /// Where flick.exe, FlickGit.exe and <c>icons\</c> live: beside the running module.

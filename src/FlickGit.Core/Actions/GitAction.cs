@@ -155,11 +155,15 @@ public sealed record GitAction
     public bool IsBuiltIn { get; init; }
 
     /// <summary>
-    /// The CLI spelling, for a built-in that has one.
+    /// The CLI spelling, for a built-in that has one, and null for a user action.
+    ///
+    /// <b>Derived from <see cref="Id"/> rather than stored beside it.</b> CLAUDE.md fixes it: "a
+    /// built-in's id is its CLI verb", which is what makes `flick commit` and the Commit action the
+    /// same code path. It was a field, and every one of the eleven built-ins passed the same string
+    /// twice -- two columns that could only ever be equal, and one of them free to be wrong.
     ///
     /// Both what `flick &lt;verb&gt;` accepts and what the palette's footer shows, so the command the
     /// user is told about is the command that runs.
     /// </summary>
-    public string? Cli { get; init; }
-
+    public string? Cli => IsBuiltIn ? Id : null;
 }

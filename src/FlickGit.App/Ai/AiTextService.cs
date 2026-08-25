@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 using FlickGit.Ai;
 using FlickGit.App.Localization;
@@ -35,8 +35,7 @@ public readonly record struct GenerationOutcome(bool Succeeded, string Message, 
 /// </summary>
 public sealed class AiTextService(
     IAiGenerator generator,
-    CommitContextBuilder commits,
-    PullRequestContextBuilder pullRequests,
+    AiContextBuilder contexts,
     AiConfiguration config,
     Notifier notifier,
     OperationTimings timings,
@@ -79,21 +78,13 @@ public sealed class AiTextService(
         if (Unavailable() is { } refusal)
             return refusal;
 
-        CommitContext context;
+        (AiContext? context, GenerationOutcome refused) = await GatherAsync(
+            token => contexts.ForCommitAsync(repository, status, config.Options.MaxDiffBytes, token),
+            Strings.Get("commit.empty.selection"),
+            cancellationToken).ConfigureAwait(true);
 
-        try
-        {
-            context = await commits
-                .BuildAsync(repository, status, config.Options.MaxDiffBytes, cancellationToken)
-                .ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            return Failed(null, count: false);
-        }
-
-        if (context.IsEmpty)
-            return Failed(Strings.Get("commit.empty.selection"), count: false);
+        if (context is null)
+            return refused;
 
         return await StreamAsync(
             new AiPrompt(
@@ -131,29 +122,21 @@ public sealed class AiTextService(
         if (Unavailable() is { } refusal)
             return refusal;
 
-        PullRequestContext context;
+        (AiContext? context, GenerationOutcome refused) = await GatherAsync(
+            token => contexts.ForPullRequestAsync(
+                repository,
+                mergeBase,
+                sourceBranch,
+                targetBranch,
+                branchCommits,
+                files,
+                config.Options.MaxDiffBytes,
+                token),
+            Strings.Get("pr.nothing"),
+            cancellationToken).ConfigureAwait(true);
 
-        try
-        {
-            context = await pullRequests
-                .BuildAsync(
-                    repository,
-                    mergeBase,
-                    sourceBranch,
-                    targetBranch,
-                    branchCommits,
-                    files,
-                    config.Options.MaxDiffBytes,
-                    cancellationToken)
-                .ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            return Failed(null, count: false);
-        }
-
-        if (context.IsEmpty)
-            return Failed(Strings.Get("pr.nothing"), count: false);
+        if (context is null)
+            return refused;
 
         return await StreamAsync(
             new AiPrompt(PullRequestPrompt.System, context.ToPromptText(), AiOptions.PullRequestMaxTokens),
@@ -164,6 +147,32 @@ public sealed class AiTextService(
             text => text.Trim(),
             onDelta,
             cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Builds the payload, and turns the two ways it can produce nothing into the outcome to return.
+    ///
+    /// A null context means "do not generate", and the second half of the tuple says why: an empty
+    /// selection is a refusal with a sentence, and a cancellation is a refusal with none — neither
+    /// counts towards the tray warning, because neither is the provider's fault.
+    /// </summary>
+    private async Task<(AiContext? Context, GenerationOutcome Refused)> GatherAsync(
+        Func<CancellationToken, Task<AiContext>> gather,
+        string nothingToSay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            AiContext context = await gather(cancellationToken).ConfigureAwait(true);
+
+            return context.IsEmpty
+                ? (null, Failed(nothingToSay, count: false))
+                : (context, default);
+        }
+        catch (OperationCanceledException)
+        {
+            return (null, Failed(null, count: false));
+        }
     }
 
     /// <summary>

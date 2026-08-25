@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FlickGit.Logging;
 
 namespace FlickGit.Forges;
@@ -35,12 +35,7 @@ public sealed class GitHubClient(HttpClient http, ILog log) : IPullRequestClient
             request => Authorise(request, token),
             cancellationToken).ConfigureAwait(false);
 
-        if (!response.Succeeded)
-            return Refused("GitHub", repository, response);
-
-        return Read(response.Body) is { } created
-            ? PullRequestOutcome.Ok(created)
-            : PullRequestOutcome.Failed("GitHub accepted the request but its answer could not be read.");
+        return ForgeApi.Complete("GitHub", repository, response, Read);
     }
 
     public async Task<PullRequestRef?> FindOpenAsync(
@@ -65,26 +60,13 @@ public sealed class GitHubClient(HttpClient http, ILog log) : IPullRequestClient
             request => Authorise(request, token),
             cancellationToken).ConfigureAwait(false);
 
-        if (!response.Succeeded)
-        {
-            //Logged and swallowed. This call only improves a message; a failure here must never be
-            //the reason a pull request cannot be opened.
-            log.Debug($"Looking for an open GitHub pull request failed: {response.Status}");
-            return null;
-        }
+        if (response.Succeeded)
+            return ForgeApi.ParseFirst(response.Body, Read);
 
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(response.Body);
-
-            return document.RootElement.ValueKind == JsonValueKind.Array
-                ? document.RootElement.EnumerateArray().Select(Read).FirstOrDefault(r => r is not null)
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        //Logged and swallowed. This call only improves a message; a failure here must never be
+        //the reason a pull request cannot be opened.
+        log.Debug($"Looking for an open GitHub pull request failed: {response.Status}");
+        return null;
     }
 
     /// <summary>
@@ -109,39 +91,6 @@ public sealed class GitHubClient(HttpClient http, ILog log) : IPullRequestClient
         request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
     }
 
-    private static PullRequestOutcome Refused(string forge, ForgeRepository repository, ForgeResponse response)
-    {
-        string message = ForgeApi.Describe(forge, repository.Host, response, ForgeApi.MessageFrom(response.Body));
-
-        return response.Unauthorised
-            ? PullRequestOutcome.Rejected(message)
-            : PullRequestOutcome.Failed(message);
-    }
-
-    private static PullRequestRef? Read(string body)
-    {
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(body);
-            return Read(document.RootElement);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static PullRequestRef? Read(JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-            return null;
-
-        if (!element.TryGetProperty("number", out JsonElement number) || number.ValueKind != JsonValueKind.Number)
-            return null;
-
-        string url = element.TryGetProperty("html_url", out JsonElement web) ? web.GetString() ?? string.Empty : string.Empty;
-        string title = element.TryGetProperty("title", out JsonElement name) ? name.GetString() ?? string.Empty : string.Empty;
-
-        return new PullRequestRef(number.GetInt32(), url, title);
-    }
+    private static PullRequestRef? Read(JsonElement element) =>
+        ForgeApi.ReadRequest(element, number: "number", webUrl: "html_url");
 }

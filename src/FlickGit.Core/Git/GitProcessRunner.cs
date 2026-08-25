@@ -28,6 +28,13 @@ namespace FlickGit.Git;
 /// spawns ssh or the credential helper; killing only the parent leaves those holding
 /// the repository's locks.</description></item>
 /// </list>
+///
+/// <b>All four public methods are one <see cref="ExecuteAsync"/>.</b> The streaming path was a second
+/// copy of it — its own <c>ProcessStartInfo</c>, its own start, its own kill-tree, its own timing and
+/// logging — on the grounds that it "must not wait for the stderr pipe to reach the end". That is
+/// true and it is one line: which stderr task is started. The two copies had already drifted, which
+/// is what the argument for keeping them apart cost: the streaming one set no
+/// <c>StandardInputEncoding</c>, logged no failure, and left the repository out of its debug line.
 /// </summary>
 public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimings? timings = null)
     : IGitProcessRunner
@@ -39,162 +46,44 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         string? repositoryPath,
         IReadOnlyList<string> args,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryPath, args, readOnly: false, cancellationToken);
+        ExecuteAsync(repositoryPath, args, readOnly: false, null, null, cancellationToken);
 
     public Task<GitResult> ReadAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryPath, args, readOnly: true, cancellationToken);
-
-    /// <summary>
-    /// The streaming path, for `clone --progress`.
-    ///
-    /// Separate from <see cref="ExecuteAsync"/> rather than a flag on it, because the two
-    /// differ in the one thing that matters: this one must not wait for the stderr pipe to
-    /// reach the end before reporting anything, and everything else in the product must.
-    /// </summary>
-    public async Task<GitResult> RunStreamingAsync(
-        string? repositoryPath,
-        IReadOnlyList<string> args,
-        Action<string> onStandardErrorLine,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(args);
-        ArgumentNullException.ThrowIfNull(onStandardErrorLine);
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = git.Path,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = true,
-            StandardOutputEncoding = Utf8NoBom,
-            StandardErrorEncoding = Utf8NoBom,
-            WorkingDirectory = repositoryPath is not null && Directory.Exists(repositoryPath)
-                ? repositoryPath
-                : Environment.CurrentDirectory,
-        };
-
-        BuildArguments(startInfo.ArgumentList, repositoryPath, args, readOnly: false);
-
-        startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        startInfo.Environment["GIT_FLUSH"] = "1";
-
-        long startedAt = Stopwatch.GetTimestamp();
-
-        using var process = new Process { StartInfo = startInfo };
-
-        try
-        {
-            process.Start();
-        }
-        catch (Exception ex)
-        {
-            log.Error($"Failed to start git.exe ({git.Path}): {ex.Message}");
-            throw new GitLaunchException(git.Path, ex);
-        }
-
-        process.StandardInput.Close();
-
-        var stderrText = new StringBuilder();
-
-        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        Task stderrTask = PumpStandardErrorAsync(process, stderrText, onStandardErrorLine);
-
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            KillTree(process);
-            throw;
-        }
-
-        string stdout = await stdoutTask.ConfigureAwait(false);
-        await stderrTask.ConfigureAwait(false);
-
-        var duration = Stopwatch.GetElapsedTime(startedAt);
-        var result = new GitResult(process.ExitCode, stdout, stderrText.ToString(), duration);
-
-        string commandName = args.Count > 0 ? args[0] : "(none)";
-        log.Debug($"git {commandName} (streaming) -> {result.ExitCode} in {duration.TotalMilliseconds:F0} ms");
-        timings?.Record($"git {commandName}", duration);
-
-        return result;
-    }
-
-    /// <summary>
-    /// Reads stderr character by character, cutting a line on either terminator.
-    ///
-    /// A StreamReader line loop is not enough here. Git redraws a progress line by writing a
-    /// carriage return and overwriting it, so an entire clone's progress is one "line" as far
-    /// as ReadLine is concerned, and nothing would be reported until the clone finished --
-    /// which is the exact opposite of the point.
-    /// </summary>
-    private static async Task PumpStandardErrorAsync(
-        Process process,
-        StringBuilder full,
-        Action<string> onLine)
-    {
-        var line = new StringBuilder();
-        char[] buffer = new char[512];
-
-        while (true)
-        {
-            int read = await process.StandardError.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
-            if (read == 0)
-                break;
-
-            full.Append(buffer, 0, read);
-
-            for (int i = 0; i < read; i++)
-            {
-                char c = buffer[i];
-
-                if (c is '\r' or '\n')
-                {
-                    if (line.Length > 0)
-                    {
-                        onLine(line.ToString());
-                        line.Clear();
-                    }
-
-                    continue;
-                }
-
-                line.Append(c);
-            }
-        }
-
-        //Git's last progress line often has no terminator at all.
-        if (line.Length > 0)
-            onLine(line.ToString());
-    }
+        ExecuteAsync(repositoryPath, args, readOnly: true, null, null, cancellationToken);
 
     public Task<GitResult> RunWithInputAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         string standardInput,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryPath, args, readOnly: false, standardInput, cancellationToken);
+        ExecuteAsync(repositoryPath, args, readOnly: false, standardInput, null, cancellationToken);
 
-    private async Task<GitResult> ExecuteAsync(
+    public Task<GitResult> RunStreamingAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
-        bool readOnly,
-        CancellationToken cancellationToken) =>
-        await ExecuteAsync(repositoryPath, args, readOnly, standardInput: null, cancellationToken)
-            .ConfigureAwait(false);
+        Action<string> onStandardErrorLine,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(onStandardErrorLine);
 
+        return ExecuteAsync(repositoryPath, args, readOnly: false, null, onStandardErrorLine, cancellationToken);
+    }
+
+    /// <param name="standardInput">Written to stdin before it is closed, or null to close it at once.</param>
+    /// <param name="onStandardErrorLine">
+    /// Reports each stderr line as it arrives, for `clone --progress`. Null everywhere else, and that
+    /// is the whole of the streaming path: with it, stderr is pumped a character at a time; without
+    /// it, read to the end.
+    /// </param>
     private async Task<GitResult> ExecuteAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         bool readOnly,
         string? standardInput,
+        Action<string>? onStandardErrorLine,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -253,7 +142,10 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         //the same reason: a patch bigger than the pipe buffer would block this process on the write
         //while Git blocks on an output nobody is reading.
         Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        Task<string> stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+
+        Task<string> stderrTask = onStandardErrorLine is null
+            ? process.StandardError.ReadToEndAsync(CancellationToken.None)
+            : PumpStandardErrorAsync(process.StandardError, onStandardErrorLine);
 
         if (standardInput is not null)
         {
@@ -293,6 +185,55 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
             log.Warn($"git {commandName} failed ({result.ExitCode}): {Truncate(stderr)}");
 
         return result;
+    }
+
+    /// <summary>
+    /// Reads stderr character by character, cutting a line on either terminator, and returns the
+    /// whole of it — so the caller gets the same string <c>ReadToEndAsync</c> would have given.
+    ///
+    /// A StreamReader line loop is not enough here. Git redraws a progress line by writing a
+    /// carriage return and overwriting it, so an entire clone's progress is one "line" as far
+    /// as ReadLine is concerned, and nothing would be reported until the clone finished --
+    /// which is the exact opposite of the point.
+    /// </summary>
+    private static async Task<string> PumpStandardErrorAsync(StreamReader stderr, Action<string> onLine)
+    {
+        var full = new StringBuilder();
+        var line = new StringBuilder();
+        char[] buffer = new char[512];
+
+        while (true)
+        {
+            int read = await stderr.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+            if (read == 0)
+                break;
+
+            full.Append(buffer, 0, read);
+
+            for (int i = 0; i < read; i++)
+            {
+                char c = buffer[i];
+
+                if (c is '\r' or '\n')
+                {
+                    if (line.Length > 0)
+                    {
+                        onLine(line.ToString());
+                        line.Clear();
+                    }
+
+                    continue;
+                }
+
+                line.Append(c);
+            }
+        }
+
+        //Git's last progress line often has no terminator at all.
+        if (line.Length > 0)
+            onLine(line.ToString());
+
+        return full.ToString();
     }
 
     /// <summary>

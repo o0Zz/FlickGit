@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FlickGit.Cli;
 using FlickGit.Logging;
 
@@ -291,11 +291,16 @@ public sealed class ActionCatalog
 
     // ---- the built-ins --------------------------------------------------------------
 
-    /// <param name="Id">Also the language key, as <c>action.&lt;id&gt;</c>.</param>
-    /// <param name="Cli">The verb spelling. Every built-in has one; that is what makes it built in.</param>
+    /// <summary>
+    /// One shipped action.
+    ///
+    /// <b>There is no <c>Cli</c> column.</b> A built-in's id <i>is</i> its verb spelling -- CLAUDE.md
+    /// -- so <see cref="GitAction.Cli"/> derives it. It used to be a second parameter, and every
+    /// entry below passed the same string into both.
+    /// </summary>
+    /// <param name="Id">The verb spelling, and the language key, as <c>action.&lt;id&gt;</c>.</param>
     private sealed record BuiltIn(
         string Id,
-        string Cli,
         VerbKind Verb,
         int MenuOrder,
         ActionSurfaces Surfaces,
@@ -308,7 +313,6 @@ public sealed class ActionCatalog
             new()
             {
                 Id = Id,
-                Cli = Cli,
                 Run = new WindowRun(Verb),
                 IsBuiltIn = true,
                 Surfaces = Surfaces,
@@ -341,8 +345,8 @@ public sealed class ActionCatalog
     private static readonly BuiltIn[] BuiltIns =
     [
         //The two the user performs all day, at the root of the menu.
-        new("commit", "commit", VerbKind.Commit, 10, ActionSurfaces.All, "commit.ico", NeedsRepository: true),
-        new("pull-rebase", "pull-rebase", VerbKind.PullRebase, 20, ActionSurfaces.All, "pull.ico", NeedsRepository: true),
+        new("commit", VerbKind.Commit, 10, ActionSurfaces.All, "commit.ico", NeedsRepository: true),
+        new("pull-rebase", VerbKind.PullRebase, 20, ActionSurfaces.All, "pull.ico", NeedsRepository: true),
         //One pull entry, and it autostashes -- see PullService for why there is no plain one.
 
         //The fast path. Not on the context menu: CLAUDE.md's layout has one commit entry, and a
@@ -351,39 +355,39 @@ public sealed class ActionCatalog
         //Everything else, under More. Log first: it is the most-reached of the eight, and it is
         //still not a root entry because CLAUDE.md's two root entries are the two the user
         //*performs* all day -- and this one performs nothing.
-        new("log", "log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
+        new("log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
 
         //The file menu, which is this entry and nothing else so far. Its order only sorts it against
         //other file entries, of which there are none -- but the stride is kept so a second one has
         //somewhere to go.
-        new("blame", "blame", VerbKind.Blame, 100, ActionSurfaces.File, "blame.ico", InMore: true, NeedsRepository: true),
+        new("blame", VerbKind.Blame, 100, ActionSurfaces.File, "blame.ico", InMore: true, NeedsRepository: true),
 
-        new("switch", "switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
+        new("switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Branch),
 
         //Beside switch, because both are "go somewhere in the ref graph" and that is where the hand
         //will look. Its parameter is a *new* tag name, which is why the kind is Tag rather than
         //Branch: see ActionParameter.
-        new("tag", "tag", VerbKind.Tag, 115, ActionSurfaces.All, "tag.ico", InMore: true,
+        new("tag", VerbKind.Tag, 115, ActionSurfaces.All, "tag.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Tag),
 
-        new("push", "push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
+        new("push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
 
         //Immediately after push, because it is the next thing that happens to a branch and because
         //it *is* a push most of the time -- the flow publishes the branch before it opens anything.
         //Not a root entry: CLAUDE.md's two root entries are the two performed all day, and a pull
         //request is opened once per branch.
-        new("pr", "pr", VerbKind.PullRequest, 125, ActionSurfaces.All, "pr.ico", InMore: true,
+        new("pr", VerbKind.PullRequest, 125, ActionSurfaces.All, "pr.ico", InMore: true,
             NeedsRepository: true),
 
         //Next to push on purpose: "which origin does this go to" is the question that sends the user
         //looking for it, and the answer is one row of this window.
-        new("repo", "repo", VerbKind.Repo, 130, ActionSurfaces.All, "status.ico", InMore: true,
+        new("repo", VerbKind.Repo, 130, ActionSurfaces.All, "status.ico", InMore: true,
             NeedsRepository: true),
 
         //Not on the palette: the palette lists repositories, and cloning is what you do when there
         //is not one yet.
-        new("clone", "clone", VerbKind.Clone, 140, ActionSurfaces.Menu, "clone.ico", InMore: true),
+        new("clone", VerbKind.Clone, 140, ActionSurfaces.Menu, "clone.ico", InMore: true),
 
         //No `status` entry, and 150 is left free for whatever wants it. `flick status` prints text,
         //and a menu or palette click has no console to print into -- so the entry fell back to the
@@ -391,7 +395,7 @@ public sealed class ActionCatalog
         //duplicate does not.
 
         //No repository requirement: a terminal in a folder is useful whatever the folder is.
-        new("terminal", "terminal", VerbKind.Terminal, 160, ActionSurfaces.All, "terminal.ico", InMore: true),
+        new("terminal", VerbKind.Terminal, 160, ActionSurfaces.All, "terminal.ico", InMore: true),
     ];
 
 }

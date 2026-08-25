@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FlickGit.Logging;
 
 namespace FlickGit.Forges;
@@ -65,22 +65,7 @@ public sealed class AzureDevOpsClient(HttpClient http, ILog log) : IPullRequestC
             request => ForgeApi.Basic(request, token),
             cancellationToken).ConfigureAwait(false);
 
-        if (!response.Succeeded)
-        {
-            string message = ForgeApi.Describe(
-                "Azure DevOps",
-                repository.Host,
-                response,
-                ForgeApi.MessageFrom(response.Body));
-
-            return response.Unauthorised
-                ? PullRequestOutcome.Rejected(message)
-                : PullRequestOutcome.Failed(message);
-        }
-
-        return Read(repository, response.Body) is { } created
-            ? PullRequestOutcome.Ok(created)
-            : PullRequestOutcome.Failed("Azure DevOps accepted the request but its answer could not be read.");
+        return ForgeApi.Complete("Azure DevOps", repository, response, element => Read(repository, element));
     }
 
     public async Task<PullRequestRef?> FindOpenAsync(
@@ -103,30 +88,13 @@ public sealed class AzureDevOpsClient(HttpClient http, ILog log) : IPullRequestC
             request => ForgeApi.Basic(request, token),
             cancellationToken).ConfigureAwait(false);
 
-        if (!response.Succeeded)
-        {
-            log.Debug($"Looking for an open Azure DevOps pull request failed: {response.Status}");
-            return null;
-        }
+        //A list answer is wrapped: { "count": 1, "value": [ … ] }, unlike the other two, which
+        //return a bare array.
+        if (response.Succeeded)
+            return ForgeApi.ParseFirst(response.Body, element => Read(repository, element), wrappedIn: "value");
 
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(response.Body);
-
-            //A list answer is wrapped: { "count": 1, "value": [ … ] }, unlike the other two, which
-            //return a bare array.
-            if (!document.RootElement.TryGetProperty("value", out JsonElement values)
-                || values.ValueKind != JsonValueKind.Array)
-            {
-                return null;
-            }
-
-            return values.EnumerateArray().Select(e => Read(repository, e)).FirstOrDefault(r => r is not null);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        log.Debug($"Looking for an open Azure DevOps pull request failed: {response.Status}");
+        return null;
     }
 
     /// <summary>
@@ -149,31 +117,14 @@ public sealed class AzureDevOpsClient(HttpClient http, ILog log) : IPullRequestC
     private static string Ref(string branch) =>
         branch.StartsWith("refs/", StringComparison.Ordinal) ? branch : "refs/heads/" + branch;
 
-    private static PullRequestRef? Read(ForgeRepository repository, string body)
-    {
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(body);
-            return Read(repository, document.RootElement);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static PullRequestRef? Read(ForgeRepository repository, JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-            return null;
-
-        if (!element.TryGetProperty("pullRequestId", out JsonElement id) || id.ValueKind != JsonValueKind.Number)
-            return null;
-
-        string title = element.TryGetProperty("title", out JsonElement name) ? name.GetString() ?? string.Empty : string.Empty;
-
-        return new PullRequestRef(id.GetInt32(), WebUrl(repository, id.GetInt32()), title);
-    }
+    /// <summary>
+    /// The only one of the three that has to put the URL in itself: <c>webUrl</c> is null because the
+    /// create response carries no address at all, so it is built from the id afterwards.
+    /// </summary>
+    private static PullRequestRef? Read(ForgeRepository repository, JsonElement element) =>
+        ForgeApi.ReadRequest(element, number: "pullRequestId", webUrl: null) is { } found
+            ? found with { WebUrl = WebUrl(repository, found.Number) }
+            : null;
 
     /// <summary>
     /// Where a human reads the request.

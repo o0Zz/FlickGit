@@ -45,26 +45,43 @@ being clever or silently modifying it.
 
 # Hard Requirements
 
-Two rules that override convenience, habit, and anything elsewhere in this document that reads
+Four rules that override convenience, habit, and anything elsewhere in this document that reads
 like a suggestion.
 
 ## 1. Break things freely
 
-There is no compatibility obligation to anything FlickGit has already shipped. When a better
-design appears, take it and change whatever it touches:
+**There is no backwards compatibility in this project. None. Not with a previous version, not
+with a config file an earlier build wrote, not with anything FlickGit has ever shipped.** This is
+not a tolerance for breaking changes — it is a requirement to make them whenever the new design is
+better, and it outranks every instinct that says otherwise. Do not ask whether a change is
+breaking. Ask only whether it is right, and then make it.
+
+When a better design appears, take it and change whatever it touches:
 
 - **Settings, `actions.json`, cached state** — change the shape, drop keys, rename them. Bump
-  `schemaVersion` and let an old file be refused. Do not write a migration.
-- **Registry layout, CLI verbs, exit codes, action ids, IPC messages** — rename or remove them
-  outright. No aliases, no shims, no deprecated spelling that still happens to work.
+  `schemaVersion` and let an old file be refused. **Never write a migration, a converter, an
+  upgrade path or a default that quietly stands in for a removed key.** A user whose config is
+  refused edits four lines or deletes the file; that is cheaper than the code that would have
+  spared them.
+- **Registry layout, CLI verbs, exit codes, action ids, IPC messages, pipe names, file layout** —
+  rename or remove them outright. No aliases, no shims, no fallbacks, no deprecated spelling that
+  still happens to work, no "accept both for now".
 - **Types in `FlickGit.Core`** — there is no external consumer. Change the signature rather than
-  adding an overload beside it.
+  adding an overload beside it. Rename the type rather than keeping the old name pointing at it.
 - **Delete rather than deprecate.** No `[Obsolete]`, no "legacy" path kept alive, no second code
-  branch preserved for the way it used to work. When something is replaced, the old thing goes in
-  the same change.
+  branch preserved for the way it used to work, no commented-out previous version. When something
+  is replaced, the old thing goes in the same change.
+- **An old install is not a constraint.** Reinstalling, re-registering the menu, re-entering an
+  API key or deleting `%LOCALAPPDATA%\FlickGit` are all acceptable costs of an upgrade, and none of
+  them justifies a line of compatibility code.
 
 This is a per-user tool with one install, no plugin API and no other consumers. A migration path
 costs real complexity to serve a user who does not exist.
+
+**Do not propose compatibility as a courtesy.** Do not flag a change as breaking, do not offer to
+keep the old spelling working, do not leave the previous behaviour reachable behind a setting.
+Answering "this would be a breaking change" is not a reason to hesitate here; it is a description
+of the normal case.
 
 **What this does not license.** Breaking changes are about *our* formats and *our* interfaces —
 never about the user's data. Everything under **Safety Rules** holds unconditionally: no
@@ -1015,10 +1032,10 @@ only showed one commit at a time would not have earned its place beside **Produc
 ┌─ Log — d360-portal ──────────────────────────────────────────────────────────────────────┐
 │ d360-portal                                    feature/storage-gw     400 commits loaded │
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ a1b2c3d  feat: add PgBouncer connection pooling   HEAD ▸main   Thomas Q.  2026-08-21 14:03│
-│ 9f0e1d2  fix: pool leak on reconnect                           Thomas Q.  2026-08-21 09:40│
-│ 77c4b10  chore: bump deps                                      renovate   2026-08-20 22:11│
-│ 4d5e6f7  feat: storage gateway skeleton           v1.4.0       Thomas Q.  2026-08-19 16:02│
+│ 400 a1b2c3d  feat: add PgBouncer connection pooling HEAD ▸main Thomas Q. 2026-08-21 14:03│
+│ 399 9f0e1d2  fix: pool leak on reconnect                       Thomas Q. 2026-08-21 09:40│
+│ 398 77c4b10  chore: bump deps                                  renovate  2026-08-20 22:11│
+│ 397 4d5e6f7  feat: storage gateway skeleton        v1.4.0      Thomas Q. 2026-08-19 16:02│
 │ 400 commits loaded                                              [ Load 200 more ]        │
 ╞═════════════════════════════════════════════════════════════════════════════════════════╡
 │ 3 commits · 4d5e6f7^..a1b2c3d   ·   including 1 you did not select                        │
@@ -1033,6 +1050,22 @@ only showed one commit at a time would not have earned its place beside **Produc
 │ 12 files · +418 −233                                       [ Save as patch… ]  [ Close ]  │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## The number in front of the hash
+
+The commit's own revision — how many commits it has behind it, itself included — because that is the
+number `build.yml` stamps into a version as `0.0.<commits>`. Somebody holding a build and asking
+*which commit is this* has a hash they cannot compute and a number they can read off the title bar,
+and the log is where the two meet.
+
+**One `rev-list --count HEAD` for the whole window, not one per row.** Git counts for a single
+commit, and the list holds two hundred; the rows count down from the total by their position
+instead. That is exact while the history is linear — every commit below a row is one of its
+ancestors — and one too many for a row above a merge, where the list also holds commits that are
+not. Counting each row exactly means walking the DAG and holding an ancestor set per commit, which
+is not what a number in a gutter is worth. The count is read *beside* the first page rather than
+before it, so the extra process costs no wall-clock against the 250 ms the window is measured on,
+and a repository with no commits at all shows no number rather than a wrong one.
 
 ## The gap disclosure is a requirement, not a nicety
 
@@ -2510,7 +2543,7 @@ actions, and there is exactly one piece of code that writes those keys.
 
 ## The sequence is the package
 
-Seven things decide where each action sits, and every one of them is a bug if it is got wrong.
+Eight things decide where each action sits, and every one of them is a bug if it is got wrong.
 
 - **The kills are immediate, and scheduled before `InstallValidate`.** That is where Windows
   Installer decides whether a file it is about to replace is in use, and it runs *before* the script
@@ -2524,6 +2557,19 @@ Seven things decide where each action sits, and every one of them is a bug if it
   machine that is **four to five minutes** of one core in kernel mode, with the progress dialog
   stuck on "Validating install". Measured at 4m 49s with the property against 10s without it,
   same package. The fast path is the default one, and the default is to say nothing.
+- **`MSIFASTINSTALL` is 7, and bit 2 is why.** Removing the property above fixed one five-minute
+  "Validating install" and left another standing, because `InstallValidate` has a second job:
+  it walks every logical drive and asks each how much space is free, to prove the install fits.
+  That includes the mapped network drives, and a mapped drive whose server resolves but does not
+  answer costs an SMB timeout apiece in a call nothing can cancel — four of them on a corporate
+  laptop is the same five minutes under the same progress text, on the machines where the share is
+  unreachable and nowhere else. Which is why it survived a fix that measured 10s: the measurement
+  was taken off the corporate network, where the same lookups fail instantly.
+
+  Bit `2` skips that check. Bit `1` skips the System Restore point, which a per-user install into
+  `%LOCALAPPDATA%` writing `HKCU` has nothing to put in; bit `4` reduces progress messages, which is
+  free once the phase they were reporting is gone. The space check is worth nothing here in any
+  case — it is three megabytes being weighed against three hundred gigabytes.
 - **`install-shell` is deferred**, for the mirror-image reason. An immediate action scheduled
   `After="InstallFiles"` still runs before a single file exists, because the copying happens inside
   `InstallFinalize`. Only a deferred action runs in file order.

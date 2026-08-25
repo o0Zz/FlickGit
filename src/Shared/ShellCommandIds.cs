@@ -9,11 +9,10 @@
 /// DLL is Native AOT and loads into <c>explorer.exe</c>, where a reference it would have to resolve
 /// is exactly the thing that must not exist.
 ///
-/// <b>These GUIDs are permanent.</b> Hard Requirement 1 licences breaking our own formats freely,
-/// and this is the one exception in the product: a CLSID is written into the user's registry under
-/// <c>HKCU\Software\Classes\CLSID</c>, and changing one leaves an orphan key that
-/// <see cref="Verbs"/> can no longer find to delete. Add a new entry rather than renumbering an
-/// existing one.
+/// <b>This GUID is permanent.</b> Hard Requirement 1 licences breaking our own formats freely, and
+/// this is the one exception in the product: a CLSID is written into the user's registry under
+/// <c>HKCU\Software\Classes\CLSID</c>, and changing it leaves an orphan key that an uninstall can
+/// no longer find to delete. Add a new entry rather than renumbering this one.
 /// </summary>
 internal static class ShellCommandIds
 {
@@ -29,19 +28,6 @@ internal static class ShellCommandIds
     /// block at once, so it is one object and one id.
     /// </summary>
     public const string MenuHandlerClsid = "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C20}";
-
-    /// <summary>
-    /// The CLSIDs of the per-verb <c>IExplorerCommand</c> handlers this replaced.
-    ///
-    /// Listed only so an uninstall can remove them from a registry that an earlier version wrote
-    /// into. Nothing creates them any more; see <b>These GUIDs are permanent</b> above for why they
-    /// cannot simply be forgotten.
-    /// </summary>
-    public static readonly string[] RetiredClsids =
-    [
-        "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C10}",
-        "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C11}",
-    ];
 
     /// <summary>
     /// Where the handler is registered under each parent class, and the name of the key.
