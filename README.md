@@ -161,23 +161,6 @@ Design decisions, performance budgets, the phase-by-phase history and the reason
 it live in [CLAUDE.md](CLAUDE.md).
 
 
-## Signing
-
-Release binaries are Authenticode-signed on tag builds when the repository has
-[SignPath Foundation](https://signpath.io/solutions/open-source-community) credentials configured;
-the workflow skips itself silently when it does not. The `.msi` itself is not yet signed.
-
-Until then, Chrome and SmartScreen warn on the download. To bypass the browser:
-
-```powershell
-gh release download <tag> --pattern "*.zip"
-Expand-Archive FlickGit-*.zip -DestinationPath FlickGit
-Get-ChildItem FlickGit -Recurse | Unblock-File   # clears Mark-of-the-Web
-```
-
-Building locally avoids all of it.
-
-
 ## Licence
 
 MIT. Third-party dependencies, all MIT: [AvalonEdit](https://github.com/icsharpcode/AvalonEdit)
