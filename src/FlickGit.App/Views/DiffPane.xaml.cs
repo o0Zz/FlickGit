@@ -8,7 +8,9 @@ using FlickGit.App.Localization;
 using FlickGit.App.Rendering;
 using FlickGit.Diff;
 using ICSharpCode.AvalonEdit;
+using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Highlighting;
+using ICSharpCode.AvalonEdit.Rendering;
 
 namespace FlickGit.App.Views;
 
@@ -32,6 +34,8 @@ public partial class DiffPane : UserControl
     private readonly DiffLineNumberMargin _leftMargin = new(isLeftPane: true);
     private readonly DiffLineNumberMargin _rightMargin = new(isLeftPane: false);
     private readonly DiffOverviewStrip _overview = new();
+    private readonly SearchHighlightRenderer _leftSearch = new();
+    private readonly SearchHighlightRenderer _rightSearch = new();
     private readonly DispatcherTimer _rediffTimer;
 
     private const int ContextLinesAboveFirstChange = 3;
@@ -93,6 +97,23 @@ public partial class DiffPane : UserControl
     /// </summary>
     private IReadOnlySet<int> _menuRows = new HashSet<int>();
 
+    /// <summary>
+    /// The pane a <c>Ctrl+F</c> would search: whichever one last had the keyboard.
+    ///
+    /// Tracked rather than asked for at the time, because by then the search box has the focus and
+    /// the answer would always be neither.
+    /// </summary>
+    private TextEditor? _lastFocusedEditor;
+
+    /// <summary>The pane the open search is running against, and null when the bar is closed.</summary>
+    private TextEditor? _searchPane;
+
+    /// <summary>Every occurrence of the term, in document order.</summary>
+    private IReadOnlyList<ISegment> _matches = [];
+
+    /// <summary>The match the user is standing on, or -1 for none yet.</summary>
+    private int _matchIndex = -1;
+
     /// <summary>An untracked file has no index entry, so there is nothing for a patch to apply to.</summary>
     private bool _untracked;
     private CancellationTokenSource? _rediffCancellation;
@@ -116,6 +137,14 @@ public partial class DiffPane : UserControl
 
         LeftEditor.TextArea.LeftMargins.Add(_leftMargin);
         RightEditor.TextArea.LeftMargins.Add(_rightMargin);
+
+        //Added after the diff renderers, and at KnownLayer.Selection rather than Background: a match
+        //sits inside a row the diff has already tinted, so it has to be painted over it.
+        LeftEditor.TextArea.TextView.BackgroundRenderers.Add(_leftSearch);
+        RightEditor.TextArea.TextView.BackgroundRenderers.Add(_rightSearch);
+
+        LeftEditor.TextArea.GotKeyboardFocus += (_, _) => _lastFocusedEditor = LeftEditor;
+        RightEditor.TextArea.GotKeyboardFocus += (_, _) => _lastFocusedEditor = RightEditor;
 
         OverviewHost.Content = _overview;
 
@@ -146,6 +175,11 @@ public partial class DiffPane : UserControl
 
         LeftLabel.Text = Strings.Get("diff.left.readonly");
         PlaceholderText.Text = Strings.Get("diff.select.prompt");
+
+        SearchLabel.Text = Strings.Get("diff.search.label");
+        SearchPreviousButton.ToolTip = Strings.Get("diff.search.previous");
+        SearchNextButton.ToolTip = Strings.Get("diff.search.next");
+        SearchCloseButton.ToolTip = Strings.Get("diff.search.close");
     }
 
     public event Func<string, Task>? SaveRequested;
@@ -390,6 +424,10 @@ public partial class DiffPane : UserControl
         _undo.Clear();
         _currentFileText = string.Empty;
 
+        //The term survives a file change -- chasing one word through several files is the reason not
+        //to close the bar here -- but the position in the old file does not.
+        _matchIndex = -1;
+
         _diff = diff;
         IsDirty = false;
 
@@ -407,6 +445,10 @@ public partial class DiffPane : UserControl
             ModeText.Text = string.Empty;
             NoticeText.Text = string.Empty;
             StagedStrip.Visibility = Visibility.Collapsed;
+
+            //No file, nothing to search. The bar would otherwise sit over two editors the placeholder
+            //has covered, counting matches in a document nobody can see.
+            CloseSearch();
             return;
         }
 
@@ -430,6 +472,7 @@ public partial class DiffPane : UserControl
                 PlaceholderText.Text = diff.Notice ?? Strings.Get("files.tooltip.binary");
                 Placeholder.Visibility = Visibility.Visible;
                 StagedStrip.Visibility = Visibility.Collapsed;
+                CloseSearch();
                 return;
 
             case DiffRenderMode.UnifiedReadOnly:
@@ -488,6 +531,9 @@ public partial class DiffPane : UserControl
         SetEditable(editable: false);
         Placeholder.Visibility = Visibility.Collapsed;
         StagedStrip.Visibility = Visibility.Collapsed;
+
+        //Both documents were just replaced, so the recorded offsets belong to the file before this one.
+        UpdateMatches(keepPosition: true);
     }
 
     private void ShowSideBySide(SideBySideDiff diff, bool fileIsStaged)
@@ -562,6 +608,11 @@ public partial class DiffPane : UserControl
         {
             _updatingDocument = false;
         }
+
+        //Every offset the search recorded was into the document this call has just replaced. Recomputed
+        //rather than dropped, so a highlight survives the 200 ms re-diff that follows every keystroke
+        //in the right pane -- and with keepPosition, so it does not move the caret while they type.
+        UpdateMatches(keepPosition: true);
     }
 
     private void SetRows(IReadOnlyList<DiffRow> rows)
@@ -784,7 +835,14 @@ public partial class DiffPane : UserControl
     }
 
     /// <summary>
-    /// <c>Ctrl+Z</c>, and the one rule that decides who gets it.
+    /// <c>Ctrl+F</c>, <c>F3</c>, <c>Esc</c> and <c>Ctrl+Z</c> — everything the pane claims from its
+    /// own keyboard.
+    ///
+    /// <b>Here rather than as window <c>KeyBinding</c>s</b>, for the reason spelled out below for
+    /// <c>Ctrl+Z</c>: a window binding fires on the bubble wherever focus is, so <c>Ctrl+F</c> in the
+    /// commit message box would open a search bar over a pane the user is not looking at. Tunnelling
+    /// into a <see cref="UserControl"/> only happens when the focus is already inside it, which is
+    /// exactly "put the caret in a pane, then press Ctrl+F".
     ///
     /// <b>AvalonEdit's own history goes first.</b> Only when its stack is empty does the pane's
     /// history answer. The two cannot come out of order because every <see cref="PushUndo"/> is
@@ -798,7 +856,13 @@ public partial class DiffPane : UserControl
     {
         base.OnPreviewKeyDown(e);
 
-        if (e.Handled || e.Key != Key.Z || Keyboard.Modifiers != ModifierKeys.Control)
+        if (e.Handled)
+            return;
+
+        if (HandleSearchKey(e))
+            return;
+
+        if (e.Key != Key.Z || Keyboard.Modifiers != ModifierKeys.Control)
             return;
 
         if (_diff?.IsEditable != true || RightEditor.IsReadOnly)
@@ -817,6 +881,264 @@ public partial class DiffPane : UserControl
         e.Handled = true;
         _ = UndoAsync();
     }
+
+    /// <summary>
+    /// The keys the search bar owns, and true when the key was one of them.
+    ///
+    /// <c>Esc</c> is only ever reached here from the log window. The commit window intercepts it
+    /// before the pane sees it -- deliberately, so a commit in flight can refuse to close -- and calls
+    /// <see cref="CloseSearch"/> itself.
+    /// </summary>
+    private bool HandleSearchKey(KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.F when Keyboard.Modifiers == ModifierKeys.Control:
+                OpenSearch();
+                break;
+
+            //F3 as well as Enter, so the walk carries on with the caret back in the pane.
+            case Key.F3 when _searchPane is not null
+                             && Keyboard.Modifiers is ModifierKeys.None or ModifierKeys.Shift:
+                Step(Keyboard.Modifiers == ModifierKeys.Shift ? -1 : 1);
+                break;
+
+            case Key.Escape when _searchPane is not null:
+                CloseSearch();
+                break;
+
+            default:
+                return false;
+        }
+
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Opens the bar on the pane that last had the keyboard, or on the right one before either has.
+    /// </summary>
+    private void OpenSearch()
+    {
+        //Nothing to search: the placeholder is covering both editors, and their documents still hold
+        //whatever was shown last.
+        if (Placeholder.Visibility == Visibility.Visible)
+            return;
+
+        TextEditor pane = _lastFocusedEditor ?? RightEditor;
+
+        //An empty pane is a dead end rather than a choice: a unified read-only diff puts the whole
+        //file in the left editor and leaves the right one empty, and answering "no matches" for a word
+        //plainly on screen is worse than searching the side that has the text.
+        if (pane.Document.TextLength == 0)
+            pane = ReferenceEquals(pane, RightEditor) ? LeftEditor : RightEditor;
+
+        SearchBar.Visibility = Visibility.Visible;
+
+        if (!ReferenceEquals(pane, _searchPane))
+        {
+            _searchPane = pane;
+            _matchIndex = -1;
+
+            SearchSideText.Text = Strings.Get(
+                ReferenceEquals(pane, LeftEditor) ? "diff.search.left" : "diff.search.right");
+
+            UpdateMatches(keepPosition: false);
+        }
+
+        //SelectAll rather than clear: reopening on a term the user still wants costs one Enter, and
+        //replacing it costs one keystroke either way.
+        SearchBox.SelectAll();
+        SearchBox.Focus();
+    }
+
+    /// <summary>
+    /// Hides the bar and drops the highlights. <b>Returns false when it was already closed</b>, which
+    /// is what lets the commit window ask whether Esc belongs here before spending it on the window.
+    /// </summary>
+    public bool CloseSearch()
+    {
+        if (_searchPane is null)
+            return false;
+
+        TextEditor pane = _searchPane;
+
+        _searchPane = null;
+        _matchIndex = -1;
+
+        bool hadKeyboard = SearchBox.IsKeyboardFocusWithin;
+
+        SetMatches([]);
+        SearchBar.Visibility = Visibility.Collapsed;
+
+        //Back to the pane the search was running on -- but only when the box is what held the
+        //keyboard. This also closes on its own when the shown file changes, and taking focus then
+        //would pull the caret out of the file list the user is arrowing through.
+        if (hadKeyboard)
+            pane.TextArea.Focus();
+
+        return true;
+    }
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e) =>
+        UpdateMatches(keepPosition: false);
+
+    /// <summary>
+    /// <c>Enter</c> is the next match, <c>Shift+Enter</c> the previous -- which is the whole gesture:
+    /// type once, then Enter as many times as it takes.
+    ///
+    /// It reaches here because the commit window's Enter-commits rule already stands down while the
+    /// diff pane holds the keyboard, and the box is inside the pane.
+    /// </summary>
+    private void OnSearchBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+            return;
+
+        Step(Keyboard.Modifiers == ModifierKeys.Shift ? -1 : 1);
+        e.Handled = true;
+    }
+
+    private void OnSearchNext(object sender, RoutedEventArgs e) => StepFromButton(1);
+
+    private void OnSearchPrevious(object sender, RoutedEventArgs e) => StepFromButton(-1);
+
+    private void OnSearchClose(object sender, RoutedEventArgs e) => CloseSearch();
+
+    /// <summary>Steps, then hands the keyboard back to the box so Enter carries on working.</summary>
+    private void StepFromButton(int direction)
+    {
+        Step(direction);
+        SearchBox.Focus();
+    }
+
+    /// <summary>
+    /// Finds every occurrence of the term in the searched pane.
+    ///
+    /// Case-insensitive, with no regular expressions and no whole-word switch: none of the three was
+    /// asked for, and each is a control on a bar whose whole value is that it needs no reading.
+    ///
+    /// <paramref name="keepPosition"/> is the difference between the user typing in the box and the
+    /// document being rebuilt underneath them. A rebuild lands 200 ms after a keystroke in the right
+    /// pane, and moving the selection then would drag the caret out from under whatever they are in
+    /// the middle of typing -- so the highlights are recomputed and nothing else is touched.
+    /// </summary>
+    private void UpdateMatches(bool keepPosition)
+    {
+        if (_searchPane is null)
+            return;
+
+        string term = SearchBox.Text;
+        var matches = new List<ISegment>();
+
+        if (term.Length > 0)
+        {
+            string text = _searchPane.Text;
+
+            for (int at = text.IndexOf(term, StringComparison.OrdinalIgnoreCase);
+                 at >= 0;
+                 at = text.IndexOf(term, at + term.Length, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(new TextSegment { StartOffset = at, Length = term.Length });
+            }
+        }
+
+        SetMatches(matches);
+
+        if (keepPosition)
+        {
+            //Clamped rather than reset: a rebuild that removed the last match must not leave the count
+            //pointing past the end of the list.
+            _matchIndex = Math.Min(_matchIndex, matches.Count - 1);
+            UpdateSearchCount();
+            return;
+        }
+
+        if (matches.Count == 0)
+        {
+            _matchIndex = -1;
+            UpdateSearchCount();
+            return;
+        }
+
+        //The first match at or after where the user already is, so typing a term goes forward rather
+        //than back to the top of a file they have scrolled down through.
+        int from = _searchPane.SelectionLength > 0 ? _searchPane.SelectionStart : _searchPane.CaretOffset;
+        int index = 0;
+
+        for (int i = 0; i < matches.Count; i++)
+        {
+            if (matches[i].Offset >= from)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        ShowMatch(index);
+    }
+
+    /// <summary>Only the searched pane is lit: the same word in the other one is not on the walk.</summary>
+    private void SetMatches(IReadOnlyList<ISegment> matches)
+    {
+        _matches = matches;
+
+        _leftSearch.SetMatches(ReferenceEquals(_searchPane, LeftEditor) ? matches : []);
+        _rightSearch.SetMatches(ReferenceEquals(_searchPane, RightEditor) ? matches : []);
+
+        LeftEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+        RightEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+    }
+
+    /// <summary>
+    /// Wraps, in both directions. A key that silently stops working at the end of the file is the one
+    /// thing "Enter, Enter, Enter" must not do.
+    /// </summary>
+    private void Step(int direction)
+    {
+        if (_matches.Count == 0)
+            return;
+
+        if (_matchIndex < 0)
+        {
+            ShowMatch(direction > 0 ? 0 : _matches.Count - 1);
+            return;
+        }
+
+        ShowMatch((_matchIndex + direction + _matches.Count) % _matches.Count);
+    }
+
+    /// <summary>
+    /// Selects the match and scrolls it into view.
+    ///
+    /// <b>The selection is how the current match is marked</b>, rather than a second brush in
+    /// <see cref="SearchHighlightRenderer"/>: one colour to keep legible instead of two, and the match
+    /// is already selected if the user wants to copy it. The other pane follows on its own -- row N is
+    /// line N in both documents, so <see cref="Sync"/> carries it.
+    /// </summary>
+    private void ShowMatch(int index)
+    {
+        if (_searchPane is null || index < 0 || index >= _matches.Count)
+            return;
+
+        _matchIndex = index;
+
+        ISegment match = _matches[index];
+
+        _searchPane.Select(match.Offset, match.Length);
+
+        DocumentLine line = _searchPane.Document.GetLineByOffset(match.Offset);
+        _searchPane.ScrollTo(line.LineNumber, match.Offset - line.Offset);
+
+        UpdateSearchCount();
+    }
+
+    private void UpdateSearchCount() =>
+        SearchCountText.Text = SearchBox.Text.Length == 0
+            ? string.Empty
+            : _matches.Count == 0
+                ? Strings.Get("diff.search.nomatches")
+                : Strings.Get("diff.search.count", _matchIndex + 1, _matches.Count);
 
     private void OnStageHunk(object sender, RoutedEventArgs e) => RaiseHunk(SelectedRows(), unstage: false);
 

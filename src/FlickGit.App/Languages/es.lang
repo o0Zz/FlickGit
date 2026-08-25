@@ -116,6 +116,17 @@ diff.left.readonly = ← solo lectura
 diff.right.readonly = solo lectura →
 diff.select.prompt = Seleccione un archivo para ver su diff.
 diff.loading = Cargando…
+# La barra Ctrl+F. Nombra el panel en el que busca: los dos documentos están alineados línea por
+# línea, así que la misma palabra en el otro panel parece exactamente un resultado.
+diff.search.label = Buscar
+diff.search.left = panel izquierdo
+diff.search.right = panel derecho
+# {0} el resultado mostrado, {1} cuántos hay
+diff.search.count = {0} de {1}
+diff.search.nomatches = sin resultados
+diff.search.next = Resultado siguiente (Intro, F3)
+diff.search.previous = Resultado anterior (Mayús+Intro, Mayús+F3)
+diff.search.close = Cerrar (Esc)
 
 # ---- pull ----
 pull.title = Pull (rebase) — {0}

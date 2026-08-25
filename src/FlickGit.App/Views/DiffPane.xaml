@@ -7,6 +7,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -97,9 +98,98 @@
             </Grid>
         </Border>
 
+        <!-- Ctrl+F. A row in the header stack rather than a panel floating over an editor: the
+             Placeholder below spans the whole editor grid and covers anything put in it, and a strip
+             under the header is the shape this control already uses for something transient.
+
+             Its buttons set their own MinWidth and Padding for the reason the editing bar's do: the
+             application-wide Button style is 88px wide, which is a bar of arrows as long as the
+             search box. -->
+        <Border x:Name="SearchBar"
+                Grid.Row="1"
+                Visibility="Collapsed"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,0,0,1"
+                Padding="10,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="SearchLabel"
+                           Style="{StaticResource SectionLabel}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+
+                <!-- Chromeless, monospaced, as the three filter boxes elsewhere in the product are:
+                     the term being typed is a run of the user's code. -->
+                <TextBox x:Name="SearchBox"
+                         Grid.Column="1"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Padding="0"
+                         FontSize="13"
+                         FontFamily="Cascadia Mono, Consolas, Courier New"
+                         VerticalAlignment="Center"
+                         TextChanged="OnSearchTextChanged"
+                         PreviewKeyDown="OnSearchBoxKeyDown" />
+
+                <!-- Which pane. The two documents are aligned row for row, so without this a match
+                     in one pane and the same word in the other are indistinguishable. -->
+                <TextBlock x:Name="SearchSideText"
+                           Grid.Column="2"
+                           Style="{StaticResource Muted}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Margin="10,0,4,0" />
+
+                <Button x:Name="SearchPreviousButton"
+                        Grid.Column="3"
+                        Content="▲"
+                        MinWidth="26"
+                        Padding="4,1"
+                        Margin="4,0,0,0"
+                        Click="OnSearchPrevious" />
+
+                <Button x:Name="SearchNextButton"
+                        Grid.Column="4"
+                        Content="▼"
+                        MinWidth="26"
+                        Padding="4,1"
+                        Margin="4,0,0,0"
+                        Click="OnSearchNext" />
+
+                <!-- MinWidth so that counting up from "1 of 12" to "12 of 12" does not walk the
+                     close button sideways under the pointer. -->
+                <TextBlock x:Name="SearchCountText"
+                           Grid.Column="5"
+                           Style="{StaticResource Muted}"
+                           FontSize="11"
+                           MinWidth="64"
+                           TextAlignment="Right"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0" />
+
+                <Button x:Name="SearchCloseButton"
+                        Grid.Column="6"
+                        Content="✕"
+                        MinWidth="26"
+                        Padding="4,1"
+                        Margin="8,0,0,0"
+                        Click="OnSearchClose" />
+            </Grid>
+        </Border>
+
         <!-- The staged-file strip, with the one-click restage CLAUDE.md asks for. -->
         <Border x:Name="StagedStrip"
-                Grid.Row="1"
+                Grid.Row="2"
                 Visibility="Collapsed"
                 Background="{StaticResource WarnBackground}"
                 BorderBrush="{StaticResource WarnBorder}"
@@ -120,7 +210,7 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="4" />
@@ -187,7 +277,7 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"

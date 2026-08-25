@@ -566,8 +566,10 @@ window is arranged around.
 Ctrl+⏎     commit & push, from anywhere including the file list
 Ctrl+S     save the diff pane's edit
 Ctrl+Z     undo the diff pane's last change
+Ctrl+F     find in the diff pane, in whichever side has the caret
+F3 / ⇧F3   the next and previous match, with the caret back in the pane
 F5         re-read the status, the same as the Refresh button
-esc        close
+esc        close the search bar if it is open, otherwise close the window
 ```
 
 `F5` is a window binding rather than a button accelerator, so it works from the diff pane and the
@@ -588,13 +590,22 @@ can guess — so the footer says so whenever there is no outcome to report in it
 
 **Except while the diff pane has keyboard focus.** Its right-hand pane is an editor over the user's
 working tree, where Enter is a newline in their file. Committing instead would be surprising and
-unrecoverable in the same keystroke, so the whole map above is suspended there.
+unrecoverable in the same keystroke, so the Enter rows above are suspended there — and the pane's own
+keys, `Ctrl+F` and `F3` among them, are the ones that keep working.
 
 **Esc closes, always — including from inside the diff pane, and including while the AI is still
 writing.** One key, one outcome. It briefly cancelled a running generation instead and left the
 window open, needing a second press; since generation starts on every open, that made Esc look
 broken for the first half-second of the window's life. Closing cancels the generation on the way
 out, and a queued Enter cannot fire into a window that is gone.
+
+**Unless the search bar is open**, where Esc closes that instead. This is the one thing allowed to
+stand in front of the rule above, and it is bounded by the fact that the user opened the bar with
+`Ctrl+F` a moment earlier: dismissing the thing you just summoned is the only meaning Esc has while
+it is showing, and the alternative is throwing away a half-typed commit message to close a search
+box. One press, then another, and both do what the surface in front of the user says. Because this
+window intercepts Esc before the pane ever sees it, it has to *ask* — `DiffPane.CloseSearch` returns
+false when there was no bar, and only then does the window spend the key on itself.
 
 The single exception is a commit **already executing**, where Esc does nothing: there is no point of
 return that would not leave the repository half-changed, and the window has to stay to report the
@@ -958,6 +969,40 @@ than pretending.
   a single changed line in a long file does not round away to nothing.
 - Monospace, DPI-aware; tab width from the file's `.editorconfig` when present
 - Syntax highlighting via AvalonEdit `.xshd` definitions
+
+## Finding a word
+
+`Ctrl+F` opens a bar under the header. Type, and the pane scrolls to the first match at or after the
+caret; `Enter` walks forward and `Shift+Enter` back, wrapping in both directions, with `F3` and
+`Shift+F3` doing the same once the caret is back in the pane. `Esc` closes it. Every other occurrence
+is tinted amber, which is the half a plain "find next" does not give: where the rest of them are.
+
+- **It searches the pane the caret was in**, left or right, and says which in the bar. The two
+  documents are aligned row for row, so the same word in the other pane looks exactly like a match —
+  and the left pane being read-only is no obstacle, because searching reads. Only the searched pane is
+  lit, or the count would be a claim about a list the highlights disagree with.
+- **A row in the header stack, not a panel floating over an editor.** The placeholder that covers the
+  panes for a binary or oversized file spans the whole editor grid, so anything placed in it
+  disappears behind the one state where the bar must not be showing anyway.
+- **`Ctrl+F` is the pane's own key, not a window binding**, for the reason `Ctrl+Z` is: a window
+  binding fires on the bubble wherever focus is, so it would open a search bar over a pane the user is
+  not looking at from a keystroke in the message box.
+- **The current match is shown by selecting it**, so AvalonEdit's own selection marks it and there is
+  one colour to keep legible instead of two. One consequence worth knowing rather than preventing: a
+  selection in the right pane is what Stage hunk and Revert lines act on, exactly as it is when the
+  user makes the same selection by hand.
+- **AvalonEdit's own `SearchPanel` was not used.** Its default template inherits the application's
+  implicit `Button` style — 88 px wide — so its prev/next/close buttons would each be as long as the
+  search box, and escaping that means re-templating a third-party control or fencing it off with a
+  resource guard. Finding matches is an `IndexOf` loop and a `BackgroundGeometryBuilder`, which is
+  what `Rendering/` is already made of, and it keeps the bar's words in the `.lang` files with every
+  other string in the product. No regex, no whole-word, no match-case: three controls on a bar whose
+  whole value is that it needs no reading.
+- **The highlights are recomputed after every document rebuild, and nothing else moves.** A rebuild
+  lands 200 ms after a keystroke in the right pane, and every recorded offset is into the document it
+  replaced — but selecting a match then would drag the caret out from under what the user is typing.
+  A file change keeps the term and drops the position, which is how one word is chased through
+  several files.
 
 ## Performance
 

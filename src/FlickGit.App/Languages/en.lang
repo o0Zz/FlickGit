@@ -143,6 +143,17 @@ diff.left.readonly = ← read-only
 diff.right.readonly = read-only →
 diff.select.prompt = Select a file to see its diff.
 diff.loading = Loading…
+# The Ctrl+F bar. It names the pane it is searching because the two documents are aligned row for
+# row, so the same word in the other one looks exactly like a match.
+diff.search.label = Find
+diff.search.left = left pane
+diff.search.right = right pane
+# {0} the match being shown, {1} how many there are
+diff.search.count = {0} of {1}
+diff.search.nomatches = no matches
+diff.search.next = Next match (Enter, F3)
+diff.search.previous = Previous match (Shift+Enter, Shift+F3)
+diff.search.close = Close (Esc)
 
 # ---- pull ----
 pull.title = Pull (rebase) — {0}

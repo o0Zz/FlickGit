@@ -116,6 +116,17 @@ diff.left.readonly = ← sola lettura
 diff.right.readonly = sola lettura →
 diff.select.prompt = Selezionare un file per vederne il diff.
 diff.loading = Caricamento…
+# La barra Ctrl+F. Indica il riquadro in cui cerca: i due documenti sono allineati riga per riga,
+# quindi la stessa parola nell'altro riquadro sembra esattamente un risultato.
+diff.search.label = Trova
+diff.search.left = riquadro sinistro
+diff.search.right = riquadro destro
+# {0} il risultato mostrato, {1} quanti sono
+diff.search.count = {0} di {1}
+diff.search.nomatches = nessun risultato
+diff.search.next = Risultato successivo (Invio, F3)
+diff.search.previous = Risultato precedente (Maiusc+Invio, Maiusc+F3)
+diff.search.close = Chiudi (Esc)
 
 # ---- pull ----
 pull.title = Pull (rebase) — {0}

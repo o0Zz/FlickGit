@@ -219,6 +219,16 @@ public partial class CommitWindow : Window
         //the IsCancel button directly and close the window even mid-commit.
         if (e.Key == Key.Escape)
         {
+            //The search bar owns Esc while it is open, and it has to be asked here: this window
+            //intercepts the key before the pane ever sees it, so the pane cannot dismiss its own bar
+            //the way it does in the log window. Throwing away a half-typed message because the user
+            //tried to close a search box is the worse of the two outcomes.
+            if (Diff.CloseSearch())
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (_viewModel.EscapePressed())
                 Close();
 

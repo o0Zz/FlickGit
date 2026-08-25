@@ -68,6 +68,18 @@ internal static class DiffBrushes
     /// </summary>
     public static readonly Brush BlameSelected = Frozen("#FFEAF1FA");
 
+    /// <summary>
+    /// A search match.
+    ///
+    /// Amber because it is the one highlight that has to read on top of another one: a match sits
+    /// inside a row already tinted green or red, and any green or red of its own would be invisible
+    /// against exactly the rows the user is most likely searching.
+    /// </summary>
+    public static readonly Brush SearchMatch = Frozen("#FFFFE082");
+
+    /// <summary>The one-pixel edge around a match, so a short run still has a shape on a pale row.</summary>
+    public static readonly Brush SearchMatchBorder = Frozen("#FFD9A106");
+
     private static Brush Frozen(string hex)
     {
         var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)!);

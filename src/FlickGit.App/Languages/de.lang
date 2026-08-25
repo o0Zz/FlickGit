@@ -116,6 +116,17 @@ diff.left.readonly = ← schreibgeschützt
 diff.right.readonly = schreibgeschützt →
 diff.select.prompt = Eine Datei auswählen, um ihren Diff zu sehen.
 diff.loading = Wird geladen…
+# Die Ctrl+F-Leiste. Sie nennt die durchsuchte Seite: die beiden Dokumente sind Zeile für Zeile
+# ausgerichtet, sodass dasselbe Wort auf der anderen Seite genau wie ein Treffer aussieht.
+diff.search.label = Suchen
+diff.search.left = linke Seite
+diff.search.right = rechte Seite
+# {0} der angezeigte Treffer, {1} die Gesamtzahl
+diff.search.count = {0} von {1}
+diff.search.nomatches = keine Treffer
+diff.search.next = Nächster Treffer (Eingabe, F3)
+diff.search.previous = Vorheriger Treffer (Umschalt+Eingabe, Umschalt+F3)
+diff.search.close = Schließen (Esc)
 
 # ---- Pull ----
 pull.title = Pull (Rebase) — {0}
