@@ -76,7 +76,7 @@ public partial class RepositoryWindow : Window
         AskAgainButton.Content = Strings.Get("repo.upstream.askagain");
 
         SaveButton.Content = Strings.Get("repo.save");
-        CloseButton.Content = Strings.Get("repo.close");
+        CloseButton.Content = Strings.Get("common.close");
 
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
@@ -288,7 +288,7 @@ public partial class RepositoryWindow : Window
             Strings.Get("repo.remote.confirm.title"),
             Strings.Get("repo.remote.confirm", selected.Name),
             Strings.Get("repo.remote.confirm.yes"),
-            Strings.Get("action.confirm.no"));
+            Strings.Get("common.cancel"));
 
         if (!confirmed)
             return;

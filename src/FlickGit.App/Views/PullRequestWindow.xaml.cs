@@ -91,7 +91,7 @@ public partial class PullRequestWindow : Window
         DraftCheck.Content = Strings.Get("pr.draft");
         GenerateButton.Content = Strings.Get("pr.generate");
         CreateButton.Content = Strings.Get("pr.create");
-        CancelButton.Content = Strings.Get("commit.button.cancel");
+        CloseButton.Content = Strings.Get("common.close");
         OpenButton.Content = Strings.Get("pr.open");
         StatusText.Text = Strings.Get("pr.hint");
 
@@ -598,7 +598,7 @@ public partial class PullRequestWindow : Window
         DeleteBranchCheck.IsEnabled = !busy;
     }
 
-    private void OnCancel(object sender, RoutedEventArgs e) => Close();
+    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     protected override void OnClosed(EventArgs e)
     {

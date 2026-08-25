@@ -73,7 +73,7 @@ public partial class BlameWindow : Window
         _log = log;
 
         BackButton.Content = Strings.Get("blame.back");
-        CloseButton.Content = Strings.Get("blame.close");
+        CloseButton.Content = Strings.Get("common.close");
         PreviousButton.Content = Strings.Get("blame.previous.none");
 
         Editor.FontFamily = new System.Windows.Media.FontFamily(settings.DiffFontFamily);

@@ -9,6 +9,12 @@
 
 app.name = FlickGit
 
+# ---- comunes ----
+# Una palabra por significado. Un botón que solo cierra una ventana dice Cerrar; solo
+# el que de verdad interrumpe una operación dice Cancelar.
+common.close = Cerrar
+common.cancel = Cancelar
+
 # ---- icono de la bandeja ----
 tray.recent = Repositorios recientes
 tray.recent.none = (ninguno todavía)
@@ -23,7 +29,6 @@ commit.files.header = Archivos modificados
 commit.message.header = Mensaje del commit
 commit.button.commit = Commit
 commit.button.commitpush = Commit y push
-commit.button.cancel = Cancelar
 commit.button.refresh = Actualizar
 commit.selectall = Todos
 commit.selectnone = Ninguno
@@ -136,7 +141,6 @@ tag.message.label = Mensaje — opcional; un mensaje la convierte en una etiquet
 tag.create = Crear
 tag.push = Enviar etiqueta
 tag.delete = Eliminar etiqueta
-tag.close = Cerrar
 tag.message.hint = Déjelo vacío para una etiqueta ligera. Lo que escriba aquí se convierte en el mensaje de la etiqueta y la hace anotada.
 tag.none = Todavía no hay etiquetas en este repositorio.
 tag.nomatch = Ninguna etiqueta coincide.
@@ -186,7 +190,6 @@ log.patch.filter = Archivos de parche (*.patch)|*.patch|Todos los archivos (*.*)
 log.patch.saved = Se guardó {0}.
 log.patch.empty = Este rango no produce ninguna diferencia, así que no había nada que guardar.
 log.patch.failed = No se pudo escribir el parche.
-log.close = Cerrar
 
 # ---- ventana de blame ----
 blame.title = Blame — {0}
@@ -196,7 +199,6 @@ blame.revision = en {0}
 blame.revision.named = en {0} · {1}
 blame.depth = {0} atrás
 blame.back = ← Atrás
-blame.close = Cerrar
 blame.previous = Blame de la revisión anterior ({0})
 blame.previous.first = Este es el primer commit que tocó el archivo
 blame.previous.none = Seleccione una línea para retroceder
@@ -244,7 +246,6 @@ repo.upstream.askagain = Preguntar de nuevo
 repo.upstream.reset = FlickGit volverá a preguntar la próxima vez que envíe una rama nueva.
 repo.detached = HEAD está desacoplada, así que ninguna rama sigue a un remoto.
 repo.save = Guardar
-repo.close = Cerrar
 
 # ---- push ----
 push.button = Push
@@ -252,7 +253,6 @@ push.success = Se envió {0} a {1}.
 push.upstream.title = ¿Crear una rama upstream?
 push.upstream.ask = {0} no tiene upstream. ¿Enviarla a {1} y hacer seguimiento a partir de ahora?\nLa respuesta se recuerda para este repositorio.
 push.upstream.yes = Enviar y hacer seguimiento
-push.upstream.no = Cancelar
 push.pullfirst.title = Por detrás del remoto
 push.pullfirst.ask = {0} está por detrás de {1}. ¿Hacer pull con rebase y luego push?
 push.pullfirst.yes = Pull (rebase) y push
@@ -292,8 +292,6 @@ clone.into = En
 clone.submodules = Inicializar submódulos
 clone.shallow = Clon superficial (--depth 1)
 clone.button = Clonar
-clone.cancel = Cancelar
-clone.close = Cerrar
 clone.cancelled = Clonación cancelada. Se eliminó el directorio parcial.
 
 # ---- edición de la copia de trabajo ----
@@ -376,7 +374,6 @@ action.confirm.title = ¿Ejecutar esta acción?
 action.confirm.destructive = {0}\n\nEsto ejecuta:\n{1}\n\nPuede descartar trabajo que no esté confirmado.
 action.confirm.process = {0}\n\nEsto inicia un programa fuera de FlickGit:\n{1}
 action.confirm.yes = Ejecutar
-action.confirm.no = Cancelar
 action.ran = {0} terminó.
 palette.confirms = pide confirmación
 palette.tag.prompt = Escriba un nombre de etiqueta nuevo…

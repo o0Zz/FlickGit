@@ -233,7 +233,7 @@ public sealed class RepositoryVerbs(
             Strings.Get("push.upstream.title"),
             Strings.Get("push.upstream.ask", plan.Branch ?? string.Empty, plan.Remote ?? "origin"),
             Strings.Get("push.upstream.yes"),
-            Strings.Get("push.upstream.no"));
+            Strings.Get("common.cancel"));
 
         await config.WriteUpstreamAnswerAsync(repository, allow, CancellationToken.None).ConfigureAwait(true);
         return allow;

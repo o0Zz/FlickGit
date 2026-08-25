@@ -1,4 +1,5 @@
 using System.Windows;
+using FlickGit.App.Localization;
 
 namespace FlickGit.App.Views;
 
@@ -22,6 +23,8 @@ public partial class NoticeWindow : Window
     public NoticeWindow(string title, string message, bool compact, string? detail = null)
     {
         InitializeComponent();
+
+        CloseButton.Content = Strings.Get("common.close");
 
         Title = title;
         TitleText.Text = title;

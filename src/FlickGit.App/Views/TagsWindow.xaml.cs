@@ -60,7 +60,7 @@ public partial class TagsWindow : Window
         NameLabel.Text = Strings.Get("tag.name.label");
         MessageLabel.Text = Strings.Get("tag.message.label");
         CreateButton.Content = Strings.Get("tag.create");
-        CloseButton.Content = Strings.Get("tag.close");
+        CloseButton.Content = Strings.Get("common.close");
 
         NoteBox.ToolTip = Strings.Get("tag.message.hint");
 
@@ -292,7 +292,7 @@ public partial class TagsWindow : Window
             Strings.Get("tag.confirm.title"),
             question,
             Strings.Get("tag.confirm.yes"),
-            Strings.Get("action.confirm.no"));
+            Strings.Get("common.cancel"));
 
         return confirmed ? DeleteAsync(name, _remote) : Task.CompletedTask;
     }

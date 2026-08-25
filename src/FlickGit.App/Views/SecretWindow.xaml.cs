@@ -30,7 +30,7 @@ public partial class SecretWindow : Window
         PromptText.Text = prompt;
         TargetText.Text = Strings.Get("ai.key.target", target);
         SaveButton.Content = Strings.Get("ai.key.save");
-        CancelButton.Content = Strings.Get("commit.button.cancel");
+        CancelButton.Content = Strings.Get("common.cancel");
 
         //Focused on open: there is exactly one thing to do here.
         Loaded += (_, _) => KeyBox.Focus();

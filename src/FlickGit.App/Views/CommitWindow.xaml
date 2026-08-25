@@ -378,10 +378,10 @@
                     <Button x:Name="CommitButton"
                             Margin="8,0,0,0"
                             Command="{Binding CommitCommand}" />
-                    <Button x:Name="CancelButton"
+                    <Button x:Name="CloseButton"
                             Margin="8,0,0,0"
                             IsCancel="True"
-                            Click="OnCancel" />
+                            Click="OnClose" />
                 </StackPanel>
             </Grid>
         </Border>

@@ -46,7 +46,7 @@ public partial class CloneWindow : Window
         SubmodulesBox.Content = Strings.Get("clone.submodules");
         ShallowBox.Content = Strings.Get("clone.shallow");
         CloneButton.Content = Strings.Get("clone.button");
-        CancelButton.Content = Strings.Get("clone.cancel");
+        CancelButton.Content = Strings.Get("common.cancel");
 
         Prefill(clipboardText);
     }
@@ -195,7 +195,7 @@ public partial class CloneWindow : Window
 
         //Cancel stays live throughout: a clone of a large repository is the operation most likely
         //to need interrupting.
-        CancelButton.Content = running ? Strings.Get("clone.cancel") : Strings.Get("clone.close");
+        CancelButton.Content = running ? Strings.Get("common.cancel") : Strings.Get("common.close");
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)

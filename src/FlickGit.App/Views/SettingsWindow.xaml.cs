@@ -97,7 +97,7 @@ public partial class SettingsWindow : Window
         OpenFolderButton.Content = Strings.Get("settings.advanced.open");
 
         SaveButton.Content = Strings.Get("settings.save");
-        CloseButton.Content = Strings.Get("commit.button.cancel");
+        CloseButton.Content = Strings.Get("common.close");
     }
 
     /// <summary>

@@ -102,7 +102,7 @@ public partial class LogWindow : Window
         LoadMoreButton.Content = Strings.Get("log.loadmore", HistoryService.PageSize);
         BlameFileItem.Header = Strings.Get("log.blame");
         SavePatchButton.Content = Strings.Get("log.patch");
-        CloseButton.Content = Strings.Get("log.close");
+        CloseButton.Content = Strings.Get("common.close");
         PagingText.Text = Strings.Get("log.loading");
         RangeText.Text = Strings.Get("log.select.prompt");
         MetaText.Text = Strings.Get("log.hint");

@@ -127,7 +127,7 @@
                     <!-- Stashing is a choice the user makes here, never something the switch does
                          on their behalf. -->
                     <Button x:Name="StashButton" MinWidth="150" Click="OnStashSwitch" />
-                    <Button Content="Cancel" Margin="8,0,0,0" MinWidth="80" Click="OnCancel" />
+                    <Button x:Name="BlockedCancelButton" Margin="8,0,0,0" MinWidth="80" Click="OnClose" />
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -150,7 +150,7 @@
                             Style="{StaticResource PrimaryButton}"
                             IsDefault="True"
                             Click="OnAccept" />
-                    <Button Content="Cancel" Margin="8,0,0,0" IsCancel="True" Click="OnCancel" />
+                    <Button x:Name="CloseButton" Margin="8,0,0,0" MinWidth="80" IsCancel="True" Click="OnClose" />
                 </StackPanel>
             </Grid>
         </Border>

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
 using FlickGit.App.Infrastructure;
+using FlickGit.App.Localization;
 
 namespace FlickGit.App.Views;
 
@@ -21,6 +22,8 @@ public partial class ProgressWindow : Window
     public ProgressWindow(string title)
     {
         InitializeComponent();
+
+        CloseButton.Content = Strings.Get("common.close");
 
         Title = title;
         TitleText.Text = title;

@@ -9,6 +9,12 @@
 
 app.name = FlickGit
 
+# ---- communs ----
+# Un mot par sens. Un bouton qui ne fait que fermer une fenêtre dit Fermer ; seul
+# celui qui interrompt vraiment une opération dit Annuler.
+common.close = Fermer
+common.cancel = Annuler
+
 # ---- zone de notification ----
 tray.recent = Dépôts récents
 tray.recent.none = (aucun pour l'instant)
@@ -23,7 +29,6 @@ commit.files.header = Fichiers modifiés
 commit.message.header = Message de commit
 commit.button.commit = Commit
 commit.button.commitpush = Commit et push
-commit.button.cancel = Annuler
 commit.button.refresh = Actualiser
 commit.selectall = Tout
 commit.selectnone = Aucun
@@ -136,7 +141,6 @@ tag.message.label = Message — facultatif ; un message en fait une étiquette a
 tag.create = Créer
 tag.push = Pousser l'étiquette
 tag.delete = Supprimer l'étiquette
-tag.close = Fermer
 tag.message.hint = Laissez vide pour une étiquette légère. Ce que vous écrivez ici devient le message de l'étiquette et la rend annotée.
 tag.none = Aucune étiquette dans ce dépôt pour l'instant.
 tag.nomatch = Aucune étiquette ne correspond.
@@ -186,7 +190,6 @@ log.patch.filter = Fichiers patch (*.patch)|*.patch|Tous les fichiers (*.*)|*.*
 log.patch.saved = {0} enregistré.
 log.patch.empty = Cette plage ne produit aucun diff, il n'y avait donc rien à enregistrer.
 log.patch.failed = Le patch n'a pas pu être écrit.
-log.close = Fermer
 
 # ---- fenêtre blame ----
 blame.title = Blame — {0}
@@ -196,7 +199,6 @@ blame.revision = à {0}
 blame.revision.named = à {0} · {1}
 blame.depth = {0} en arrière
 blame.back = ← Retour
-blame.close = Fermer
 blame.previous = Blame de la révision précédente ({0})
 blame.previous.first = C'est le premier commit qui a touché ce fichier
 blame.previous.none = Sélectionnez une ligne pour remonter
@@ -244,7 +246,6 @@ repo.upstream.askagain = Redemander
 repo.upstream.reset = FlickGit redemandera au prochain push d'une nouvelle branche.
 repo.detached = HEAD est détachée, donc aucune branche ne suit de dépôt distant.
 repo.save = Enregistrer
-repo.close = Fermer
 
 # ---- push ----
 push.button = Push
@@ -252,7 +253,6 @@ push.success = {0} poussée vers {1}.
 push.upstream.title = Créer une branche amont ?
 push.upstream.ask = {0} n'a pas de branche amont. La pousser vers {1} et la suivre désormais ?\nLa réponse est mémorisée pour ce dépôt.
 push.upstream.yes = Pousser et suivre
-push.upstream.no = Annuler
 push.pullfirst.title = En retard sur le distant
 push.pullfirst.ask = {0} est en retard sur {1}. Faire un pull avec rebase puis pousser ?
 push.pullfirst.yes = Pull (rebase) puis push
@@ -292,8 +292,6 @@ clone.into = Dans
 clone.submodules = Initialiser les sous-modules
 clone.shallow = Clone superficiel (--depth 1)
 clone.button = Cloner
-clone.cancel = Annuler
-clone.close = Fermer
 clone.cancelled = Clone annulé. Le dossier partiel a été supprimé.
 
 # ---- modification de la copie de travail ----
@@ -376,7 +374,6 @@ action.confirm.title = Exécuter cette action ?
 action.confirm.destructive = {0}\n\nCela exécute :\n{1}\n\nCela peut supprimer du travail non committé.
 action.confirm.process = {0}\n\nCela démarre un programme extérieur à FlickGit :\n{1}
 action.confirm.yes = Exécuter
-action.confirm.no = Annuler
 action.ran = {0} terminé.
 palette.confirms = demande confirmation
 palette.tag.prompt = Saisissez un nom d'étiquette…

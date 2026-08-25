@@ -178,11 +178,11 @@
                             Style="{StaticResource PrimaryButton}"
                             Click="OnCreate" />
 
-                    <Button x:Name="CancelButton"
+                    <Button x:Name="CloseButton"
                             Margin="10,0,0,0"
                             MinWidth="90"
                             IsCancel="True"
-                            Click="OnCancel" />
+                            Click="OnClose" />
                 </StackPanel>
             </Grid>
         </Border>

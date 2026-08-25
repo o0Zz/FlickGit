@@ -9,6 +9,12 @@
 
 app.name = FlickGit
 
+# ---- comuni ----
+# Una parola per significato. Un pulsante che si limita a chiudere una finestra dice
+# Chiudi; solo quello che interrompe davvero un'operazione dice Annulla.
+common.close = Chiudi
+common.cancel = Annulla
+
 # ---- icona nell'area di notifica ----
 tray.recent = Repository recenti
 tray.recent.none = (nessuno per ora)
@@ -23,7 +29,6 @@ commit.files.header = File modificati
 commit.message.header = Messaggio del commit
 commit.button.commit = Commit
 commit.button.commitpush = Commit e push
-commit.button.cancel = Annulla
 commit.button.refresh = Aggiorna
 commit.selectall = Tutti
 commit.selectnone = Nessuno
@@ -136,7 +141,6 @@ tag.message.label = Messaggio — facoltativo; un messaggio lo rende un tag anno
 tag.create = Crea
 tag.push = Invia tag
 tag.delete = Elimina tag
-tag.close = Chiudi
 tag.message.hint = Lasciare vuoto per un tag leggero. Ciò che si scrive qui diventa il messaggio del tag e lo rende annotato.
 tag.none = Non ci sono ancora tag in questo repository.
 tag.nomatch = Nessun tag corrisponde.
@@ -186,7 +190,6 @@ log.patch.filter = File patch (*.patch)|*.patch|Tutti i file (*.*)|*.*
 log.patch.saved = {0} salvato.
 log.patch.empty = Questo intervallo non produce alcun diff, quindi non c'era nulla da salvare.
 log.patch.failed = Non è stato possibile scrivere la patch.
-log.close = Chiudi
 
 # ---- finestra di blame ----
 blame.title = Blame — {0}
@@ -196,7 +199,6 @@ blame.revision = a {0}
 blame.revision.named = a {0} · {1}
 blame.depth = {0} indietro
 blame.back = ← Indietro
-blame.close = Chiudi
 blame.previous = Blame della revisione precedente ({0})
 blame.previous.first = Questo è il primo commit che ha toccato il file
 blame.previous.none = Seleziona una riga per tornare indietro
@@ -244,7 +246,6 @@ repo.upstream.askagain = Chiedi di nuovo
 repo.upstream.reset = FlickGit chiederà di nuovo al prossimo push di un nuovo ramo.
 repo.detached = HEAD è staccata, quindi nessun ramo traccia un remoto.
 repo.save = Salva
-repo.close = Chiudi
 
 # ---- push ----
 push.button = Push
@@ -252,7 +253,6 @@ push.success = {0} inviato a {1}.
 push.upstream.title = Creare un ramo upstream?
 push.upstream.ask = {0} non ha un upstream. Inviarlo a {1} e tracciarlo d'ora in poi?\nLa risposta viene ricordata per questo repository.
 push.upstream.yes = Invia e traccia
-push.upstream.no = Annulla
 push.pullfirst.title = Indietro rispetto al remoto
 push.pullfirst.ask = {0} è indietro rispetto a {1}. Fare pull con rebase e poi push?
 push.pullfirst.yes = Pull (rebase) e push
@@ -292,8 +292,6 @@ clone.into = In
 clone.submodules = Inizializza i sottomoduli
 clone.shallow = Clone superficiale (--depth 1)
 clone.button = Clona
-clone.cancel = Annulla
-clone.close = Chiudi
 clone.cancelled = Clone annullato. La cartella parziale è stata rimossa.
 
 # ---- modifica della copia di lavoro ----
@@ -376,7 +374,6 @@ action.confirm.title = Eseguire questa azione?
 action.confirm.destructive = {0}\n\nQuesto esegue:\n{1}\n\nPuò scartare lavoro di cui non è stato fatto il commit.
 action.confirm.process = {0}\n\nQuesto avvia un programma esterno a FlickGit:\n{1}
 action.confirm.yes = Esegui
-action.confirm.no = Annulla
 action.ran = {0} terminato.
 palette.confirms = chiede conferma
 palette.tag.prompt = Digitare un nuovo nome di tag…

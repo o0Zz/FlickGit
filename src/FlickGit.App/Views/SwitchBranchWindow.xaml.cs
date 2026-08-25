@@ -49,6 +49,11 @@ public partial class SwitchBranchWindow : Window
         StashButton.Content = Strings.Get("switch.stash");
         SwitchButton.Content = Strings.Get("switch.button");
 
+        //The footer button only dismisses the window, so it says Close. The one in the blocked strip
+        //is the third answer to a question -- it declines the switch -- so that one says Cancel.
+        CloseButton.Content = Strings.Get("common.close");
+        BlockedCancelButton.Content = Strings.Get("common.cancel");
+
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
 
@@ -325,7 +330,7 @@ public partial class SwitchBranchWindow : Window
                 Strings.Get("branch.delete.title"),
                 Strings.Get("branch.delete.local", name),
                 Strings.Get("branch.delete.yes"),
-                Strings.Get("action.confirm.no")))
+                Strings.Get("common.cancel")))
         {
             return;
         }
@@ -361,7 +366,7 @@ public partial class SwitchBranchWindow : Window
                     Strings.Get("branch.delete.title"),
                     Strings.Get("branch.delete.unmerged", name),
                     Strings.Get("branch.delete.force"),
-                    Strings.Get("action.confirm.no"));
+                    Strings.Get("common.cancel"));
 
                 if (anyway)
                 {
@@ -411,7 +416,7 @@ public partial class SwitchBranchWindow : Window
                     Strings.Get("branch.delete.title"),
                     Strings.Get("branch.delete.remote", target.Branch, target.Remote),
                     Strings.Get("branch.delete.yes"),
-                    Strings.Get("action.confirm.no")))
+                    Strings.Get("common.cancel")))
             {
                 return;
             }
@@ -486,7 +491,7 @@ public partial class SwitchBranchWindow : Window
         BranchList.IsEnabled = !busy;
     }
 
-    private void OnCancel(object sender, RoutedEventArgs e) => Close();
+    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     private enum CandidateKind
     {

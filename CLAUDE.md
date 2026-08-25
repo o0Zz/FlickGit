@@ -536,7 +536,7 @@ and shows everything the popup could not.
 │ feat: add PgBouncer connection pooling to the storage gateway              │
 │                                                       [ Generate with AI ] │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ [ Commit & Push ]   [ Commit ]                              [ Cancel ]     │
+│ [ Commit & Push ]   [ Commit ]                              [ Close ]      │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1480,7 +1480,7 @@ from the FlickGit submenu, the palette and `flick pr`.
 │                                                                               │
 │ ☐ Draft   ☑ Delete feature/storage-gw when it merges     [ Write with AI ]    │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ⏎ create   esc close              [ Create pull request ]        [ Cancel ]   │
+│ ⏎ create   esc close              [ Create pull request ]        [ Close ]    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -2976,6 +2976,28 @@ An unknown code is refused with exit code 4 and the list, never silently ignored
 `diag doctor` names the requested code alongside the one actually in use, so "I set it to sv and
 nothing changed" is answerable.
 
+## Close, or Cancel
+
+One word per meaning, and there are exactly two keys for it: `common.close` and
+`common.cancel`.
+
+**A button that only dismisses a window says Close.** The commit window, the pull-request
+window, Settings, Switch branch, the log, blame, tags and the repository window all end in the
+same gesture -- nothing is running, nothing is undone, the window goes away -- and for a while
+four of them called it Cancel and four called it Close. A button promising to call something
+off, on a window where there is nothing to call off, is a promise about work that was never at
+risk.
+
+**Cancel is for a button that actually stops something**, and the list is short: the
+confirmation dialog's negative answer, declining to create an upstream, discarding the secret
+typed into the key prompt, the clone window *while a clone is running* -- where it kills the
+process and removes the partial directory, which is why that one button says Cancel then and
+Close otherwise -- and the third answer in the Switch window's blocked strip, which declines
+the switch rather than dismissing a window.
+
+Per **Hard Requirement 1** the nine keys that used to hold these two words -- one per window,
+six of them saying nothing but "Close" -- were deleted rather than left as aliases.
+
 ---
 
 # Repository Settings
@@ -3106,7 +3128,7 @@ one. Three tabs and nothing else:
 │  │ [ Open configuration folder ]                      │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
-│                              [ Save ]      [ Cancel ]    │
+│                              [ Save ]      [ Close ]     │
 └──────────────────────────────────────────────────────────┘
 ```
 

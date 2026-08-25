@@ -61,7 +61,6 @@
             </Border>
 
             <Button x:Name="CloseButton"
-                    Content="Close"
                     Style="{StaticResource PrimaryButton}"
                     HorizontalAlignment="Right"
                     Margin="0,16,0,0"

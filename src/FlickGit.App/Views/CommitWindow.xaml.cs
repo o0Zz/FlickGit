@@ -43,7 +43,7 @@ public partial class CommitWindow : Window
         CommitButton.Content = Strings.Get("commit.button.commit");
         GenerateButton.Content = Strings.Get("commit.button.generate");
         HintText.Text = Strings.Get("commit.hint");
-        CancelButton.Content = Strings.Get("commit.button.cancel");
+        CloseButton.Content = Strings.Get("common.close");
         DeleteFileMenuItem.Header = Strings.Get("delete.menu");
         RevertFileMenuItem.Header = Strings.Get("revert.menu");
 
@@ -341,7 +341,7 @@ public partial class CommitWindow : Window
         notice.ShowDialog();
     }
 
-    private void OnCancel(object sender, RoutedEventArgs e) => Close();
+    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     protected override void OnClosing(CancelEventArgs e)
     {

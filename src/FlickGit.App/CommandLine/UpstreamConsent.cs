@@ -36,7 +36,7 @@ public sealed class UpstreamConsent(RepositoryConfigService config)
                 Strings.Get("push.pullfirst.title"),
                 Strings.Get("push.pullfirst.ask", question.Branch ?? string.Empty, question.Upstream ?? string.Empty),
                 Strings.Get("push.pullfirst.yes"),
-                Strings.Get("commit.button.cancel")).ConfigureAwait(true);
+                Strings.Get("common.cancel")).ConfigureAwait(true);
         }
 
         if (await config.ReadUpstreamAnswerAsync(repository, CancellationToken.None).ConfigureAwait(true) is { } remembered)
@@ -46,7 +46,7 @@ public sealed class UpstreamConsent(RepositoryConfigService config)
             Strings.Get("push.upstream.title"),
             Strings.Get("push.upstream.ask", question.Branch ?? string.Empty, question.Remote ?? "origin"),
             Strings.Get("push.upstream.yes"),
-            Strings.Get("push.upstream.no")).ConfigureAwait(true);
+            Strings.Get("common.cancel")).ConfigureAwait(true);
 
         //Remembered either way, in the repository's own config. A user who said no once should not be
         //asked again on every commit.
