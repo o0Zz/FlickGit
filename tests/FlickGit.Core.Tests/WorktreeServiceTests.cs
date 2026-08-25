@@ -66,9 +66,10 @@ public class WorktreeServiceTests
         //The value runs to the end of the line: a path containing a space is one field, not two.
         Assert.Equal(@"C:\dev\repo-feature-storage gw", worktrees[1].Path);
 
-        //Detached and bare worktrees have no branch, which is what keeps them off the Branches window.
+        //Detached and bare worktrees have no branch, which is what keeps them off the Branches window --
+        //and is the only thing anything asks about one, which is why the record no longer carries a
+        //`detached` flag of its own.
         Assert.Null(worktrees[2].Branch);
-        Assert.True(worktrees[2].IsDetached);
 
         Assert.True(worktrees[3].IsPrunable);
         Assert.Equal("fix/pool-leak", worktrees[3].Branch);
@@ -279,5 +280,5 @@ public class WorktreeServiceTests
         Assert.Equal(expected, WorktreeService.SuggestFolderName("repo", branch));
 
     private static GitWorktree Linked(string branch, string path) =>
-        new(path, "abc", branch, IsMain: false, IsBare: false, IsDetached: false, IsLocked: false, IsPrunable: false);
+        new(path, branch, IsMain: false, IsLocked: false, IsPrunable: false);
 }

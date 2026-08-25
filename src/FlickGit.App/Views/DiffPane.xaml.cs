@@ -410,13 +410,11 @@ public partial class DiffPane : UserControl
             return;
         }
 
-        //A historical diff labels its range instead of a comparison mode: a "Working tree" label over
-        //two blobs out of the object store would not merely be unhelpful, it would be false.
-        ModeText.Text = diff.Range is { } range
-            ? range.Label
-            : diff.ComparisonMode == DiffComparisonMode.WorkingTreeVsIndex
-                ? Strings.Get("diff.mode.index")
-                : Strings.Get("diff.mode.head");
+        //A historical diff labels its range; everything else is the working tree against HEAD, which
+        //is the only comparison the product computes. A "Working tree" label over two blobs out of
+        //the object store would not merely be unhelpful, it would be false -- which is the whole
+        //reason this reads the range first.
+        ModeText.Text = diff.Range is { } range ? range.Label : Strings.Get("diff.mode.head");
 
         NoticeText.Text = diff.Notice ?? string.Empty;
 
@@ -487,7 +485,7 @@ public partial class DiffPane : UserControl
 
         LeftEditor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("Patch");
 
-        SetEditable(false, diff);
+        SetEditable(editable: false);
         Placeholder.Visibility = Visibility.Collapsed;
         StagedStrip.Visibility = Visibility.Collapsed;
     }
@@ -496,7 +494,7 @@ public partial class DiffPane : UserControl
     {
         BuildDocuments(diff.Rows, diff.Right.Text, preserveCaret: false);
 
-        SetEditable(diff.IsEditable, diff);
+        SetEditable(diff.IsEditable);
 
         //Not ScrollToHome. A change three hundred lines down would open on a screenful of unchanged
         //text, and the user would have to hunt for the thing they clicked the file to see.
@@ -511,7 +509,7 @@ public partial class DiffPane : UserControl
         Placeholder.Visibility = Visibility.Collapsed;
     }
 
-    private void SetEditable(bool editable, SideBySideDiff diff)
+    private void SetEditable(bool editable)
     {
         RightEditor.IsReadOnly = !editable;
         RightEditor.TextArea.Caret.CaretBrush = editable ? Brushes.Black : Brushes.Transparent;
@@ -522,8 +520,6 @@ public partial class DiffPane : UserControl
         RightLabel.Text = editable
             ? Strings.Get("edit.right.editable")
             : Strings.Get("diff.right.readonly");
-
-        _ = diff;
     }
 
     /// <param name="fileText">

@@ -4,6 +4,7 @@ using System.Windows;
 using FlickGit.Ai;
 using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.Resident;
 using FlickGit.App.Settings;
@@ -506,7 +507,7 @@ public partial class PullRequestWindow : Window
                     ? Strings.Get("pr.pushed", _plan?.SourceBranch ?? string.Empty) + "\n\n" + outcome.Message
                     : outcome.Message ?? string.Empty;
 
-                new NoticeWindow(Strings.Get("pr.error.title"), detail, compact: false) { Owner = this }.ShowDialog();
+                Notice.Show(this, Strings.Get("pr.error.title"), detail);
                 StatusText.Text = Strings.Get("pr.hint");
                 break;
 

@@ -30,15 +30,23 @@ internal static partial class Program
     /// </summary>
     private static readonly string[] WindowVerbs =
     [
-        "commit", "pull-rebase", "log", "blame", "repo",
-        "switch", "clone", "palette", "terminal", "tray",
+        "commit", "pull-rebase", "log", "blame", "repo", "pr",
+        "switch", "tag", "clone", "palette", "terminal", "tray",
     ];
 
-    //`settings` is deliberately absent: it prints where the files are, and a verb whose whole output
-    //is text has to be waited for or the console gets nothing.
+    /// <summary>
+    /// The verbs in <see cref="WindowVerbs"/> that answer in <i>text</i> once they are given a second
+    /// operand: bare they open a picker, named they run the operation and exit with a code.
+    ///
+    /// Both have to be waited for in that form, because both can refuse for safety and an exit code
+    /// nobody can observe is not a contract.
+    /// </summary>
+    private static readonly string[] TextWhenGivenAnArgument = ["switch", "tag"];
 
-    //`push` is deliberately absent from that list. It can refuse for safety -- a diverged branch is
-    //exit code 5 -- and an exit code nobody can observe is not a contract.
+    //`settings` is deliberately absent from WindowVerbs: it prints where the files are, and a verb
+    //whose whole output is text has to be waited for or the console gets nothing.
+
+    //`push` is deliberately absent for the reason above -- it can refuse for safety, exit code 5.
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -100,11 +108,11 @@ internal static partial class Program
         bool waitForExit = args.Length > 0
                            && !WindowVerbs.Contains(args[0], StringComparer.OrdinalIgnoreCase);
 
-        //`switch <path> <branch>` is a text command even though bare `switch` opens a picker: it can
-        //refuse for safety, and an exit code nobody can observe is not a contract.
+        //`switch <path> <branch>` and `tag <path> <name>` are text commands even though bare they open
+        //a picker -- see TextWhenGivenAnArgument.
         if (!waitForExit
             && args.Length >= 3
-            && args[0].Equals("switch", StringComparison.OrdinalIgnoreCase))
+            && TextWhenGivenAnArgument.Contains(args[0], StringComparer.OrdinalIgnoreCase))
         {
             waitForExit = true;
         }

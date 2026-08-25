@@ -81,7 +81,7 @@ public sealed class DiffCache(DiffService diffs, ILog log)
         try
         {
             SideBySideDiff diff = await diffs
-                .ComputeAsync(_repository, file, DiffComparisonMode.WorkingTreeVsHead, cancellation.Token)
+                .ComputeAsync(_repository, file, cancellation.Token)
                 .ConfigureAwait(true);
 
             if (cancellation.IsCancellationRequested)
@@ -125,7 +125,7 @@ public sealed class DiffCache(DiffService diffs, ILog log)
             try
             {
                 _cache[file.Path] = await diffs
-                    .ComputeAsync(_repository, file, DiffComparisonMode.WorkingTreeVsHead, CancellationToken.None)
+                    .ComputeAsync(_repository, file, CancellationToken.None)
                     .ConfigureAwait(true);
             }
             catch (Exception ex)

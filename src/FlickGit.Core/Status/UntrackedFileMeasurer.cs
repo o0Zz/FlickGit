@@ -27,9 +27,8 @@ public sealed class UntrackedFileMeasurer
         {
             var file = new FileInfo(absolutePath);
 
-            //A directory can appear as an untracked entry when it holds only untracked
-            //files -- Git collapses it to "dir/" rather than listing every file. There is
-            //nothing to count, and the row exists to be seen and left unticked.
+            //Deleted, or renamed, between `git status` answering and this running. The row still
+            //has to appear -- it is what the status said -- with no counts on it.
             if (!file.Exists)
                 return new Measurement(null, null, false, null);
 

@@ -84,7 +84,6 @@ revert.binned = La versión que estaba en el disco está en la Papelera de recic
 
 # ---- visor de diferencias ----
 diff.mode.head = Copia de trabajo ↔ HEAD
-diff.mode.index = Copia de trabajo ↔ Índice
 diff.left.readonly = ← solo lectura
 diff.right.readonly = solo lectura →
 diff.select.prompt = Seleccione un archivo para ver su diff.
@@ -131,7 +130,7 @@ branch.delete.force = Eliminarla de todos modos
 branch.delete.current = «{0}» es la rama en la que está. Cambie a otra primero.
 branch.deleted = {0} eliminada.
 branch.deleted.remote = {0} eliminada en {1}.
-branch.delete.noremote = «{0}» no empieza por el nombre de un remoto configurado.
+branch.noremote = «{0}» no empieza por el nombre de un remoto configurado.
 
 # ---- ventana de etiquetas ----
 tag.title = Etiquetas — {0}
@@ -455,3 +454,33 @@ settings.help.unreadable = # No se pudo leer la ayuda\n\n`{0}`
 settings.about.version = Versión {0}
 settings.about.tagline = Acciones de Git rápidas desde el Explorador de Windows: clic derecho, revisar y confirmar, sin abrir nunca un cliente Git completo.
 settings.about.author = por o0Zz
+
+# --- árboles de trabajo (worktrees): en las filas del selector de ramas -------
+# La columna derecha, en lugar de «Local», para una rama extraída en otro árbol de trabajo.
+# No «Local» además: a esa rama no se puede cambiar desde aquí.
+worktree.kind = árbol de trabajo
+# La carpeta ha desaparecido pero el registro que Git guarda de ella no, así que todo cambio se rechaza.
+worktree.kind.missing = árbol de trabajo (ausente)
+worktree.open = Abrir carpeta
+worktree.menu.add = Crear árbol de trabajo…
+worktree.menu.open = Abrir carpeta
+worktree.menu.remove = Eliminar árbol de trabajo…
+worktree.menu.prune = Limpiar árboles de trabajo ausentes…
+worktree.pick = Elija dónde crear el árbol de trabajo de «{0}»
+worktree.created = Árbol de trabajo creado en {0}. Pulse Intro en su fila para abrirlo.
+worktree.opened = {0} abierto
+worktree.openfailed = No se pudo abrir {0}.
+worktree.remove.title = Eliminar árbol de trabajo
+worktree.remove.ask = ¿Eliminar el árbol de trabajo de «{0}»?\n\n{1}\n\nLa carpeta se elimina. La rama y sus commits se mantienen.
+worktree.remove.yes = Eliminar
+worktree.removed = Árbol de trabajo eliminado en {0}.
+worktree.remove.dirty = {0} tiene cambios sin confirmar.\n\nNo se ha eliminado nada. Confírmelos allí primero, o elimine la carpeta en el Explorador — desde ahí va a la Papelera de reciclaje.
+worktree.prune.title = Limpiar árboles de trabajo ausentes
+worktree.prune.ask = La carpeta de «{0}» ha desaparecido:\n\n{1}\n\nGit sigue registrándola, y por eso no se puede cambiar a «{0}». Borrar ese registro solo afecta a los árboles de trabajo cuya carpeta ya no existe.
+worktree.prune.yes = Limpiar
+worktree.pruned = Limpieza hecha. Ya se puede volver a cambiar a «{0}».
+worktree.refused.inside = {0} está dentro de este repositorio. Un árbol de trabajo ahí aparecería como archivos sin seguimiento — elija una carpeta al lado.
+worktree.refused.notempty = {0} ya existe y no está vacía. Renómbrela o muévala primero.
+worktree.refused.main = Ese es el árbol de trabajo principal del repositorio, que no se puede eliminar.
+worktree.refused.locked = {0} está bloqueado. Desbloquéelo primero con «git worktree unlock».
+worktree.refused.path = {0} no se puede usar como carpeta de árbol de trabajo.

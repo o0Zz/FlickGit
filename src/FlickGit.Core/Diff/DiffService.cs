@@ -48,7 +48,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     public async Task<SideBySideDiff> ComputeAsync(
         RepositoryInfo repository,
         GitFileChange file,
-        DiffComparisonMode mode,
         CancellationToken cancellationToken)
     {
         string absolutePath = Path.Combine(
@@ -57,7 +56,7 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
 
         //Both sides fetched concurrently: the left is a process start, the right a file read, and
         //serialising them would add the whole `git show` to the click-to-rendered budget.
-        Task<FileText> leftTask = LoadBaseAsync(repository, file, mode, cancellationToken);
+        Task<FileText> leftTask = LoadBaseAsync(repository, file, cancellationToken);
         Task<FileText> rightTask = LoadWorkingCopyAsync(absolutePath, cancellationToken);
 
         FileText left = await leftTask.ConfigureAwait(false);
@@ -69,9 +68,8 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
             left,
             right,
             file.IsBinary,
-            mode,
             range: null,
-            UnifiedArgs(file, mode),
+            UnifiedArgs(file),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -99,7 +97,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
             left,
             right,
             file.IsBinary,
-            DiffComparisonMode.WorkingTreeVsHead,
             range,
             RangeUnifiedArgs(file, range),
             cancellationToken).ConfigureAwait(false);
@@ -116,7 +113,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         FileText left,
         FileText right,
         bool knownBinary,
-        DiffComparisonMode mode,
         CommitRange? range,
         IReadOnlyList<string> unifiedArgs,
         CancellationToken cancellationToken)
@@ -126,7 +122,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
             return new SideBySideDiff
             {
                 Path = path,
-                ComparisonMode = mode,
                 Range = range,
                 RenderMode = DiffRenderMode.Binary,
                 Left = left,
@@ -147,7 +142,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
             return new SideBySideDiff
             {
                 Path = path,
-                ComparisonMode = mode,
                 Range = range,
                 RenderMode = DiffRenderMode.UnifiedReadOnly,
                 Left = left,
@@ -170,7 +164,6 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         return new SideBySideDiff
         {
             Path = path,
-            ComparisonMode = mode,
             Range = range,
             RenderMode = wordLevel ? DiffRenderMode.SideBySideWithWordDiff : DiffRenderMode.SideBySideLinesOnly,
             Rows = rows,
@@ -187,10 +180,17 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     public static IReadOnlyList<DiffRow> Rediff(string leftText, string rightText, bool wordLevel) =>
         BuildRows(leftText, rightText, wordLevel);
 
+    /// <summary>
+    /// The left pane: <c>git show HEAD:&lt;path&gt;</c>.
+    ///
+    /// Always HEAD. There was a second comparison here -- the <i>index</i>, <c>git show :&lt;path&gt;</c>
+    /// -- reachable through a mode parameter that no caller ever passed anything but HEAD to. Nothing
+    /// selected it and no header could render it, so it was a branch that could not be taken; per
+    /// Hard Requirement 1 it is deleted rather than kept behind a flag.
+    /// </summary>
     private async Task<FileText> LoadBaseAsync(
         RepositoryInfo repository,
         GitFileChange file,
-        DiffComparisonMode mode,
         CancellationToken cancellationToken)
     {
         //An untracked file has no base by definition, and an added-in-the-index file has no HEAD blob.
@@ -200,11 +200,9 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
 
         //The old path for a rename: the base blob lives under the name it had, and asking for
         //HEAD:<newPath> would report "does not exist in HEAD" on every renamed file.
-        string basePath = mode == DiffComparisonMode.WorkingTreeVsHead && file.OldPath is { Length: > 0 }
-            ? file.OldPath
-            : file.Path;
+        string basePath = file.OldPath is { Length: > 0 } old ? old : file.Path;
 
-        return await LoadBlobAsync(repository, mode == DiffComparisonMode.WorkingTreeVsHead ? "HEAD" : string.Empty, basePath, cancellationToken).ConfigureAwait(false);
+        return await LoadBlobAsync(repository, "HEAD", basePath, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One blob out of the object store, as <c>git show &lt;spec&gt;:&lt;path&gt;</c>.</summary>
@@ -256,20 +254,15 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         }
     }
 
-    private static IReadOnlyList<string> UnifiedArgs(GitFileChange file, DiffComparisonMode mode)
-    {
-        var args = new List<string> { "diff" };
-
-        //Working tree against the index is plain `git diff`; against HEAD needs HEAD named explicitly,
-        //or staged changes would be invisible in the output.
-        if (mode == DiffComparisonMode.WorkingTreeVsHead)
-            args.Add("HEAD");
-
-        args.Add("--");
-        args.Add(file.Path);
-
-        return args;
-    }
+    /// <summary>
+    /// The read-only unified fallback for a file too large to diff live.
+    ///
+    /// <c>HEAD</c> is named explicitly, and has to be: plain <c>git diff</c> is the working tree
+    /// against the <i>index</i>, so a staged change would be invisible in the output -- which for the
+    /// one view that shows a file this size would be a diff missing half its content.
+    /// </summary>
+    private static IReadOnlyList<string> UnifiedArgs(GitFileChange file) =>
+        ["diff", "HEAD", "--", file.Path];
 
     private static IReadOnlyList<string> RangeUnifiedArgs(GitFileChange file, CommitRange range)
     {

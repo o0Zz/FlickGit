@@ -787,14 +787,26 @@ base content                     working-tree file
          aligned line pairs → renderers
 ```
 
-Left-hand base by comparison mode:
+The left-hand base is **always HEAD**:
 
 ```bash
 git -C <repo> show HEAD:<path>    # Working tree ↔ HEAD
-git -C <repo> show :<path>        # Working tree ↔ Index
 ```
 
 For an untracked file, the left side is empty.
+
+**There used to be a second comparison, the index — `git show :<path>` — and it is gone.** It was
+never reachable: `DiffComparisonMode` had the value, `DiffService` threaded a `mode` parameter
+through four methods to honour it, and the diff pane had a branch to label it, but no surface ever
+selected anything but HEAD. So it was a branch that could not be taken, and per **Hard
+Requirement 1** it was deleted rather than kept behind a flag — the enum, the parameter, the three
+branches on it and the `diff.mode.index` string in all six language files.
+
+What that section below is really about survives intact, and does not depend on the mode existing:
+the header still states what the left side is, the log window's range label is still what proves a
+historical diff cannot be mislabelled, and the restage strip is still what tells the user their
+edit is not in the commit. If the index comparison is ever wanted, it is a new feature with a
+control to select it — not a parameter waiting for a caller.
 
 Use **DiffPlex** for the line diff, with a word-level pass inside changed line pairs for
 character diffs. Do not write a Myers implementation.
@@ -994,16 +1006,21 @@ line — which is why one function serves both directions and they cannot disagr
 
 ## The staged-versus-worktree trap
 
-If the user is viewing the **staged** diff (`git show :<path>` on the left) and edits the
-right pane, they are editing the **working tree**, not the index. The edit does not appear in
-the diff they are looking at, and if the file is already staged, the change will not be in
-the commit.
+A file that is **already staged** and then edited in the right pane is edited in the **working
+tree**, not in the index — so the change will not be in the commit, even though the left pane is
+showing HEAD and the diff on screen looks complete.
+
+**The half of this that came from a second comparison mode is gone with it** (see above): the
+viewer no longer shows the index, so the user can no longer be looking at a diff their edit is
+absent from. What remains is the case that has nothing to do with the mode — the file is staged,
+the index holds the old bytes, and the edit has to be restaged to be committed.
 
 This is a well-known source of confusion in TortoiseGit. Handle it explicitly:
 
-- Label the comparison mode permanently in the viewer header: `Working tree ↔ Index` or
-  `Working tree ↔ HEAD` — or, in the log, the commit range the diff was computed over. The
-  label is always what the left side actually is, which is the whole point of it.
+- Label the left side permanently in the viewer header: `Working tree ↔ HEAD` — or, in the log,
+  the commit range the diff was computed over. The label is always what the left side actually is,
+  which is the whole point of it, and the range case is why it is read from
+  `SideBySideDiff.Range` first rather than from a field that could disagree with it.
 - When the user edits a file that is already staged, show an inline strip: *"This file is
   staged. Your edit is not in the commit yet — restage?"* with a one-click restage
 - On commit, restage every edited file if the user chose restage, and warn otherwise. Never

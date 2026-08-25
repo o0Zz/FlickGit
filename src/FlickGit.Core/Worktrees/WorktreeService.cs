@@ -271,10 +271,7 @@ public sealed class WorktreeService(IGitProcessRunner git, RepositoryService rep
         var worktrees = new List<GitWorktree>();
 
         string? path = null;
-        string? head = null;
         string? branch = null;
-        bool bare = false;
-        bool detached = false;
         bool locked = false;
         bool prunable = false;
 
@@ -285,21 +282,15 @@ public sealed class WorktreeService(IGitProcessRunner git, RepositoryService rep
 
             worktrees.Add(new GitWorktree(
                 Path: RepositoryService.NormaliseRoot(path),
-                Head: head,
                 Branch: branch,
 
                 //Position, not content. Git emits the main worktree first.
                 IsMain: worktrees.Count == 0,
-                IsBare: bare,
-                IsDetached: detached,
                 IsLocked: locked,
                 IsPrunable: prunable));
 
             path = null;
-            head = null;
             branch = null;
-            bare = false;
-            detached = false;
             locked = false;
             prunable = false;
         }
@@ -329,10 +320,6 @@ public sealed class WorktreeService(IGitProcessRunner git, RepositoryService rep
                     path = value;
                     break;
 
-                case "HEAD":
-                    head = value;
-                    break;
-
                 case "branch":
                     //refs/heads/feature/x -> feature/x. The prefix is fixed: `worktree list` reports a branch
                     //only when HEAD is a symbolic ref into refs/heads.
@@ -341,14 +328,8 @@ public sealed class WorktreeService(IGitProcessRunner git, RepositoryService rep
                         : value;
                     break;
 
-                case "bare":
-                    bare = true;
-                    break;
-
-                case "detached":
-                    detached = true;
-                    break;
-
+                //`bare`, `detached` and `HEAD` are read and dropped: a bare or detached worktree is
+                //recognised by having no `branch`, which is the only thing anything asks about one.
                 case "locked":
                     locked = true;
                     break;

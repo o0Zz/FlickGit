@@ -66,17 +66,30 @@ public sealed class RepositoryService(IGitProcessRunner git)
     public long WriteGeneration => Interlocked.Read(ref _writeGeneration);
 
     /// <summary>
-    /// Drops the cached answer for a repository. Called after any write the tool
-    /// performs, per CLAUDE.md: "Invalidate on any write operation the tool performs."
+    /// Drops the cached answer for a repository, and every directory inside it. Called after any
+    /// write the tool performs, per CLAUDE.md: "Invalidate on any write operation the tool performs."
+    ///
+    /// The separator is appended before comparing, which is the same trap
+    /// <c>WorkingTreeWriter.ResolveInsideRepository</c> and <c>WorktreeService.IsInside</c> both
+    /// guard: a bare <c>StartsWith</c> makes <c>C:\dev\repo2</c> count as inside <c>C:\dev\repo</c>,
+    /// so committing in one repository threw away the other's entry. Only ever a wasted
+    /// <c>rev-parse</c> rather than a wrong answer -- but the rule is the rule in three places now,
+    /// and one of them quietly not following it is how it stops being one.
     /// </summary>
     public void Invalidate(string repositoryRoot)
     {
         Interlocked.Increment(ref _writeGeneration);
 
+        string root = TrimTrailingSeparator(repositoryRoot);
+        string inside = root + Path.DirectorySeparatorChar;
+
         foreach (string key in _cache.Keys)
         {
-            if (key.StartsWith(repositoryRoot, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(key, root, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(inside, StringComparison.OrdinalIgnoreCase))
+            {
                 _cache.TryRemove(key, out _);
+            }
         }
     }
 

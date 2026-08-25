@@ -84,7 +84,6 @@ revert.binned = La versione che era sul disco è nel Cestino.
 
 # ---- visualizzatore diff ----
 diff.mode.head = Copia di lavoro ↔ HEAD
-diff.mode.index = Copia di lavoro ↔ Indice
 diff.left.readonly = ← sola lettura
 diff.right.readonly = sola lettura →
 diff.select.prompt = Selezionare un file per vederne il diff.
@@ -131,7 +130,7 @@ branch.delete.force = Elimina comunque
 branch.delete.current = «{0}» è il branch su cui si trova. Passi prima a un altro.
 branch.deleted = {0} eliminato.
 branch.deleted.remote = {0} eliminato su {1}.
-branch.delete.noremote = «{0}» non inizia con il nome di un remoto configurato.
+branch.noremote = «{0}» non inizia con il nome di un remoto configurato.
 
 # ---- finestra dei tag ----
 tag.title = Tag — {0}
@@ -455,3 +454,33 @@ settings.help.unreadable = # Non è stato possibile leggere la guida\n\n`{0}`
 settings.about.version = Versione {0}
 settings.about.tagline = Azioni Git rapide da Esplora file di Windows: tasto destro, revisione, commit, senza mai aprire un client Git completo.
 settings.about.author = di o0Zz
+
+# --- alberi di lavoro (worktree): sulle righe del selettore dei rami ----------
+# La colonna di destra, al posto di «Locale», per un ramo su cui è aperto un altro albero di
+# lavoro. Non «Locale» in più: su un ramo così non si può passare da qui.
+worktree.kind = albero di lavoro
+# La cartella non c'è più, ma la nota che Git ne tiene sì, quindi ogni passaggio resta rifiutato.
+worktree.kind.missing = albero di lavoro (mancante)
+worktree.open = Apri la cartella
+worktree.menu.add = Crea un albero di lavoro…
+worktree.menu.open = Apri la cartella
+worktree.menu.remove = Rimuovi l'albero di lavoro…
+worktree.menu.prune = Ripulisci gli alberi di lavoro mancanti…
+worktree.pick = Scegli dove creare l'albero di lavoro per «{0}»
+worktree.created = Albero di lavoro creato in {0}. Premi Invio sulla sua riga per aprirlo.
+worktree.opened = {0} aperto
+worktree.openfailed = Impossibile aprire {0}.
+worktree.remove.title = Rimuovi l'albero di lavoro
+worktree.remove.ask = Rimuovere l'albero di lavoro di «{0}»?\n\n{1}\n\nLa cartella viene eliminata. Il ramo e i suoi commit restano.
+worktree.remove.yes = Rimuovi
+worktree.removed = Albero di lavoro rimosso in {0}.
+worktree.remove.dirty = {0} contiene modifiche non committate.\n\nNiente è stato rimosso. Committale prima lì, oppure elimina la cartella in Esplora file — da lì finisce nel Cestino.
+worktree.prune.title = Ripulisci gli alberi di lavoro mancanti
+worktree.prune.ask = La cartella di «{0}» non c'è più:\n\n{1}\n\nGit continua a registrarla, ed è per questo che non si può passare a «{0}». Cancellare quella registrazione riguarda solo gli alberi di lavoro la cui cartella non esiste più.
+worktree.prune.yes = Ripulisci
+worktree.pruned = Ripulito. Su «{0}» si può passare di nuovo.
+worktree.refused.inside = {0} è all'interno di questo repository. Un albero di lavoro lì apparirebbe come file non tracciati — scegli piuttosto una cartella accanto.
+worktree.refused.notempty = {0} esiste già e non è vuota. Rinominala o spostala prima.
+worktree.refused.main = Questo è l'albero di lavoro principale del repository, che non può essere rimosso.
+worktree.refused.locked = {0} è bloccato. Sbloccalo prima con «git worktree unlock».
+worktree.refused.path = {0} non può essere usata come cartella di un albero di lavoro.

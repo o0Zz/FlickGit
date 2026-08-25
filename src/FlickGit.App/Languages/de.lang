@@ -84,7 +84,6 @@ revert.binned = Die Version, die auf der Festplatte lag, liegt im Papierkorb.
 
 # ---- Diff-Ansicht ----
 diff.mode.head = Arbeitsverzeichnis ↔ HEAD
-diff.mode.index = Arbeitsverzeichnis ↔ Index
 diff.left.readonly = ← schreibgeschützt
 diff.right.readonly = schreibgeschützt →
 diff.select.prompt = Eine Datei auswählen, um ihren Diff zu sehen.
@@ -131,7 +130,7 @@ branch.delete.force = Trotzdem löschen
 branch.delete.current = „{0}“ ist der aktuelle Branch. Wechseln Sie zuerst woandershin.
 branch.deleted = {0} gelöscht.
 branch.deleted.remote = {0} auf {1} gelöscht.
-branch.delete.noremote = „{0}“ beginnt nicht mit dem Namen eines konfigurierten Remotes.
+branch.noremote = „{0}“ beginnt nicht mit dem Namen eines konfigurierten Remotes.
 
 # ---- Tag-Fenster ----
 tag.title = Tags — {0}
@@ -455,3 +454,33 @@ settings.help.unreadable = # Hilfe konnte nicht gelesen werden\n\n`{0}`
 settings.about.version = Version {0}
 settings.about.tagline = Schnelle Git-Aktionen direkt aus dem Windows-Explorer — Rechtsklick, prüfen, committen, ganz ohne vollwertigen Git-Client.
 settings.about.author = von o0Zz
+
+# --- Arbeitsbäume (worktrees): auf den Zeilen der Branch-Auswahl --------------
+# Die rechte Spalte, anstelle von „Lokal“, für einen Branch, der in einem anderen Arbeitsbaum
+# ausgecheckt ist. Nicht zusätzlich „Lokal“: zu so einem Branch kann hier nicht gewechselt werden.
+worktree.kind = Arbeitsbaum
+# Der Ordner ist weg, Gits Vermerk darüber nicht — deshalb wird jeder Wechsel weiterhin verweigert.
+worktree.kind.missing = Arbeitsbaum (fehlt)
+worktree.open = Ordner öffnen
+worktree.menu.add = Arbeitsbaum erstellen…
+worktree.menu.open = Ordner öffnen
+worktree.menu.remove = Arbeitsbaum entfernen…
+worktree.menu.prune = Fehlende Arbeitsbäume aufräumen…
+worktree.pick = Wählen Sie, wo der Arbeitsbaum für „{0}“ erstellt werden soll
+worktree.created = Arbeitsbaum in {0} erstellt. Mit Eingabe auf seiner Zeile öffnen.
+worktree.opened = {0} geöffnet
+worktree.openfailed = {0} konnte nicht geöffnet werden.
+worktree.remove.title = Arbeitsbaum entfernen
+worktree.remove.ask = Den Arbeitsbaum für „{0}“ entfernen?\n\n{1}\n\nDer Ordner wird gelöscht. Der Branch und seine Commits bleiben.
+worktree.remove.yes = Entfernen
+worktree.removed = Arbeitsbaum in {0} entfernt.
+worktree.remove.dirty = {0} enthält nicht committete Änderungen.\n\nEs wurde nichts entfernt. Committen Sie sie dort zuerst, oder löschen Sie den Ordner im Explorer — von dort landet er im Papierkorb.
+worktree.prune.title = Fehlende Arbeitsbäume aufräumen
+worktree.prune.ask = Der Ordner von „{0}“ ist weg:\n\n{1}\n\nGit vermerkt ihn weiterhin, weshalb zu „{0}“ nicht gewechselt werden kann. Das Löschen dieses Vermerks betrifft nur Arbeitsbäume, deren Ordner nicht mehr existiert.
+worktree.prune.yes = Aufräumen
+worktree.pruned = Aufgeräumt. Zu „{0}“ kann wieder gewechselt werden.
+worktree.refused.inside = {0} liegt innerhalb dieses Repositorys. Ein Arbeitsbaum dort würde als unversionierte Dateien erscheinen — wählen Sie stattdessen einen Ordner daneben.
+worktree.refused.notempty = {0} existiert bereits und ist nicht leer. Benennen Sie ihn um oder verschieben Sie ihn zuerst.
+worktree.refused.main = Das ist der Haupt-Arbeitsbaum dieses Repositorys, der nicht entfernt werden kann.
+worktree.refused.locked = {0} ist gesperrt. Entsperren Sie ihn zuerst mit „git worktree unlock“.
+worktree.refused.path = {0} kann nicht als Arbeitsbaum-Ordner verwendet werden.

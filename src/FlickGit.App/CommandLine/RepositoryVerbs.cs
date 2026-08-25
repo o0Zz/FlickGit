@@ -2,7 +2,7 @@ using FlickGit.App.Localization;
 using FlickGit.App.Views;
 using FlickGit.Branches;
 using FlickGit.Cli;
-using FlickGit.Config;
+using FlickGit.Commits;
 using FlickGit.Models;
 using FlickGit.Remotes;
 using FlickGit.Status;
@@ -11,7 +11,7 @@ using FlickGit.Tags;
 namespace FlickGit.App.CommandLine;
 
 /// <summary>
-/// The verbs that answer with text about a repository: status, switch, push.
+/// The verbs that answer with text about a repository: status, switch, tag, push.
 ///
 /// Text rather than a window is the product's distinction, not this file's: the CLI stub waits for
 /// exactly these and forwards their exit code, and refuses to wait for the ones that open something.
@@ -28,7 +28,7 @@ public sealed class RepositoryVerbs(
     SwitchService switches,
     PushService pushes,
     TagService tags,
-    RepositoryConfigService config)
+    UpstreamConsent consent)
 {
     /// <summary>`flick status` — the file list as text.</summary>
     public async Task<VerbResult> StatusAsync(VerbOutput output, RepositoryInfo repository)
@@ -220,22 +220,22 @@ public sealed class RepositoryVerbs(
     /// <summary>
     /// Asks once per repository whether an upstream may be created, and remembers the answer.
     ///
-    /// A dialog even from the command line: this is consent to publish a branch to a remote other
-    /// people read, and there is no terminal to prompt on.
+    /// <b>Through <see cref="UpstreamConsent"/>, which is the only thing that reads and writes that
+    /// answer.</b> This used to be its own copy of the same three steps -- read the key, ask, write it
+    /// back -- which is exactly the second place for "once" to stop meaning once that the service's
+    /// own doc comment warns about: a user who declined here and later pressed Commit would have been
+    /// asked again about a repository they had already answered for.
+    ///
+    /// A dialog even from the command line, and unowned: this is consent to publish a branch to a
+    /// remote other people read, and there is no terminal to prompt on.
     /// </summary>
-    private async Task<bool> ConsentToUpstreamAsync(RepositoryInfo repository, PushPlan plan)
-    {
-        if (await config.ReadUpstreamAnswerAsync(repository, CancellationToken.None).ConfigureAwait(true) is { } remembered)
-            return remembered;
-
-        bool allow = ConfirmWindow.Ask(
-            owner: null,
-            Strings.Get("push.upstream.title"),
-            Strings.Get("push.upstream.ask", plan.Branch ?? string.Empty, plan.Remote ?? "origin"),
-            Strings.Get("push.upstream.yes"),
-            Strings.Get("common.cancel"));
-
-        await config.WriteUpstreamAnswerAsync(repository, allow, CancellationToken.None).ConfigureAwait(true);
-        return allow;
-    }
+    private Task<bool> ConsentToUpstreamAsync(RepositoryInfo repository, PushPlan plan) =>
+        consent.AnswerAsync(
+            repository,
+            new CommitFlowQuestion(
+                CommitFlowQuestionKind.CreateUpstream,
+                plan.Branch,
+                plan.Upstream,
+                plan.Remote),
+            (title, body, yes, no) => Task.FromResult(ConfirmWindow.Ask(null, title, body, yes, no)));
 }

@@ -3,6 +3,13 @@
 /// <summary>
 /// One checkout of a repository. The main working tree is one of these; every linked worktree
 /// added with <c>git worktree add</c> is another.
+///
+/// <b>Five fields, which is every field something reads.</b> The parser also used to keep the
+/// record's <c>HEAD</c> sha, and a <c>bare</c> and a <c>detached</c> flag; nothing anywhere read any
+/// of the three, and the only reference to <c>detached</c> was a test asserting the parser that set
+/// it. A detached or bare worktree is recognised by having no <see cref="Branch"/>, which is what
+/// the Branches window actually asks -- so per Hard Requirement 2 the three went rather than waiting
+/// for a caller.
 /// </summary>
 /// <param name="Path">
 /// Absolute path to the worktree's root, in the Windows spelling. Normalised through the same
@@ -31,11 +38,8 @@
 /// </param>
 public sealed record GitWorktree(
     string Path,
-    string? Head,
     string? Branch,
     bool IsMain,
-    bool IsBare,
-    bool IsDetached,
     bool IsLocked,
     bool IsPrunable);
 

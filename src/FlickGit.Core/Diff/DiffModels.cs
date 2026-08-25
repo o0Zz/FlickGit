@@ -1,20 +1,6 @@
 namespace FlickGit.Diff;
 
 /// <summary>
-/// What the left pane is showing. Permanently labelled in the viewer header, because
-/// CLAUDE.md, "The staged-versus-worktree trap" makes it the user's only clue about
-/// whether the edit they are about to make will be in the commit.
-/// </summary>
-public enum DiffComparisonMode
-{
-    /// <summary>`git show HEAD:&lt;path&gt;` on the left. The default.</summary>
-    WorkingTreeVsHead,
-
-    /// <summary>`git show :&lt;path&gt;` on the left — the index. Editing the right pane edits the *working tree*.</summary>
-    WorkingTreeVsIndex,
-}
-
-/// <summary>
 /// How much diffing the file's size allows. Thresholds from CLAUDE.md, "Diff Viewer →
 /// Performance", and they exist to keep the viewer responsive rather than to save work
 /// for its own sake.
@@ -83,12 +69,6 @@ public sealed record DiffRow(DiffLineKind Kind, DiffSide Left, DiffSide Right);
 public sealed record SideBySideDiff
 {
     public required string Path { get; init; }
-
-    /// <summary>
-    /// Which working-tree comparison this is. Meaningless when <see cref="Range"/> is set, where
-    /// the label comes from the range instead.
-    /// </summary>
-    public required DiffComparisonMode ComparisonMode { get; init; }
 
     public required DiffRenderMode RenderMode { get; init; }
 

@@ -84,7 +84,6 @@ revert.binned = La version qui était sur le disque est dans la corbeille.
 
 # ---- visionneuse de diff ----
 diff.mode.head = Copie de travail ↔ HEAD
-diff.mode.index = Copie de travail ↔ Index
 diff.left.readonly = ← lecture seule
 diff.right.readonly = lecture seule →
 diff.select.prompt = Sélectionnez un fichier pour voir son diff.
@@ -131,7 +130,7 @@ branch.delete.force = Supprimer quand même
 branch.delete.current = « {0} » est la branche courante. Basculez ailleurs d'abord.
 branch.deleted = {0} supprimée.
 branch.deleted.remote = {0} supprimée sur {1}.
-branch.delete.noremote = « {0} » ne commence pas par le nom d'un dépôt distant configuré.
+branch.noremote = « {0} » ne commence pas par le nom d'un dépôt distant configuré.
 
 # ---- fenêtre des étiquettes ----
 tag.title = Étiquettes — {0}
@@ -455,3 +454,33 @@ settings.help.unreadable = # L'aide n'a pas pu être lue\n\n`{0}`
 settings.about.version = Version {0}
 settings.about.tagline = Des actions Git rapides depuis l'Explorateur Windows : clic droit, relecture, commit, sans jamais ouvrir un client Git complet.
 settings.about.author = par o0Zz
+
+# --- arbres de travail (worktrees) : sur les lignes du sélecteur de branches ---
+# La colonne de droite, à la place de « Locale », pour une branche extraite dans un autre
+# arbre de travail. Pas « Locale » en plus : une telle branche ne peut pas être extraite ici.
+worktree.kind = arbre de travail
+# Le dossier a disparu mais pas la trace que Git en garde, donc tout basculement est refusé.
+worktree.kind.missing = arbre de travail (introuvable)
+worktree.open = Ouvrir le dossier
+worktree.menu.add = Créer un arbre de travail…
+worktree.menu.open = Ouvrir le dossier
+worktree.menu.remove = Supprimer l'arbre de travail…
+worktree.menu.prune = Nettoyer les arbres de travail introuvables…
+worktree.pick = Choisissez où créer l'arbre de travail pour « {0} »
+worktree.created = Arbre de travail créé dans {0}. Appuyez sur Entrée sur sa ligne pour l'ouvrir.
+worktree.opened = {0} ouvert
+worktree.openfailed = Impossible d'ouvrir {0}.
+worktree.remove.title = Supprimer l'arbre de travail
+worktree.remove.ask = Supprimer l'arbre de travail de « {0} » ?\n\n{1}\n\nLe dossier est supprimé. La branche et ses commits restent.
+worktree.remove.yes = Supprimer
+worktree.removed = Arbre de travail supprimé : {0}.
+worktree.remove.dirty = {0} contient des modifications non validées.\n\nRien n'a été supprimé. Validez-les d'abord sur place, ou supprimez le dossier dans l'Explorateur — de là, il part à la Corbeille.
+worktree.prune.title = Nettoyer les arbres de travail introuvables
+worktree.prune.ask = Le dossier de « {0} » a disparu :\n\n{1}\n\nGit en garde la trace, ce qui empêche de basculer sur « {0} ». Effacer cette trace ne touche que les arbres de travail dont le dossier n'existe plus.
+worktree.prune.yes = Nettoyer
+worktree.pruned = Nettoyage effectué. « {0} » peut à nouveau être extraite.
+worktree.refused.inside = {0} est à l'intérieur de ce dépôt. Un arbre de travail y apparaîtrait comme des fichiers non suivis — choisissez plutôt un dossier à côté.
+worktree.refused.notempty = {0} existe déjà et n'est pas vide. Renommez-le ou déplacez-le d'abord.
+worktree.refused.main = Il s'agit de l'arbre de travail principal du dépôt, qui ne peut pas être supprimé.
+worktree.refused.locked = {0} est verrouillé. Déverrouillez-le d'abord avec « git worktree unlock ».
+worktree.refused.path = {0} ne peut pas servir de dossier d'arbre de travail.

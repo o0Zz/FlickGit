@@ -101,7 +101,6 @@ revert.binned = The version that was on disk is in the Recycle Bin.
 
 # ---- diff viewer ----
 diff.mode.head = Working tree ↔ HEAD
-diff.mode.index = Working tree ↔ Index
 diff.left.readonly = ← read-only
 diff.right.readonly = read-only →
 diff.select.prompt = Select a file to see its diff.
@@ -153,7 +152,7 @@ branch.delete.force = Delete it anyway
 branch.delete.current = '{0}' is the branch you are on. Switch somewhere else first.
 branch.deleted = Deleted {0}.
 branch.deleted.remote = Deleted {0} on {1}.
-branch.delete.noremote = '{0}' does not begin with the name of a configured remote.
+branch.noremote = '{0}' does not begin with the name of a configured remote.
 
 # ---- worktrees, on the Branches window's rows -------------------------------
 # A worktree is a second checkout of the same repository, in its own folder, on its own branch.

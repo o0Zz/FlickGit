@@ -27,6 +27,17 @@ public sealed class StatusService(
     UntrackedFileMeasurer untracked,
     OperationTimings? timings = null)
 {
+    /// <summary>
+    /// How many untracked rows get their line count read off the disk. See
+    /// <see cref="UntrackedToMeasure"/> for why there is a limit and what the rows past it show.
+    ///
+    /// A named constant rather than a setting: nobody is going to want a different number, and Hard
+    /// Requirement 2 rules out a settings key for a value with one sensible answer. Two hundred is
+    /// comfortably past any change a person made by hand, and short of the thousands a stray
+    /// dependency directory produces.
+    /// </summary>
+    private const int MeasuredUntrackedFiles = 200;
+
     public async Task<RepositoryStatus> GetStatusAsync(
         RepositoryInfo repository,
         CancellationToken cancellationToken)
@@ -34,14 +45,18 @@ public sealed class StatusService(
         long startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
 
         //--branch so the header comes out of this call rather than a fourth process.
+        //
         //--untracked-files=all, not Git's default of normal, which collapses a wholly
         //untracked directory to a single "dir/" row. That row is unusable in every way
         //this window works: it cannot be ticked file by file, the measurer has nothing
         //to count, and clicking it asks the diff pane to read a directory as text -- so
-        //a new folder holding new files was the one change the list could not show. The
-        //rows it adds are ignored-file noise only in a repository with no .gitignore,
-        //and they arrive unticked, which is what makes the extra length harmless.
-        
+        //a new folder holding new files was the one change the list could not show.
+        //
+        //Ignored files are unaffected either way -- listing those needs --ignored, which
+        //nothing here passes. What this adds is one row per file inside an untracked
+        //*directory*, which is unbounded: a stray node_modules is thousands of rows. They
+        //arrive unticked, so the length is harmless, but each one used to cost a file read
+        //-- see MeasuredUntrackedFiles for the ceiling that puts on the 60 ms budget.
         Task<GitResult> statusTask = git.ReadAsync(
             repository.Root,
             ["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"],
@@ -105,6 +120,10 @@ public sealed class StatusService(
     {
         var merged = new List<GitFileChange>(statusFiles.Count);
 
+        //Which untracked rows are worth a disk read, decided before any of them is built --
+        //see the method for why there is a ceiling at all.
+        IReadOnlySet<string> measurable = UntrackedToMeasure(statusFiles);
+
         foreach (GitFileChange file in statusFiles)
         {
             worktreeCounts.TryGetValue(file.Path, out NumstatEntry? worktree);
@@ -113,7 +132,7 @@ public sealed class StatusService(
             bool looksLikeSecret = SecretDetector.LooksLikeSecretPath(file.Path);
 
             merged.Add(file.IsUntracked
-                ? WithUntrackedCounts(repository, file, looksLikeSecret)
+                ? WithUntrackedCounts(repository, file, looksLikeSecret, measurable.Contains(file.Path))
                 : WithTrackedCounts(file, worktree, staged, looksLikeSecret));
         }
 
@@ -128,6 +147,41 @@ public sealed class StatusService(
         });
 
         return merged;
+    }
+
+    /// <summary>
+    /// The untracked paths that get a line count: the first <see cref="MeasuredUntrackedFiles"/> in
+    /// display order.
+    ///
+    /// <b>Measuring every untracked file is the one loop here whose length is not bounded by the
+    /// size of the change.</b> <c>--untracked-files=all</c> lists every file inside an untracked
+    /// directory, so a stray <c>node_modules</c> is thousands of rows -- and a count for each means
+    /// a file open plus a full read of its bytes, on the path CLAUDE.md budgets at 60 ms warm.
+    ///
+    /// The rows past the ceiling keep a null count, which is the display an oversized or unreadable
+    /// file already gets: a blank counts column rather than a wrong number.
+    ///
+    /// Sorted by path here rather than picked off the list <see cref="Merge"/> has already sorted,
+    /// because <see cref="GitFileChange"/> is a class whose counts are <c>init</c>-only -- a row
+    /// cannot be measured once it is built. Reproducing the order costs nothing: every untracked row
+    /// shares one <c>SortRank</c>, so within that group the sort <i>is</i> this comparison.
+    /// </summary>
+    private static IReadOnlySet<string> UntrackedToMeasure(IReadOnlyList<GitFileChange> statusFiles)
+    {
+        var untrackedPaths = new List<string>();
+
+        foreach (GitFileChange file in statusFiles)
+        {
+            if (file.IsUntracked)
+                untrackedPaths.Add(file.Path);
+        }
+
+        if (untrackedPaths.Count <= MeasuredUntrackedFiles)
+            return untrackedPaths.ToHashSet(StringComparer.Ordinal);
+
+        untrackedPaths.Sort(static (a, b) => string.Compare(a, b, StringComparison.OrdinalIgnoreCase));
+
+        return untrackedPaths.Take(MeasuredUntrackedFiles).ToHashSet(StringComparer.Ordinal);
     }
 
     private static GitFileChange WithTrackedCounts(
@@ -168,13 +222,19 @@ public sealed class StatusService(
         };
     }
 
+    /// <param name="measure">
+    /// False past the ceiling <see cref="UntrackedToMeasure"/> sets, which leaves the counts null --
+    /// the same display an unreadable file gets.
+    /// </param>
     private GitFileChange WithUntrackedCounts(
         RepositoryInfo repository,
         GitFileChange file,
-        bool looksLikeSecret)
+        bool looksLikeSecret,
+        bool measure)
     {
-        UntrackedFileMeasurer.Measurement measurement =
-            untracked.Measure(Path.Combine(repository.Root, file.Path.Replace('/', Path.DirectorySeparatorChar)));
+        UntrackedFileMeasurer.Measurement measurement = measure
+            ? untracked.Measure(Path.Combine(repository.Root, file.Path.Replace('/', Path.DirectorySeparatorChar)))
+            : default;
 
         return new GitFileChange
         {

@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+﻿using FlickGit.Branches;
 using FlickGit.Git;
 using FlickGit.Models;
 
@@ -24,26 +24,6 @@ public sealed class TagService(IGitProcessRunner git)
     private const string FieldFormat = "%00";
 
     private const char FieldSeparator = '\0';
-
-    /// <summary>
-    /// A tag name Git will reject, caught before any command runs -- the cheap half, for live feedback
-    /// as the user types. Deliberately its own pattern rather than the branch one reused: a tag may be
-    /// called <c>HEAD</c> and a branch may not.
-    /// </summary>
-    private static readonly Regex ObviouslyInvalid = new(
-        """
-        (?x)
-          ^$                     # empty
-        | ^[-.]                  # leading dash or dot
-        | [.]$ | [/]$            # trailing dot or slash
-        | \.\.                   # ".." anywhere
-        | @\{                    # "@{" is reflog syntax
-        | ^@$                    # "@" alone means HEAD
-        | //                     # empty path component
-        | [\x00-\x20~^:?*\[\\\x7f]   # control chars and the characters git forbids outright
-        | \.lock(?:/|$)          # a component ending in .lock
-        """,
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>Every tag in the repository, newest version first.</summary>
     public async Task<IReadOnlyList<GitTag>> ListAsync(
@@ -226,7 +206,7 @@ public sealed class TagService(IGitProcessRunner git)
     {
         string tag = name.Trim();
 
-        if (ObviouslyInvalid.IsMatch(tag))
+        if (!RefName.LooksValid(tag))
             return TagOutcome.Failed($"'{tag}' is not a valid tag name.");
 
         GitResult result = await git.ReadAsync(
@@ -239,8 +219,11 @@ public sealed class TagService(IGitProcessRunner git)
             : TagOutcome.Failed($"Git rejected '{tag}' as a tag name.\n\n{result.ErrorText}");
     }
 
-    /// <summary>Fast, offline check used for live feedback while typing.</summary>
-    public static bool LooksValid(string name) => !ObviouslyInvalid.IsMatch(name.Trim());
+    /// <summary>
+    /// Fast, offline check used for live feedback while typing. The same <see cref="RefName"/> pattern
+    /// a branch name is checked against -- the two used to carry byte-identical copies of it.
+    /// </summary>
+    public static bool LooksValid(string name) => RefName.LooksValid(name);
 }
 
 /// <param name="Date">Creation date. The tag's own when annotated, the commit's otherwise.</param>

@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.ViewModels;
 using FlickGit.Commits;
@@ -148,20 +149,15 @@ public partial class CommitWindow : Window
     /// A ListBox does not select on right-click, and without this the menu would silently target
     /// whatever was selected before -- which for a Delete is the wrong file, with the correct path
     /// shown in a confirmation the user is not reading closely.
+    ///
+    /// A click that missed every row leaves the previous selection alone, and only suppresses the
+    /// menu when there was none: right-clicking the empty space below the list with a file already
+    /// chosen is a reasonable way to reach that file's menu.
     /// </summary>
     private void OnFileListContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        //ContainerFromElement rather than a hand-rolled VisualTreeHelper walk: the row template puts the
-        //path in two Runs, which are ContentElements rather than Visuals, and GetParent throws on one.
-        if (e.OriginalSource is DependencyObject source
-            && FileList.ContainerFromElement(source) is ListBoxItem row)
-        {
-            row.IsSelected = true;
-        }
-        else if (FileList.SelectedItem is null)
-        {
+        if (!FilterList.SelectRowUnderPointer(FileList, e.OriginalSource) && FileList.SelectedItem is null)
             e.Handled = true;
-        }
     }
 
     /// <summary>
@@ -335,11 +331,7 @@ public partial class CommitWindow : Window
             Close();
     }
 
-    private void OnErrorRaised(string title, string message)
-    {
-        var notice = new NoticeWindow(title, message, compact: false) { Owner = this };
-        notice.ShowDialog();
-    }
+    private void OnErrorRaised(string title, string message) => Notice.Show(this, title, message);
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 

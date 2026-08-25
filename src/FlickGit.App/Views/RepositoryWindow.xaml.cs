@@ -1,4 +1,5 @@
 using System.Windows;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.Config;
 using FlickGit.Models;
@@ -439,7 +440,7 @@ public partial class RepositoryWindow : Window
 
     /// <summary>Git's own words, never paraphrased — CLAUDE.md, "Error Handling".</summary>
     private void Report(string title, ConfigOutcome outcome) =>
-        new NoticeWindow(title, outcome.GitError ?? string.Empty, compact: false) { Owner = this }.ShowDialog();
+        Notice.Show(this, title, outcome.GitError ?? string.Empty);
 
     private void SetBusy(bool busy)
     {

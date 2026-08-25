@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.Settings;
 using FlickGit.Blame;
@@ -311,13 +312,13 @@ public partial class LogWindow : Window
             return;
 
         _shown = range;
-        ApplyFiles(range, files);
+        ApplyFiles(files);
         _timings.Record("log.range", clock.Elapsed);
 
         _ = PrefetchAsync(range, [.. files.Take(PrefetchCount)]);
     }
 
-    private void ApplyFiles(CommitRange range, IReadOnlyList<GitFileChange> files)
+    private void ApplyFiles(IReadOnlyList<GitFileChange> files)
     {
         //Kept if it survives into the new list: widening a range while reading one file must keep
         //showing that file. Nothing here can be dirty, so there is nothing to confirm.
@@ -336,8 +337,6 @@ public partial class LogWindow : Window
 
         if (rows.Count == 0)
             Diff.Show(null, isLoading: false);
-
-        _ = range;
     }
 
     /// <summary>
@@ -517,10 +516,19 @@ public partial class LogWindow : Window
             : $"{range.Newest.ShortSha}-{slug}.patch";
     }
 
-    private void Report(string title, string message) =>
-        new NoticeWindow(title, message, compact: false) { Owner = this }.ShowDialog();
+    private void Report(string title, string message) => Notice.Show(this, title, message);
 
-    private static string CacheKey(CommitRange range, string path) => $"{range.BaseSpec} {range.TipSpec} {path}";
+        /// <summary>
+    /// The cache key for one file of one range.
+    ///
+    /// The separator is a NUL, written as an escape rather than as a raw byte in this file. It used
+    /// to be the byte itself, and that made git classify the whole source file as <b>binary</b>: no
+    /// diff, no `git grep`, and no line-ending normalisation on it, all invisible until someone
+    /// tried to review a change to this window. NUL is still the right separator -- it is the one
+    /// byte a path cannot contain, which is the same reason every -z parser in the product splits
+    /// on it.
+    /// </summary>
+    private static string CacheKey(CommitRange range, string path) => $"{range.BaseSpec}\0{range.TipSpec}\0{path}";
 
     private static string Short(string sha) => sha.Length > 7 ? sha[..7] : sha;
 

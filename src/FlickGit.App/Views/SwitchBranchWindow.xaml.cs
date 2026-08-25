@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.Branches;
 using FlickGit.Matching;
@@ -188,41 +189,10 @@ public partial class SwitchBranchWindow : Window
             : new Candidate(pattern, Strings.Get("switch.create.kind"), CandidateKind.Create);
     }
 
-    /// <summary>
-    /// Down/Up move the selection without leaving the filter box, so the whole interaction is
-    /// type-then-Enter and the hands never leave the keyboard.
-    /// </summary>
-    private void OnFilterKeyDown(object sender, KeyEventArgs e)
-    {
-        if (BranchList.Items.Count == 0)
-            return;
+    private void OnFilterKeyDown(object sender, KeyEventArgs e) => FilterList.RouteArrows(BranchList, e);
 
-        switch (e.Key)
-        {
-            case Key.Down:
-                BranchList.SelectedIndex = Math.Min(BranchList.SelectedIndex + 1, BranchList.Items.Count - 1);
-                BranchList.ScrollIntoView(BranchList.SelectedItem);
-                e.Handled = true;
-                break;
-
-            case Key.Up:
-                BranchList.SelectedIndex = Math.Max(BranchList.SelectedIndex - 1, 0);
-                BranchList.ScrollIntoView(BranchList.SelectedItem);
-                e.Handled = true;
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Selects the row under the pointer before the menu opens. A <c>ListBox</c> does not do this
-    /// itself, so without it a right-click builds a menu for whatever was selected before -- which
-    /// for a delete is the difference between removing the branch that was clicked and another one.
-    /// </summary>
-    private void OnRowRightClick(object sender, MouseButtonEventArgs e)
-    {
-        if ((e.OriginalSource as DependencyObject).FindAncestor<ListBoxItem>() is { } row)
-            row.IsSelected = true;
-    }
+    private void OnRowRightClick(object sender, MouseButtonEventArgs e) =>
+        FilterList.SelectRowUnderPointer(BranchList, e.OriginalSource);
 
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
@@ -248,13 +218,13 @@ public partial class SwitchBranchWindow : Window
         {
             if (worktree.IsPrunable)
             {
-                RowMenu.Items.Add(MenuItemFor(
+                RowMenu.Items.Add(Menus.Item(
                     Strings.Get("worktree.menu.prune"),
                     () => PruneAsync(candidate.Name, worktree)));
             }
             else
             {
-                RowMenu.Items.Add(MenuItemFor(
+                RowMenu.Items.Add(Menus.Item(
                     Strings.Get("worktree.menu.open"),
                     () =>
                     {
@@ -262,7 +232,7 @@ public partial class SwitchBranchWindow : Window
                         return Task.CompletedTask;
                     }));
 
-                RowMenu.Items.Add(MenuItemFor(
+                RowMenu.Items.Add(Menus.Item(
                     Strings.Get("worktree.menu.remove"),
                     () => RemoveWorktreeAsync(candidate.Name, worktree)));
             }
@@ -274,7 +244,7 @@ public partial class SwitchBranchWindow : Window
         //tracking it, which is what switching to a remote row already does -- so this is not a hole the
         //user has to work around by switching first. Rows that already have a worktree returned above:
         //Git allows at most one per branch.
-        RowMenu.Items.Add(MenuItemFor(
+        RowMenu.Items.Add(Menus.Item(
             Strings.Get("worktree.menu.add"),
             () => AddWorktreeAsync(candidate)));
 
@@ -282,7 +252,7 @@ public partial class SwitchBranchWindow : Window
 
         if (candidate.Row == CandidateKind.Local)
         {
-            RowMenu.Items.Add(MenuItemFor(
+            RowMenu.Items.Add(Menus.Item(
                 Strings.Get("switch.menu.delete"),
                 () => DeleteLocalAsync(candidate.Name, force: false)));
         }
@@ -295,15 +265,8 @@ public partial class SwitchBranchWindow : Window
                 ? Strings.Get("switch.menu.deleteremote", remote)
                 : Strings.Get("switch.menu.delete");
 
-            RowMenu.Items.Add(MenuItemFor(label, () => DeleteRemoteAsync(candidate.Name)));
+            RowMenu.Items.Add(Menus.Item(label, () => DeleteRemoteAsync(candidate.Name)));
         }
-    }
-
-    private static MenuItem MenuItemFor(string header, Func<Task> action)
-    {
-        var item = new MenuItem { Header = header };
-        item.Click += async (_, _) => await action().ConfigureAwait(true);
-        return item;
     }
 
     private async void OnAccept(object sender, RoutedEventArgs e)
@@ -541,7 +504,7 @@ public partial class SwitchBranchWindow : Window
 
             if (target is null)
             {
-                StatusText.Text = Strings.Get("branch.delete.noremote", remoteTrackingName);
+                StatusText.Text = Strings.Get("branch.noremote", remoteTrackingName);
                 return;
             }
 
@@ -604,7 +567,10 @@ public partial class SwitchBranchWindow : Window
 
             if (resolved is null)
             {
-                StatusText.Text = Strings.Get("branch.delete.noremote", candidate.Name);
+                //The same refusal a remote deletion makes, and the same key: the sentence is about the
+                //row's name rather than about what was being done with it, which is why there is one
+                //string rather than a second copy of it under a worktree name.
+                StatusText.Text = Strings.Get("branch.noremote", candidate.Name);
                 return;
             }
 
@@ -823,8 +789,7 @@ public partial class SwitchBranchWindow : Window
         }
     }
 
-    private void Report(string title, string message) =>
-        new NoticeWindow(title, message, compact: false) { Owner = this }.ShowDialog();
+    private void Report(string title, string message) => Notice.Show(this, title, message);
 
     private void SetBusy(bool busy)
     {
@@ -889,20 +854,5 @@ public partial class SwitchBranchWindow : Window
             : (Brush)Application.Current.Resources["Text"];
 
         public override string ToString() => $"{Display} {Kind}".TrimEnd();
-    }
-}
-
-/// <summary>Walks up the visual tree, for the one place that has to find the row under the pointer.</summary>
-internal static class VisualTreeSearch
-{
-    public static T? FindAncestor<T>(this DependencyObject? from) where T : DependencyObject
-    {
-        for (DependencyObject? node = from; node is not null; node = VisualTreeHelper.GetParent(node))
-        {
-            if (node is T match)
-                return match;
-        }
-
-        return null;
     }
 }

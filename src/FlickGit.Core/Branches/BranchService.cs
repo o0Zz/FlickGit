@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
 using FlickGit.Config;
 using FlickGit.Git;
 using FlickGit.Models;
@@ -16,26 +15,6 @@ namespace FlickGit.Branches;
 public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService config)
 {
     private readonly ConcurrentDictionary<string, string> _primaryBranchCache = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// A branch name Git will reject, caught before any command runs. The cheap half of validation --
-    /// enough to give the ComboBox live feedback without a process start per keystroke.
-    /// <see cref="ValidateAsync"/> asks Git itself before anything is created.
-    /// </summary>
-    private static readonly Regex ObviouslyInvalid = new(
-        """
-        (?x)
-          ^$                     # empty
-        | ^[-.]                  # leading dash or dot
-        | [.]$ | [/]$            # trailing dot or slash
-        | \.\.                   # ".." anywhere
-        | @\{                    # "@{" is reflog syntax
-        | ^@$                    # "@" alone means HEAD
-        | //                     # empty path component
-        | [\x00-\x20~^:?*\[\\\x7f]   # control chars and the characters git forbids outright
-        | \.lock(?:/|$)          # a component ending in .lock
-        """,
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>Local branches, current first, then alphabetical.</summary>
     public async Task<IReadOnlyList<string>> ListLocalBranchesAsync(
@@ -112,7 +91,7 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     {
         string trimmed = branchName.Trim();
 
-        if (ObviouslyInvalid.IsMatch(trimmed))
+        if (!RefName.LooksValid(trimmed))
             return new BranchNameValidation(false, $"'{trimmed}' is not a valid branch name.");
 
         GitResult result = await git.ReadAsync(
@@ -125,8 +104,11 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
             : new BranchNameValidation(false, $"Git rejected '{trimmed}' as a branch name.\n\n{result.ErrorText}");
     }
 
-    /// <summary>Fast, offline check used for live feedback while typing.</summary>
-    public static bool LooksValid(string branchName) => !ObviouslyInvalid.IsMatch(branchName.Trim());
+    /// <summary>
+    /// Fast, offline check used for live feedback while typing. <see cref="RefName"/> is the pattern,
+    /// shared with tag names; this stays as the name the branch surfaces already call.
+    /// </summary>
+    public static bool LooksValid(string branchName) => RefName.LooksValid(branchName);
 
     /// <summary>
     /// Deletes a local branch.

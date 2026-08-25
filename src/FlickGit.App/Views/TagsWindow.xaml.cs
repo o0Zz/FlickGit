@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.Branches;
 using FlickGit.Matching;
@@ -114,44 +115,12 @@ public partial class TagsWindow : Window
             : Strings.Get("tag.count", _all.Count);
     }
 
-    /// <summary>
-    /// Down/Up move the selection without leaving the filter box, so the whole interaction is
-    /// type-then-arrow and the hands never leave the keyboard. The same behaviour as the branch
-    /// picker, deliberately.
-    /// </summary>
-    private void OnFilterKeyDown(object sender, KeyEventArgs e)
-    {
-        if (TagList.Items.Count == 0)
-            return;
-
-        switch (e.Key)
-        {
-            case Key.Down:
-                TagList.SelectedIndex = Math.Min(TagList.SelectedIndex + 1, TagList.Items.Count - 1);
-                TagList.ScrollIntoView(TagList.SelectedItem);
-                e.Handled = true;
-                break;
-
-            case Key.Up:
-                TagList.SelectedIndex = Math.Max(TagList.SelectedIndex - 1, 0);
-                TagList.ScrollIntoView(TagList.SelectedItem);
-                e.Handled = true;
-                break;
-        }
-    }
+    private void OnFilterKeyDown(object sender, KeyEventArgs e) => FilterList.RouteArrows(TagList, e);
 
     private string? Selected => (TagList.SelectedItem as TagRow)?.Name;
 
-    /// <summary>
-    /// The row under the pointer becomes the selected one before the menu is built. Without this the
-    /// menu would be built for whatever was highlighted before, and a right-click on one tag would
-    /// delete another.
-    /// </summary>
-    private void OnRowRightClick(object sender, MouseButtonEventArgs e)
-    {
-        if ((e.OriginalSource as DependencyObject).FindAncestor<ListBoxItem>() is { } row)
-            row.IsSelected = true;
-    }
+    private void OnRowRightClick(object sender, MouseButtonEventArgs e) =>
+        FilterList.SelectRowUnderPointer(TagList, e.OriginalSource);
 
     /// <summary>
     /// Built when the menu opens rather than declared in XAML, because both labels have to name the
@@ -171,22 +140,15 @@ public partial class TagsWindow : Window
             return;
         }
 
-        RowMenu.Items.Add(MenuItemFor(
+        RowMenu.Items.Add(Menus.Item(
             Strings.Get("tag.menu.checkout", name),
             () => CheckOutAsync(name)));
 
-        RowMenu.Items.Add(MenuItemFor(
+        RowMenu.Items.Add(Menus.Item(
             _remote is { } remote
                 ? Strings.Get("tag.menu.delete.remote", remote)
                 : Strings.Get("tag.menu.delete"),
             () => ConfirmAndDeleteAsync(name)));
-    }
-
-    private static MenuItem MenuItemFor(string header, Func<Task> action)
-    {
-        var item = new MenuItem { Header = header };
-        item.Click += async (_, _) => await action().ConfigureAwait(true);
-        return item;
     }
 
     /// <summary>
@@ -251,22 +213,17 @@ public partial class TagsWindow : Window
                 //Refused, with the working tree byte-identical. No stash offer here: that sequence is
                 //the Branches window's, it cannot switch to a tag, and the accurate answer at this
                 //window's size is the file list and the fact that nothing happened.
-                new NoticeWindow(
+                Notice.Show(
+                    this,
                     Strings.Get("tag.checkout.yes"),
                     Strings.Get("tag.checkout.blocked", name),
-                    compact: false,
-                    string.Join('\n', outcome.BlockingFiles))
-                { Owner = this }.ShowDialog();
+                    string.Join('\n', outcome.BlockingFiles));
 
                 return;
             }
 
             //A failure the file list cannot explain. Git's own words, unparaphrased.
-            new NoticeWindow(
-                Strings.Get("tag.checkout.yes"),
-                outcome.GitError ?? string.Empty,
-                compact: false)
-            { Owner = this }.ShowDialog();
+            Notice.Show(this, Strings.Get("tag.checkout.yes"), outcome.GitError ?? string.Empty);
         }
         finally
         {
@@ -436,7 +393,7 @@ public partial class TagsWindow : Window
             ? $"{preamble}\n\n{outcome.GitError}"
             : outcome.GitError ?? string.Empty;
 
-        new NoticeWindow(title, body, compact: false) { Owner = this }.ShowDialog();
+        Notice.Show(this, title, body);
     }
 
     private void SetBusy(bool busy)

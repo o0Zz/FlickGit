@@ -4,12 +4,16 @@ using FlickGit.Commits;
 namespace FlickGit.App.CommandLine;
 
 /// <summary>
-/// Turns a <see cref="CommitFlowResult"/> into the words a user reads.
+/// Turns a <see cref="CommitFlowResult"/> into the words a user reads. Nine outcomes to phrase.
 ///
-/// Nine outcomes to phrase, and separate from the view model that shows them because the command
-/// line has to phrase the same nine. Two copies of that mapping is two chances to describe the same
-/// refusal differently, which for a guardrail is worse than describing it badly: the user learns
-/// what "blocked" means from whichever surface they happened to use.
+/// <b>One caller: <c>CommitViewModel</c>.</b> This used to claim it was separate "because the
+/// command line has to phrase the same nine", and that was never true -- no command-line path runs
+/// <see cref="CommitFlow"/> at all. <c>flick commit</c> opens the window, and <c>flick push</c>
+/// phrases its own refusals straight from the <c>push.*</c> keys. Hard Requirement 2 would have it
+/// folded into its caller on that basis, and it is not, for the reason the same document gives two
+/// bullets earlier: the caller is already the largest file in the product, and sixty lines of
+/// outcome-to-string mapping in the middle of its state machine makes both harder to read. What is
+/// here is a pure function of its argument that happens to live in its own file.
 ///
 /// Presentation, so it stays in the App assembly. The decision each outcome describes was already
 /// made in <see cref="CommitFlow"/>, which is where it is tested.
