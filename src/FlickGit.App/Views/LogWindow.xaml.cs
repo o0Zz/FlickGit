@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -73,6 +74,16 @@ public partial class LogWindow : Window
     private readonly Dictionary<string, SideBySideDiff> _cache = new(StringComparer.Ordinal);
 
     private readonly DispatcherTimer _settle;
+
+    /// <summary>
+    /// <c>rev-list --count HEAD</c>, read once with the first page.
+    ///
+    /// The revision every build stamps into its version, which is what makes it worth a column: a
+    /// user holding 0.0.147 can find the commit it was built from without counting rows. Zero until
+    /// it is known, and zero forever on an unborn HEAD — <see cref="Revision"/> then shows nothing
+    /// rather than a number that means nothing.
+    /// </summary>
+    private int _headCount;
 
     private CommitRange? _shown;
     private CancellationTokenSource? _inFlight;
@@ -153,9 +164,20 @@ public partial class LogWindow : Window
 
         try
         {
+            //Started before the page and awaited after it, so the two processes overlap: the count
+            //is needed to number the rows, and paying for it in sequence would put a whole Git
+            //launch in front of the first paint. Only on the first page — history does not grow
+            //while the window is open, and "Load more" numbers its rows from the same total.
+            Task<int>? counting = _commits.Count == 0
+                ? _history.GetCommitCountAsync(_repository, CancellationToken.None)
+                : null;
+
             LogPage page = await _history
                 .GetPageAsync(_repository, _commits.Count, CancellationToken.None)
                 .ConfigureAwait(true);
+
+            if (counting is not null)
+                _headCount = await counting.ConfigureAwait(true);
 
             //Added into the bound collection rather than reassigning ItemsSource: a reassignment
             //would drop the selection, the scroll position and every virtualized container on
@@ -542,8 +564,18 @@ public partial class LogWindow : Window
     /// </summary>
     private static string Stamp(DateTimeOffset when) => when.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
 
-    private static CommitRow Row(int index, LogCommit commit) =>
-        new(index, commit, commit.ShortSha, commit.Subject, commit.Author, Stamp(commit.When), Decorate(commit.Refs));
+    private CommitRow Row(int index, LogCommit commit) =>
+        new(index, commit, Revision(index), commit.ShortSha, commit.Subject, commit.Author, Stamp(commit.When), Decorate(commit.Refs));
+
+    /// <summary>
+    /// The row's revision number: how many commits it has behind it, itself included.
+    ///
+    /// Arithmetic rather than a Git call per row — the list is newest-first, so the top row is
+    /// <see cref="_headCount"/> and every row below is one fewer. Empty when the count is unknown,
+    /// which is the same rule the rest of the window follows: no number beats a wrong one.
+    /// </summary>
+    private string Revision(int index) =>
+        _headCount > index ? (_headCount - index).ToString(CultureInfo.InvariantCulture) : string.Empty;
 
     /// <summary>Drops the "HEAD -&gt; " prefix, which is the same word on every list's top row.</summary>
     private static string Decorate(string refs) =>
@@ -553,21 +585,28 @@ public partial class LogWindow : Window
     /// The row's position, kept on the row rather than looked up per selection change: the list is
     /// newest-first and the arithmetic reads backwards, so it is worth being able to see it.
     /// </param>
+    /// <param name="Revision">
+    /// The commit's own number in the branch's history, which is what a build stamps into its
+    /// version. Empty when it could not be counted.
+    /// </param>
     private sealed record CommitRow(
         int Index,
         LogCommit Commit,
+        string Revision,
         string ShortSha,
         string Subject,
         string Author,
         string Date,
         string Refs)
     {
-        public string Tooltip => $"{Commit.Sha}\n{Commit.Author} · {Commit.When.LocalDateTime:F}";
+        public string Tooltip => Revision.Length == 0
+            ? $"{Commit.Sha}\n{Commit.Author} · {Commit.When.LocalDateTime:F}"
+            : $"{Commit.Sha}\n{Strings.Get("log.revision", Revision)}\n{Commit.Author} · {Commit.When.LocalDateTime:F}";
 
         //Overridden for TagRow's reason: a templated ListBoxItem has no text of its own, and UI
         //Automation falls back to this. A record's synthesised version reads every property name
         //out to a screen reader.
-        public override string ToString() => $"{ShortSha} {Subject} {Author} {Date}".TrimEnd();
+        public override string ToString() => $"{Revision} {ShortSha} {Subject} {Author} {Date}".Trim();
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using FlickGit.Diagnostics;
 using FlickGit.Git;
 using FlickGit.Models;
@@ -95,6 +96,33 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
         return commits.Count > PageSize
             ? new LogPage([.. commits.Take(PageSize)], true)
             : new LogPage(commits, false);
+    }
+
+    /// <summary>
+    /// How many commits HEAD has behind it, itself included — the number a build stamps into its
+    /// version as the revision, so a row in the log can be matched against a version that shipped.
+    ///
+    /// One process for the whole window rather than one per row: <c>rev-list --count</c> answers
+    /// for a single commit, and the log lists two hundred. The rows count down from this by their
+    /// position, which is exact while the history is linear — every commit below a row is one of
+    /// its ancestors — and an over-estimate for a row sitting above a merge, where the list also
+    /// holds commits that are not. Counting each row exactly means walking the graph, which is what
+    /// this deliberately does not do for a number in a gutter.
+    ///
+    /// Zero when there is nothing to count: an unborn HEAD exits non-zero, and the window shows no
+    /// number rather than a wrong one.
+    /// </summary>
+    public async Task<int> GetCommitCountAsync(
+        RepositoryInfo repository,
+        CancellationToken cancellationToken)
+    {
+        GitResult result = await git
+            .ReadAsync(repository.Root, ["rev-list", "--count", "HEAD"], cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Succeeded && int.TryParse(result.StdOut.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int count)
+            ? count
+            : 0;
     }
 
     /// <summary>
