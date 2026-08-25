@@ -1,4 +1,4 @@
-using FlickGit.Git;
+﻿using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Repositories;
@@ -8,32 +8,26 @@ namespace FlickGit.Branches;
 /// <summary>
 /// Switching branches, and creating them.
 ///
-/// This is the most dangerous service in the product, and the rules that make it safe are all
-/// negative ones. From CLAUDE.md, "Branch Selector" and "Switch Branch":
+/// The most dangerous service in the product, and the rules that make it safe are all negative:
 ///
 /// <list type="bullet">
-/// <item><description><b>Try the plain switch first.</b> `git switch` carries uncommitted
-/// changes across when there is no conflict, which is almost always what the user
-/// wants.</description></item>
-/// <item><description><b>If Git refuses, stop.</b> "do not stash, do not force." The blocking
-/// files are reported and the working tree is left byte-identical. Stashing is offered as an
-/// explicit second choice, never taken automatically.</description></item>
-/// <item><description><b>The stash path restores only its own stash.</b> It is created with a
-/// unique message and located by that message, never by index — `stash pop` with no argument
-/// would pop whatever the user had stashed last week.</description></item>
+/// <item><description><b>Try the plain switch first.</b> `git switch` carries uncommitted changes
+/// across when there is no conflict.</description></item>
+/// <item><description><b>If Git refuses, stop.</b> No stashing, no forcing. The blocking files are
+/// reported and the working tree is left byte-identical.</description></item>
+/// <item><description><b>The stash path restores only its own stash</b>, located by a unique
+/// message and never by index -- `stash pop` with no argument would pop whatever the user had
+/// stashed last week.</description></item>
 /// </list>
 /// </summary>
 public sealed class SwitchService(IGitProcessRunner git, RepositoryService repositories, ILog log)
 {
     /// <summary>
-    /// Prefix of the stash message this service creates. Long and specific on purpose: it is
-    /// how the stash is found again, so it must not collide with anything a human would type.
+    /// Prefix of the stash message this service creates. Long and specific on purpose: it is how the
+    /// stash is found again, so it must not collide with anything a human would type.
     /// </summary>
     internal const string StashMessagePrefix = "flickgit-switch";
 
-    /// <summary>
-    /// Switches to an existing branch, carrying uncommitted changes if Git allows it.
-    /// </summary>
     public async Task<SwitchOutcome> SwitchAsync(
         RepositoryInfo repository,
         string branch,
@@ -49,9 +43,8 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
         if (result.Succeeded)
             return SwitchOutcome.Success();
 
-        //Refused rather than broken. Git names the files it would have to overwrite, and those
-        //are exactly what the user needs to see to decide what to do next -- nothing has been
-        //modified or discarded.
+        //Refused rather than broken. Git names the files it would have to overwrite, and those are
+        //exactly what the user needs to decide what to do next -- nothing has been modified or discarded.
         IReadOnlyList<string> blocking = ParseBlockingFiles(result.ErrorText);
 
         log.Info($"Switch to {branch} refused; {blocking.Count} blocking file(s).");
@@ -64,9 +57,7 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
             RestoreConflicted: false);
     }
 
-    /// <summary>
-    /// Switches to a remote-tracking branch, creating a local branch that tracks it.
-    /// </summary>
+    /// <summary>Switches to a remote-tracking branch, creating a local branch that tracks it.</summary>
     public async Task<SwitchOutcome> SwitchTrackingAsync(
         RepositoryInfo repository,
         string remoteBranch,
@@ -85,19 +76,16 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
     }
 
     /// <summary>
-    /// Creates a branch at the current commit and switches to it.
-    ///
-    /// Validation happens in <see cref="BranchService.ValidateAsync"/> before this is called.
-    /// If creation fails, the caller must not commit — which is why this returns an outcome
-    /// rather than throwing and letting a caller carry on.
+    /// Creates a branch at the current commit and switches to it. If creation fails the caller must
+    /// not commit, which is why this returns an outcome rather than throwing.
     /// </summary>
     public async Task<SwitchOutcome> CreateAsync(
         RepositoryInfo repository,
         string branch,
         CancellationToken cancellationToken)
     {
-        //`switch -c`, with no fallback to `checkout -b`. Git 2.23 is the stated minimum, so the
-        //older spelling would be a second code path for a Git nobody runs.
+        //`switch -c`, with no fallback to `checkout -b`. Git 2.23 is the stated minimum, so the older
+        //spelling would be a second code path for a Git nobody runs.
         GitResult result = await git.RunAsync(
             repository.Root,
             ["switch", "-c", branch],
@@ -111,21 +99,17 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
     }
 
     /// <summary>
-    /// Stash, switch, restore — the explicit second choice after a refused switch.
-    ///
-    /// Every step is checked, and the stash is only ever restored by the reference this method
-    /// created. If the restore conflicts, the method says so and says where the stash still
-    /// is: CLAUDE.md, "If the restore conflicts, stop and tell the user the stash still exists
-    /// and how to reach it."
+    /// Stash, switch, restore -- the explicit second choice after a refused switch. Every step is
+    /// checked, and the stash is only ever restored by the reference this method created. If the
+    /// restore conflicts, it says so and says where the stash still is.
     /// </summary>
     public async Task<SwitchOutcome> StashSwitchRestoreAsync(
         RepositoryInfo repository,
         string branch,
         CancellationToken cancellationToken)
     {
-        //Unique per attempt. This string is the only handle on the stash, so it carries a GUID
-        //rather than a timestamp -- two attempts in the same second must not be able to find
-        //each other's stash.
+        //Unique per attempt. This string is the only handle on the stash, so it carries a GUID rather
+        //than a timestamp -- two attempts in the same second must not find each other's stash.
         string message = $"{StashMessagePrefix} {Guid.NewGuid():N}";
 
         GitResult stash = await git.RunAsync(
@@ -141,18 +125,17 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
             };
         }
 
-        //"No local changes to save" is a success with nothing stashed. Looking the reference up
-        //rather than assuming stash@{0} is what makes that case safe: there is no stash of ours
-        //to restore, so there is nothing to pop, and popping stash@{0} would take somebody
-        //else's.
+        //"No local changes to save" is a success with nothing stashed. Looking the reference up rather
+        //than assuming stash@{0} is what makes that case safe: there is nothing of ours to restore, and
+        //popping stash@{0} would take somebody else's.
         string? stashRef = await FindStashAsync(repository, message, cancellationToken).ConfigureAwait(false);
 
         SwitchOutcome switched = await SwitchAsync(repository, branch, cancellationToken).ConfigureAwait(false);
 
         if (!switched.Succeeded)
         {
-            //The switch still failed, for some reason other than local changes. Put the work
-            //back before reporting, so the user is where they started.
+            //The switch still failed, for some reason other than local changes. Put the work back before
+            //reporting, so the user is where they started.
             if (stashRef is not null)
                 await RestoreAsync(repository, stashRef, cancellationToken).ConfigureAwait(false);
 
@@ -161,7 +144,6 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
 
         if (stashRef is null)
         {
-            //Nothing was stashed, so the switch simply worked.
             return SwitchOutcome.Success();
         }
 
@@ -171,8 +153,8 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
         if (restore.Succeeded)
             return SwitchOutcome.Success();
 
-        //On the new branch, with the work still in a stash. Reported as a distinct state
-        //because the recovery is a command the user has to run, and it needs the reference.
+        //On the new branch, with the work still in a stash. Reported as a distinct state because the
+        //recovery is a command the user has to run, and it needs the reference.
         log.Warn($"Stash restore conflicted after switching to {branch}; stash kept at {stashRef}.");
 
         return new SwitchOutcome(
@@ -191,8 +173,8 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
         RepositoryInfo repository,
         CancellationToken cancellationToken)
     {
-        //One invocation for both ref namespaces, with the kind included so the two can be told
-        //apart without a second call or a name-prefix guess.
+        //One invocation for both ref namespaces, with the kind included so the two can be told apart
+        //without a second call or a name-prefix guess.
         GitResult result = await git.ReadAsync(
             repository.Root,
             ["for-each-ref", "--format=%(refname:short)%09%(refname)", "refs/heads", "refs/remotes"],
@@ -213,8 +195,8 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
             if (parts[1].StartsWith("refs/heads/", StringComparison.Ordinal))
                 local.Add(parts[0]);
 
-            //origin/HEAD is a symbolic ref, not a branch anyone switches to. Offering it would
-            //produce a detached HEAD on whatever it points at.
+            //origin/HEAD is a symbolic ref, not a branch anyone switches to. Offering it would produce a
+            //detached HEAD on whatever it points at.
             else if (!parts[0].EndsWith("/HEAD", StringComparison.Ordinal))
                 remote.Add(parts[0]);
         }
@@ -226,16 +208,15 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
     }
 
     private Task<GitResult> RestoreAsync(RepositoryInfo repository, string stashRef, CancellationToken cancellationToken) =>
-        //`pop`, not `apply`: on success the stash should be gone. On failure Git keeps it,
-        //which is what makes the conflict path recoverable.
+        //`pop`, not `apply`: on success the stash should be gone. On failure Git keeps it, which is what
+        //makes the conflict path recoverable.
         git.RunAsync(repository.Root, ["stash", "pop", stashRef], cancellationToken);
 
     /// <summary>
-    /// Finds the stash this service just created, by its message.
-    ///
-    /// Never by index. `stash@{0}` is whatever was stashed most recently, which on a busy
-    /// working tree is not necessarily ours -- and restoring the wrong stash is indistinguishable
-    /// from losing the user's work.
+    /// Finds the stash this service just created, by its message. <b>Never by index.</b>
+    /// <c>stash@{0}</c> is whatever was stashed most recently, which on a busy working tree is not
+    /// necessarily ours -- and restoring the wrong stash is indistinguishable from losing the user's
+    /// work.
     /// </summary>
     private async Task<string?> FindStashAsync(
         RepositoryInfo repository,
@@ -261,12 +242,9 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
     }
 
     /// <summary>
-    /// The files Git named as blocking the switch.
-    ///
-    /// Git lists them one per line, tab-indented, under a "would be overwritten" heading. The
-    /// tab is the marker rather than the heading text, because the heading wording differs
-    /// between `switch`, `checkout` and `merge` and between Git versions, while the indent has
-    /// not changed.
+    /// The files Git named as blocking the switch. Git lists them one per line, tab-indented. The tab
+    /// is the marker rather than the heading text, because the wording differs between `switch`,
+    /// `checkout` and `merge` and between Git versions, while the indent has not changed.
     /// </summary>
     internal static IReadOnlyList<string> ParseBlockingFiles(string stderr)
     {
@@ -281,8 +259,8 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
 
             string path = line.Trim();
 
-            //Git ends the list with hint lines that are also indented. They are sentences, not
-            //paths, so they are dropped by the only reliable tell available: a trailing period.
+            //Git ends the list with hint lines that are also indented. They are sentences, not paths, so they
+            //are dropped by the only reliable tell available: a trailing period.
             if (path.Length == 0 || path.EndsWith('.') || path.EndsWith(':'))
                 continue;
 
@@ -302,12 +280,10 @@ public enum SwitchStep
     Restore,
 }
 
-/// <param name="Succeeded">True only when the working tree ended up where the user asked.</param>
 /// <param name="BlockingFiles">Files Git said would be overwritten. Empty unless it refused.</param>
-/// <param name="GitError">Git's own words. Never paraphrased.</param>
 /// <param name="StashRef">
-/// Set when a stash this service created still exists — always shown to the user, because it
-/// is where their work is.
+/// Set when a stash this service created still exists -- always shown to the user, because it is
+/// where their work is.
 /// </param>
 /// <param name="RestoreConflicted">The switch happened but the stash could not be reapplied.</param>
 public sealed record SwitchOutcome(
@@ -320,15 +296,12 @@ public sealed record SwitchOutcome(
     public SwitchStep FailedStep { get; init; }
 
     /// <summary>
-    /// True when Git refused because of local changes, so offering the stash path is
-    /// appropriate. A refusal with no named files is a different failure and must not lead the
-    /// user to the stash button.
+    /// True when Git refused because of local changes, so offering the stash path is appropriate. A
+    /// refusal with no named files is a different failure and must not lead the user to that button.
     /// </summary>
     public bool RefusedByLocalChanges => !Succeeded && BlockingFiles.Count > 0;
 
     public static SwitchOutcome Success() => new(true, [], null, null, false);
 }
 
-/// <param name="Local">Local branches, alphabetical.</param>
-/// <param name="Remote">Remote-tracking branches, shown below and separated in the picker.</param>
 public sealed record SwitchCandidates(IReadOnlyList<string> Local, IReadOnlyList<string> Remote);

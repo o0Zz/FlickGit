@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using FlickGit.Actions;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
@@ -15,17 +15,15 @@ using FlickGit.Tags;
 namespace FlickGit.App.ViewModels;
 
 /// <summary>
-/// The repository palette: the way in when the user is not standing in the right folder in Explorer.
+/// The repository palette: the way in when the user is not standing in the right folder.
 ///
-/// CLAUDE.md is specific about what makes this different from a command palette — it "opens on
-/// repositories that have something to do, not on a command list". So the first thing on screen is a
-/// list of repositories ordered by whether there is work in them, and an action is a second token
-/// typed after one, never the other way round.
+/// It opens on repositories that have something to do, not on a command list, so an action is a
+/// second token typed after a repository and never the other way round.
 ///
-/// <b>It runs nothing itself.</b> Enter raises <see cref="ActionRequested"/> with a
-/// <see cref="Verb"/>, and the composition root hands that to the same <c>VerbRunner</c> the CLI and
-/// the context menu go through. CLAUDE.md: the palette is "not a shortcut around these rules", and
-/// the only way to honour that is for it to have no second path to Git at all.
+/// <b>It runs nothing itself.</b> Enter raises <see cref="ActionRequested"/>, and the composition
+/// root hands that to the same <c>VerbRunner</c> the CLI and the context menu go through -- the
+/// palette must not be a shortcut around the guardrails, and having no second path to Git at all
+/// is the only way to make that structural.
 /// </summary>
 public sealed class PaletteViewModel(
     ActionCatalog catalog,
@@ -41,19 +39,15 @@ public sealed class PaletteViewModel(
     private string? _transient;
 
     /// <summary>
-    /// The repository an action applies to, captured when the user typed the separator.
-    ///
-    /// Captured at that moment rather than re-derived per keystroke, so that arrowing down to the
-    /// third repository and pressing space acts on the third repository — not on whichever one the
-    /// filter text happens to rank first.
+    /// The repository an action applies to, captured when the user typed the separator rather than
+    /// re-derived per keystroke -- so arrowing to the third repository and pressing space acts on the
+    /// third repository, not on whichever the filter text now ranks first.
     /// </summary>
     private RepositoryOverview? _pinned;
 
     /// <summary>
-    /// Branch completions for <see cref="_pinned"/>, read once on entering action mode.
-    ///
-    /// CLAUDE.md: "Repositories with thousands of refs must not be enumerated on every keystroke."
-    /// Once per action-mode entry is the cheapest thing that still completes.
+    /// Branch completions for <see cref="_pinned"/>, read once on entering action mode. A repository
+    /// with thousands of refs must not be enumerated on every keystroke.
     /// </summary>
     private IReadOnlyList<string> _completions = [];
 
@@ -62,17 +56,13 @@ public sealed class PaletteViewModel(
     ///
     /// A <see cref="GitAction"/> rather than a <see cref="Verb"/>: a user action from
     /// <c>actions.json</c> is a Git argument list or an external program, and only the built-ins have
-    /// a verb at all. <c>ActionRunner</c> is what knows the difference.
+    /// a verb at all.
     ///
-    /// The third value is the action's second token when it declares one — the branch to switch to,
-    /// the tag to create — and null when it does not. It is carried rather than dropped, which is
-    /// what turned the branch completion from a list that looked like it did something into one that
-    /// does: before <c>ActionRunner</c> could be handed an argument, choosing a branch here opened the
-    /// picker with the branch thrown away.
+    /// The third value is the action's second token when it declares one -- the branch to switch to,
+    /// the tag to create -- and null when it does not.
     /// </summary>
     public event Action<GitAction, RepositoryInfo, string?>? ActionRequested;
 
-    /// <summary>Raised when the palette is done and should close.</summary>
     public event Action? CloseRequested;
 
     public ObservableCollection<PaletteRow> Rows { get; } = [];
@@ -82,8 +72,8 @@ public sealed class PaletteViewModel(
         get => _query;
         set
         {
-            //Read before the field changes: pinning has to see the selection as it was when the
-            //separator was typed.
+            //Read before the field changes: pinning has to see the selection as it was when the separator
+            //was typed.
             bool hadSeparator = SeparatorIndex(_query) >= 0;
 
             if (!Set(ref _query, value))
@@ -110,19 +100,15 @@ public sealed class PaletteViewModel(
         }
     }
 
-    /// <summary>True while the palette is listing actions or completions rather than repositories.</summary>
     public bool IsActionMode => _pinned is not null;
 
-    /// <summary>The pinned repository's name, shown as a chip while in action mode.</summary>
     public string ScopeText => _pinned?.Name ?? string.Empty;
 
     /// <summary>
     /// A sentence shown in place of the list when there is nothing in it.
     ///
     /// The empty state only, never a transient message: this is drawn over the list's own area, so
-    /// anything shown here while there are rows is painted on top of them. What just happened goes in
-    /// the footer instead. Always names a next step, because a palette that says only "nothing here"
-    /// is a dead end.
+    /// anything shown here while there are rows is painted on top of them.
     /// </summary>
     public string? Hint
     {
@@ -137,57 +123,43 @@ public sealed class PaletteViewModel(
     public bool HasHint => _hint is not null;
 
     /// <summary>
-    /// The footer: the exact command Enter would run, or the key hints when nothing is selected.
-    ///
-    /// CLAUDE.md: "The exact command about to run is shown in the footer before Enter." The literal
-    /// command line, not a paraphrase, so a user who wants to script the same thing can read it off
-    /// the screen.
+    /// The footer: the literal command Enter would run, not a paraphrase, so a user who wants to
+    /// script the same thing can read it off the screen.
     /// </summary>
     public string FooterText =>
-        //Whatever just happened outranks what would happen next: it is news, and it is gone as soon
-        //as the user touches anything. Otherwise the selected row already knows its own command.
+        //Whatever just happened outranks what would happen next: it is news, and it is gone as soon as
+        //the user touches anything.
         _transient
         ?? (_selectedRow?.Command is { Length: > 0 } command ? command : Strings.Get("palette.hints"));
 
     /// <summary>
-    /// What Enter does to a repository row. Commit, because that is what the user came for.
-    ///
-    /// Looked up rather than hard-coded, so hiding it in settings hides it here too instead of
-    /// leaving a footer promising a command the catalog no longer offers.
+    /// What Enter does to a repository row. Looked up rather than hard-coded, so hiding Commit in
+    /// settings hides it here too instead of leaving a footer promising a command the catalog no
+    /// longer offers.
     /// </summary>
     private GitAction? DefaultAction => catalog.ById("commit") is { Hidden: false } commit ? commit : null;
 
-    /// <summary>
-    /// The command line an action would run, for the footer.
-    ///
-    /// A built-in has a <c>flick</c> spelling and that is what is shown, because it is what the user
-    /// could type themselves. A user action has none, so its actual command is shown instead --
-    /// CLAUDE.md wants "the exact command about to run", and for a custom action that <i>is</i> the
-    /// git or process line.
-    /// </summary>
     private static string CommandLine(GitAction action, RepositoryOverview about, string? parameter)
     {
-        //A built-in has a `flick` spelling and that is what is shown, because it is what the user
-        //could type themselves.
+        //A built-in has a `flick` spelling and that is what is shown, because it is what the user could
+        //type themselves.
         if (action.Cli is { Length: > 0 } cli)
         {
             return $"flick {cli} \"{about.Root}\""
                    + (parameter is { Length: > 0 } ? $" {parameter}" : string.Empty);
         }
 
-        //A user action has no verb, so its actual command is shown -- expanded, because CLAUDE.md
-        //wants "the exact command about to run" and `git fetch --prune {remote}` is not one.
+        //A user action has no verb, so its actual command is shown -- expanded, because
+        //`git fetch --prune {remote}` is not "the exact command about to run".
         var context = new ActionContext(about.Repository, about.Branch);
 
         return ActionPlaceholders.Expand(action.Run, context).Describe();
     }
 
     /// <summary>
-    /// Fills the list from the cache, without awaiting anything.
-    ///
-    /// This is what the 80 ms budget buys: the palette paints the previous snapshot immediately and
-    /// <see cref="RefreshAsync"/> replaces it when Git has answered. CLAUDE.md: "Never wait on a
-    /// `git` process before showing."
+    /// Fills the list from the cache, without awaiting anything. This is what the 80 ms budget buys:
+    /// the palette paints the previous snapshot immediately and <see cref="RefreshAsync"/> replaces
+    /// it when Git has answered.
     /// </summary>
     public void Reset()
     {
@@ -202,7 +174,6 @@ public sealed class PaletteViewModel(
         Rebuild();
     }
 
-    /// <summary>Re-reads every repository, then re-renders in place.</summary>
     public async Task RefreshAsync()
     {
         if (!overviews.IsStale)
@@ -223,7 +194,6 @@ public sealed class PaletteViewModel(
         }
     }
 
-    /// <summary>Enter: run what is selected.</summary>
     public void Accept()
     {
         if (_selectedRow is null)
@@ -242,8 +212,8 @@ public sealed class PaletteViewModel(
 
         if (_selectedRow.Action is { } action)
         {
-            //An action needing an argument is not runnable without one. Choosing it types it into
-            //the query instead, which brings up the completions -- so Enter always advances.
+            //An action needing an argument is not runnable without one. Choosing it types it into the query
+            //instead, which brings up the completions -- so Enter always advances.
             if (action.Parameter != ActionParameter.None)
             {
                 Query = $"{QueryBeforeSeparator()} {action.Cli} ";
@@ -260,13 +230,9 @@ public sealed class PaletteViewModel(
     }
 
     /// <summary>
-    /// Ctrl+Enter: pull --rebase every repository that is behind.
-    ///
-    /// The one bulk operation the palette offers, and the footer advertises it. Safe in bulk because
-    /// <c>pull --rebase --autostash</c> refuses rather than discarding: a repository that cannot be
+    /// Ctrl+Enter: pull --rebase every repository that is behind. Safe in bulk because
+    /// <c>pull --rebase --autostash</c> refuses rather than discarding -- a repository that cannot be
     /// rebased cleanly is reported, never forced.
-    ///
-    /// The same <c>pull-rebase</c> action as the context menu, because there is only one.
     /// </summary>
     public void PullAllBehind()
     {
@@ -288,7 +254,6 @@ public sealed class PaletteViewModel(
         CloseRequested?.Invoke();
     }
 
-    /// <summary>Backspace with the action text empty: back to the repository list.</summary>
     /// <returns>False when there was nothing to leave, so the key means what it usually means.</returns>
     public bool LeaveActionModeIfEmpty()
     {
@@ -301,7 +266,6 @@ public sealed class PaletteViewModel(
 
     public void Cancel() => CloseRequested?.Invoke();
 
-    /// <summary>The action the typed token names exactly, when it names one.</summary>
     private GitAction? CurrentAction
     {
         get
@@ -316,10 +280,8 @@ public sealed class PaletteViewModel(
     }
 
     /// <summary>
-    /// The actions offered for the pinned repository.
-    ///
-    /// No requirement filtering: the palette only ever pins something it found by locating a
-    /// <c>.git</c>, so every action's one requirement is already satisfied.
+    /// The actions offered for the pinned repository. No requirement filtering: the palette only ever
+    /// pins something it found by locating a <c>.git</c>.
     /// </summary>
     private IReadOnlyList<GitAction> Available() =>
         _pinned is null ? [] : catalog.For(ActionSurfaces.Palette);
@@ -342,12 +304,10 @@ public sealed class PaletteViewModel(
     }
 
     /// <summary>
-    /// Which repository an action typed after <paramref name="prefix"/> applies to.
-    ///
-    /// Normally the highlighted row, so that arrowing down to the third repository and pressing space
-    /// acts on the third repository. But only if that row still <i>matches</i> the prefix: text can
-    /// arrive faster than a keystroke at a time — pasted, or set by a test — and then the highlight
-    /// belongs to a filter that was never applied and naming it would act on the wrong repository.
+    /// Which repository an action typed after <paramref name="prefix"/> applies to: the highlighted
+    /// row, but only if it still <i>matches</i> the prefix. Text can arrive faster than a keystroke
+    /// at a time -- pasted, or set by a test -- and then the highlight belongs to a filter that was
+    /// never applied, and naming it would act on the wrong repository.
     /// </summary>
     private RepositoryOverview? PinFor(string prefix)
     {
@@ -401,7 +361,7 @@ public sealed class PaletteViewModel(
             BuildActionRows();
 
         //Reset rather than preserved: the list reorders as the pattern changes, so keeping an index
-        //would move the highlight to an unrelated row. The top row is always the best match.
+        //would move the highlight to an unrelated row.
         SelectedRow = Rows.FirstOrDefault();
 
         Hint = Rows.Count > 0
@@ -427,8 +387,7 @@ public sealed class PaletteViewModel(
 
         IReadOnlyList<string> mru = recent.Paths;
 
-        //MRU rank folded into the score by the matcher, which is what CLAUDE.md asks for: "scored by
-        //contiguity, word-boundary hits and MRU rank". A group takes its best member's rank.
+        //MRU rank folded into the score by the matcher. A group takes its best member's rank.
         IReadOnlyList<FuzzyMatch> ranked = FuzzyMatcher.Rank(
             byName.Keys,
             _query,
@@ -437,8 +396,7 @@ public sealed class PaletteViewModel(
         IEnumerable<RepositoryOverview> ordered = ranked.SelectMany(m => byName[m.Value]);
 
         //With nothing typed the ordering rule is the product's, not the matcher's: repositories with
-        //something to do come first. Once there is a pattern the best match wins outright -- someone
-        //who typed a name wants that repository whether or not it is clean.
+        //something to do come first. Once there is a pattern the best match wins outright.
         if (_query.Length == 0)
             ordered = ordered.OrderByDescending(o => o.HasWork);
 
@@ -479,8 +437,8 @@ public sealed class PaletteViewModel(
 
         string actionPattern = tokens.Length > 0 ? tokens[0] : string.Empty;
 
-        //Keyed by the search text: the CLI spelling for a built-in, the label for a user action that
-        //has no verb. Both are what someone would actually type looking for it.
+        //Keyed by the search text: the CLI spelling for a built-in, the label for a user action that has
+        //no verb. Both are what someone would actually type looking for it.
         var byKey = new Dictionary<string, GitAction>(StringComparer.OrdinalIgnoreCase);
 
         foreach (GitAction candidate in Available())
@@ -490,16 +448,14 @@ public sealed class PaletteViewModel(
             .Rank(byKey.Keys, actionPattern)
             .Select(m => byKey[m.Value]);
 
-        //With nothing typed, catalog order rather than the matcher's. Every candidate scores the same
-        //against an empty pattern, so the matcher falls back to alphabetical -- which put "commit"
-        //first only by luck of the alphabet.
+        //With nothing typed, catalog order rather than the matcher's: every candidate scores the same
+        //against an empty pattern, so the matcher falls back to alphabetical.
         if (actionPattern.Length == 0)
             ordered = ordered.OrderBy(a => a.MenuOrder);
 
         foreach (GitAction candidate in ordered)
         {
-            //The command rather than the id in the detail column: a user action's id says nothing,
-            //and the command is what CLAUDE.md wants visible.
+            //The command rather than the id in the detail column: a user action's id says nothing.
             Rows.Add(new PaletteRow(
                 candidate.Label,
                 candidate.Cli ?? candidate.Run.Describe(),
@@ -512,11 +468,10 @@ public sealed class PaletteViewModel(
     /// <summary>
     /// The single row for a tag name being typed.
     ///
-    /// <b>Always exactly one row, runnable or not.</b> There is nothing to complete against — see
-    /// <see cref="ActionParameter.Tag"/> — so this is the branch ComboBox's inline resolution rather
-    /// than a completion list: the row says what will happen to what was typed, and only carries a
-    /// <c>Parameter</c> when there is something Enter may actually do. A row with none is a row Enter
-    /// ignores, which is how an invalid name is refused before any Git command runs.
+    /// <b>Always exactly one row, runnable or not.</b> There is nothing to complete against -- see
+    /// <see cref="ActionParameter.Tag"/> -- so this is the branch ComboBox's inline resolution rather
+    /// than a completion list. A row carries a <c>Parameter</c> only when Enter may actually do
+    /// something, which is how an invalid name is refused before any Git command runs.
     /// </summary>
     private void BuildNewTagRow(GitAction action, string typed)
     {
@@ -548,8 +503,8 @@ public sealed class PaletteViewModel(
             : overview.Untracked > 0 ? Strings.Get("palette.untrackedonly", overview.Untracked)
             : Strings.Get("palette.clean");
 
-        //Only the non-zero half, so a repository that is merely ahead does not carry a "↓0" the user
-        //has to read past.
+        //Only the non-zero half, so a repository that is merely ahead does not carry a zero the user has
+        //to read past.
         string trailing = string.Join(
             ' ',
             new[]
@@ -558,7 +513,6 @@ public sealed class PaletteViewModel(
                 overview.Behind > 0 ? $"↓{overview.Behind}" : null,
             }.Where(s => s is not null));
 
-        //Enter on a repository row commits, so that is the command it advertises.
         string command = DefaultAction is { } commit
             ? CommandLine(commit, overview, null)
             : overview.Root;
@@ -566,7 +520,6 @@ public sealed class PaletteViewModel(
         return new PaletteRow(overview.Name, detail, trailing, command, overview.HasWork, Repository: overview);
     }
 
-    /// <summary>The text after the separator: the action and its argument.</summary>
     private string ActionText()
     {
         int separator = SeparatorIndex(_query);
@@ -580,10 +533,8 @@ public sealed class PaletteViewModel(
     }
 
     /// <summary>
-    /// Where the repository filter ends and the action begins.
-    ///
-    /// CLAUDE.md: "a space or <c>&gt;</c> switches to action mode". Both, because a space is what
-    /// people type and <c>&gt;</c> is what the prompt shows.
+    /// Where the repository filter ends and the action begins. A space or <c>&gt;</c>: a space is
+    /// what people type and <c>&gt;</c> is what the prompt shows.
     /// </summary>
     private static int SeparatorIndex(string query) => query.IndexOfAny([' ', '>']);
 

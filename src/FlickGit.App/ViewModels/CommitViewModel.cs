@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Infrastructure;
@@ -17,23 +17,10 @@ namespace FlickGit.App.ViewModels;
 /// <summary>
 /// The commit window's state and behaviour. No Git logic of its own.
 ///
-/// <b>This was two classes and a shared base until the quick-commit popup was removed.</b> The base
-/// existed because the popup and the window did the same things — the same branch resolution, the
-/// same warning rule, the same guardrail consent, the same call into <see cref="CommitFlow"/> — and
-/// having that written twice meant a fix applied to one surface quietly left the other wrong. With
-/// the popup gone it was an abstract class with exactly one subclass, which CLAUDE.md's "Coding
-/// Guidelines" lists under Avoid, so it was folded back in.
-///
-/// The AI generation and the queued Enter came with it. They were the popup's two unique behaviours
-/// and they are the whole of what made the fast path fast, so they belong to the surface that
-/// replaced it — otherwise removing the popup would have removed the only place in the product that
-/// can write a commit message.
-///
-/// <b>Reuse is the correctness risk here.</b> The resident service keeps one instance alive for the
-/// whole session, so <see cref="Reset"/> must leave nothing behind from the previous repository.
-/// Every mutable field declared below is assigned there — one place to look when adding a field. Not
-/// a test: Hard Requirement 4 puts everything in <c>FlickGit.App</c> out of scope. Verified by
-/// running it.
+/// <b>Reuse is the correctness risk here.</b> The resident service keeps one instance alive for
+/// the whole session, so <see cref="Reset"/> must leave nothing behind from the previous
+/// repository. Every mutable field declared below is assigned there -- one place to look when
+/// adding a field.
 /// </summary>
 public sealed class CommitViewModel : ObservableObject
 {
@@ -71,10 +58,8 @@ public sealed class CommitViewModel : ObservableObject
     private CancellationTokenSource? _generation;
 
     /// <remarks>
-    /// No repository parameter: the one it was given was always <see cref="RepositoryInfo.None"/>,
-    /// because the window is pre-warmed long before anybody right-clicks and
-    /// <see cref="Reset(RepositoryInfo)"/> is what points it at a folder. Per Hard Requirement 3 the
-    /// repository is per-invocation state, so it arrives per invocation.
+    /// No repository parameter: the window is pre-warmed long before anybody right-clicks, and
+    /// <see cref="Reset(RepositoryInfo)"/> is what points it at a folder.
     /// </remarks>
     public CommitViewModel(
         StatusService status,
@@ -115,7 +100,7 @@ public sealed class CommitViewModel : ObservableObject
         RevertFileCommand = new AsyncCommand(RevertSelectedFileAsync, () => CanRevertFile, ReportError);
 
         //Replaces whatever is in the box, unlike the automatic pass when the window opens: the user
-        //pressed a button labelled "generate", so overwriting their text is what they asked for.
+        //pressed a button labelled "generate".
         GenerateCommand = new RelayCommand(() => BeginGeneration(force: true), () => CanGenerate);
     }
 
@@ -126,45 +111,30 @@ public sealed class CommitViewModel : ObservableObject
     public RelayCommand SelectNoneCommand { get; }
     public RelayCommand GenerateCommand { get; }
 
-    /// <summary>The file list's context menu. Acts on the row the right-click selected.</summary>
     public AsyncCommand DeleteFileCommand { get; }
 
-    /// <summary>The other item on that menu. Puts the row's file back the way HEAD has it.</summary>
     public AsyncCommand RevertFileCommand { get; }
 
     public ObservableCollection<FileChangeItem> Files { get; } = [];
 
-    /// <summary>Local branches, current first, for the ComboBox drop-down.</summary>
     public ObservableCollection<string> Branches { get; } = [];
 
-    /// <summary>Raised when the commit succeeded, so the window can report and close.</summary>
     public event Action<CommitResult>? Committed;
 
-    /// <summary>Raised for anything the user has to be told, with Git's own words in it.</summary>
     public event Action<string, string>? ErrorRaised;
 
-    /// <summary>
-    /// Raised when the caret belongs back in the message box: a generation that failed with a commit
-    /// queued, or one that landed and is now waiting for Enter.
-    /// </summary>
     public event Action? FocusMessageRequested;
 
     /// <summary>
-    /// Asks the user a yes/no question and waits for the answer.
-    ///
-    /// A callback rather than a dialog call, because a view model must not construct windows — and
-    /// because the questions it asks are guardrail consent, which CLAUDE.md requires to be answered
-    /// before anything executes.
+    /// Asks the user a yes/no question and waits. A callback rather than a dialog call, because a
+    /// view model must not construct windows.
     /// </summary>
     public Func<string, string, string, string, Task<bool>>? ConfirmAsync { get; set; }
 
     /// <summary>
-    /// Whether the diff pane holds an unsaved edit, asked of the window because the pane is the
-    /// window's.
-    ///
-    /// Only the revert confirmation reads it, and only to add a sentence. An edit that was never
-    /// saved is not on disk, so it is not what goes to the Recycle Bin — and a dialog promising
-    /// recoverability has to be right about what it is promising.
+    /// Whether the diff pane holds an unsaved edit. Only the revert confirmation reads it: an edit
+    /// that was never saved is not on disk, so it is not what goes to the Recycle Bin, and a dialog
+    /// promising recoverability has to be right about what it is promising.
     /// </summary>
     public Func<bool>? IsEditorDirty { get; set; }
 
@@ -178,7 +148,6 @@ public sealed class CommitViewModel : ObservableObject
 
     public string Title => Strings.Get("commit.title", _repository.Name);
 
-    /// <summary>The status behind everything on screen. Null until the first refresh lands.</summary>
     public RepositoryStatus? CurrentStatus => _currentStatus;
 
     public string CurrentBranch => _currentStatus?.Branch ?? string.Empty;
@@ -201,8 +170,7 @@ public sealed class CommitViewModel : ObservableObject
             if (!Set(ref _message, value))
                 return;
 
-            //A keystroke in the box means the user is taking over from the stream. Their text wins: a
-            //stream that kept overwriting what they were typing would be unusable.
+            //A keystroke in the box means the user is taking over from the stream. Their text wins.
             if (!_applyingStream && _stage is CommitStage.Generating or CommitStage.Queued)
             {
                 CancelGeneration();
@@ -214,10 +182,7 @@ public sealed class CommitViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// The branch ComboBox's text. Free text: anything that is not an existing branch is a new
-    /// branch name.
-    /// </summary>
+    /// <summary>Free text: anything that is not an existing branch is a new branch name.</summary>
     public string BranchInput
     {
         get => _branchInput;
@@ -226,8 +191,8 @@ public sealed class CommitViewModel : ObservableObject
             if (!Set(ref _branchInput, value))
                 return;
 
-            //Resolved on every keystroke with no Git call: the branch list is already in memory and
-            //name validity is an offline check.
+            //Resolved on every keystroke with no Git call: the branch list is already in memory and name
+            //validity is an offline check.
             BranchResolution = BranchResolution.Resolve(value, CurrentBranch, Branches);
             RaiseCommandStates();
         }
@@ -255,7 +220,6 @@ public sealed class CommitViewModel : ObservableObject
         }
     }
 
-    /// <summary>The warning strip: committing to the primary branch, or an unresolved conflict.</summary>
     public string? Notice
     {
         get => _notice;
@@ -268,7 +232,6 @@ public sealed class CommitViewModel : ObservableObject
 
     public bool HasNotice => _notice is not null;
 
-    /// <summary>The last outcome line. Cleared at the start of the next action.</summary>
     public string? StatusText
     {
         get => _statusText;
@@ -281,7 +244,6 @@ public sealed class CommitViewModel : ObservableObject
 
     public bool HasStatusText => _statusText is not null;
 
-    /// <summary>Where the window is in the type-Enter-done sequence.</summary>
     public CommitStage Stage
     {
         get => _stage;
@@ -307,11 +269,8 @@ public sealed class CommitViewModel : ObservableObject
     };
 
     /// <summary>
-    /// Whether committing is possible at all.
-    ///
-    /// The tick state lives on the status's own <c>GitFileChange</c> instances — which is what
-    /// <c>FileChangeItem</c> writes — so this is the same question wherever it is asked from. A
-    /// message is required: CLAUDE.md, "Never commit an empty or placeholder message."
+    /// The tick state lives on the status's own <c>GitFileChange</c> instances -- which is what
+    /// <c>FileChangeItem</c> writes -- so this is the same question wherever it is asked from.
     /// </summary>
     public bool CanCommit =>
         _stage is not (CommitStage.Queued or CommitStage.Committing)
@@ -322,10 +281,6 @@ public sealed class CommitViewModel : ObservableObject
         && _branchResolution.IsCommittable
         && !_currentStatus.HasConflicts;
 
-    /// <summary>
-    /// Whether the Generate button does anything: a provider, a key, consent, and something to
-    /// describe.
-    /// </summary>
     public bool CanGenerate =>
         _messages.IsUsable
         && _stage is not (CommitStage.Queued or CommitStage.Committing)
@@ -333,28 +288,22 @@ public sealed class CommitViewModel : ObservableObject
         && _currentStatus.Files.Any(f => f.IsSelected);
 
     /// <summary>
-    /// Whether there is a file to delete: one selected, still on disk, and nothing else running.
-    ///
-    /// A row whose file is already gone — deleted from the working tree, or removed with
-    /// <c>git rm</c> — is greyed out rather than offered and then refused. It is the one state where
-    /// the letter on the row (<c>D</c>) already says the answer.
+    /// A row whose file is already gone -- deleted from the working tree, or removed with
+    /// <c>git rm</c> -- is greyed out rather than offered and then refused. The <c>D</c> on the row
+    /// already says the answer.
     /// </summary>
     public bool CanDeleteFile => !_isBusy && _selectedFile is { IsOnDisk: true };
 
     /// <summary>
-    /// Whether there is a file to revert: one selected, present in HEAD, and nothing else running.
-    ///
     /// The reasons a file is not revertable are <see cref="RestoreService.CanRevert"/>'s, and they
-    /// are all one reason — HEAD does not have this path. Greyed out rather than offered and then
-    /// refused, the same rule Delete follows for a row whose file is already gone.
+    /// are all one reason: HEAD does not have this path.
     /// </summary>
     public bool CanRevertFile =>
         !_isBusy && _selectedFile is { } file && RestoreService.CanRevert(file.Change);
 
     /// <summary>
-    /// Whether the AI is configured at all. False hides the button rather than showing a permanently
-    /// dead one — with no key stored there is nothing the user can do with it here, and Settings is
-    /// where that is fixed.
+    /// False hides the button rather than showing a permanently dead one -- with no key stored there
+    /// is nothing the user can do with it here, and Settings is where that is fixed.
     /// </summary>
     public bool IsAiConfigured => _messages.IsUsable;
 
@@ -368,7 +317,6 @@ public sealed class CommitViewModel : ObservableObject
             if (!Set(ref _selectedFile, value))
                 return;
 
-            //The context menu acts on the selection, so it has to re-evaluate with it.
             RaiseCommandStates();
 
             _ = LoadDiffAsync(value);
@@ -379,9 +327,8 @@ public sealed class CommitViewModel : ObservableObject
     {
         get => _currentDiff;
 
-        //The comparison label CLAUDE.md requires in the diff header is the pane's own: it has the
-        //diff in front of it, and a second copy here could disagree about what the user is looking
-        //at -- which is the confusion that section exists to prevent.
+        //The comparison label CLAUDE.md requires in the diff header is the pane's own: a second copy
+        //here could disagree about what the user is looking at.
         private set => Set(ref _currentDiff, value);
     }
 
@@ -395,19 +342,13 @@ public sealed class CommitViewModel : ObservableObject
 
     public double DiffFontSize => _settings.DiffFontSize;
 
-    // ---- lifecycle ----------------------------------------------------------------
-
     /// <summary>
-    /// Clears everything, so the reused window shows nothing of the previous repository.
-    ///
-    /// A field added above and not cleared here is exactly the leak CLAUDE.md calls "the main
-    /// correctness risk of reuse" — it shows up as the previous repository's message in a window now
-    /// pointed somewhere else.
+    /// Clears everything, so the reused window shows nothing of the previous repository. A field
+    /// added above and not cleared here is the leak this window's whole reuse story depends on.
     /// </summary>
     public void Reset(RepositoryInfo repository)
     {
-        //The AI's state is as much a leak risk as anything else: a generation left running would
-        //stream the previous repository's message into this one.
+        //A generation left running would stream the previous repository's message into this one.
         CancelGeneration();
         Stage = CommitStage.Idle;
         _queuedPush = false;
@@ -444,12 +385,9 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Reads the status and adopts it.
-    ///
-    /// Deliberately not called from <see cref="Reset"/>: the window is shown between the two.
-    /// CLAUDE.md budgets the window appearing separately from its contents arriving — two budgets, so
-    /// two steps. Populating first means paying both before anything is on screen, and three Git
-    /// processes is most of that.
+    /// Reads the status and adopts it. Deliberately not called from <see cref="Reset"/>: the window
+    /// is shown between the two, and CLAUDE.md budgets the window appearing separately from its
+    /// contents arriving.
     /// </summary>
     public async Task RefreshAsync()
     {
@@ -470,15 +408,12 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Takes a status, from <see cref="RefreshAsync"/> or from whoever already fetched one.
-    ///
     /// The branch list and the primary-branch warning are started and not awaited: both are worth
     /// having, and worth nothing if waiting for them delays the window.
     /// </summary>
     public void Adopt(RepositoryStatus status)
     {
-        //The tick boxes the user already set, kept across a refresh. Losing them would make Refresh
-        //actively hostile.
+        //The tick boxes the user already set, kept across a refresh.
         var previousSelection = Files.ToDictionary(f => f.Path, f => f.IsSelected, StringComparer.Ordinal);
         var previousHunks = Files
             .Where(f => f.Change.HasChosenHunks)
@@ -496,8 +431,8 @@ public sealed class CommitViewModel : ObservableObject
             if (previousSelection.TryGetValue(change.Path, out bool wasSelected))
                 change.IsSelected = wasSelected;
 
-            //Kept only while the index still holds something of the file: after a commit it does not,
-            //and the choice is spent.
+            //Kept only while the index still holds something of the file: after a commit it does not, and
+            //the choice is spent.
             change.HasChosenHunks = previousHunks.Contains(change.Path) && change.IndexStatus != GitChangeType.None;
 
             var item = new FileChangeItem(change);
@@ -507,8 +442,7 @@ public sealed class CommitViewModel : ObservableObject
 
         _currentStatus = status;
 
-        //The ComboBox opens on the current branch, so committing without touching it involves no
-        //switch at all.
+        //The ComboBox opens on the current branch, so committing without touching it involves no switch.
         if (_branchInput.Length == 0 && status.Branch is { Length: > 0 } branch)
             BranchInput = branch;
         else
@@ -537,27 +471,15 @@ public sealed class CommitViewModel : ObservableObject
         _ = _diffs.PrefetchAsync(Files.Take(5).Select(f => f.Change).ToArray());
     }
 
-    /// <summary>
-    /// Called by the window when it closes, so neither a running diff nor a running generation
-    /// outlives it.
-    /// </summary>
     public void Cancel()
     {
         CancelGeneration();
         _diffs.Cancel();
     }
 
-    // ---- the AI message ------------------------------------------------------------
-
-    /// <summary>
-    /// Starts writing a message, when there is something to write about and a provider to ask.
-    ///
-    /// Fire-and-forget by design: the window is already on screen, and the message arrives into it.
-    /// </summary>
     /// <param name="force">
     /// True for the Generate button, which replaces whatever is in the box. False for the automatic
-    /// pass when the window opens, where text already in the box means the user got there first —
-    /// overwriting it would be the rudest thing this feature could do.
+    /// pass when the window opens, where text already in the box means the user got there first.
     /// </param>
     public void BeginGeneration(bool force)
     {
@@ -584,11 +506,9 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Enter, and what it means right now.
-    ///
-    /// <b>During generation it queues rather than refusing.</b> CLAUDE.md: "do not block and do not
-    /// refuse... This is what makes the true one-key path work — trigger, Enter, done, without
-    /// waiting to read anything."
+    /// Enter, and what it means right now. <b>During generation it queues rather than refusing</b> --
+    /// which is what makes the one-key path work: trigger, Enter, done, without waiting to read
+    /// anything.
     /// </summary>
     public void EnterPressed(bool push)
     {
@@ -615,22 +535,18 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Esc. <b>Closes the window</b>, whatever else is in flight.
+    /// Esc. <b>Closes the window</b>, whatever else is in flight -- generation starts on every open,
+    /// so a generation that ate the first Esc would make the window look stuck for the first
+    /// half-second of its life.
     ///
-    /// It briefly did not: a generation in progress ate the first Esc and only the second one closed.
-    /// That reads as a stuck window, and it is the common case rather than the rare one — generation
-    /// starts on every open, so for the first half-second Esc would appear to do nothing. One key,
-    /// one outcome, always.
-    ///
-    /// Closing is safe with a generation or a queued commit outstanding: the window's
-    /// <c>OnClosed</c> calls <see cref="Cancel"/>, which cancels the token, and
-    /// <see cref="RunGenerationAsync"/> then finds its own <c>CancellationTokenSource</c> replaced and
-    /// returns without committing. A queued Enter cannot fire into a window that is gone.
+    /// Closing is safe with a generation or a queued commit outstanding: <c>OnClosed</c> calls
+    /// <see cref="Cancel"/>, <see cref="RunGenerationAsync"/> then finds its own token source
+    /// replaced and returns without committing, and a queued Enter cannot fire into a window that is
+    /// gone.
     /// </summary>
     /// <returns>
-    /// False only while a commit is actually executing. There is nothing to take back at that point
-    /// that would not leave the repository half-changed, and the window has to stay to report the
-    /// outcome.
+    /// False only while a commit is actually executing: there is nothing to take back that would not
+    /// leave the repository half-changed, and the window has to stay to report the outcome.
     /// </returns>
     public bool EscapePressed() => _stage != CommitStage.Committing;
 
@@ -644,7 +560,7 @@ public sealed class CommitViewModel : ObservableObject
                 generation.Token)
             .ConfigureAwait(true);
 
-        //A newer generation started, or the window moved on. Nothing here is still wanted.
+        //A newer generation started, or the window moved on.
         if (!ReferenceEquals(_generation, generation))
             return;
 
@@ -658,8 +574,8 @@ public sealed class CommitViewModel : ObservableObject
             Stage = CommitStage.Idle;
             StatusText = outcome.FailureReason;
 
-            //CLAUDE.md: "If generation fails while a commit is queued: cancel the queue, focus the
-            //message box, keep it open. Never commit an empty or placeholder message."
+            //CLAUDE.md: cancel the queue, focus the message box, keep it open. Never commit an empty or
+            //placeholder message.
             if (wasQueued)
                 FocusMessageRequested?.Invoke();
 
@@ -674,8 +590,7 @@ public sealed class CommitViewModel : ObservableObject
 
         if (!commitNow)
         {
-            //The caret belongs at the end of what just arrived, so Enter commits it and typing
-            //appends rather than replacing.
+            //The caret belongs at the end of what just arrived, so Enter commits it and typing appends.
             FocusMessageRequested?.Invoke();
             return;
         }
@@ -694,7 +609,6 @@ public sealed class CommitViewModel : ObservableObject
         }
     }
 
-    /// <summary>Puts streamed text in the box without it reading as the user typing.</summary>
     private void ApplyStreamedText(string text)
     {
         _applyingStream = true;
@@ -721,8 +635,6 @@ public sealed class CommitViewModel : ObservableObject
         generation.Dispose();
     }
 
-    // ---- the file list -------------------------------------------------------------
-
     private void OnFileSelectionChanged()
     {
         Raise(nameof(SelectionText));
@@ -733,8 +645,8 @@ public sealed class CommitViewModel : ObservableObject
     {
         foreach (FileChangeItem file in Files)
         {
-            //Select-all still refuses conflicted files. A commit containing conflict markers is the
-            //one outcome this window must never produce by accident.
+            //Select-all still refuses conflicted files. A commit containing conflict markers is the one
+            //outcome this window must never produce by accident.
             if (selected && file.IsConflicted)
                 continue;
 
@@ -742,14 +654,10 @@ public sealed class CommitViewModel : ObservableObject
         }
     }
 
-    // ---- diff ---------------------------------------------------------------------
-
     /// <summary>
-    /// Shows the diff for <paramref name="file"/>, from the cache when it is there.
-    ///
-    /// A cache hit renders with no loading flicker, which is most of them once the prefetch has run.
-    /// A miss may be superseded before it finishes, which is why the result is checked against the
-    /// still-selected row before it is displayed.
+    /// Shows the diff for <paramref name="file"/>, from the cache when it is there. A miss may be
+    /// superseded before it finishes, which is why the result is checked against the still-selected
+    /// row before it is displayed.
     /// </summary>
     private async Task LoadDiffAsync(FileChangeItem? file)
     {
@@ -772,8 +680,7 @@ public sealed class CommitViewModel : ObservableObject
         {
             SideBySideDiff? diff = await _diffs.GetAsync(file.Change).ConfigureAwait(true);
 
-            //The user may have moved on while this ran. Painting a diff for a row that is no longer
-            //selected is worse than not painting one.
+            //The user may have moved on while this ran.
             if (_selectedFile == file)
                 CurrentDiff = diff;
         }
@@ -783,20 +690,15 @@ public sealed class CommitViewModel : ObservableObject
         }
     }
 
-    // ---- deleting -----------------------------------------------------------------
-
     /// <summary>
     /// Deletes the selected file from the working tree, to the Recycle Bin.
     ///
     /// <b>The only destructive thing this window does, so it is the only thing here that asks
-    /// first.</b> CLAUDE.md's Safety Rules allow a destructive operation on "explicit user intent,
-    /// expressed in the moment" and require a second confirmation regardless of surface — which is
-    /// what a right-click, a menu item and this question are. The Recycle Bin is what keeps the
-    /// answer recoverable if it was the wrong one; see <see cref="WorkingTreeDeleter"/>.
+    /// first.</b> The Recycle Bin is what keeps the answer recoverable if it was the wrong one.
     ///
     /// No Git command runs. Deleting a tracked file leaves an ordinary <c>D</c> row the user can
     /// commit or put back with <c>git restore</c>; deleting an untracked one simply removes it. The
-    /// warning that distinguishes those two is the whole reason the question has a second line.
+    /// warning that distinguishes those two is why the question has a second line.
     /// </summary>
     private async Task DeleteSelectedFileAsync()
     {
@@ -825,8 +727,8 @@ public sealed class CommitViewModel : ObservableObject
             return;
         }
 
-        //Keyed by path alone, so the cached diff of a file that no longer exists would be rendered
-        //by the next click on whatever takes its place in the list.
+        //Keyed by path alone, so the cached diff of a file that no longer exists would be rendered by
+        //the next click on whatever takes its place in the list.
         _diffs.Invalidate(file.Path);
 
         await RefreshAsync().ConfigureAwait(true);
@@ -836,22 +738,16 @@ public sealed class CommitViewModel : ObservableObject
         StatusText = Strings.Get("delete.done", file.Path);
     }
 
-    // ---- reverting ----------------------------------------------------------------
-
     /// <summary>
     /// Puts the selected file back the way HEAD has it, sending the copy on disk to the Recycle Bin
     /// on the way.
     ///
-    /// <b>The Recycle Bin is what earns this a single question, exactly as it does for Delete.</b>
-    /// CLAUDE.md's Safety Rules say uncommitted work is never discarded, and <c>git restore</c>
-    /// discards it outright — the working-tree version is not in any object Git holds, so nothing in
-    /// the repository can bring it back. Binning it first turns "gone" into "somewhere the user
-    /// already knows how to look", which is the same trade the file list's Delete makes and the same
-    /// reason neither needs a warning nobody could act on.
+    /// <b>The Recycle Bin is what earns this a single question.</b> <c>git restore</c> discards
+    /// uncommitted work outright -- the working-tree version is in no object Git holds, so nothing in
+    /// the repository can bring it back.
     ///
     /// <b>Bin first, restore second, and the order is not arbitrary.</b> A locked or protected file
-    /// fails the bin, and failing there means nothing has happened yet. The reverse order would
-    /// overwrite the file and then discover it cannot be preserved.
+    /// fails the bin, and failing there means nothing has happened yet.
     /// </summary>
     private async Task RevertSelectedFileAsync()
     {
@@ -874,8 +770,8 @@ public sealed class CommitViewModel : ObservableObject
         if (!confirmed)
             return;
 
-        //Nothing on disk to preserve when the change *is* a deletion -- the row's D means the file
-        //is already gone, and the revert is what brings it back.
+        //Nothing on disk to preserve when the change *is* a deletion -- the row's D means the file is
+        //already gone, and the revert is what brings it back.
         bool binned = false;
 
         if (file.IsOnDisk)
@@ -900,9 +796,8 @@ public sealed class CommitViewModel : ObservableObject
 
         if (!result.Succeeded)
         {
-            //Halfway: the file has been binned and not replaced. CLAUDE.md, "Error Handling" --
-            //explain what happened rather than leaving the user to find out, and the Recycle Bin is
-            //the next action.
+            //Halfway: the file has been binned and not replaced. Say what happened rather than leaving the
+            //user to find out, and the Recycle Bin is the next action.
             RaiseError(
                 Strings.Get("revert.title"),
                 Strings.Get("revert.failed", file.Path)
@@ -915,24 +810,17 @@ public sealed class CommitViewModel : ObservableObject
         }
 
         //Keyed by path alone, so the cached diff of the pre-revert content would be rendered by the
-        //next click on this row -- which, after a full revert, is a row that no longer exists.
+        //next click on this row.
         _diffs.Invalidate(file.Path);
 
         await RefreshAsync().ConfigureAwait(true);
 
-        //After the refresh: Adopt does not clear this, but a status line set before it would be
-        //reporting on a list that had not been rebuilt yet.
         StatusText = Strings.Get("revert.done", file.Path);
     }
 
-    // ---- editing ------------------------------------------------------------------
-
     /// <summary>
-    /// Saves the edited text of the currently selected file.
-    ///
     /// Every guard lives in <see cref="WorkingTreeWriter"/>; this only decides what to do with a
-    /// refusal. An externally-modified file comes back as a refusal the user has to answer, which is
-    /// the point — CLAUDE.md, "Detect external modification before writing."
+    /// refusal. An externally-modified file comes back as one the user has to answer.
     /// </summary>
     public async Task<SaveOutcome> SaveCurrentFileAsync(string newText, bool force)
     {
@@ -952,17 +840,14 @@ public sealed class CommitViewModel : ObservableObject
 
         _log.Info($"Saved {_currentDiff.Path}.");
 
-        //The cached diff is stale the moment the file changes, and the cache is keyed by path alone
-        //-- so it has to be dropped here or the next click would render the pre-save text.
+        //The cached diff is stale the moment the file changes, and the cache is keyed by path alone --
+        //so it has to be dropped here or the next click would render the pre-save text.
         _diffs.Invalidate(_currentDiff.Path);
 
-        //Only this file's counts are refreshed, not the whole list. CLAUDE.md: "After a successful
-        //save, refresh that file's counts and re-run its diff. Do not refresh the whole status list."
-        //
-        //Re-run it here rather than only in the pane, because Rows is read by StageHunkAsync: it
-        //would otherwise still describe the pre-edit alignment, and staging -- which is allowed again
-        //the moment the pane is clean -- would build a patch out of those rows against the file now on
-        //disk, which `git apply` refuses whole.
+        //Only this file's counts, not the whole list. Re-run the diff here rather than only in the
+        //pane, because Rows is read by StageHunkAsync: it would otherwise still describe the pre-edit
+        //alignment, and staging -- allowed again the moment the pane is clean -- would build a patch out
+        //of those rows against the file now on disk, which `git apply` refuses whole.
         SideBySideDiff current = _currentDiff;
         FileText saved = outcome.Saved!;
         bool wordLevel = current.RenderMode == DiffRenderMode.SideBySideWithWordDiff;
@@ -971,18 +856,15 @@ public sealed class CommitViewModel : ObservableObject
             .Run(() => DiffService.Rediff(current.Left.Text, saved.Text, wordLevel))
             .ConfigureAwait(true);
 
-        //Another file was selected while that was computing, so this record is no longer what the
-        //window is showing -- and writing it back would hand StageHunkAsync one file's path with
-        //another's rows.
+        //Another file was selected while that was computing, so writing it back would hand
+        //StageHunkAsync one file's path with another's rows.
         if (!ReferenceEquals(_currentDiff, current))
             return outcome;
 
         //The field, not the property, and that is deliberate here and nowhere else. Raising
         //PropertyChanged sends the window into DiffPane.Show, which rebuilds both documents from
-        //scratch -- throwing away the caret, the scroll position and the undo history of a pane that
-        //is already showing exactly this text, and (because Rows used to be the pre-edit list)
-        //redisplaying the file as it was before the save. MarkSaved is the path written for a save,
-        //and the window calls it next.
+        //scratch -- throwing away the caret, the scroll position and the undo history of a pane already
+        //showing exactly this text. MarkSaved is the path written for a save.
         _currentDiff = current with { Right = saved, Rows = rows };
         StatusText = Strings.Get("edit.saved");
 
@@ -992,10 +874,8 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Re-runs status for the whole repository but applies only the selected file's row.
-    ///
-    /// A full <see cref="Adopt"/> would rebuild the list and lose the diff pane's scroll position
-    /// mid-edit, which is exactly what a save must not do.
+    /// Re-runs status for the whole repository but applies only the selected file's row. A full
+    /// <see cref="Adopt"/> would rebuild the list and lose the diff pane's scroll position mid-edit.
     /// </summary>
     private async Task RefreshSelectedFileCountsAsync()
     {
@@ -1010,19 +890,17 @@ public sealed class CommitViewModel : ObservableObject
 
             var byPath = refreshed.Files.ToDictionary(f => f.Path, StringComparer.Ordinal);
 
-            //A file appeared or disappeared while this one was being edited, so the list itself is
-            //stale and only a full adopt can put it right. It rebuilds the rows, which is what this
-            //method otherwise exists to avoid -- but a list missing a row is worse than a lost scroll
-            //position.
+            //A file appeared or disappeared while this one was being edited, so only a full adopt can put
+            //it right. It rebuilds the rows, which is what this method otherwise exists to avoid -- but a
+            //list missing a row is worse than a lost scroll position.
             if (byPath.Count != Files.Count || !Files.All(f => byPath.ContainsKey(f.Path)))
             {
                 Adopt(refreshed);
                 return;
             }
 
-            //A chosen-hunks flag is only true while the index still holds part of this file. After a
-            //commit it does not, so the flag drops here rather than needing to be cleared by whoever
-            //committed -- which is one fewer thing to remember and self-correcting if it is forgotten.
+            //A chosen-hunks flag is only true while the index still holds part of this file, so it drops
+            //here rather than needing to be cleared by whoever committed.
             foreach (FileChangeItem item in Files)
             {
                 if (item.Change.HasChosenHunks && byPath[item.Path].IndexStatus == GitChangeType.None)
@@ -1031,14 +909,13 @@ public sealed class CommitViewModel : ObservableObject
 
             //Every row, not only the edited one.
             //
-            //The tick state lives on the status's own change objects, and the commit is built from
-            //the status -- so a row left pointing at the previous status's object would take the
-            //user's ticks with it into an object nothing reads. The window would show one selection
-            //and commit another. Update carries each row's tick across as it repoints it.
+            //The tick state lives on the status's own change objects and the commit is built from the
+            //status, so a row left pointing at the previous status's object would take the user's ticks into
+            //an object nothing reads: the window would show one selection and commit another.
             //
-            //Updated in place rather than replaced in the collection: replacing the selected item
-            //makes the list's two-way SelectedItem binding push a null back through SelectedFile,
-            //which closes the diff the user is editing.
+            //Updated in place rather than replaced in the collection: replacing the selected item makes the
+            //list's two-way SelectedItem binding push a null back through SelectedFile, which closes the
+            //diff the user is editing.
             foreach (FileChangeItem item in Files)
                 item.Update(byPath[item.Path]);
 
@@ -1055,12 +932,6 @@ public sealed class CommitViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// Re-stages the currently selected file, for the "this file is staged" strip.
-    ///
-    /// CLAUDE.md: "When the user edits a file that is already staged, show an inline strip… with a
-    /// one-click restage."
-    /// </summary>
     public async Task RestageCurrentFileAsync()
     {
         if (_selectedFile is null)
@@ -1073,15 +944,12 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Stages or unstages part of the selected file.
-    ///
-    /// The patch is built from the diff on screen and applied to the index with
-    /// <c>git apply --cached</c>, which never touches the working tree — so whatever happens, the
-    /// file on disk and the editor holding it are unchanged.
+    /// Stages or unstages part of the selected file, with <c>git apply --cached</c> -- which never
+    /// touches the working tree, so the file on disk and the editor holding it are unchanged.
     ///
     /// On success the file is marked <see cref="GitFileChange.HasChosenHunks"/>, which is what stops
-    /// the commit sequence from running <c>git add</c> over it and swallowing the hunks the user left
-    /// out. Without that this feature would appear to work and then quietly commit the whole file.
+    /// the commit sequence running <c>git add</c> over it and swallowing the hunks the user left out.
+    /// Without that this feature would appear to work and then quietly commit the whole file.
     /// </summary>
     /// <returns>A sentence for the footer, or null when there was nothing to do.</returns>
     public async Task<string?> StageHunkAsync(IReadOnlySet<int> rows, bool unstage)
@@ -1089,8 +957,8 @@ public sealed class CommitViewModel : ObservableObject
         if (_selectedFile is null || _currentDiff is null)
             return null;
 
-        //Built from the rows the pane selected, with each line re-terminated from the file it came
-        //from -- see Hunks, where the line-ending rule is the whole difficulty.
+        //Each line re-terminated from the file it came from -- see Hunks, where the line-ending rule is
+        //the whole difficulty.
         string? patch = Hunks.ToPatch(
             _currentDiff.Path,
             _currentDiff.Rows,
@@ -1107,28 +975,26 @@ public sealed class CommitViewModel : ObservableObject
 
         if (!result.Succeeded)
         {
-            //Git's own words. The usual cause is an index that moved since the diff was computed,
-            //and git apply refuses the whole patch rather than applying half of it.
+            //Git's own words. The usual cause is an index that moved since the diff was computed, and git
+            //apply refuses the whole patch rather than applying half of it.
             RaiseError(Strings.Get("hunk.failed"), result.Error ?? string.Empty);
             return null;
         }
 
         //Only meaningful while something of this file is still staged; a later refresh drops the flag
-        //when the index no longer holds anything, which is what makes it self-correcting after a
-        //commit.
+        //when the index no longer holds anything, which makes it self-correcting after a commit.
         _selectedFile.Change.HasChosenHunks = !unstage;
 
         int changed = rows.Count(row => row >= 0 && row < _currentDiff.Rows.Count);
         StatusText = Strings.Get(unstage ? "hunk.unstaged" : "hunk.staged", changed);
 
-        //Only this file's row, not the whole list: the diff pane is showing it and a rebuild would
-        //lose the caret.
+        //Only this file's row, not the whole list: the diff pane is showing it and a rebuild would lose
+        //the caret.
         await RefreshSelectedFileCountsAsync().ConfigureAwait(true);
 
         return StatusText;
     }
 
-    /// <summary>Reloads the selected file from disk, discarding the editor's contents.</summary>
     public async Task<SideBySideDiff?> ReloadCurrentFileAsync()
     {
         if (_selectedFile is null)
@@ -1139,14 +1005,10 @@ public sealed class CommitViewModel : ObservableObject
         return _currentDiff;
     }
 
-    // ---- commit -------------------------------------------------------------------
-
     /// <summary>
-    /// Hands the whole sequence to <see cref="CommitFlow"/> and turns its outcome into words.
-    ///
-    /// The sequence itself — stage, switch, verify, commit, push — lives in Core so it can be tested
-    /// without a message pump. What is left here is what only a surface can do: ask the guardrail
-    /// questions, and phrase the result in the user's language.
+    /// Hands the whole sequence to <see cref="CommitFlow"/> and turns its outcome into words. The
+    /// order -- stage, switch, verify, commit, push -- lives in Core so it can be tested without a
+    /// message pump.
     /// </summary>
     private async Task CommitAsync(bool push)
     {
@@ -1158,9 +1020,8 @@ public sealed class CommitViewModel : ObservableObject
 
         try
         {
-            //Both path lists are derived in Core, so nothing here decides what an unticked-but-staged
-            //file means. TargetBranch is null when the ComboBox names the branch already checked out,
-            //which is the normal case and costs no Git call.
+            //Both path lists are derived in Core, so nothing here decides what an unticked-but-staged file
+            //means. TargetBranch is null when the ComboBox names the branch already checked out.
             CommitRequest request = CommitRequest.From(
                 _repository,
                 _currentStatus,
@@ -1172,8 +1033,8 @@ public sealed class CommitViewModel : ObservableObject
 
             CommitFlowResult result = await _flow.RunAsync(request, CancellationToken.None).ConfigureAwait(true);
 
-            //The commit exists whatever came after it, so the message box is cleared as soon as there
-            //is a hash -- even when the push that followed it failed.
+            //The commit exists whatever came after it, so the message box is cleared as soon as there is a
+            //hash -- even when the push that followed it failed.
             if (result.Commit is not null)
                 Message = string.Empty;
 
@@ -1199,8 +1060,8 @@ public sealed class CommitViewModel : ObservableObject
         }
         else if (CommitOutcomeReporter.FailureText(result) is { } failure)
         {
-            //Adopted before the message is shown for an aborted switch, so the user is looking at the
-            //state the message describes.
+            //Adopted before the message is shown for an aborted switch, so the user is looking at the state
+            //the message describes.
             if (result.Outcome == CommitFlowOutcome.AbortedSelectionChanged && result.RefreshedStatus is { } refreshed)
                 Adopt(refreshed);
 
@@ -1213,7 +1074,6 @@ public sealed class CommitViewModel : ObservableObject
             await RefreshAsync().ConfigureAwait(true);
     }
 
-    /// <summary>Recomputes the warning strip. Called whenever the branch or the status changes.</summary>
     private void UpdateNotice()
     {
         if (_currentStatus?.HasConflicts == true)
@@ -1223,8 +1083,7 @@ public sealed class CommitViewModel : ObservableObject
         }
 
         //The warning is about the branch being committed *to*, which with the ComboBox is not
-        //necessarily the one checked out. Committing to main by typing it deserves the same friction
-        //as committing to main while standing on it.
+        //necessarily the one checked out.
         string? target = _branchResolution.Intent switch
         {
             BranchIntent.Current or BranchIntent.Empty => _currentStatus?.Branch,
@@ -1261,8 +1120,7 @@ public sealed class CommitViewModel : ObservableObject
     {
         _log.Error($"Commit window operation failed: {exception}");
 
-        //A Git failure is reported with Git's own words, the repository path and a next action --
-        //never paraphrased. CLAUDE.md, "Error Handling".
+        //Git's own words, the repository path and a next action -- never paraphrased.
         if (exception is GitOperationException git)
         {
             RaiseError(

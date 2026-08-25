@@ -8,56 +8,35 @@ using Microsoft.Win32;
 namespace FlickGit.App.Shell;
 
 /// <summary>
-/// Registers and removes the Explorer context-menu entries.
+/// Registers and removes the Explorer context-menu entries. Every entry is a thin trigger: it
+/// launches <c>flick.exe</c> with a verb and a path, and contains no logic of any kind.
 ///
-/// Every entry is a thin trigger: it launches <c>flick.exe</c> with a verb and a path, and
-/// contains no logic of any kind. CLAUDE.md, "Shell Integration".
-///
-/// The layout is TortoiseGit's, and for TortoiseGit's reason: the operations performed all day are
-/// <b>root</b> items in the folder's context menu, and everything else is one submenu below them. A
-/// submenu costs a hover and a second aim, so putting Commit behind one taxes the most frequent
-/// action in the product in order to tidy up the least frequent ones.
-///
-/// <b>The whole block is one <c>IContextMenu</c> handler</b> — <c>FlickGit.Shell.dll</c>, registered
-/// under <c>shellex\ContextMenuHandlers</c> — and there is no longer a static-verb layout beside it.
-/// That is the placement, and three attempts established that nothing else provides it: a static verb
-/// reaches <c>Top</c>, the default, or <c>Bottom</c>, and Explorer draws the static-verb block above
-/// the shell-extension block, which it draws above <c>New</c>. So the default left FlickGit up among
-/// <c>Open with Code</c> and <c>Git GUI Here</c>, <c>Bottom</c> pushed it past <c>New</c> down beside
-/// <c>Properties</c>, and <c>CommandFlags</c> drew the separators around the entries in that same
-/// wrong block. The slot every Git client occupies belongs to handlers.
-///
-/// The handler contributes the block at once, which makes this simpler than what it replaced rather
-/// than more complex: one CLSID instead of one per verb, the branch folded into the label as the item
-/// is inserted, a repository-requiring item simply not inserted outside a repository, and the
-/// separators drawn with <c>MF_SEPARATOR</c> instead of asked for.
+/// <b>The whole block is one <c>IContextMenu</c> handler</b> -- <c>FlickGit.Shell.dll</c>, under
+/// <c>shellex\ContextMenuHandlers</c> -- and that is the only thing that reaches the right
+/// placement. A static verb gets <c>Top</c>, the default, or <c>Bottom</c>; Explorer draws the
+/// static-verb block above the shell-extension block, which it draws above <c>New</c>. So no verb
+/// setting can land in the slot every Git client occupies.
 ///
 /// <b>There is no static-verb fallback, and there must not be one.</b> Registering both layouts is
-/// the menu twice over, and a fallback cannot fire anyway: the choice would be made by the DLL being
-/// present, not by Explorer managing to load it, and whether Smart App Control or WDAC refused an
+/// the menu twice over, and a fallback could not fire anyway: whether Explorer managed to load an
 /// unsigned in-process server is not knowable from outside <c>explorer.exe</c>. So
-/// <see cref="Install"/> refuses when the DLL is missing beside <c>flick.exe</c> — which is only ever
-/// a <c>dotnet build</c> working tree, since Native AOT runs on publish — and says to publish.
+/// <see cref="Install"/> refuses when the DLL is missing beside <c>flick.exe</c> -- which is only
+/// ever a <c>dotnet build</c> working tree, since Native AOT runs on publish.
 ///
-/// On Windows 11 the block appears under "Show more options" (Shift+F10). That is a limitation of the
-/// classic menu, not of this code — the Windows 11 <i>primary</i> menu needs a sparse MSIX package,
-/// which is the one part of Phase 6 still open.
+/// On Windows 11 the block appears under "Show more options". Reaching the primary menu needs a
+/// sparse MSIX package, which is the one part of Phase 6 still open.
 /// </summary>
 public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 {
     private const string ClassesPath = @"Software\Classes";
 
     /// <summary>
-    /// The classes the context-menu handler is registered under.
+    /// The classes the handler is registered under.
     ///
-    /// <c>*</c> is the one that is not a folder: it is what puts Blame on a right-clicked file. Only
-    /// a handler can be registered there — a static verb cannot hide itself, so one under <c>*</c>
-    /// would draw a FlickGit submenu on every file on the machine, repository or not, whereas the
-    /// handler is asked on each click and answers with nothing.
-    ///
-    /// The cost of <c>*</c> is that Explorer loads this DLL on every file right-click. That is the
-    /// price of a file entry at all: there is no per-repository class to register under, and
-    /// enumerating extensions is not a smaller version of the same thing.
+    /// <c>*</c> is what puts Blame on a right-clicked file, and only a handler can be registered
+    /// there: a static verb cannot hide itself, so one under <c>*</c> would draw a FlickGit submenu
+    /// on every file on the machine. The cost is that Explorer loads this DLL on every file
+    /// right-click, which is the price of a file entry at all.
     /// </summary>
     private static readonly string[] HandlerOwners =
     [
@@ -69,28 +48,20 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         "*",
     ];
 
-    /// <summary>Where a COM class registers itself, under <c>Software\Classes</c>.</summary>
     private const string ClsidPath = "CLSID";
 
     /// <summary>
     /// The menu, projected from the Action Catalog.
     ///
-    /// This used to be a hard-coded array here, a second one in the palette and the verb table in the
-    /// CLI — three lists, three places to add an entry, three chances to disagree about its wording.
-    /// Now the catalog is the definition and this only decides how to write it into the registry.
-    ///
-    /// <b><see cref="GitAction.RequiresRepository"/> is written out rather than resolved here</b>, as
-    /// <c>FlickGit.NeedsRepository</c>: the handler is asked on every right-click and drops those items
-    /// when the clicked folder is not a repository. A static verb could not — it is written once and
-    /// drawn on every folder on the machine — which is one of the things that layout could not do.
-    ///
-    /// Hidden entries never reach the registry at all: those the user turned off really are absent.
+    /// <see cref="GitAction.RequiresRepository"/> is written out rather than resolved here, as
+    /// <c>FlickGit.NeedsRepository</c>: the handler is asked on every right-click and drops those
+    /// items outside a repository. Hidden entries never reach the registry at all.
     /// </summary>
     private IReadOnlyList<GitAction> MenuActions() => catalog.For(ActionSurfaces.Menu);
 
     /// <summary>
-    /// Writes the whole menu. Idempotent: the existing keys are removed first, so a
-    /// re-apply after a settings change cannot leave a stale entry behind.
+    /// Writes the whole menu. Idempotent: the existing keys are removed first, so a re-apply after a
+    /// settings change cannot leave a stale entry behind.
     /// </summary>
     public InstallResult Install()
     {
@@ -99,9 +70,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
         if (!File.Exists(cliPath))
         {
-            //Registering a command line pointing at an exe that is not there would produce
-            //a context menu entry that silently does nothing -- the worst possible failure
-            //mode for a shell extension.
+            //A command line pointing at an exe that is not there produces a context menu entry that
+            //silently does nothing -- the worst failure mode for a shell extension.
             return new InstallResult(false,
                 $"flick.exe was not found in:\n\n{installDirectory}\n\n" +
                 "The context menu was not modified.");
@@ -127,18 +97,15 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
             IReadOnlyList<GitAction> actions = MenuActions();
 
-            //The catalog is already in MenuOrder, and that is the order the handler draws in: it
-            //enumerates the Items subkeys, which are numbered as they are written. Nothing re-sorts
-            //them here -- the verb layout did, alphabetically by key name, because that is what
-            //Explorer sorted verbs on, and "FlickGit.100.x" sorts before "FlickGit.20.x".
+            //The catalog is already in MenuOrder, and that is the order the handler draws in: it enumerates
+            //the Items subkeys, which are numbered as they are written.
             GitAction[] rootActions = [.. actions.Where(a => !a.InMoreSubmenu)];
             GitAction[] submenuActions = [.. actions.Where(a => a.InMoreSubmenu)];
 
             WriteContextMenuHandler(classes, cliPath, handlerDll, rootActions, submenuActions);
 
-            //Read back what was written. CLAUDE.md, "Registry synchronisation" step 4: "Verify by
-            //reading back; report failures in the UI." A registry write that silently did nothing --
-            //group policy, a locked hive -- must not be reported as success.
+            //Read back what was written. A registry write that silently did nothing -- group policy, a
+            //locked hive -- must not be reported as success.
             if (Verify(handlerDll) is { } verification)
                 return new InstallResult(false, verification);
 
@@ -153,20 +120,9 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     }
 
     /// <summary>
-    /// Removes exactly the keys this tool created, and nothing else.
-    ///
-    /// CLAUDE.md: "Never enumerate or modify registry keys the tool did not create." Every key
-    /// removed here is named by <see cref="HandlerOwners"/> or by <see cref="ShellCommandIds"/>,
-    /// which are the same two lists <see cref="Install"/> writes from — so the two cannot disagree
-    /// about what belongs to FlickGit.
-    ///
-    /// <b>It removes one layout, because <see cref="Install"/> writes one.</b> It reached for two:
-    /// the static verbs under <c>Directory\shell</c>, the <c>FlickGit.Menu</c> class keys, and the
-    /// per-verb <c>IExplorerCommand</c> CLSIDs an earlier version wrote. Nothing creates any of them
-    /// any more, so that was a cleanup path for an install this build cannot produce — which is
-    /// exactly the migration code Hard Requirement 1 rules out. A machine carrying those keys from an
-    /// old version keeps them; they name a CLSID with no DLL behind it, which Explorer draws nothing
-    /// for.
+    /// Removes exactly the keys this tool created, and nothing else. Every key removed here is named
+    /// by <see cref="HandlerOwners"/> or by <see cref="ShellCommandIds"/>, the same two lists
+    /// <see cref="Install"/> writes from, so the two cannot disagree about what belongs to FlickGit.
     /// </summary>
     public InstallResult Uninstall()
     {
@@ -176,8 +132,7 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             if (classes is null)
                 return new InstallResult(true, "Nothing to remove.");
 
-            //The handler registration, under each class it was written to. The same list the install
-            //uses, or the one that is only in the other list is the one that leaks.
+            //The same list the install uses, or the one that is only in the other list is the one that leaks.
             foreach (string owner in HandlerOwners)
             {
                 using RegistryKey? handlers = classes.OpenSubKey(
@@ -186,9 +141,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
                 handlers?.DeleteSubKeyTree(ShellCommandIds.HandlerKeyName, throwOnMissingSubKey: false);
             }
 
-            //By name, never by enumerating CLSID, which is every COM class on the machine. This is
-            //why ShellCommandIds calls its GUID permanent: a renumbered one is a key nothing can
-            //find to delete.
+            //By name, never by enumerating CLSID, which is every COM class on the machine. This is why
+            //ShellCommandIds calls its GUID permanent: a renumbered one is a key nothing can find to delete.
             using (RegistryKey? clsids = classes.OpenSubKey(ClsidPath, writable: true))
                 clsids?.DeleteSubKeyTree(ShellCommandIds.MenuHandlerClsid, throwOnMissingSubKey: false);
 
@@ -203,28 +157,15 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     }
 
     /// <summary>
-    /// Where flick.exe, FlickGit.exe and <c>icons\</c> live: beside the running module.
-    ///
-    /// Resolved from the module rather than the working directory, because Explorer sets the
-    /// working directory to the clicked folder -- so anything relative would look for the
-    /// executables inside the user's repository.
+    /// Where flick.exe, FlickGit.exe and <c>icons\</c> live: beside the running module, not the
+    /// working directory -- Explorer sets that to the clicked folder, so anything relative would look
+    /// for the executables inside the user's repository.
     /// </summary>
     private static string InstallDirectory =>
         Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
 
-    /// <summary>
-    /// True when the handler is registered. Asked by `flick diag doctor` and by the settings
-    /// window's context-menu checkbox.
-    ///
-    /// <b>One probe, because <see cref="Install"/> writes one layout.</b> It briefly had to ask about
-    /// two: the static verbs were what this looked for while the handler was what an install actually
-    /// wrote, so a working menu reported "not installed" and the checkbox sat unticked. Deleting the
-    /// verb layout removed the second question rather than answering it.
-    ///
-    /// Static verbs left by an earlier version do not count as installed — nothing draws them the way
-    /// this code means any more, and ticking the box re-registers properly. <see cref="Uninstall"/>
-    /// still removes them.
-    /// </summary>
+    /// <summary>True when the handler is registered. Asked by `flick diag doctor` and by the settings
+    /// window's context-menu checkbox.</summary>
     public bool IsInstalled()
     {
         using RegistryKey? handler = Registry.CurrentUser.OpenSubKey(
@@ -237,10 +178,9 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// <summary>
     /// The full path of the shell DLL if it is there to be registered, or null.
     ///
-    /// Null means a `dotnet build` working tree: Native AOT only runs on publish, so the DLL beside
-    /// the executables exists only in a published layout. <see cref="Install"/> refuses on null rather
-    /// than registering a CLSID with no DLL behind it, which would leave Explorer unable to create the
-    /// object and drop the whole block.
+    /// Null means a `dotnet build` working tree: Native AOT only runs on publish.
+    /// <see cref="Install"/> refuses rather than registering a CLSID with no DLL behind it, which
+    /// would leave Explorer unable to create the object and drop the whole block.
     /// </summary>
     private static string? ShellHandlerAvailable(string installDirectory)
     {
@@ -250,13 +190,6 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
     /// <summary>
     /// Registers the context-menu handler, and writes the whole menu into its CLSID key.
-    ///
-    /// <b>This is the placement, and nothing else was able to provide it.</b> A static verb reaches
-    /// <c>Top</c>, the default, or <c>Bottom</c>; Explorer draws the static-verb block above the
-    /// shell-extension block, which it draws above <c>New</c>. So the default left the entries up
-    /// among <c>Open with Code</c> and <c>Git GUI Here</c>, and <c>Bottom</c> pushed them past
-    /// <c>New</c> down beside <c>Properties</c>. The slot every Git client occupies belongs to
-    /// handlers, and <c>shellex\ContextMenuHandlers</c> is how one is registered.
     ///
     /// The DLL holds no interface text: every label written here is already localised from the
     /// <c>.lang</c> file in force, so <c>flick language de</c> plus a re-register changes the menu
@@ -276,10 +209,9 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         clsid.SetValue(ShellCommandIds.ValueExe, cliPath, RegistryValueKind.String);
         clsid.SetValue(ShellCommandIds.ValueSubmenuLabel, Strings.Get("shell.menu.root"), RegistryValueKind.String);
 
-        //The popup's own icon, named as a file rather than as `FlickGit.exe,0`: `InsertMenu` takes no
-        //icon at all, and `MenuIcons` loads an .ico *file*, so the file the exe's resource was built
-        //from is what the DLL is pointed at. Written only when it is there, so a missing file leaves
-        //the value absent rather than naming nothing.
+        //The popup's own icon, named as a file rather than as `FlickGit.exe,0`: MenuIcons loads an .ico
+        //*file*, so the file the exe's resource was built from is what the DLL is pointed at. Written
+        //only when it is there, so a missing file leaves the value absent rather than naming nothing.
         if (AppIconPath(cliPath) is { } appIcon)
             clsid.SetValue(ShellCommandIds.ValueSubmenuIcon, appIcon, RegistryValueKind.String);
 
@@ -288,8 +220,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         {
             server.SetValue(string.Empty, dllPath, RegistryValueKind.String);
 
-            //Apartment: what a shell extension is called on. The shell then marshals for us rather
-            //than expecting this code to be free-threaded.
+            //Apartment: what a shell extension is called on. The shell then marshals for us rather than
+            //expecting this code to be free-threaded.
             server.SetValue("ThreadingModel", "Apartment", RegistryValueKind.String);
         }
 
@@ -308,8 +240,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         foreach (GitAction action in submenuActions)
             WriteItem(items, ref order, cliPath, action, inSubmenu: true);
 
-        //The file entries, which are always in the submenu: a file's FlickGit block is one hover
-        //deep, and there is no everyday file action worth a root entry the way Commit is.
+        //The file entries, which are always in the submenu: there is no everyday file action worth a
+        //root entry the way Commit is.
         foreach (GitAction action in catalog.For(ActionSurfaces.File))
             WriteItem(items, ref order, cliPath, action, inSubmenu: true);
 
@@ -355,8 +287,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             action.Surfaces.HasFlag(ActionSurfaces.Menu) ? "1" : "0",
             RegistryValueKind.String);
 
-        //Only the Commit entry. On Pull it would read as "pull *into* this branch" -- true, and
-        //saying nothing the entry above it has not already said.
+        //Only the Commit entry. On Pull it would read as "pull *into* this branch" -- true, and saying
+        //nothing the entry above it has not already said.
         item.SetValue(
             ShellCommandIds.ValueShowBranch,
             action.Cli == "commit" ? "1" : "0",
@@ -372,10 +304,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     }
 
     /// <summary>
-    /// The product icon beside the executables, or null when it is not there.
-    ///
-    /// Not in <c>icons\</c> with the per-action ones: it is the icon the two executables were built
-    /// with, and the tray and the About tab already read it from this path.
+    /// The product icon beside the executables, or null when it is not there. Not in <c>icons\</c>
+    /// with the per-action ones: it is the icon the two executables were built with.
     /// </summary>
     private static string? AppIconPath(string cliPath)
     {
@@ -389,10 +319,9 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// Reads the registration back out of the registry, and returns what to tell the user when it is
     /// not what was just written.
     ///
-    /// Two values, which are the two halves a right-click needs: the handler key Explorer looks for
-    /// under the clicked class, and the DLL path behind the CLSID it names. Neither says whether
-    /// Explorer can actually <i>create</i> the object — that cannot be answered from here without
-    /// loading the DLL into this process, which is the one thing this assembly must not do.
+    /// Neither value says whether Explorer can actually <i>create</i> the object -- that cannot be
+    /// answered from here without loading the DLL into this process, which is the one thing this
+    /// assembly must not do.
     /// </summary>
     private static string? Verify(string expectedDll)
     {
@@ -415,6 +344,4 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     }
 }
 
-/// <param name="Succeeded">False means the registry was not left in the intended state.</param>
-/// <param name="Message">Shown verbatim. Never a generic string.</param>
 public sealed record InstallResult(bool Succeeded, string Message);

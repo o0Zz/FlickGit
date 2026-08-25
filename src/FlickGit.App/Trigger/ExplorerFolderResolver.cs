@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using FlickGit.Diagnostics;
@@ -6,23 +6,17 @@ using FlickGit.Logging;
 
 namespace FlickGit.App.Trigger;
 
-/// <summary>Where a candidate folder came from, which decides what the popup says about it.</summary>
 public enum FolderOrigin
 {
-    /// <summary>A folder selected in the active Explorer view.</summary>
     Selection,
 
-    /// <summary>The folder the active Explorer tab is showing.</summary>
     CurrentFolder,
 
-    /// <summary>Another tab of the same Explorer window.</summary>
     ExplorerTab,
 }
 
-/// <param name="Path">An absolute folder path. Not necessarily inside a repository.</param>
 public readonly record struct FolderCandidate(string Path, FolderOrigin Origin);
 
-/// <param name="Ordered">Best guess first.</param>
 /// <param name="Ambiguous">
 /// True when Explorer had several tabs open on one window and there was no way to tell which was
 /// active. Logged, because it is the answer to "why did it open the wrong repository".
@@ -30,42 +24,33 @@ public readonly record struct FolderCandidate(string Path, FolderOrigin Origin);
 public readonly record struct FolderCandidates(IReadOnlyList<FolderCandidate> Ordered, bool Ambiguous);
 
 /// <summary>
-/// Which folder the user was looking at when the trigger fired.
+/// Which folder the user was looking at when the trigger fired: the selected folder, then the
+/// folder the active tab is showing.
 ///
-/// Asks Explorer through the shell automation surface, in the order CLAUDE.md prescribes: the
-/// selected folder, then the folder the active tab is showing.
-///
-/// <b>There is no most-recently-used fallback.</b> There was one, for the popup, which said so in
-/// its header. A trigger pressed with no Explorer window in front now resolves to nothing and opens
-/// nothing at all — guessing a repository the user is not looking at is the one thing this must not
-/// do, and a window is a worse place to discover the guess was wrong than a popup was.
+/// <b>There is no most-recently-used fallback.</b> A trigger pressed with no Explorer window in
+/// front resolves to nothing and opens nothing at all -- guessing a repository the user is not
+/// looking at is the one thing this must not do.
 ///
 /// <b>On a dedicated STA thread with a deadline.</b> <c>IShellWindows</c> marshals cross-process
 /// into <c>explorer.exe</c>, and a blocking COM call into a hung Explorer made from the WPF UI
-/// thread would freeze the tray icon, the pipe listener and every pre-warmed window at once. Only
-/// strings come back across, so there is no interface marshalling to arrange.
+/// thread would freeze the tray icon, the pipe listener and every pre-warmed window at once.
 ///
 /// <b>Windows 11 tabs are the hard part.</b> <c>IShellWindows</c> returns one entry per tab and
-/// every tab of a window reports the same frame HWND, so there is no documented way to ask which is
-/// active. The frame's window text is the active tab's folder name, which resolves it in the common
-/// case; two tabs on folders with the same leaf name is genuinely undecidable, and then the answer
-/// is to say so rather than to guess.
+/// every tab of a window reports the same frame HWND, so there is no documented way to ask which
+/// is active. The frame's window text is the active tab's folder name, which resolves the common
+/// case; two tabs on folders with the same leaf name are genuinely undecidable.
 /// </summary>
 public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILog log)
 {
     /// <summary>
-    /// How long Explorer gets to answer.
-    ///
-    /// Inside the 80 ms budget for the window being painted, because that budget starts before this
-    /// runs. A hung Explorer costs the user this trigger, which is the honest outcome: there is
-    /// nothing to fall back to and nothing worth guessing.
+    /// How long Explorer gets to answer. A hung Explorer costs the user this trigger, which is the
+    /// honest outcome: there is nothing to fall back to and nothing worth guessing.
     /// </summary>
     private static readonly TimeSpan Deadline = TimeSpan.FromMilliseconds(120);
 
     /// <param name="foreground">
-    /// The window that was in front when the trigger fired, captured at that instant. Asking
-    /// Windows here instead would sometimes answer with FlickGit's own popup, which is hidden rather
-    /// than closed between triggers and is therefore a plausible foreground window.
+    /// The window that was in front when the trigger fired, captured at that instant. Asking Windows
+    /// here instead would sometimes answer with FlickGit's own window.
     /// </param>
     public async Task<FolderCandidates> ResolveAsync(nint foreground, CancellationToken cancellationToken)
     {
@@ -82,9 +67,7 @@ public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILo
         return new FolderCandidates(explorer, ambiguous);
     }
 
-    /// <summary>
-    /// The COM work, on its own STA thread, abandoned if Explorer does not answer in time.
-    /// </summary>
+    /// <summary>The COM work, on its own STA thread, abandoned if Explorer does not answer in time.</summary>
     private Task<List<FolderCandidate>> AskExplorerAsync(nint foreground, CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource<List<FolderCandidate>>();
@@ -97,8 +80,7 @@ public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILo
             }
             catch (Exception ex)
             {
-                //Every failure here is the same failure as far as the caller is concerned: Explorer
-                //did not say. The MRU covers it.
+                //Every failure here is the same failure as far as the caller is concerned: Explorer did not say.
                 log.Debug($"Explorer folder resolution failed: {ex.Message}");
                 completion.TrySetResult([]);
             }
@@ -125,18 +107,15 @@ public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILo
         if (finished == work)
             return await work.ConfigureAwait(false);
 
-        //The thread is left to finish on its own. A leaked background thread waiting on a hung
-        //Explorer is a far better outcome than a frozen tray icon, and it ends when Explorer does.
+        //The thread is left to finish on its own. A leaked background thread waiting on a hung Explorer
+        //is a far better outcome than a frozen tray icon, and it ends when Explorer does.
         log.Debug($"Explorer did not answer within {Deadline.TotalMilliseconds:F0} ms; the trigger resolves to nothing.");
         return [];
     }
 
     /// <summary>
-    /// Walks Explorer's views once and picks out the tabs belonging to the foreground frame.
-    ///
-    /// One pass, deliberately: the folder and the selection both come off the same
-    /// <c>IShellFolderViewDual</c>, so reading them together costs one cross-process enumeration
-    /// where reading them separately cost two.
+    /// Walks Explorer's views once and picks out the tabs belonging to the foreground frame. One pass:
+    /// the folder and the selection both come off the same <c>IShellFolderViewDual</c>.
     /// </summary>
     private List<FolderCandidate> Enumerate(nint foreground)
     {
@@ -155,8 +134,8 @@ public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILo
 
         try
         {
-            //The frame's window text is the active tab's folder name on Windows 11, and the whole
-            //window's on Windows 10 -- which is the same thing when there is only one tab.
+            //The frame's window text is the active tab's folder name on Windows 11, and the whole window's on
+            //Windows 10 -- which is the same thing when there is only one tab.
             string activeTab = WindowText(foreground);
 
             var tabs = new List<Tab>();
@@ -190,29 +169,26 @@ public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILo
 
             if (tabs.Count == 0)
             {
-                //Not an Explorer window. The tray, another application, or our own popup: all
-                //ordinary, and all of them mean the trigger has no folder to act on.
+                //Not an Explorer window. The tray, another application, or one of ours: all ordinary, and all of
+                //them mean the trigger has no folder to act on.
                 log.Debug($"None of {seen} Explorer view(s) owns window {foreground:X}; the trigger resolves to nothing.");
                 return candidates;
             }
 
-            //One tab, or the one whose folder name matches the frame's title. On Windows 11 two tabs
-            //showing folders with the same leaf name are genuinely undecidable, and then there is no
-            //active tab -- which is what makes the result ambiguous and Ctrl+R the answer.
+            //One tab, or the one whose folder name matches the frame's title. On Windows 11 two tabs showing
+            //folders with the same leaf name are genuinely undecidable.
             Tab? active = tabs.Count == 1
                 ? tabs[0]
                 : tabs.FirstOrDefault(t => string.Equals(t.Name, activeTab, StringComparison.OrdinalIgnoreCase));
 
-            //The selection wins over the folder, per CLAUDE.md's order: a folder the user clicked is
-            //a stronger statement of intent than the one they happen to be browsing.
+            //The selection wins over the folder: a folder the user clicked is a stronger statement of intent
+            //than the one they happen to be browsing.
             if (active?.Selected is { Length: > 0 } selected)
                 candidates.Add(new FolderCandidate(selected, FolderOrigin.Selection));
 
             if (active is { Path.Length: > 0 })
                 candidates.Add(new FolderCandidate(active.Path, FolderOrigin.CurrentFolder));
 
-            //The rest, in enumeration order. Reachable with Ctrl+R, and the reason the ambiguous
-            //case is answerable rather than a dead end.
             foreach (Tab tab in tabs)
             {
                 if (!candidates.Any(c => string.Equals(c.Path, tab.Path, StringComparison.OrdinalIgnoreCase)))
@@ -227,14 +203,10 @@ public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILo
         }
     }
 
-    /// <param name="Path">The folder the tab is showing.</param>
     /// <param name="Name">Its display name, for matching against the frame's title.</param>
-    /// <param name="Selected">The first selected folder in it, if there is one.</param>
     private sealed record Tab(string Path, string Name, string? Selected);
 
-    /// <summary>
-    /// One tab's folder and selection, or null when it is not showing a file-system path.
-    /// </summary>
+    /// <summary>One tab's folder and selection, or null when it is not showing a file-system path.</summary>
     private static Tab? Read(IWebBrowser2 browser)
     {
         object? document = null;
@@ -279,10 +251,8 @@ public sealed partial class ExplorerFolderResolver(OperationTimings timings, ILo
     }
 
     /// <summary>
-    /// The first selected item, if it is a folder.
-    ///
-    /// Only the first: "right-click a folder and commit it" is the case this serves, and a multiple
-    /// selection is not a statement about one repository.
+    /// The first selected item, if it is a folder. Only the first: a multiple selection is not a
+    /// statement about one repository.
     /// </summary>
     private static string? SelectedFolder(IShellFolderViewDual view)
     {

@@ -9,22 +9,18 @@ namespace FlickGit.Branches;
 /// <summary>
 /// Branch listing, name validation and primary-branch resolution.
 ///
-/// The commit surface needs the primary branch for one reason only: to decide whether to
-/// show the "you are committing to main" strip. CLAUDE.md, "Primary Branch Resolution":
-/// "Resolving this must never block the menu or the popup" — so the result is cached per
-/// repository and every caller has to be able to carry on without it.
+/// The commit surface needs the primary branch only to decide whether to show the "you are
+/// committing to main" strip, and resolving it must never block the menu -- so the result is
+/// cached per repository and every caller has to be able to carry on without it.
 /// </summary>
 public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService config)
 {
     private readonly ConcurrentDictionary<string, string> _primaryBranchCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// A branch name Git will reject, caught before any command runs. CLAUDE.md,
-    /// "Testing": "an invalid ref name is rejected before any Git command runs."
-    ///
-    /// This is the cheap half of validation — enough to give the ComboBox live feedback
-    /// as the user types, without a process start per keystroke.
-    /// <see cref="ValidateAsync"/> then asks Git itself before anything is created.
+    /// A branch name Git will reject, caught before any command runs. The cheap half of validation --
+    /// enough to give the ComboBox live feedback without a process start per keystroke.
+    /// <see cref="ValidateAsync"/> asks Git itself before anything is created.
     /// </summary>
     private static readonly Regex ObviouslyInvalid = new(
         """
@@ -47,9 +43,8 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         string? currentBranch,
         CancellationToken cancellationToken)
     {
-        //for-each-ref, not `branch --list`: `branch` is a porcelain command whose output
-        //carries a "* " marker and column padding meant for humans, and CLAUDE.md forbids
-        //parsing that.
+        //for-each-ref, not `branch --list`: `branch` is a porcelain command whose output carries a "* "
+        //marker and column padding meant for humans.
         GitResult result = await git.ReadAsync(
             repository.Root,
             ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
@@ -74,14 +69,12 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     /// <summary>
     /// Which branch this repository treats as primary, for the warning strip.
     ///
-    /// Order: this repository's own <c>flickgit.primaryBranch</c>, then the user's setting, then the
-    /// remote's HEAD, then <c>main</c>, then <c>master</c>. The remote HEAD is asked for before the
-    /// two guesses because a repository that still uses <c>master</c> should not be warned about
-    /// <c>main</c>.
+    /// Order: this repository's own <c>flickgit.primaryBranch</c>, the user's setting, the remote's
+    /// HEAD, <c>main</c>, <c>master</c>. Remote HEAD comes before the two guesses because a repository
+    /// still on <c>master</c> should not be warned about <c>main</c>.
     ///
-    /// <b>Neither configured answer is cached, and that is deliberate.</b> The override is one
-    /// <c>config --get</c> — cheap, and always current, so the repository window writing it needs no
-    /// way to invalidate anything and the warning strip is right on the very next open. Only the
+    /// <b>Neither configured answer is cached.</b> The override is one <c>config --get</c>, so it is
+    /// always current and the window that writes it needs no way to invalidate anything. Only the
     /// answer that costs a ref lookup is cached.
     /// </summary>
     public async Task<string> ResolvePrimaryBranchAsync(
@@ -89,8 +82,7 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         string? configuredPrimaryBranch,
         CancellationToken cancellationToken)
     {
-        //The repository's own answer first: the more specific setting wins, which is the whole point
-        //of having a per-repository one.
+        //The repository's own answer first: the more specific setting wins.
         if (await config.ReadPrimaryBranchOverrideAsync(repository, cancellationToken).ConfigureAwait(false) is { } local)
             return local;
 
@@ -110,10 +102,8 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
 
     /// <summary>
     /// Asks Git whether a branch name is acceptable, before creating anything.
-    ///
-    /// `check-ref-format --branch` is an exit-code question and it is the authoritative
-    /// answer — it knows the rules this build of Git enforces, which the regex above only
-    /// approximates.
+    /// <c>check-ref-format --branch</c> is the authoritative answer -- it knows the rules this build
+    /// of Git enforces, which the regex above only approximates.
     /// </summary>
     public async Task<BranchNameValidation> ValidateAsync(
         RepositoryInfo repository,
@@ -141,15 +131,12 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     /// <summary>
     /// Deletes a local branch.
     ///
-    /// <b><c>-d</c> unless <paramref name="force"/>, and nothing here decides to escalate.</b>
-    /// CLAUDE.md puts <c>git branch -D</c> on the Safety Rules list, so the force spelling is only
-    /// ever reached by the caller passing it after Git has refused and the user has been told why —
-    /// the same shape as a refused switch, where the blocking files are shown and stashing is a
-    /// button rather than something that happens.
+    /// <b><c>-d</c> unless <paramref name="force"/>, and nothing here decides to escalate.</b> The
+    /// force spelling is only ever reached by the caller passing it after Git has refused and the
+    /// user has been told why.
     ///
     /// The current branch is refused <i>before any command runs</i>. Git refuses it too, but its
-    /// wording is about HEAD rather than about what the user should do, and a refusal we make
-    /// ourselves is one the window can turn into "switch somewhere else first".
+    /// wording is about HEAD rather than about what the user should do.
     /// </summary>
     public async Task<BranchDeleteOutcome> DeleteLocalAsync(
         RepositoryInfo repository,
@@ -163,9 +150,9 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         if (string.Equals(name, currentBranch?.Trim(), StringComparison.Ordinal))
             return new BranchDeleteOutcome(false, null, NotMerged: false, WasCurrentBranch: true);
 
-        //No `--` separator: `git branch` does not take one, and a branch whose name begins with a
-        //dash cannot exist -- ObviouslyInvalid and check-ref-format both refuse it, so there is no
-        //name here that could be read as an option.
+        //No `--` separator: `git branch` does not take one, and a branch whose name begins with a dash
+        //cannot exist -- both validators refuse it -- so there is no name here that could be read as an
+        //option.
         GitResult result = await git.RunAsync(
             repository.Root,
             ["branch", force ? "-D" : "-d", name],
@@ -182,16 +169,13 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     }
 
     /// <summary>
-    /// Deletes a branch <b>on the remote</b> — for everyone, not just here.
+    /// Deletes a branch <b>on the remote</b> -- for everyone, not just here.
     ///
-    /// <c>refs/heads/&lt;branch&gt;</c>, never the bare name, for the reason <c>TagService.DeleteAsync</c>
-    /// gives about tags: <c>git push origin --delete release</c> is ambiguous when a tag of that
-    /// name also exists, and a fully qualified ref cannot land on the wrong one. Here the ambiguity
-    /// runs the other way — deleting a tag when a branch was meant — which is the worse direction,
-    /// since a tag has no reflog.
+    /// <c>refs/heads/&lt;branch&gt;</c>, never the bare name: <c>git push origin --delete release</c>
+    /// is ambiguous when a tag of that name also exists, and here the wrong guess deletes a tag,
+    /// which has no reflog.
     ///
-    /// There is no force, no lease and no second spelling. The caller confirms first; this only runs
-    /// what it was told to.
+    /// There is no force, no lease and no second spelling. The caller confirms first.
     /// </summary>
     public async Task<BranchDeleteOutcome> DeleteRemoteAsync(
         RepositoryInfo repository,
@@ -212,14 +196,12 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     /// <summary>
     /// Splits a remote-tracking name such as <c>origin/feature/x</c> into its remote and its branch.
     ///
-    /// <b>Against the configured remotes, not at the first slash.</b> A branch may contain slashes
-    /// and so may not be told from the remote by shape — <c>origin/feature/x</c> is remote
-    /// <c>origin</c>, branch <c>feature/x</c>, and splitting at the first slash only happens to be
-    /// right. The longest matching remote wins, so a repository with both <c>origin</c> and
-    /// <c>origin/mirror</c> as remote names still resolves the more specific one.
+    /// <b>Against the configured remotes, not at the first slash.</b> A branch may contain slashes, so
+    /// <c>origin/feature/x</c> is remote <c>origin</c> branch <c>feature/x</c> only because
+    /// <c>origin</c> is a configured remote. The longest match wins.
     ///
-    /// Null when no configured remote prefixes the name, which is what stops a deletion being
-    /// pushed at a remote that does not exist.
+    /// Null when no configured remote prefixes the name, which is what stops a deletion being pushed
+    /// at a remote that does not exist.
     /// </summary>
     public async Task<RemoteBranch?> ResolveRemoteBranchAsync(
         RepositoryInfo repository,
@@ -247,8 +229,8 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         string branchName,
         CancellationToken cancellationToken)
     {
-        //--verify with a full refname, so a branch called "main" is not confused with a
-        //tag called "main" or with a file of that name in the working tree.
+        //--verify with a full refname, so a branch called "main" is not confused with a tag called
+        //"main" or with a file of that name in the working tree.
         GitResult result = await git.ReadAsync(
             repository.Root,
             ["rev-parse", "--verify", "--quiet", $"refs/heads/{branchName}"],
@@ -261,10 +243,8 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         RepositoryInfo repository,
         CancellationToken cancellationToken)
     {
-        //Purely local: this reads refs/remotes/origin/HEAD, which was written at clone
-        //time. No network, which is what makes it safe to call while a menu is being
-        //built -- CLAUDE.md: "Explorer integration must never block on network
-        //operations."
+        //Purely local: this reads refs/remotes/origin/HEAD, written at clone time. No network, which is
+        //what makes it safe to call while a menu is being built.
         GitResult result = await git.ReadAsync(
             repository.Root,
             ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
@@ -273,7 +253,6 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         if (!result.Succeeded)
             return null;
 
-        //"origin/main" -> "main".
         string value = result.StdOut.Trim();
         int slash = value.IndexOf('/');
         return slash >= 0 && slash < value.Length - 1 ? value[(slash + 1)..] : null;
@@ -294,12 +273,8 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     }
 }
 
-/// <param name="Remote">The configured remote, e.g. <c>origin</c>.</param>
-/// <param name="Branch">The branch as it exists on that remote, with the remote prefix removed.</param>
 public sealed record RemoteBranch(string Remote, string Branch);
 
-/// <param name="Succeeded">True only when the branch is gone.</param>
-/// <param name="GitError">Git's own words. Never paraphrased.</param>
 /// <param name="NotMerged">
 /// Git refused because the branch holds commits that are nowhere else. The one refusal with a
 /// second choice behind it, and the only route to <c>-D</c>.
@@ -312,6 +287,4 @@ public sealed record BranchDeleteOutcome(bool Succeeded, string? GitError, bool 
     public static BranchDeleteOutcome Ok { get; } = new(true, null, false, false);
 }
 
-/// <param name="IsValid">False when the name must not be used.</param>
-/// <param name="Error">Why, in the words to show the user. Null when valid.</param>
 public sealed record BranchNameValidation(bool IsValid, string? Error);

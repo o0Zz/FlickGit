@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -22,35 +22,27 @@ namespace FlickGit.App.Views;
 /// <summary>
 /// The log window: commit history, and the diff of whatever is selected.
 ///
-/// <b>The feature this window exists for is the multi-selection.</b> Picking several commits shows
-/// their <i>combined</i> diff — <c>git diff &lt;oldest&gt;^ &lt;newest&gt;</c>, which is what answers
-/// "what changed between Tuesday and now" and what no per-commit view can answer. Everything else
-/// here is in service of that: the list is what you select in, the file list is what the range
-/// touched, and the pane is the commit window's, read-only.
+/// <b>The feature it exists for is the multi-selection.</b> Picking several commits shows their
+/// <i>combined</i> diff -- <c>git diff &lt;oldest&gt;^ &lt;newest&gt;</c> -- which is what answers
+/// "what changed between Tuesday and now" and what no per-commit view can answer.
 ///
 /// <b>It performs nothing.</b> No checkout, reset, revert, cherry-pick, tag or branch-from-here.
-/// That list is the boundary CLAUDE.md's Product Philosophy draws, and it is written down so it
-/// does not grow one release at a time. The single outward action is Save as patch, which writes a
-/// file the user named in a dialog, outside the repository.
+/// That list is a boundary, and it is written down so it does not grow one release at a time. The
+/// single outward action is Save as patch, which writes outside the repository.
 ///
-/// Code-behind rather than a view model, in the <see cref="TagsWindow"/> tradition. The Git
-/// sequences live in <see cref="HistoryService"/> and <see cref="DiffService"/>; what stays here is
-/// what the list shows and what the hint says, which is what a view model owns anyway — and
-/// <c>ListBox.SelectedItems</c> is not bindable, so a view model would need an attached behaviour
-/// invented so that a second class could avoid touching the first.
+/// Code-behind rather than a view model: <c>ListBox.SelectedItems</c> is not bindable, so a view
+/// model would need an attached behaviour invented so a second class could avoid touching the
+/// first.
 /// </summary>
 public partial class LogWindow : Window
 {
     /// <summary>
-    /// How long the selection has to settle before Git is asked anything.
-    ///
-    /// A key-repeated Shift+Down fires roughly every 30 ms, so this collapses a whole drag into one
-    /// reload rather than starting a process per row. 200 ms — the diff pane's re-diff delay — is
-    /// perceptible slack after the hand stops; 120 is not.
+    /// How long the selection has to settle before Git is asked anything. A key-repeated Shift+Down
+    /// fires roughly every 30 ms, so this collapses a whole drag into one reload rather than starting
+    /// a process per row.
     /// </summary>
     private static readonly TimeSpan SelectionSettleDelay = TimeSpan.FromMilliseconds(120);
 
-    /// <summary>Files whose diff is computed before the user clicks one, as the commit window does.</summary>
     private const int PrefetchCount = 5;
 
     private readonly RepositoryInfo _repository;
@@ -64,24 +56,18 @@ public partial class LogWindow : Window
     private readonly ObservableCollection<CommitRow> _commits = [];
 
     /// <summary>
-    /// Computed diffs, keyed by range and path.
-    ///
-    /// Not <c>DiffCache</c>, which is not a dictionary but a set of working-tree rules —
-    /// <c>Invalidate</c> for a save, <c>Clear</c> for a commit, a hard-coded comparison mode. None
-    /// of them mean anything here: history is immutable, so an entry stays valid until the window
-    /// closes. What the two genuinely share is a dictionary and a token, which is the BCL.
+    /// Computed diffs, keyed by range and path. Not <c>DiffCache</c>, which is a set of working-tree
+    /// rules -- invalidate on save, clear on commit -- none of which mean anything here: history is
+    /// immutable, so an entry stays valid until the window closes.
     /// </summary>
     private readonly Dictionary<string, SideBySideDiff> _cache = new(StringComparer.Ordinal);
 
     private readonly DispatcherTimer _settle;
 
     /// <summary>
-    /// <c>rev-list --count HEAD</c>, read once with the first page.
-    ///
-    /// The revision every build stamps into its version, which is what makes it worth a column: a
-    /// user holding 0.0.147 can find the commit it was built from without counting rows. Zero until
-    /// it is known, and zero forever on an unborn HEAD — <see cref="Revision"/> then shows nothing
-    /// rather than a number that means nothing.
+    /// <c>rev-list --count HEAD</c>, read once with the first page. Zero until it is known, and zero
+    /// forever on an unborn HEAD -- <see cref="Revision"/> then shows nothing rather than a number
+    /// that means nothing.
     /// </summary>
     private int _headCount;
 
@@ -125,8 +111,6 @@ public partial class LogWindow : Window
         Diff.SetTypography(settings.DiffFontFamily, settings.DiffFontSize);
         Diff.Show(null, isLoading: false);
 
-        //The debounce idiom is the diff pane's: stop-then-start on every event, and the tick
-        //stops itself before doing the work.
         _settle = new DispatcherTimer { Interval = SelectionSettleDelay };
         _settle.Tick += (_, _) =>
         {
@@ -134,10 +118,8 @@ public partial class LogWindow : Window
             _ = ReloadRangeAsync();
         };
 
-        //Ctrl+S means the same thing here as in the commit window -- write what I am looking at --
-        //with a different destination because the destination is the only thing that differs. Esc
-        //is left to the Close button's IsCancel: this window has no state that must refuse to
-        //close, which is the only reason CommitWindow intercepts it.
+        //Esc is left to the Close button's IsCancel: this window has no state that must refuse to close,
+        //which is the only reason CommitWindow intercepts it.
         InputBindings.Add(new KeyBinding
         {
             Key = Key.S,
@@ -147,10 +129,8 @@ public partial class LogWindow : Window
     }
 
     /// <summary>
-    /// Reads the first page.
-    ///
-    /// Separate from the constructor so the caller can time "visible" and "usable" apart, which is
-    /// the split <c>CommitWindowHost</c> makes for the same reason.
+    /// Reads the first page. Separate from the constructor so the caller can time "visible" and
+    /// "usable" apart.
     /// </summary>
     public async Task LoadFirstPageAsync() => await LoadPageAsync().ConfigureAwait(true);
 
@@ -164,10 +144,9 @@ public partial class LogWindow : Window
 
         try
         {
-            //Started before the page and awaited after it, so the two processes overlap: the count
-            //is needed to number the rows, and paying for it in sequence would put a whole Git
-            //launch in front of the first paint. Only on the first page — history does not grow
-            //while the window is open, and "Load more" numbers its rows from the same total.
+            //Started before the page and awaited after it, so the two processes overlap. Only on the first
+            //page -- history does not grow while the window is open, and "Load more" numbers its rows from
+            //the same total.
             Task<int>? counting = _commits.Count == 0
                 ? _history.GetCommitCountAsync(_repository, CancellationToken.None)
                 : null;
@@ -179,9 +158,8 @@ public partial class LogWindow : Window
             if (counting is not null)
                 _headCount = await counting.ConfigureAwait(true);
 
-            //Added into the bound collection rather than reassigning ItemsSource: a reassignment
-            //would drop the selection, the scroll position and every virtualized container on
-            //every page.
+            //Added into the bound collection rather than reassigning ItemsSource: a reassignment would drop
+            //the selection, the scroll position and every virtualized container on every page.
             foreach (LogCommit commit in page.Commits)
                 _commits.Add(Row(_commits.Count, commit));
 
@@ -197,8 +175,8 @@ public partial class LogWindow : Window
             LoadedText.Text = Strings.Get("log.loaded", _commits.Count);
             PagingText.Text = _endOfHistory ? Strings.Get("log.end") : Strings.Get("log.loaded", _commits.Count);
 
-            //The first page selects its newest commit, so the window opens showing something
-            //rather than a prompt over three empty panes.
+            //The first page selects its newest commit, so the window opens showing something rather than a
+            //prompt over three empty panes.
             if (CommitList.SelectedItems.Count == 0)
                 CommitList.SelectedIndex = 0;
         }
@@ -223,26 +201,23 @@ public partial class LogWindow : Window
 
     private void OnCommitSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        //Painted immediately: the range line is arithmetic over two indices, so it must never wait
-        //for a process. What waits is everything that costs one.
+        //Painted immediately: the range line is arithmetic over two indices, so it must never wait for a
+        //process.
         UpdateRangeBand();
 
         _settle.Stop();
         _settle.Start();
     }
 
-    /// <summary>
-    /// The range the selection implies, and the sentence that discloses what it swept in.
-    /// </summary>
     private CommitRange? CurrentRange()
     {
         var selected = new HashSet<string>(
             CommitList.SelectedItems.OfType<CommitRow>().Select(r => r.Commit.Sha),
             StringComparer.Ordinal);
 
-        //Resolved in Core rather than here: the list is newest-first, so the *smallest* index is
-        //the newest commit, and "the range came out the wrong way round" is exactly the bug
-        //clicking does not reveal.
+        //Resolved in Core rather than here: the list is newest-first, so the *smallest* index is the
+        //newest commit, and "the range came out the wrong way round" is exactly the bug clicking does
+        //not reveal.
         return CommitRange.Resolve([.. _commits.Select(r => r.Commit)], selected);
     }
 
@@ -289,9 +264,6 @@ public partial class LogWindow : Window
         }
     }
 
-    /// <summary>
-    /// Recomputes the file list for the current selection, and with it the diff.
-    /// </summary>
     private async Task ReloadRangeAsync()
     {
         if (CurrentRange() is not { } range)
@@ -308,8 +280,8 @@ public partial class LogWindow : Window
         if (_shown is { } current && current.BaseSpec == range.BaseSpec && current.TipSpec == range.TipSpec)
             return;
 
-        //The token kills the Git process; the generation guards the repaint. Both, because a
-        //cancelled process can still complete before its cancellation is observed.
+        //The token kills the Git process; the generation guards the repaint. Both, because a cancelled
+        //process can still complete before its cancellation is observed.
         int mine = ++_generation;
 
         _inFlight?.Cancel();
@@ -347,9 +319,8 @@ public partial class LogWindow : Window
 
     private void ApplyFiles(CommitRange range, IReadOnlyList<GitFileChange> files)
     {
-        //Kept if it survives into the new list: widening a range while reading GatewayClient.cs
-        //must keep showing GatewayClient.cs. Nothing here can be dirty, so there is nothing to
-        //confirm and nothing to lose.
+        //Kept if it survives into the new list: widening a range while reading one file must keep
+        //showing that file. Nothing here can be dirty, so there is nothing to confirm.
         string? keep = (FileList.SelectedItem as FileRow)?.Change.Path;
 
         List<FileRow> rows = [.. files.Select(f => new FileRow(f))];
@@ -370,11 +341,9 @@ public partial class LogWindow : Window
     }
 
     /// <summary>
-    /// Blame the selected file at the commit being looked at.
-    ///
-    /// The revision is the range's tip rather than the working tree, which is the whole reason this
-    /// entry is worth having here: "who wrote this line" is a different question at the commit you
-    /// are reading than it is on disk, and every other way into blame answers the second one.
+    /// Blame the selected file at the commit being looked at. The revision is the range's tip rather
+    /// than the working tree, which is the whole reason this entry is worth having here: every other
+    /// way into blame answers the question about disk instead.
     /// </summary>
     private async void OnBlameFile(object sender, RoutedEventArgs e)
     {
@@ -423,8 +392,8 @@ public partial class LogWindow : Window
 
             _cache[key] = diff;
 
-            //The user may have moved on while this ran. Repainting then would show the previous
-            //file's diff over the current row.
+            //The user may have moved on while this ran. Repainting then would show the previous file's diff
+            //over the current row.
             if (_shown == range && FileList.SelectedItem == row)
             {
                 Diff.Show(diff, isLoading: false);
@@ -439,8 +408,8 @@ public partial class LogWindow : Window
     }
 
     /// <summary>
-    /// Fills the cache for the first few files. Uncancelled and unreported, as the commit window's
-    /// prefetch is: a file that fails here is computed again — and reported — when it is clicked.
+    /// Fills the cache for the first few files. Uncancelled and unreported: a file that fails here is
+    /// computed again -- and reported -- when it is clicked.
     /// </summary>
     private async Task PrefetchAsync(CommitRange range, IReadOnlyList<GitFileChange> files)
     {
@@ -476,12 +445,11 @@ public partial class LogWindow : Window
             AddExtension = true,
             Filter = Strings.Get("log.patch.filter"),
 
-            //The repository's parent, not the repository: a .patch dropped inside the working tree
-            //comes straight back as an untracked file in the commit window.
+            //The repository's parent, not the repository: a .patch dropped inside the working tree comes
+            //straight back as an untracked file in the commit window.
             InitialDirectory = Path.GetDirectoryName(_repository.Root.TrimEnd('\\', '/')) ?? _repository.Root,
         };
 
-        //Cancelling is not a failure and says nothing.
         if (dialog.ShowDialog(this) != true)
             return;
 
@@ -501,8 +469,8 @@ public partial class LogWindow : Window
                 return;
             }
 
-            //A range whose endpoints hold the same tree writes nothing. Said in the footer rather
-            //than leaving a zero-byte file the user would later find and not understand.
+            //A range whose endpoints hold the same tree writes nothing. Said in the footer rather than
+            //leaving a zero-byte file the user would later find and not understand.
             StatusText.Text = new FileInfo(dialog.FileName) is { Exists: true, Length: > 0 } written
                 ? Strings.Get("log.patch.saved", Path.GetFileName(written.FullName))
                 : Strings.Get("log.patch.empty");
@@ -525,23 +493,22 @@ public partial class LogWindow : Window
     }
 
     /// <summary>
-    /// <c>a1b2c3d-add-pgbouncer-pooling.patch</c> for one commit, <c>4d5e6f7..a1b2c3d.patch</c> for
-    /// a range. A subject is only useful when there is exactly one; a range's own name is its ends.
+    /// <c>a1b2c3d-add-pgbouncer-pooling.patch</c> for one commit, <c>4d5e6f7..a1b2c3d.patch</c> for a
+    /// range: a subject is only useful when there is exactly one.
     /// </summary>
     private static string PatchFileName(CommitRange range)
     {
         if (range.SelectedCount != 1)
             return $"{Short(range.Oldest.Sha)}..{Short(range.Newest.Sha)}.patch";
 
-        //IsLetterOrDigit drops every invalid file-name character as a side effect, and keeps a
-        //non-ASCII subject legible: "é" survives, ":" and "/" do not.
+        //IsLetterOrDigit drops every invalid file-name character as a side effect, and keeps a non-ASCII
+        //subject legible.
         string slug = new string([.. range.Newest.Subject.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '-')])
             .Trim('-');
 
         while (slug.Contains("--", StringComparison.Ordinal))
             slug = slug.Replace("--", "-", StringComparison.Ordinal);
 
-        //Forty characters is a file name, not a commit message.
         if (slug.Length > 40)
             slug = slug[..40].TrimEnd('-');
 
@@ -559,8 +526,7 @@ public partial class LogWindow : Window
 
     /// <summary>
     /// Absolute, never relative. "2 hours ago" needs plural forms per language in a flat
-    /// <c>key = value</c> file a translator opens in Notepad, and the absolute form sorts, aligns
-    /// in monospace and is never ambiguous.
+    /// <c>key = value</c> file a translator opens in Notepad.
     /// </summary>
     private static string Stamp(DateTimeOffset when) => when.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
 
@@ -568,26 +534,19 @@ public partial class LogWindow : Window
         new(index, commit, Revision(index), commit.ShortSha, commit.Subject, commit.Author, Stamp(commit.When), Decorate(commit.Refs));
 
     /// <summary>
-    /// The row's revision number: how many commits it has behind it, itself included.
-    ///
-    /// Arithmetic rather than a Git call per row — the list is newest-first, so the top row is
-    /// <see cref="_headCount"/> and every row below is one fewer. Empty when the count is unknown,
-    /// which is the same rule the rest of the window follows: no number beats a wrong one.
+    /// The row's revision number. Arithmetic rather than a Git call per row -- the list is
+    /// newest-first, so the top row is <see cref="_headCount"/> and every row below is one fewer.
+    /// Empty when the count is unknown: no number beats a wrong one.
     /// </summary>
     private string Revision(int index) =>
         _headCount > index ? (_headCount - index).ToString(CultureInfo.InvariantCulture) : string.Empty;
 
-    /// <summary>Drops the "HEAD -&gt; " prefix, which is the same word on every list's top row.</summary>
     private static string Decorate(string refs) =>
         refs.Replace("HEAD -> ", string.Empty, StringComparison.Ordinal);
 
     /// <param name="Index">
     /// The row's position, kept on the row rather than looked up per selection change: the list is
-    /// newest-first and the arithmetic reads backwards, so it is worth being able to see it.
-    /// </param>
-    /// <param name="Revision">
-    /// The commit's own number in the branch's history, which is what a build stamps into its
-    /// version. Empty when it could not be counted.
+    /// newest-first and the arithmetic reads backwards.
     /// </param>
     private sealed record CommitRow(
         int Index,
@@ -603,17 +562,17 @@ public partial class LogWindow : Window
             ? $"{Commit.Sha}\n{Commit.Author} · {Commit.When.LocalDateTime:F}"
             : $"{Commit.Sha}\n{Strings.Get("log.revision", Revision)}\n{Commit.Author} · {Commit.When.LocalDateTime:F}";
 
-        //Overridden for TagRow's reason: a templated ListBoxItem has no text of its own, and UI
-        //Automation falls back to this. A record's synthesised version reads every property name
-        //out to a screen reader.
+        //Overridden for TagRow's reason: a templated ListBoxItem has no text of its own and UI
+        //Automation falls back to this. A record's synthesised version reads every property name out to
+        //a screen reader.
         public override string ToString() => $"{Revision} {ShortSha} {Subject} {Author} {Date}".Trim();
     }
 
     /// <summary>
     /// One file row. A projection of <see cref="GitFileChange"/> rather than
     /// <see cref="ViewModels.FileChangeItem"/>, whose <c>IsSelected</c> writes through to decide a
-    /// commit's contents and whose tooltip renders "Staged +x −y · Working tree +a −b" — which for
-    /// a commit range is not merely irrelevant, it is false.
+    /// commit's contents and whose tooltip renders staged-versus-worktree counts -- which for a
+    /// commit range is not merely irrelevant, it is false.
     /// </summary>
     private sealed class FileRow(GitFileChange change)
     {

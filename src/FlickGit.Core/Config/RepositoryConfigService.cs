@@ -1,4 +1,4 @@
-using FlickGit.Git;
+﻿using FlickGit.Git;
 using FlickGit.Models;
 
 namespace FlickGit.Config;
@@ -9,40 +9,33 @@ namespace FlickGit.Config;
 ///
 /// <b>One read answers the whole window.</b> <c>config --local --list -z</c> returns the identity,
 /// every remote and the <c>flickgit.*</c> keys in a single process, which is why there is no
-/// <c>git remote -v</c> anywhere here: that is output shaped for a terminal, and CLAUDE.md,
-/// "Coding Guidelines" forbids parsing it. One command, one parser.
+/// <c>git remote -v</c> anywhere here: that is output shaped for a terminal.
 ///
-/// FlickGit's own per-repository preferences live here rather than in <c>settings.json</c>, under a
-/// <c>flickgit.</c> section. A path-keyed dictionary in a global file goes stale the moment the
-/// repository moves and is invisible from the place it applies; <c>.git/config</c> is neither, and
-/// it is not committed, so nothing leaks into the repository's history.
+/// FlickGit's own per-repository preferences live here rather than in <c>settings.json</c>. A
+/// path-keyed dictionary in a global file goes stale the moment the repository moves and is
+/// invisible from the place it applies; <c>.git/config</c> is neither, and is not committed.
 /// </summary>
 public sealed class RepositoryConfigService(IGitProcessRunner git)
 {
     public const string UserNameKey = "user.name";
     public const string UserEmailKey = "user.email";
 
-    /// <summary>Overrides the global primary-branch setting for this repository alone.</summary>
     public const string PrimaryBranchKey = "flickgit.primaryBranch";
 
     /// <summary>
-    /// The remembered answer to "create an upstream for this branch?".
-    ///
-    /// CLAUDE.md, "Push": asked once and remembered per repository. Here rather than in
-    /// <c>settings.json</c> because it *is* a fact about this repository — a user who publishes
+    /// The remembered answer to "create an upstream for this branch?". Here rather than in
+    /// <c>settings.json</c> because it <i>is</i> a fact about this repository -- a user who publishes
     /// freely to their own fork may not want to on a shared origin.
     /// </summary>
     public const string UpstreamAnswerKey = "flickgit.allowUpstreamCreation";
 
     /// <summary>
-    /// Which branch a pull request from this repository proposes into, when it is not the primary
-    /// one.
+    /// Which branch a pull request proposes into, when it is not the primary one.
     ///
-    /// Its own key rather than a reuse of <see cref="PrimaryBranchKey"/>, because the two answer
-    /// different questions and a GitFlow repository gives them different answers: the primary branch
-    /// is what the commit window warns about committing to — <c>main</c> — while everyday work is
-    /// proposed into <c>develop</c>. One key would force a user to choose which of the two features
-    /// is allowed to be right.
+    /// Its own key rather than a reuse of <see cref="PrimaryBranchKey"/>: a GitFlow repository gives
+    /// the two different answers -- the commit window warns about committing to <c>main</c> while
+    /// everyday work is proposed into <c>develop</c> -- and one key would force the user to choose
+    /// which of the two features is allowed to be right.
     /// </summary>
     public const string PullRequestTargetKey = "flickgit.pullRequestTarget";
 
@@ -51,17 +44,15 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     ///
     /// <c>git.acme.io</c> is a GitLab or a GitHub Enterprise with equal probability, and posting a
     /// request shaped for the wrong API at whichever is listening is the one mistake that cannot be
-    /// worked around. So an unrecognised host is refused with this key named in the message, and the
-    /// user answers once — <c>github</c>, <c>gitlab</c> or <c>azure</c>.
+    /// worked around -- so an unrecognised host is refused with this key named in the message.
     /// </summary>
     public const string ForgeKindKey = "flickgit.forge";
 
     /// <summary>
-    /// Everything the repository window shows, from four parallel reads.
-    ///
-    /// The effective identity needs its own calls: <c>--local</c> answers "does this repository
-    /// override it", and the plain form answers "who would a commit be attributed to", which is the
-    /// question the user is actually asking. Both are needed to tell an override from an inheritance.
+    /// Everything the repository window shows, from four parallel reads. The effective identity needs
+    /// its own calls: <c>--local</c> answers "does this repository override it" and the plain form
+    /// answers "who would a commit be attributed to". Both are needed to tell an override from an
+    /// inheritance.
     /// </summary>
     public async Task<RepositoryConfig> ReadAsync(RepositoryInfo repository, CancellationToken cancellationToken)
     {
@@ -111,9 +102,8 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     /// Removes a local override, so the value is inherited again.
     ///
     /// <b>Exit code 5 is success.</b> That is Git's "you tried to unset an option which does not
-    /// exist" — which is the ordinary case for "use the global identity" on a repository that never
-    /// had an override, and reporting it as a failure would put a Git error in front of a user whose
-    /// request was already satisfied.
+    /// exist" -- the ordinary case for "use the global identity" on a repository that never had an
+    /// override, and reporting it would put a Git error in front of a satisfied request.
     /// </summary>
     public async Task<ConfigOutcome> UnsetAsync(
         RepositoryInfo repository,
@@ -131,11 +121,8 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     }
 
     /// <summary>
-    /// This repository's primary-branch override, or null when it has none.
-    ///
-    /// Its own one-key read rather than <see cref="ReadAsync"/>, because the caller is
-    /// <c>BranchService</c> resolving the commit window's warning strip: it wants one value, not a
-    /// window's worth of them.
+    /// This repository's primary-branch override, or null. Its own one-key read rather than
+    /// <see cref="ReadAsync"/>: the caller wants one value, not a window's worth of them.
     /// </summary>
     public async Task<string?> ReadPrimaryBranchOverrideAsync(
         RepositoryInfo repository,
@@ -145,13 +132,7 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         return value is null ? null : NullIfEmpty(value);
     }
 
-    /// <summary>
-    /// This repository's pull-request target override, or null when it has none.
-    ///
-    /// Uncached, like the primary-branch override and for the same reason: it is one
-    /// <c>config --get</c>, so it is always current and nothing has to be invalidated when the user
-    /// changes it.
-    /// </summary>
+    /// <summary>Uncached: one <c>config --get</c>, so nothing has to be invalidated on a change.</summary>
     public async Task<string?> ReadPullRequestTargetAsync(
         RepositoryInfo repository,
         CancellationToken cancellationToken)
@@ -160,14 +141,12 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         return value is null ? null : NullIfEmpty(value);
     }
 
-    /// <summary>What <c>flickgit.forge</c> says this repository is hosted on, or null.</summary>
     public async Task<string?> ReadForgeKindAsync(RepositoryInfo repository, CancellationToken cancellationToken)
     {
         string? value = await GetAsync(repository, ForgeKindKey, cancellationToken).ConfigureAwait(false);
         return value is null ? null : NullIfEmpty(value);
     }
 
-    /// <summary>The remembered upstream answer, or null when this repository has not been asked.</summary>
     public async Task<bool?> ReadUpstreamAnswerAsync(RepositoryInfo repository, CancellationToken cancellationToken)
     {
         string? value = await GetAsync(repository, UpstreamAnswerKey, cancellationToken).ConfigureAwait(false);
@@ -184,7 +163,7 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     /// <summary>Git's "you tried to unset an option which does not exist".</summary>
     private const int NothingToUnset = 5;
 
-    /// <summary>One key, or null when it is not set. A missing key is exit 1, not an error to report.</summary>
+    /// <summary>One key, or null. A missing key is exit 1, not an error to report.</summary>
     private async Task<string?> GetAsync(RepositoryInfo repository, string key, CancellationToken cancellationToken)
     {
         GitResult result = await git.ReadAsync(
@@ -199,9 +178,9 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     /// Splits <c>config --list -z</c> into key/value pairs.
     ///
     /// Records are NUL-terminated and the key is separated from its value by the <b>first</b>
-    /// newline — which is what makes a value containing newlines survive, and why this is a state
-    /// machine over the NUL stream rather than a line split. A record with no newline at all is a
-    /// key set with no value, which Git reads as true.
+    /// newline -- which is what makes a value containing newlines survive, and why this is a state
+    /// machine over the NUL stream rather than a line split. A record with no newline at all is a key
+    /// set with no value, which Git reads as true.
     /// </summary>
     internal static IReadOnlyList<ConfigEntry> ParseList(string standardOutput)
     {
@@ -226,11 +205,10 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     /// The remotes, origin first.
     ///
     /// <b>The name is the middle of the key, taken verbatim.</b> <c>git config --list</c> lower-cases
-    /// the section and the final component and leaves the subsection alone, so
-    /// <c>remote.MyFork.url</c> keeps its capitals while <c>flickgit.primaryBranch</c> arrives as
-    /// <c>flickgit.primarybranch</c> — which is why every key here is matched case-insensitively and
-    /// the remote name never is. A remote may itself contain dots, so the name is everything between
-    /// the first and last separator rather than the second field.
+    /// the section and the final component and leaves the subsection alone, so <c>remote.MyFork.url</c>
+    /// keeps its capitals while <c>flickgit.primaryBranch</c> arrives as <c>flickgit.primarybranch</c>.
+    /// A remote may itself contain dots, so the name is everything between the first and last
+    /// separator rather than the second field.
     /// </summary>
     internal static IReadOnlyList<GitRemote> RemotesFrom(IReadOnlyList<ConfigEntry> entries)
     {
@@ -253,8 +231,7 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
                 pair.Key,
                 pair.Value,
 
-                //Only when it differs. A pushurl equal to the fetch url is noise on the row, and a
-                //remote with no pushurl at all pushes to the fetch url.
+                //Only when it differs. A pushurl equal to the fetch url is noise on the row.
                 push.TryGetValue(pair.Key, out string? pushUrl) && !string.Equals(pushUrl, pair.Value, StringComparison.Ordinal)
                     ? pushUrl
                     : null))
@@ -263,7 +240,6 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
             .ToList();
     }
 
-    /// <summary>The subsection of <c>remote.&lt;name&gt;&lt;suffix&gt;</c>, or null when the key is something else.</summary>
     private static string? NameBetween(string key, string suffix)
     {
         if (!key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
@@ -277,19 +253,15 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         entries.LastOrDefault(entry => string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// The value of a key, or null when it is unset or empty.
-    ///
-    /// The <i>last</i> occurrence, because that is the one Git itself would report: a key repeated in
-    /// one file is legal and the later line wins.
+    /// The value of a key, or null when unset. The <i>last</i> occurrence, because that is the one Git
+    /// itself would report: a key repeated in one file is legal and the later line wins.
     /// </summary>
     private static string? Value(IReadOnlyList<ConfigEntry> entries, string key) =>
         NullIfEmpty(Entry(entries, key)?.Value ?? string.Empty);
 
     /// <summary>
-    /// Git's boolean spelling, which is not <c>bool.TryParse</c>'s.
-    ///
-    /// <c>yes</c>, <c>on</c> and <c>1</c> are all true, and a key present with no value at all is
-    /// true as well — that is how <c>[flickgit] allowUpstreamCreation</c> on its own line reads.
+    /// Git's boolean spelling, which is not <c>bool.TryParse</c>'s. <c>yes</c>, <c>on</c> and <c>1</c>
+    /// are true, and a key present with no value at all is true as well.
     /// </summary>
     private static bool? ParseBool(ConfigEntry? entry)
     {
@@ -318,20 +290,14 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
 /// <param name="Value">Null when the key was set with no value, which Git reads as true.</param>
 internal sealed record ConfigEntry(string Key, string? Value);
 
-/// <param name="Name">The remote, capitals and dots as configured.</param>
-/// <param name="FetchUrl">Where <c>fetch</c> goes.</param>
 /// <param name="PushUrl">Where <c>push</c> goes, only when it differs from <paramref name="FetchUrl"/>.</param>
 public sealed record GitRemote(string Name, string FetchUrl, string? PushUrl);
 
 /// <param name="LocalName">Set in this repository's own config, or null when inherited.</param>
-/// <param name="LocalEmail">Set in this repository's own config, or null when inherited.</param>
 /// <param name="EffectiveName">Who a commit would be attributed to, wherever that came from.</param>
-/// <param name="EffectiveEmail">The address a commit would carry, wherever that came from.</param>
-/// <param name="Remotes">Every configured remote, origin first.</param>
-/// <param name="PrimaryBranch">This repository's primary-branch override, or null.</param>
 /// <param name="AllowUpstreamCreation">The remembered upstream answer, or null when never asked.</param>
 /// <param name="CurrentBranch">Null on a detached HEAD.</param>
-/// <param name="TrackedRemote">The remote the current branch pushes to, or null when it has no upstream.</param>
+/// <param name="TrackedRemote">The remote the current branch pushes to, or null with no upstream.</param>
 public sealed record RepositoryConfig(
     string? LocalName,
     string? LocalEmail,
@@ -343,12 +309,9 @@ public sealed record RepositoryConfig(
     string? CurrentBranch,
     string? TrackedRemote)
 {
-    /// <summary>True when this repository overrides the identity rather than inheriting it.</summary>
     public bool HasLocalIdentity => LocalName is not null || LocalEmail is not null;
 }
 
-/// <param name="Succeeded">The operation completed.</param>
-/// <param name="GitError">Git's own words. Never paraphrased — CLAUDE.md, "Error Handling".</param>
 public sealed record ConfigOutcome(bool Succeeded, string? GitError)
 {
     public static readonly ConfigOutcome Ok = new(true, null);

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,7 +13,6 @@ using FlickGit.App.Shell;
 
 namespace FlickGit.App.Views;
 
-/// <summary>Which tab <see cref="SettingsWindow"/> opens on.</summary>
 public enum SettingsTab
 {
     General,
@@ -24,18 +23,10 @@ public enum SettingsTab
 /// <summary>
 /// The common settings, the help page and the about box, in one small window.
 ///
-/// <b>Not the settings window CLAUDE.md Phase 5 dropped.</b> That one was a drag-and-drop action
-/// list with per-row icon pickers and an inline action editor — more UI than Phases 1 to 4 put
-/// together, and a graphical front end for a file that is documented and hand-editable. That
-/// reasoning still stands, and <c>actions.json</c> is still the way to customise the menu.
-///
-/// What it does not cover is the handful of switches whose JSON key nobody can guess before they
-/// have found the file: whether the Explorer menu is registered at all, whether the tool starts
-/// with Windows, and which language this is. So those are here, everything else says where it
-/// lives, and the window stays one screen.
-///
-/// The three registry- and disk-touching collaborators arrive through the constructor; the window
-/// itself only reads and writes their state, which is the whole of what "apply" means here.
+/// It carries the handful of switches whose JSON key nobody can guess before they have found the
+/// file: whether the Explorer menu is registered at all, whether the tool starts with Windows,
+/// and which language this is. Everything else says where it lives. <c>actions.json</c> is still
+/// the way to customise the menu.
 /// </summary>
 public partial class SettingsWindow : Window
 {
@@ -63,7 +54,6 @@ public partial class SettingsWindow : Window
         LoadAbout();
     }
 
-    /// <summary>Opens on one of the three tabs. The tray's About entry is the only caller that picks.</summary>
     public void Select(SettingsTab tab) =>
         Tabs.SelectedItem = tab switch
         {
@@ -72,12 +62,6 @@ public partial class SettingsWindow : Window
             _ => GeneralTab,
         };
 
-    /// <summary>
-    /// Every label, once, at construction.
-    ///
-    /// In code rather than in the XAML because the strings come from the embedded .lang files —
-    /// same as every other window in the product.
-    /// </summary>
     private void ApplyText()
     {
         Title = Strings.Get("settings.title");
@@ -109,18 +93,14 @@ public partial class SettingsWindow : Window
         AdvancedPaths.Text = $"{FlickSettings.FilePath}\n{FlickSettings.ActionsFilePath}";
         OpenFolderButton.Content = Strings.Get("settings.advanced.open");
 
-
         SaveButton.Content = Strings.Get("settings.save");
         CloseButton.Content = Strings.Get("commit.button.cancel");
     }
 
     /// <summary>
-    /// The current state of everything the window can change.
-    ///
-    /// Read from the source of truth in each case — the registry for the context menu, the Task
-    /// Scheduler for autostart — never from a remembered flag. A menu removed by
-    /// `flick uninstall-shell`, or a task deleted outside FlickGit, has to show here as what it
-    /// actually is.
+    /// The current state of everything the window can change, read from the source of truth in each
+    /// case -- the registry for the context menu, the Task Scheduler for autostart -- never from a
+    /// remembered flag. A menu removed by `flick uninstall-shell` has to show here as what it is.
     /// </summary>
     private void LoadValues()
     {
@@ -133,9 +113,8 @@ public partial class SettingsWindow : Window
                  {
                      AiProvider.Disabled, AiProvider.Anthropic, AiProvider.OpenAi, AiProvider.Copilot,
 
-                     //Last, and not because it is least: it is the only local one, so it is the only
-                     //entry in this list that changes what the section below means rather than which
-                     //service it points at.
+                     //Last, and not because it is least: it is the only local one, so it is the only entry that
+                     //changes what the section below means rather than which service it points at.
                      AiProvider.Ollama,
                  })
             AiProviderBox.Items.Add(new ProviderChoice(provider));
@@ -149,8 +128,6 @@ public partial class SettingsWindow : Window
         CloseAfterBox.IsChecked = _settings.CloseCommitWindowAfterSuccess;
         NotifyBox.IsChecked = _settings.ShowSuccessNotification;
 
-        //Automatic first, then the embedded languages in the order Strings lists them: English, then
-        //the rest by their own name for themselves.
         LanguageBox.Items.Add(new ComboBoxItem { Content = Strings.Get("settings.language.auto"), Tag = string.Empty });
 
         foreach (Strings.Language language in Strings.Available)
@@ -170,15 +147,14 @@ public partial class SettingsWindow : Window
         }
     }
 
-    /// <summary>The two links in the About tab that are not text: the icon and the version.</summary>
     private void LoadAbout()
     {
         AboutVersion.Text = Strings.Get("settings.about.version", App.Version);
         AboutTagline.Text = Strings.Get("settings.about.tagline");
         AboutAuthor.Text = Strings.Get("settings.about.author");
 
-        //The same file the registry hands to Explorer for the context menu, so there is one icon to
-        //keep in step. Missing is cosmetic: the row simply stays hidden.
+        //The same file the registry hands to Explorer for the context menu, so there is one icon to keep
+        //in step. Missing is cosmetic: the row simply stays hidden.
         string iconPath = Path.Combine(AppContext.BaseDirectory, "Resources", "flickgit.ico");
 
         if (!File.Exists(iconPath))
@@ -191,22 +167,16 @@ public partial class SettingsWindow : Window
         }
         catch (Exception)
         {
-            //An unreadable icon is not worth a message on an About box.
         }
     }
 
     /// <summary>
-    /// The help page, from <c>Help.md</c> beside the executable.
+    /// The help page, from <c>Help.md</c> beside the executable. Read-only, and shown once when the
+    /// window opens: this is documentation, and a row of buttons beneath it would invite the user to
+    /// maintain a page they came to read.
     ///
-    /// <b>Read-only, and shown once when the window opens.</b> The tab used to carry an Edit button,
-    /// a Reload button and the file's path, on the reasoning that shipping the page as a file rather
-    /// than compiling it in meant it could be rewritten without a build. That was true and it was the
-    /// wrong thing to put in front of the user: this is documentation, and a row of buttons beneath
-    /// it invites them to maintain a page they came to read. Per Hard Requirement 1 the controls and
-    /// their strings were deleted rather than hidden.
-    ///
-    /// A missing or unreadable file is still reported in place, with the path — that is a broken
-    /// install rather than an invitation, and the path is what makes it diagnosable.
+    /// A missing or unreadable file is reported in place with the path -- that is a broken install,
+    /// and the path is what makes it diagnosable.
     /// </summary>
     private void LoadHelp()
     {
@@ -231,11 +201,9 @@ public partial class SettingsWindow : Window
     private static string HelpFilePath => Path.Combine(AppContext.BaseDirectory, "Help.md");
 
     /// <summary>
-    /// Applies everything, and closes when there is nothing left to say.
-    ///
-    /// The window stays open on a failure — the message is beside the buttons and would go with it —
-    /// and on a language change, where the only useful thing left to report is that a restart is
-    /// needed before it shows.
+    /// Applies everything, and closes when there is nothing left to say. The window stays open on a
+    /// failure -- the message is beside the buttons and would go with it -- and on a language change,
+    /// where a restart is needed before it shows.
     /// </summary>
     private void OnSave(object sender, RoutedEventArgs e)
     {
@@ -260,9 +228,9 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        //The registry and the Task Scheduler after the file, and only when the answer actually
-        //changed: re-registering the whole context menu because the user ticked a different box is
-        //work nobody asked for, and it is the one operation here that can fail on its own.
+        //The registry and the Task Scheduler after the file, and only when the answer actually changed:
+        //re-registering the whole context menu because the user ticked a different box is work nobody
+        //asked for, and it is the one operation here that can fail on its own.
         if (ApplyContextMenu() is { } shellError)
         {
             Report(shellError);
@@ -284,7 +252,6 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    /// <summary>Registers or removes the Explorer entries, returning the failure message or null.</summary>
     private string? ApplyContextMenu()
     {
         bool wanted = ContextMenuBox.IsChecked == true;
@@ -300,7 +267,6 @@ public partial class SettingsWindow : Window
         return result.Succeeded ? null : result.Message;
     }
 
-    /// <summary>Registers or removes the logon task, returning the failure message or null.</summary>
     private string? ApplyAutostart()
     {
         bool wanted = AutostartBox.IsChecked == true;
@@ -315,23 +281,20 @@ public partial class SettingsWindow : Window
         return succeeded ? null : message;
     }
 
-    /// <summary>The provider the ComboBox is showing, whether or not Save has been pressed.</summary>
     private AiProvider SelectedProvider =>
         AiProviderBox.SelectedItem is ProviderChoice choice ? choice.Provider : AiProvider.Disabled;
 
     /// <summary>
-    /// Says whether a key is stored for the selected provider, without reading it.
-    ///
-    /// Per provider, because <see cref="CredentialStore"/> keeps one credential each — so switching the
-    /// ComboBox has to re-ask rather than carry the previous answer across.
+    /// Says whether a key is stored for the selected provider, without reading it. Per provider, so
+    /// switching the ComboBox has to re-ask rather than carry the previous answer across.
     /// </summary>
     private void RefreshKeyStatus()
     {
         AiProvider provider = SelectedProvider;
         bool disabled = provider == AiProvider.Disabled;
 
-        //Nothing to store a key for, and nothing to send. The rest of the section stays visible so
-        //it is obvious what turning a provider on would offer.
+        //Nothing to store a key for, and nothing to send. The rest of the section stays visible so it is
+        //obvious what turning a provider on would offer.
         AiKeyButton.IsEnabled = !disabled && AiOptions.RequiresKey(provider);
 
         if (disabled)
@@ -343,9 +306,9 @@ public partial class SettingsWindow : Window
 
         if (!AiOptions.RequiresKey(provider))
         {
-            //Ollama. Both buttons off and a sentence saying why, rather than a live Set button that
-            //would store a secret nothing ever reads -- and rather than an empty row, which would
-            //read as a section that had failed to load.
+            //Ollama. Both buttons off and a sentence saying why, rather than a live Set button that would
+            //store a secret nothing ever reads -- and rather than an empty row, which would read as a
+            //section that had failed to load.
             AiKeyClearButton.IsEnabled = false;
             AiKeyStatus.Text = Strings.Get("settings.ai.key.notneeded", _settings.AiOllamaUrl);
             return;
@@ -369,9 +332,8 @@ public partial class SettingsWindow : Window
     ///
     /// <b>Applied immediately, unlike everything else in this window.</b> "Nothing is applied until
     /// Save" is about the registry, the Task Scheduler and settings.json; a key is none of those. The
-    /// alternative is holding the secret in a field until the user presses Save, which is worse than
-    /// writing it to the credential store the moment it is typed — and a Cancel that silently threw
-    /// away a key the user had just pasted would be its own kind of wrong.
+    /// alternative is holding the secret in a field until Save, and a Cancel that silently threw away
+    /// a key the user had just pasted would be its own kind of wrong.
     /// </summary>
     private void OnSetApiKey(object sender, RoutedEventArgs e)
     {
@@ -407,7 +369,7 @@ public partial class SettingsWindow : Window
 
     /// <summary>
     /// A settings value that is not a known provider is read as disabled, the same way
-    /// <c>AiConfiguration</c> reads it — a typo in a hand-edited file must not silently pick one.
+    /// <c>AiConfiguration</c> reads it -- a typo in a hand-edited file must not silently pick one.
     /// </summary>
     private static AiProvider ParseProvider(string name) =>
         Enum.TryParse(name, ignoreCase: true, out AiProvider provider) ? provider : AiProvider.Disabled;
@@ -421,15 +383,9 @@ public partial class SettingsWindow : Window
     private sealed record ProviderChoice(AiProvider Provider)
     {
         /// <summary>
-        /// The service's name and nothing else.
-        ///
-        /// It used to name the model too — "Anthropic — Claude Haiku 4.5" — which was a second place
-        /// for the default to be written down, and wrong the moment <c>aiModel</c> was set to
-        /// anything. The model is <c>aiModel</c> in settings.json, empty meaning the provider's
-        /// default, and <c>flick ai</c> prints the one actually resolved.
-        ///
-        /// Not localised: three of the four are product names, and translating the fourth alone
-        /// would be the odd one out in the list rather than a kindness.
+        /// The service's name and nothing else -- naming the model too would be a second place for the
+        /// default to be written down, wrong the moment <c>aiModel</c> is set. Not localised: three of the
+        /// four are product names.
         /// </summary>
         public override string ToString() => Provider switch
         {

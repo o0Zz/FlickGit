@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -12,23 +12,15 @@ namespace FlickGit.App.Views;
 /// <summary>
 /// The Switch branch picker.
 ///
-/// Two behaviours here come straight from CLAUDE.md, "Switch Branch", and both are about what the
-/// window refuses to do:
-///
-/// <list type="bullet">
-/// <item><description><b>The plain switch is attempted first</b>, because Git carries uncommitted
-/// changes across when there is no conflict, and that is usually what the user wants.</description></item>
-/// <item><description><b>When Git refuses, nothing is stashed.</b> The blocking files are listed
-/// and the user gets three explicit choices. Stash-switch-restore is a button they press, never
-/// something that happens for them.</description></item>
-/// </list>
+/// <b>The plain switch is attempted first</b>, because Git carries uncommitted changes across when
+/// there is no conflict. <b>When Git refuses, nothing is stashed:</b> the blocking files are
+/// listed and the user gets three explicit choices. Stash-switch-restore is a button they press,
+/// never something that happens for them.
 ///
 /// It also creates and deletes branches, which makes it the only surface in the product that does.
-/// Both follow the same rule as the stash: <b>the destructive spelling is never reached by the
-/// window deciding to reach it.</b> A delete runs <c>branch -d</c>; when Git refuses because the
-/// branch is unmerged, the refusal is shown with its own second question, and only an explicit
-/// answer to that one calls back with force. Deleting on a remote is confirmed in its own words,
-/// because it is the only thing in FlickGit that destroys something other people share.
+/// <b>The destructive spelling is never reached by the window deciding to reach it.</b> A delete
+/// runs <c>branch -d</c>; when Git refuses an unmerged branch, that refusal gets its own second
+/// question, and only an answer to it calls back with force.
 /// </summary>
 public partial class SwitchBranchWindow : Window
 {
@@ -60,7 +52,6 @@ public partial class SwitchBranchWindow : Window
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
 
-    /// <summary>The branch that was checked out when the window opened.</summary>
     public string? CurrentBranch { get; private set; }
 
     private async Task LoadAsync()
@@ -77,13 +68,12 @@ public partial class SwitchBranchWindow : Window
 
             _candidates.Add(new Candidate(
                 branch,
-                //The current branch is labelled rather than hidden: seeing it in the list is what
-                //tells the user where they are.
+                //The current branch is labelled rather than hidden: seeing it in the list is what tells the user
+                //where they are.
                 current ? Strings.Get("branch.current") : Strings.Get("switch.local"),
                 current ? CandidateKind.Current : CandidateKind.Local));
         }
 
-        //Remote-tracking branches below the local ones and separated, per CLAUDE.md.
         foreach (string branch in candidates.Remote)
             _candidates.Add(new Candidate(branch, Strings.Get("switch.remote"), CandidateKind.Remote));
 
@@ -98,8 +88,8 @@ public partial class SwitchBranchWindow : Window
         string pattern = FilterBox.Text.Trim();
 
         //Local branches keep their ordering advantage over remote ones even under a fuzzy match:
-        //switching to a local branch is the common case, and a remote match that scored a point
-        //higher should not outrank it.
+        //switching to a local branch is the common case, and a remote match that scored a point higher
+        //should not outrank it.
         IReadOnlyList<FuzzyMatch> ranked = FuzzyMatcher.Rank(
             _candidates.Select(c => c.Name),
             pattern,
@@ -109,12 +99,8 @@ public partial class SwitchBranchWindow : Window
             .Select(m => _candidates.First(c => c.Name == m.Value))
             .ToList();
 
-        //The create row, when what has been typed is a branch name that does not exist yet.
-        //
-        //This is the whole of "create a new branch from here": no second window and no New button,
-        //the same gesture the commit window's ComboBox already uses -- "type a new name to create
-        //it". It sits last rather than first so Enter on a filter that also matches something keeps
-        //switching to the match, which is what the box is for.
+        //The create row, when what has been typed is a branch name that does not exist yet. Last rather
+        //than first, so Enter on a filter that also matches something keeps switching to the match.
         if (CreateCandidate(pattern) is { } create)
             matches.Add(create);
 
@@ -126,10 +112,8 @@ public partial class SwitchBranchWindow : Window
     }
 
     /// <summary>
-    /// The synthetic "create this branch" row, or null when the text is not a name to create.
-    ///
-    /// Null for an empty box, for a name Git would refuse, and for one that already exists locally —
-    /// offering to create a branch that is right there in the list would be offering an error.
+    /// The synthetic "create this branch" row, or null when the text is not a name to create: an empty
+    /// box, a name Git would refuse, or one that already exists locally.
     /// </summary>
     private Candidate? CreateCandidate(string pattern)
     {
@@ -170,14 +154,10 @@ public partial class SwitchBranchWindow : Window
         }
     }
 
-    // ---- the context menu ----------------------------------------------------------------
-
     /// <summary>
-    /// Selects the row under the pointer before the menu opens.
-    ///
-    /// A <c>ListBox</c> does not do this itself, so without it a right-click builds a menu for
-    /// whatever was selected before — which for a delete is the difference between removing the
-    /// branch that was clicked and removing a different one.
+    /// Selects the row under the pointer before the menu opens. A <c>ListBox</c> does not do this
+    /// itself, so without it a right-click builds a menu for whatever was selected before -- which
+    /// for a delete is the difference between removing the branch that was clicked and another one.
     /// </summary>
     private void OnRowRightClick(object sender, MouseButtonEventArgs e)
     {
@@ -189,16 +169,14 @@ public partial class SwitchBranchWindow : Window
     {
         RowMenu.Items.Clear();
 
-        //Nothing to offer for the create row: it names a branch that does not exist, so there is
-        //nothing to delete and Enter already creates it.
+        //Nothing to offer for the create row: it names a branch that does not exist.
         if (BranchList.SelectedItem is not Candidate candidate || candidate.Row == CandidateKind.Create)
         {
             e.Handled = true;
             return;
         }
 
-        //The current branch is deletable by nothing, here or in Git. Omitted rather than greyed out,
-        //the same rule the Explorer menu follows for an item that does not apply.
+        //The current branch is deletable by nothing, here or in Git. Omitted rather than greyed out.
         if (candidate.Row == CandidateKind.Current)
         {
             e.Handled = true;
@@ -213,9 +191,9 @@ public partial class SwitchBranchWindow : Window
         }
         else
         {
-            //The remote's name is resolved when the menu opens rather than when it is clicked, so
-            //the label can say where the deletion would land -- "Delete on origin…" is a different
-            //promise from "Delete…", and it is the one the user needs before pressing it.
+            //The remote's name is resolved when the menu opens rather than when it is clicked, so the label
+            //can say where the deletion would land -- "Delete on origin..." is a different promise from
+            //"Delete...", and it is the one the user needs before pressing it.
             string label = candidate.Name.Split('/', 2) is [{ Length: > 0 } remote, _]
                 ? Strings.Get("switch.menu.deleteremote", remote)
                 : Strings.Get("switch.menu.delete");
@@ -230,8 +208,6 @@ public partial class SwitchBranchWindow : Window
         item.Click += async (_, _) => await action().ConfigureAwait(true);
         return item;
     }
-
-    // ---- switching and creating ----------------------------------------------------------
 
     private async void OnAccept(object sender, RoutedEventArgs e)
     {
@@ -257,10 +233,9 @@ public partial class SwitchBranchWindow : Window
     /// <summary>
     /// Creates the typed branch at the current commit and switches to it.
     ///
-    /// From HEAD, not from whatever row happens to be highlighted — CLAUDE.md, "Branch Selector":
-    /// "The branch is created from the currently checked-out commit unless the user explicitly
-    /// chooses otherwise." Creating from the selection would be a second, invisible meaning for a
-    /// list whose whole job so far has been "where do I want to go".
+    /// From HEAD, not from whatever row happens to be highlighted. Creating from the selection would
+    /// be a second, invisible meaning for a list whose whole job so far has been "where do I want to
+    /// go".
     /// </summary>
     private async Task CreateAsync(string name)
     {
@@ -268,8 +243,8 @@ public partial class SwitchBranchWindow : Window
 
         try
         {
-            //Git's own answer before anything is created, not just the offline regex the row was
-            //offered on: check-ref-format knows the rules this build enforces.
+            //Git's own answer before anything is created, not just the offline regex the row was offered on:
+            //check-ref-format knows the rules this build enforces.
             BranchNameValidation validation = await _branches
                 .ValidateAsync(_repository, name, CancellationToken.None)
                 .ConfigureAwait(true);
@@ -317,8 +292,7 @@ public partial class SwitchBranchWindow : Window
 
             if (outcome.RefusedByLocalChanges)
             {
-                //Refused because of local changes. Nothing was modified or discarded; the user now
-                //chooses between stashing, committing, and abandoning the switch.
+                //Refused because of local changes. Nothing was modified or discarded.
                 _pendingBranch = candidate.Name;
 
                 BlockedText.Text = Strings.Get("branch.blocked", string.Empty).TrimEnd('\n');
@@ -337,15 +311,12 @@ public partial class SwitchBranchWindow : Window
         }
     }
 
-    // ---- deleting -------------------------------------------------------------------------
-
     /// <summary>
-    /// Deletes a local branch, asking first — and asking a second time before ever forcing.
+    /// Deletes a local branch, asking first -- and asking a second time before ever forcing.
     ///
     /// <paramref name="force"/> is only ever true on the recursive call this method makes after Git
-    /// has refused an unmerged branch and the user has answered the question naming that fact.
-    /// CLAUDE.md puts <c>branch -D</c> on the Safety Rules list, and this is what "explicit user
-    /// intent, expressed in the moment" looks like: two different questions, neither remembered.
+    /// has refused an unmerged branch and the user has answered the question naming that fact. Two
+    /// different questions, neither remembered.
     /// </summary>
     private async Task DeleteLocalAsync(string name, bool force)
     {
@@ -383,8 +354,8 @@ public partial class SwitchBranchWindow : Window
 
             if (outcome.NotMerged)
             {
-                //The one refusal with a way forward. The question names what is at stake rather
-                //than repeating Git's hint, and answering it is the only route to -D.
+                //The one refusal with a way forward. The question names what is at stake rather than repeating
+                //Git's hint, and answering it is the only route to -D.
                 bool anyway = ConfirmWindow.Ask(
                     this,
                     Strings.Get("branch.delete.title"),
@@ -394,8 +365,8 @@ public partial class SwitchBranchWindow : Window
 
                 if (anyway)
                 {
-                    //Released first: the recursive call takes it again, and a nested SetBusy(false)
-                    //in its finally would otherwise unlock the window while it is still working.
+                    //Released first: the recursive call takes it again, and a nested SetBusy(false) in its finally
+                    //would otherwise unlock the window while it is still working.
                     SetBusy(false);
                     await DeleteLocalAsync(name, force: true).ConfigureAwait(true);
                 }
@@ -412,12 +383,12 @@ public partial class SwitchBranchWindow : Window
     }
 
     /// <summary>
-    /// Deletes a branch on its remote — the one operation in FlickGit that destroys something other
+    /// Deletes a branch on its remote -- the one operation in FlickGit that destroys something other
     /// people share, and the only one with no local undo.
     ///
-    /// The remote is resolved against the configured remotes before anything is asked, so a row
-    /// whose prefix is not a remote is refused here rather than becoming a push at a remote that
-    /// does not exist.
+    /// The remote is resolved against the configured remotes before anything is asked, so a row whose
+    /// prefix is not a remote is refused here rather than becoming a push at a remote that does not
+    /// exist.
     /// </summary>
     private async Task DeleteRemoteAsync(string remoteTrackingName)
     {
@@ -455,8 +426,8 @@ public partial class SwitchBranchWindow : Window
                 return;
             }
 
-            //`push --delete` removes the remote-tracking ref as well, so re-listing is what makes
-            //the row disappear. Nothing here prunes anything by hand.
+            //`push --delete` removes the remote-tracking ref as well, so re-listing is what makes the row
+            //disappear. Nothing here prunes anything by hand.
             await LoadAsync().ConfigureAwait(true);
             StatusText.Text = Strings.Get("branch.deleted.remote", target.Branch, target.Remote);
         }
@@ -485,8 +456,8 @@ public partial class SwitchBranchWindow : Window
                 return;
             }
 
-            //The one outcome that must never be reported vaguely: the switch happened and the
-            //user's work is sitting in a stash. The reference is the actionable part.
+            //The one outcome that must never be reported vaguely: the switch happened and the user's work is
+            //sitting in a stash. The reference is the actionable part.
             string message = outcome.RestoreConflicted && outcome.StashRef is not null
                 ? $"{outcome.GitError}\n\n{Strings.Get("switch.stashkept", outcome.StashRef)}"
                 : outcome.GitError ?? string.Empty;
@@ -495,7 +466,6 @@ public partial class SwitchBranchWindow : Window
 
             if (outcome.RestoreConflicted)
             {
-                //On the new branch already, so the picker has nothing left to do.
                 Close();
             }
         }
@@ -518,41 +488,31 @@ public partial class SwitchBranchWindow : Window
 
     private void OnCancel(object sender, RoutedEventArgs e) => Close();
 
-    /// <summary>What a row is, which decides what right-clicking it offers.</summary>
     private enum CandidateKind
     {
-        /// <summary>The branch that is checked out. Switched to by doing nothing, deleted by nothing.</summary>
         Current,
 
         Local,
 
-        /// <summary>Remote-tracking, so switching creates a local branch and deleting is a push.</summary>
         Remote,
 
-        /// <summary>Not a branch yet: the name in the filter box, offered for creation.</summary>
         Create,
     }
 
-    /// <param name="Name">The branch name, exactly as Git reports it.</param>
-    /// <param name="Kind">The label shown on the right: current, local, remote or new.</param>
-    /// <param name="Row">What the row <i>is</i>, which decides what right-clicking it offers.</param>
     /// <summary>
-    /// One row in the picker.
-    ///
-    /// <see cref="ToString"/> is overridden because a `ListBoxItem` whose content is a
-    /// `DataTemplate` has no text of its own, so UI Automation falls back to it — and a record's
-    /// synthesized version reads out every property name to a screen reader.
+    /// One row in the picker. <see cref="ToString"/> is overridden because a <c>ListBoxItem</c> whose
+    /// content is a <c>DataTemplate</c> has no text of its own, so UI Automation falls back to it --
+    /// and a record's synthesised version reads every property name out to a screen reader.
     /// </summary>
     private sealed record Candidate(string Name, string Kind, CandidateKind Row)
     {
         public bool IsRemote => Row == CandidateKind.Remote;
 
-        /// <summary>The create row says what pressing Enter would do; every other row is its name.</summary>
         public string Display => Row == CandidateKind.Create ? Strings.Get("switch.create", Name) : Name;
 
         /// <summary>
-        /// The accent for the create row, so it does not read as a branch that already exists.
-        /// Resolved from the window's own resources rather than hard-coded, so it follows the theme.
+        /// The accent for the create row, resolved from the window's own resources rather than hard-coded
+        /// so it follows the theme.
         /// </summary>
         public Brush Brush => Row == CandidateKind.Create
             ? (Brush)Application.Current.Resources["Accent"]

@@ -4,26 +4,16 @@ using System.Runtime.InteropServices;
 namespace FlickGit.Shell;
 
 /// <summary>
-/// The FlickGit block in the Explorer context menu: <c>IShellExtInit</c> and <c>IContextMenu</c> on
-/// one COM identity.
+/// The FlickGit block in the Explorer context menu: <c>IShellExtInit</c> and <c>IContextMenu</c>
+/// on one COM identity.
 ///
-/// <b>This exists for one reason: position.</b> A static registry verb has exactly three reachable
-/// placements — <c>Top</c>, the default, and <c>Bottom</c> — and Explorer draws the whole
-/// static-verb block above the shell-extension block, which it draws above <c>New</c>. So the slot
-/// every Git client occupies, immediately above <c>New</c>, is not addressable by a verb at any
-/// setting: the default landed the entries up among <c>Open with Code</c> and <c>Git GUI Here</c>,
-/// and <c>Bottom</c> pushed them past <c>New</c> down beside <c>Properties</c>. Being in that slot
-/// means being a <c>ContextMenuHandler</c>, which means this interface.
+/// <b>This exists for one reason: position.</b> A static registry verb reaches only <c>Top</c>, the
+/// default, or <c>Bottom</c>, and Explorer draws the whole static-verb block above the
+/// shell-extension block, which it draws above <c>New</c>. The slot every Git client occupies is
+/// not addressable by a verb at any setting.
 ///
-/// It also supersedes the <c>IExplorerCommand</c> handlers that came before it, which is a
-/// simplification rather than a cost: those were one CLSID per verb, each asked separately about its
-/// own title and state. This is one object asked once, and it does the same two jobs directly —
-/// <see cref="Compose"/> puts the branch in the Commit label, and omits every repository-requiring
-/// item outside a repository.
-///
-/// <b>Every method here runs inside <c>explorer.exe</c></b>, so the rules from that are unchanged:
-/// nothing may throw across the boundary, nothing may block, and uncertainty shows the items rather
-/// than hiding them.
+/// <b>Every method here runs inside <c>explorer.exe</c></b>: nothing may throw across the
+/// boundary, nothing may block, and uncertainty shows the items rather than hiding them.
 /// </summary>
 internal static unsafe partial class ContextMenuHandler
 {
@@ -46,20 +36,15 @@ internal static unsafe partial class ContextMenuHandler
         public int RefCount;
 
         /// <summary>
-        /// The folder the menu is for, as a <c>CoTaskMemAlloc</c>'d string, or zero.
-        ///
-        /// Held rather than re-resolved: <c>Initialize</c> is the only call that is given it, and
-        /// <c>QueryContextMenu</c> and <c>InvokeCommand</c> both need it afterwards.
+        /// The folder the menu is for, as a <c>CoTaskMemAlloc</c>'d string, or zero. Held rather than
+        /// re-resolved: <c>Initialize</c> is the only call that is given it.
         /// </summary>
         public char* Folder;
 
         /// <summary>
-        /// The clicked item is a file rather than a folder.
-        ///
-        /// Recorded in <c>Initialize</c> rather than tested in <c>QueryContextMenu</c> only because
-        /// that is where the path arrives; either way it is one attribute query on a local path. The
-        /// handler is registered on <c>*</c> as well as on Directory now, so without this every
-        /// folder action would be offered on a file, and Blame on a directory.
+        /// The clicked item is a file rather than a folder. The handler is registered on <c>*</c> as well
+        /// as on Directory, so without this every folder action would be offered on a file, and Blame on
+        /// a directory.
         /// </summary>
         public int IsFile;
 
@@ -133,8 +118,6 @@ internal static unsafe partial class ContextMenuHandler
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Instance* Self(void* slot) => ((Slot*)slot)->Owner;
-
-    // ---- IUnknown -------------------------------------------------------------------
 
     [UnmanagedCallersOnly]
     private static int QueryInterface(void* self, Guid* iid, void** result)
@@ -213,21 +196,10 @@ internal static unsafe partial class ContextMenuHandler
         return 0;
     }
 
-    // ---- IShellExtInit --------------------------------------------------------------
-
     /// <summary>
-    /// Explorer saying what was clicked, and the only chance to find out.
-    ///
-    /// Two inputs, and exactly one of them is populated:
-    ///
-    /// <list type="bullet">
-    /// <item><description><paramref name="folder"/> is a PIDL, for a click on a folder's
-    /// <b>background</b> — the case that needed the whole <c>IObjectWithSite</c> service-provider
-    /// chain under <c>IExplorerCommand</c>, and that arrives here for free. That is the second reason
-    /// this interface is the right one.</description></item>
-    /// <item><description><paramref name="dataObject"/> carries <c>CF_HDROP</c>, for a click on a
-    /// selected folder.</description></item>
-    /// </list>
+    /// Explorer saying what was clicked, and the only chance to find out. Exactly one input is
+    /// populated: <paramref name="folder"/> is a PIDL for a click on a folder's <b>background</b>,
+    /// and <paramref name="dataObject"/> carries <c>CF_HDROP</c> for a click on a selected folder.
     /// </summary>
     [UnmanagedCallersOnly]
     private static int Initialize(void* self, nint folder, void* dataObject, nint progId)
@@ -254,9 +226,9 @@ internal static unsafe partial class ContextMenuHandler
             {
                 instance->Folder = (char*)Marshal.StringToCoTaskMemUni(path);
 
-                //Directory.Exists rather than File.Exists: the question is "is this a container",
-                //and a path that is neither -- a deleted item, something on a disconnected share --
-                //is treated as a file, which offers the smaller menu rather than the wrong one.
+                //Directory.Exists rather than File.Exists: the question is "is this a container", and a path
+                //that is neither -- a deleted item, something on a disconnected share -- is treated as a file,
+                //which offers the smaller menu rather than the wrong one.
                 try
                 {
                     instance->IsFile = Directory.Exists(path) ? 0 : 1;
@@ -267,9 +239,9 @@ internal static unsafe partial class ContextMenuHandler
                 }
             }
 
-            //S_OK even with nothing resolved. QueryContextMenu then adds no items, which is the
-            //correct outcome for This PC, a library, or a search result -- and failing here makes
-            //Explorer log an error about a handler that merely had nothing to offer.
+            //S_OK even with nothing resolved. QueryContextMenu then adds no items, which is correct for This
+            //PC, a library, or a search result -- and failing here makes Explorer log an error about a
+            //handler that merely had nothing to offer.
             return Com.S_OK;
         }
         catch
@@ -278,12 +250,9 @@ internal static unsafe partial class ContextMenuHandler
         }
     }
 
-    // ---- IContextMenu ---------------------------------------------------------------
-
     /// <summary>
-    /// Builds the block: a separator, the root items, the <c>FlickGit</c> submenu, a separator.
-    ///
-    /// The two separators are the whole of the "dedicated place" — TortoiseGit's
+    /// Builds the block: a separator, the root items, the <c>FlickGit</c> submenu, a separator. The
+    /// two separators are the whole of the "dedicated place" -- TortoiseGit's
     /// <c>QueryContextMenu</c> does exactly this and nothing else about placement.
     /// </summary>
     [UnmanagedCallersOnly]
@@ -291,8 +260,8 @@ internal static unsafe partial class ContextMenuHandler
     {
         try
         {
-            //Explorer wants the default action only, for a double-click. Adding items here would put
-            //them where nobody asked.
+            //Explorer wants the default action only, for a double-click. Adding items here would put them
+            //where nobody asked.
             if ((flags & Com.CmfDefaultOnly) != 0)
                 return Com.ItemsAdded(0);
 
@@ -306,8 +275,8 @@ internal static unsafe partial class ContextMenuHandler
 
             RepositoryAnswer answer = RepositoryLookup.For(folder);
 
-            //Uncertainty shows the items: a folder that could not be classified keeps everything, so
-            //the menu does not come and go for reasons the user cannot see.
+            //Uncertainty shows the items: a folder that could not be classified keeps everything, so the
+            //menu does not come and go for reasons the user cannot see.
             bool insideRepository = answer.Verdict != RepositoryVerdict.NotARepository;
 
             bool isFile = instance->IsFile != 0;
@@ -330,9 +299,6 @@ internal static unsafe partial class ContextMenuHandler
         }
     }
 
-    /// <summary>
-    /// Inserts the items and records which command id maps to which entry.
-    /// </summary>
     private static int Compose(
         Instance* instance,
         nint menu,
@@ -343,8 +309,8 @@ internal static unsafe partial class ContextMenuHandler
         MenuItem[] all,
         string? branch)
     {
-        //One id per item, and Explorer's range is finite. Refusing to start is better than running
-        //out half way through and leaving a submenu with no parent.
+        //One id per item, and Explorer's range is finite. Refusing to start is better than running out
+        //half way through and leaving a submenu with no parent.
         if (idFirst + (uint)shown.Length + 1 > idLast)
             return Com.ItemsAdded(0);
 
@@ -377,8 +343,8 @@ internal static unsafe partial class ContextMenuHandler
                     if (submenu == 0)
                         continue;
 
-                    //Remembered rather than inserted now: the parent has to be added after its
-                    //children so the shell sees a populated popup.
+                    //Remembered rather than inserted now: the parent has to be added after its children so the shell
+                    //sees a populated popup.
                     submenuPosition = position++;
                 }
 
@@ -406,10 +372,8 @@ internal static unsafe partial class ContextMenuHandler
     }
 
     /// <summary>
-    /// Puts the branch in the label, keeping a trailing ellipsis at the end where it belongs.
-    ///
-    /// <c>Commit / Push (main)…</c>, not <c>Commit / Push… (main)</c>: the ellipsis means "this opens
-    /// something" and belongs to the whole label.
+    /// Puts the branch in the label, keeping a trailing ellipsis at the end where it belongs:
+    /// <c>Commit / Push (main)...</c>, not <c>Commit / Push... (main)</c>.
     /// </summary>
     internal static string Decorate(string label, string branch)
     {
@@ -445,8 +409,8 @@ internal static unsafe partial class ContextMenuHandler
                 BitmapItem = bitmap,
             };
 
-            //By id, because the position of an appended item is not known here -- and an icon that
-            //fails to attach is a cosmetic loss, so the result is not checked.
+            //By id, because the position of an appended item is not known here -- and an icon that fails to
+            //attach is a cosmetic loss, so the result is not checked.
             SetMenuItemInfoW(menu, id, false, &info);
         }
     }
@@ -468,16 +432,12 @@ internal static unsafe partial class ContextMenuHandler
                 BitmapItem = bitmap,
             };
 
-            //By *position*, unlike an item: the popup parent carries no command id, so there is
-            //nothing to address it by. The position is known here because the slot was reserved
-            //before the children were added.
+            //By *position*, unlike an item: the popup parent carries no command id, so there is nothing to
+            //address it by. The position is known because the slot was reserved before the children.
             SetMenuItemInfoW(menu, position, true, &info);
         }
     }
 
-    /// <summary>
-    /// The click. Runs <c>flick.exe</c> with the verb the offset maps to.
-    /// </summary>
     [UnmanagedCallersOnly]
     private static int InvokeCommand(void* self, Com.InvokeCommandInfo* info)
     {
@@ -488,8 +448,8 @@ internal static unsafe partial class ContextMenuHandler
         {
             Instance* instance = Self(self);
 
-            //A high word of zero means the field is not a pointer but the zero-based offset of the
-            //item that was clicked. A verb *name* is the other form, and nothing here registers one.
+            //A high word of zero means the field is not a pointer but the zero-based offset of the item that
+            //was clicked. A verb *name* is the other form, and nothing here registers one.
             if (((nuint)info->Verb >> 16) != 0)
                 return Com.E_INVALIDARG;
 
@@ -514,10 +474,8 @@ internal static unsafe partial class ContextMenuHandler
         }
     }
 
-    /// <summary>
-    /// The canonical name or help text for an item. Neither is used: nothing refers to these commands
-    /// by name, and the label is already the whole description.
-    /// </summary>
+    /// <summary>Neither is used: nothing refers to these commands by name, and the label is already
+    /// the whole description.</summary>
     [UnmanagedCallersOnly]
     private static int GetCommandString(void* self, nuint id, uint type, uint* reserved, byte* name, uint max)
     {

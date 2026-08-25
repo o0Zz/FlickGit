@@ -11,7 +11,6 @@ using FlickGit.Models;
 
 namespace FlickGit.App.Ai;
 
-/// <param name="Succeeded">True only when there is usable text.</param>
 /// <param name="Message">The finished text. Empty unless it succeeded.</param>
 /// <param name="FailureReason">Why not, in the user's language. Already redacted.</param>
 public readonly record struct GenerationOutcome(bool Succeeded, string Message, string? FailureReason);
@@ -19,19 +18,13 @@ public readonly record struct GenerationOutcome(bool Succeeded, string Message, 
 /// <summary>
 /// The one place AI text is generated, for every surface that wants some.
 ///
-/// Every surface needs the payload, the stream, the 8-second timeout, the timings, the failure
-/// counter and the rule that a blank answer is a <i>failure</i> rather than empty text. Two copies of
-/// that would be two chances for one of them to commit a placeholder, which CLAUDE.md forbids
-/// outright.
+/// Every surface needs the payload, the stream, the silence budget, the timings, the failure
+/// counter and the rule that a blank answer is a <i>failure</i> rather than empty text. Two copies
+/// would be two chances for one of them to commit a placeholder.
 ///
-/// It was <c>CommitMessageService</c>, and the pull-request description is why it is not any more:
-/// the second surface needs all six of those things and a different prompt. What is <b>not</b>
-/// duplicated is the consecutive-failure count — three failures raise one tray warning whether they
-/// came from commit messages, descriptions or a mix, because what the user needs to be told is that
-/// the provider is not working, not which button noticed.
-///
-/// The two public methods differ only in what they build a payload out of. Everything after that is
-/// <see cref="StreamAsync"/>.
+/// The consecutive-failure count is deliberately <b>not</b> per surface: three failures raise one
+/// tray warning whether they came from commit messages, descriptions or a mix, because what the
+/// user needs to be told is that the provider is not working, not which button noticed.
 /// </summary>
 public sealed class AiTextService(
     IAiGenerator generator,
@@ -41,10 +34,7 @@ public sealed class AiTextService(
     OperationTimings timings,
     ILog log)
 {
-    /// <summary>
-    /// CLAUDE.md: "Three consecutive failures: persistent tray warning rather than failing silently
-    /// on every commit."
-    /// </summary>
+    /// <summary>Three consecutive failures raise a persistent tray warning.</summary>
     private const int DegradedAfter = 3;
 
     private int _consecutiveFailures;
@@ -52,22 +42,17 @@ public sealed class AiTextService(
     /// <summary>Whether asking is possible at all: a provider, and a key for it.</summary>
     public bool IsUsable => config.IsUsable;
 
-    /// <summary>How many times in a row the provider has refused. Reported by `flick ai`.</summary>
     public int ConsecutiveFailures => _consecutiveFailures;
 
     /// <summary>The last refusal, already redacted by the generator. Null once one succeeds.</summary>
     public string? LastFailure { get; private set; }
 
-    /// <summary>Establishes the pooled connection, and answers whether the provider is reachable.</summary>
     public Task<AiProbe> ProbeAsync(CancellationToken cancellationToken) =>
         generator.ProbeAsync(cancellationToken);
 
-    /// <summary>
-    /// Streams a commit message for the ticked files in <paramref name="status"/>.
-    /// </summary>
     /// <param name="onDelta">
-    /// The text so far, once per fragment. Called on the caller's thread, so a UI caller is resumed
-    /// on the dispatcher and needs no marshalling.
+    /// The text so far, once per fragment. Called on the caller's thread, so a UI caller is resumed on
+    /// the dispatcher and needs no marshalling.
     /// </param>
     public async Task<GenerationOutcome> StreamCommitMessageAsync(
         RepositoryInfo repository,
@@ -98,16 +83,13 @@ public sealed class AiTextService(
     }
 
     /// <summary>
-    /// Streams a pull-request title and description for a branch.
-    ///
-    /// The answer is one piece of text with the title on its first line — see
-    /// <see cref="PullRequestPrompt"/> for why it is not two requests. Splitting it is the caller's,
-    /// because the window does it on every fragment so the title box fills in as it arrives rather
-    /// than jumping at the end.
+    /// Streams a pull-request title and description. The answer is one piece of text with the title on
+    /// its first line; splitting it is the caller's, because the window does it on every fragment so
+    /// the title box fills in as it arrives rather than jumping at the end.
     /// </summary>
     /// <param name="mergeBase">
-    /// Where the branch parted from its target. Empty when the target is not known locally, which
-    /// produces a description from the commit subjects alone rather than no description.
+    /// Empty when the target is not known locally, which produces a description from the commit
+    /// subjects alone rather than no description.
     /// </param>
     public async Task<GenerationOutcome> StreamPullRequestAsync(
         RepositoryInfo repository,
@@ -141,8 +123,8 @@ public sealed class AiTextService(
         return await StreamAsync(
             new AiPrompt(PullRequestPrompt.System, context.ToPromptText(), AiOptions.PullRequestMaxTokens),
 
-            //Its own timing prefix, so `flick diag timings` can show that a description takes longer
-            //than a commit message rather than averaging the two into one meaningless number.
+            //Its own timing prefix, so `flick diag timings` can show that a description takes longer than a
+            //commit message rather than averaging the two into one meaningless number.
             "ai.pr",
             text => text.Trim(),
             onDelta,
@@ -151,10 +133,7 @@ public sealed class AiTextService(
 
     /// <summary>
     /// Builds the payload, and turns the two ways it can produce nothing into the outcome to return.
-    ///
-    /// A null context means "do not generate", and the second half of the tuple says why: an empty
-    /// selection is a refusal with a sentence, and a cancellation is a refusal with none — neither
-    /// counts towards the tray warning, because neither is the provider's fault.
+    /// Neither counts towards the tray warning, because neither is the provider's fault.
     /// </summary>
     private async Task<(AiContext? Context, GenerationOutcome Refused)> GatherAsync(
         Func<CancellationToken, Task<AiContext>> gather,
@@ -175,13 +154,9 @@ public sealed class AiTextService(
         }
     }
 
-    /// <summary>
-    /// The half both surfaces share: run the stream, count the failures, and treat a blank answer as
-    /// one.
-    /// </summary>
     /// <param name="timingPrefix">
     /// Names the two measurements this records, <c>&lt;prefix&gt;.firsttoken</c> and
-    /// <c>&lt;prefix&gt;.complete</c> — the two rows CLAUDE.md's table has for the AI.
+    /// <c>&lt;prefix&gt;.complete</c>.
     /// </param>
     /// <param name="finish">
     /// Tidies the finished text. Fence stripping for a commit message; a trim for a description,
@@ -211,8 +186,7 @@ public sealed class AiTextService(
 
                 text.Append(delta);
 
-                //Rendered as it arrives. This is the whole reason the interface streams, and it is
-                //what makes the wait feel like nothing when combined with a queued Enter.
+                //Rendered as it arrives. This is the whole reason the interface streams.
                 onDelta(text.ToString());
             }
 
@@ -220,9 +194,8 @@ public sealed class AiTextService(
 
             string finished = finish(text.ToString());
 
-            //A blank answer is a failure, not empty text. This is the guard that makes "never commit
-            //an empty or placeholder message" structural rather than a rule the queued-Enter path has
-            //to remember.
+            //A blank answer is a failure, not empty text. This is the guard that makes "never commit an empty
+            //or placeholder message" structural rather than a rule the queued-Enter path has to remember.
             if (finished.Length == 0)
                 return Failed(Strings.Get("ai.empty"), count: true);
 
@@ -247,18 +220,16 @@ public sealed class AiTextService(
     }
 
     /// <summary>
-    /// The two reasons nothing can be asked, neither of which is a provider failure.
-    ///
-    /// Checked before a payload is built rather than after, so a repository with no key configured
-    /// costs no Git call at all.
+    /// The two reasons nothing can be asked, neither of which is a provider failure. Checked before a
+    /// payload is built, so a repository with no key configured costs no Git call at all.
     /// </summary>
     private GenerationOutcome? Unavailable()
     {
         if (config.Provider == AiProvider.Disabled)
             return Failed(Strings.Get("ai.disabled"), count: false);
 
-        //A missing key is only a reason for a provider that needs one. Ollama has none, and asking
-        //about it here is how "no key stored" would have become the answer for a local model.
+        //A missing key is only a reason for a provider that needs one. Ollama has none, and asking about
+        //it here is how "no key stored" would have become the answer for a local model.
         return !config.RequiresKey || config.HasKey
             ? null
             : Failed(Strings.Get("ai.nokey"), count: false);
@@ -271,8 +242,8 @@ public sealed class AiTextService(
             LastFailure = reason;
             _consecutiveFailures++;
 
-            //Once, on the call that crosses the threshold. CLAUDE.md wants a persistent warning
-            //"rather than failing silently on every commit" -- and equally, not one per commit.
+            //Once, on the call that crosses the threshold: a persistent warning rather than failing silently
+            //on every commit, and equally not one warning per commit.
             if (_consecutiveFailures == DegradedAfter)
                 notifier.Warn(Strings.Get("app.name"), Strings.Get("ai.degraded", DegradedAfter, reason));
         }

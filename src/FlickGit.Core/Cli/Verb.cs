@@ -1,11 +1,8 @@
 ﻿namespace FlickGit.Cli;
 
 /// <summary>
-/// Process exit codes, fixed by CLAUDE.md, "Command Line Interface".
-///
-/// These are a contract, not an implementation detail: the whole point of the CLI is that
-/// scripts, PowerToys Run and future integrations can drive the same actions Explorer
-/// does, and they can only branch on the number.
+/// Process exit codes. A contract, not an implementation detail: scripts and launchers drive the
+/// same actions Explorer does, and they can only branch on the number.
 /// </summary>
 public static class ExitCodes
 {
@@ -19,7 +16,7 @@ public static class ExitCodes
     public const int RefusedForSafety = 5;
 }
 
-/// <summary>The actions reachable from every surface. Phase 1 implements a subset; the rest are declared so `flick --help` is honest about what exists.</summary>
+/// <summary>The actions reachable from every surface.</summary>
 public enum VerbKind
 {
     /// <summary>No verb: start resident, show the tray icon, open nothing.</summary>
@@ -31,7 +28,6 @@ public enum VerbKind
     Switch,
     Status,
 
-    /// <summary>The log window: commit history, and the combined diff over a selected range.</summary>
     Log,
 
     /// <summary>The blame window. Its path is a <b>file</b>, not a directory.</summary>
@@ -40,59 +36,42 @@ public enum VerbKind
     Clone,
 
     /// <summary>
-    /// The pull-request window: propose the current branch into the repository's trunk, on GitHub,
-    /// GitLab or Azure DevOps.
-    ///
-    /// Spelled <c>pr</c> rather than <c>pull-request</c>, and with no alias for the long form. Two
-    /// spellings of one verb is a grammar with a right answer and a tolerated one, and Hard
-    /// Requirement 1 rules out carrying the second. <c>pr</c> is also what every other tool in this
-    /// space calls it.
+    /// Spelled <c>pr</c>, with no alias for the long form: two spellings of one verb is a grammar with
+    /// a right answer and a tolerated one.
     /// </summary>
     PullRequest,
 
     /// <summary>
     /// Tags: the picker when no name is given, otherwise create that one.
     ///
-    /// <b>Deletion has no command-line spelling on purpose.</b> `flick tag &lt;path&gt; v1.0` creates,
-    /// which cannot overwrite anything — there is no `--force` anywhere in <c>TagService</c>. Deleting
-    /// a published tag is on the far side of CLAUDE.md's "any destructive operation requires explicit
-    /// user intent, expressed in the moment", and a flag in a script is the opposite of in the moment.
-    /// The window asks, so the window is where it lives.
+    /// <b>Deletion has no command-line spelling on purpose.</b> Creating cannot overwrite anything --
+    /// there is no <c>--force</c> anywhere in <c>TagService</c> -- while deleting a published tag
+    /// needs intent expressed in the moment, and a flag in a script is the opposite of that.
     /// </summary>
     Tag,
 
     /// <summary>
-    /// The repository window: the identity it commits as, its remotes, and FlickGit's own
-    /// per-repository defaults.
-    ///
     /// <c>repo</c> rather than <c>config</c>, because <c>flick settings</c> is already FlickGit's own
     /// configuration and two verbs a token apart from meaning opposite things is a grammar nobody
     /// remembers.
     /// </summary>
     Repo,
 
-    /// <summary>Opens a terminal at the folder. Present in the menu since Phase 1.</summary>
     Terminal,
     Palette,
     Settings,
     InstallShell,
     UninstallShell,
 
-    /// <summary>Registers or removes the logon task that starts the resident service.</summary>
     Autostart,
 
-    /// <summary>Reports the AI configuration, or stores and clears the API key.</summary>
     Ai,
 
-    /// <summary>Lists the interface languages, or switches to one.</summary>
     Language,
     /// <summary>
-    /// Runs a catalog action by id: <c>flick run custom.fetch-prune &lt;path&gt;</c>.
-    ///
-    /// The CLI half of the Action Catalog, and the only way a user action can reach the Explorer
-    /// context menu — a registry verb is a command line, so an action with no verb of its own needs
-    /// one that names it. Built-ins do not need this: their id <i>is</i> their verb, which is what
-    /// makes <c>flick commit</c> and the Commit action the same thing.
+    /// Runs a catalog action by id. The only way a user action can reach the Explorer context menu --
+    /// a registry verb is a command line, so an action with no verb of its own needs one that names
+    /// it. Built-ins do not need this: their id <i>is</i> their verb.
     /// </summary>
     RunAction,
 
@@ -102,27 +81,20 @@ public enum VerbKind
     Version,
 }
 
-/// <summary>
-/// A parsed command line.
-/// </summary>
-/// <param name="Kind">Which action.</param>
 /// <param name="Path">The repository or folder it applies to. Defaults to the working directory.</param>
 /// <param name="Argument">The optional second token: a branch for `switch`, a URL for `clone`.</param>
 /// <param name="Error">Set when the command line could not be understood. Nothing else is valid then.</param>
 public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string? Error = null)
 {
     /// <summary>
-    /// Parses <c>flick &lt;verb&gt; [path] [argument]</c>.
-    ///
-    /// Kept deliberately hand-rolled. A command-line library would be another assembly to
-    /// load before the first window appears, and the grammar is one verb plus at most two
-    /// positional arguments. CLAUDE.md: "&lt;path&gt; defaults to the current working
-    /// directory when omitted."
+    /// Parses <c>flick &lt;verb&gt; [path] [argument]</c>. Hand-rolled: a command-line library would be
+    /// another assembly to load before the first window appears, and the grammar is one verb plus at
+    /// most two positional arguments.
     /// </summary>
     /// <param name="workingDirectory">
-    /// What <c>&lt;path&gt;</c> defaults to when omitted. Passed in rather than read from the
-    /// environment, because a request arriving over the pipe carries the <i>stub's</i> directory and
-    /// the resident service's own is wherever it was started at logon.
+    /// What <c>&lt;path&gt;</c> defaults to. Passed in rather than read from the environment, because a
+    /// request arriving over the pipe carries the <i>stub's</i> directory and the resident service's
+    /// own is wherever it was started at logon.
     /// </param>
     public static Verb Parse(IReadOnlyList<string> args, string? workingDirectory = null)
     {
@@ -145,8 +117,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             };
         }
 
-        //`run` takes the action id first and the path second, which is the opposite way round from
-        //every other verb -- so it is resolved here rather than bent into the positional grammar.
+        //`run` takes the action id first and the path second, the opposite way round from every other
+        //verb -- so it is resolved here rather than bent into the positional grammar.
         if (head.Equals("run", StringComparison.OrdinalIgnoreCase))
         {
             if (args.Count < 2 || args[1].Trim().Length == 0)
@@ -160,9 +132,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             return new Verb(VerbKind.RunAction, target, args[1].Trim());
         }
 
-        //`autostart on` and `ai key set` put their sub-tokens where `path` and `argument`
-        //normally go, which the positional grammar handles without a special case: those verbs read
-        //args[1] and args[2] themselves.
+        //`autostart on` and `ai key set` put their sub-tokens where `path` and `argument` normally go,
+        //which the positional grammar handles without a special case.
         VerbKind? kind = head.ToLowerInvariant() switch
         {
             "commit" => VerbKind.Commit,
@@ -196,10 +167,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
         string? path = args.Count > 1 ? args[1] : null;
         string? argument = args.Count > 2 ? args[2] : null;
 
-        //Explorer hands over "%V", which for a drive root arrives as `C:\` -- and a
-        //trailing backslash before a closing quote is why that would otherwise reach here
-        //as `C:"`. Trimming quotes here rather than at every call site keeps that one
-        //quirk in one place.
+        //Explorer hands over "%V", which for a drive root arrives as `C:\` -- and a trailing backslash
+        //before a closing quote is why that would otherwise reach here as `C:"`.
         path = path?.Trim().Trim('"');
 
         if (string.IsNullOrWhiteSpace(path))
@@ -211,8 +180,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
     private static string? DefaultPathFor(VerbKind kind, string fallbackPath) =>
         kind switch
         {
-            //The path-less verbs. Defaulting them to the working directory would make
-            //`flick settings` look like it applies to a repository.
+            //The path-less verbs. Defaulting them to the working directory would make `flick settings` look
+            //like it applies to a repository.
             VerbKind.Tray or VerbKind.Palette or VerbKind.Settings or VerbKind.Help
                 or VerbKind.Version or VerbKind.InstallShell or VerbKind.UninstallShell
                 or VerbKind.Autostart or VerbKind.Ai or VerbKind.Language
@@ -221,7 +190,6 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             _ => fallbackPath,
         };
 
-    /// <summary>The help text, printed by the CLI stub and by `flick help`.</summary>
     public const string HelpText = """
         flick — fast Git actions from Windows Explorer and the command line.
 

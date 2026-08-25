@@ -44,19 +44,12 @@ namespace FlickGit.App;
 /// The composition root and the process lifecycle. Nothing else.
 ///
 /// <b>This is the only file allowed to mention the container.</b> Everything else declares its
-/// dependencies as constructor parameters and knows nothing about how it was built — Hard
-/// Requirement 3. If a class needs something it does not have, the answer is a parameter here, not
-/// an <c>IServiceProvider</c> there.
+/// dependencies as constructor parameters. If a class needs something it does not have, the
+/// answer is a parameter here, not an <c>IServiceProvider</c> there.
 ///
-/// One process serves two roles, decided entirely by the command line:
-///
-/// <list type="bullet">
-/// <item><description><b>No verb</b> — go resident. Tray icon, pipe listener, pre-warmed window,
-/// open nothing, stay alive.</description></item>
-/// <item><description><b>A verb</b> — hand it to <see cref="VerbRunner"/> and honour the result.
-/// This is the path that must keep working with the resident service stopped, which CLAUDE.md,
-/// "Definition of Done" requires of every feature.</description></item>
-/// </list>
+/// One process, two roles, decided by the command line: no verb goes resident and opens nothing;
+/// a verb is handed to <see cref="VerbRunner"/>, which is the path that must keep working with
+/// the resident service stopped.
 /// </summary>
 public partial class App : Application
 {
@@ -73,7 +66,6 @@ public partial class App : Application
     /// </summary>
     private int _exitCode = ExitCodes.Success;
 
-    /// <summary>The assembly version, which CI stamps from `git describe`. Shown by `flick version`.</summary>
     public static string Version =>
         Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0";
 
@@ -81,9 +73,8 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        //A crash in this process takes every pre-warmed window with it, so nothing is allowed to
-        //escape to the default handler. Both hooks report and continue where that is safe -- the
-        //alternative is the tray icon vanishing mid-session with no trace of why.
+        //A crash in this process takes every pre-warmed window with it, so nothing is allowed to escape
+        //to the default handler.
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
@@ -93,9 +84,8 @@ public partial class App : Application
 
         FlickSettings settings = FlickSettings.Load(out string? settingsError);
 
-        //Before any window is constructed. Every view reads its text on construction and the
-        //resident service keeps instances alive for the session, so a language applied later would
-        //never reach them.
+        //Before any window is constructed. Every view reads its text on construction and the resident
+        //service keeps instances alive for the session, so a language applied later reaches nothing.
         Strings.Use(settings.Language);
 
         _services = BuildServices(settings);
@@ -113,8 +103,8 @@ public partial class App : Application
             return;
         }
 
-        //A verb-driven launch is over when its window closes. The resident launch is not, which is
-        //why the default in App.xaml is OnExplicitShutdown.
+        //A verb-driven launch is over when its window closes. The resident launch is not, which is why
+        //the default in App.xaml is OnExplicitShutdown.
         ShutdownMode = ShutdownMode.OnLastWindowClose;
 
         if (settingsError is not null)
@@ -124,11 +114,8 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Every service, registered once.
-    ///
-    /// All singletons, and all of them registered whichever role the process is playing: a one-shot
-    /// launch simply never resolves the ones it does not need, and a second registration path for
-    /// "am I resident" would be a worse trade than a few unused objects.
+    /// Every service, registered once -- all singletons, and all of them registered whichever role
+    /// the process is playing. A one-shot launch never resolves the ones it does not need.
     /// </summary>
     private static ServiceProvider BuildServices(FlickSettings settings)
     {
@@ -147,15 +134,13 @@ public partial class App : Application
             provider.GetRequiredService<ILog>(),
             provider.GetRequiredService<OperationTimings>()));
 
-        //Core: no UI, no WPF, and the only assembly under test.
         services.AddSingleton<RepositoryService>();
         services.AddSingleton<StatusService>();
         services.AddSingleton<PatchService>();
         services.AddSingleton<RepositoryScanner>();
 
-        //The catalog needs two things FlickGit.Core deliberately cannot reach: where the user profile
-        //is, and the string table. Both arrive as plain values, which is why the catalog itself stays
-        //in Core where it can be reasoned about without a message pump.
+        //The catalog needs two things FlickGit.Core deliberately cannot reach: where the user profile is,
+        //and the string table. Both arrive as plain values, so the catalog stays in Core.
         services.AddSingleton(provider => new ActionCatalog(
             FlickSettings.ActionsFilePath,
             Strings.Get,
@@ -175,26 +160,21 @@ public partial class App : Application
         services.AddSingleton<TagService>();
         services.AddSingleton<CloneService>();
 
-        //The two that touch the working tree, and the one that sizes an untracked file. Instances
-        //rather than statics for the reason Hard Requirement 3 gives: they do file I/O, so their
-        //callers have to be able to receive them.
         services.AddSingleton<FileTextLoader>();
         services.AddSingleton<WorkingTreeWriter>();
         services.AddSingleton<WorkingTreeDeleter>();
         services.AddSingleton<RestoreService>();
         services.AddSingleton<UntrackedFileMeasurer>();
 
-        //The Windows surfaces: the registry, the Task Scheduler, the pipe, the tray. Every one of
-        //them touches something outside the process, which is exactly why none of them is a static.
         services.AddSingleton<ShellIntegration>();
         services.AddSingleton<Autostart>();
         services.AddSingleton<TriggerService>();
         services.AddSingleton<ExplorerFolderResolver>();
         services.AddSingleton<CredentialStore>();
 
-        //Pull requests. Three clients and one holder, all registered whichever forge this machine
-        //happens to use: they are three small objects over the shared HttpClient, and a registration
-        //that depended on a repository's remote could not be a singleton at all.
+        //Three clients registered whichever forge this machine happens to use: they are three small
+        //objects over the shared HttpClient, and a registration that depended on a repository's remote
+        //could not be a singleton at all.
         services.AddSingleton<IPullRequestClient, GitHubClient>();
         services.AddSingleton<IPullRequestClient, GitLabClient>();
         services.AddSingleton<IPullRequestClient, AzureDevOpsClient>();
@@ -204,8 +184,8 @@ public partial class App : Application
         services.AddSingleton<GitCredentialFill>();
         services.AddSingleton<ForgeCredentials>();
 
-        //AI. The provider is chosen here, once, from settings -- this is the only place allowed to
-        //know which implementation a setting names, and the only place that could.
+        //The provider is chosen here, once, from settings -- the only place allowed to know which
+        //implementation a setting names.
         services.AddSingleton<AiConfiguration>();
         services.AddSingleton<AiContextBuilder>();
         services.AddSingleton(_ => BuildHttpClient());
@@ -215,9 +195,8 @@ public partial class App : Application
             var http = provider.GetRequiredService<HttpClient>();
             var logger = provider.GetRequiredService<ILog>();
 
-            //The key arrives as a delegate rather than as the store itself: an interface with one
-            //implementation is forbidden by Hard Requirement 2, and CredentialStore is Windows-only
-            //while FlickGit.Core deliberately is not.
+            //The key arrives as a delegate rather than as the store itself: CredentialStore is Windows-only
+            //and FlickGit.Core deliberately is not.
             return configuration.Provider switch
             {
                 AiProvider.Anthropic => new AnthropicGenerator(
@@ -226,17 +205,15 @@ public partial class App : Application
                 AiProvider.OpenAi => new OpenAiGenerator(
                     http, configuration.Options, configuration.ReadKey, logger),
 
-                //Copilot is the one provider whose stored credential is not what gets sent, so it
-                //takes a CopilotToken rather than the delegate -- constructed here, with the same
-                //pooled client, because the exchange is a network call like any other.
+                //Copilot is the one provider whose stored credential is not what gets sent, so it takes a
+                //CopilotToken rather than the key delegate.
                 AiProvider.Copilot => new CopilotGenerator(
                     http,
                     configuration.Options,
                     new CopilotToken(http, configuration.ReadKey, logger),
                     logger),
 
-                //The local one. No key delegate at all, which is the difference that matters:
-                //there is nobody to authenticate to.
+                //The local one. No key delegate at all: there is nobody to authenticate to.
                 AiProvider.Ollama => new OllamaGenerator(http, configuration.Options, logger),
 
                 _ => new DisabledAiGenerator(),
@@ -248,25 +225,19 @@ public partial class App : Application
         services.AddSingleton<Notifier>();
         services.AddSingleton<RecentRepositories>();
 
-        //The command line, and the window it can open.
         services.AddSingleton<UpstreamConsent>();
 
-        //The two view models, and the diff cache one of them owns.
-        //
-        //Registered rather than built by a factory class, which is what two of these used to be.
-        //There is exactly one commit window and one palette per process -- both are pre-warmed at
-        //logon and reused -- so "per window" and "per process" are the same lifetime here, and a
-        //factory whose Create() took no argument was a second copy of a twelve-parameter constructor
-        //that could only drift from it.
+        //There is exactly one commit window and one palette per process -- both pre-warmed at logon and
+        //reused -- so "per window" and "per process" are the same lifetime here.
         services.AddSingleton<DiffCache>();
         services.AddSingleton(provider =>
         {
             var viewModel = ActivatorUtilities.CreateInstance<CommitViewModel>(provider);
             var notifier = provider.GetRequiredService<Notifier>();
 
-            //Here rather than inside the view model: its job is the outcome, not which surfaces hear
-            //about it. The window closes itself after a successful commit by default, so the
-            //notification is the only thing left to say it worked.
+            //Here rather than inside the view model: its job is the outcome, not which surfaces hear about
+            //it. The window closes itself after a successful commit, so this is the only thing left to say
+            //it worked.
             viewModel.Committed += result => notifier.Success(
                 Strings.Get("app.name"),
                 Strings.Get("commit.success", result.ShortHash, result.Subject));
@@ -284,11 +255,10 @@ public partial class App : Application
         services.AddSingleton<WindowVerbs>();
         services.AddSingleton<VerbRunner>();
 
-        //The two cycles in the graph, each broken on one side by a factory rather than by a settable
+        //The two cycles in the graph, each broken on one side by a factory rather than a settable
         //property somebody has to remember to assign. ActionRunner opens a window through the verb
-        //runner, and the verb runner reaches actions for `flick run`; the palette host runs an action,
-        //and an action can open the palette. Registered here because this is the only file that may
-        //name the container -- everything else just declares a Func<T> parameter.
+        //runner and the verb runner reaches actions for `flick run`; the palette host runs an action and
+        //an action can open the palette.
         services.AddSingleton<Func<VerbRunner>>(provider => provider.GetRequiredService<VerbRunner>);
         services.AddSingleton<Func<ActionRunner>>(provider => provider.GetRequiredService<ActionRunner>);
 
@@ -298,14 +268,10 @@ public partial class App : Application
     /// <summary>
     /// The pooled HTTP client for the AI provider.
     ///
-    /// CLAUDE.md's exact pooling settings, and one more that is not in it: an infinite
-    /// <see cref="HttpClient.Timeout"/>. That timeout covers reading the streamed body too, so any
-    /// finite value would cut a long message off mid-sentence — the 8 second hard timeout is a
-    /// linked token inside each generator instead, where it can tell "the provider is not answering"
-    /// from "the user closed the popup".
-    ///
-    /// Disposed by the container along with everything else, and <c>new HttpClient(handler)</c>
-    /// disposes its handler, so the connection pool goes with it.
+    /// <b>An infinite <see cref="HttpClient.Timeout"/>.</b> That timeout covers reading the streamed
+    /// body, so any finite value would cut a long message off mid-sentence. The 8 second silence
+    /// budget is a linked token inside each generator instead, where it can tell "the provider is not
+    /// answering" from "the user closed the window".
     /// </summary>
     private static HttpClient BuildHttpClient() =>
         new(new SocketsHttpHandler
@@ -318,14 +284,11 @@ public partial class App : Application
             Timeout = Timeout.InfiniteTimeSpan,
             DefaultRequestVersion = HttpVersion.Version20,
 
-            //RequestVersionOrLower, so ALPN negotiates h2 and falls back to 1.1 rather than failing
-            //outright against a proxy that does not speak it.
+            //RequestVersionOrLower, so ALPN negotiates h2 and falls back to 1.1 rather than failing outright
+            //against a proxy that does not speak it.
             DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower,
         };
 
-    /// <summary>
-    /// The one-shot launch path: whatever the verb decides also decides the process's fate.
-    /// </summary>
     private async Task RunLaunchVerbAsync(Verb verb)
     {
         VerbResult result = await RunAsync(verb, VerbOutput.Direct()).ConfigureAwait(true);
@@ -339,11 +302,9 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// The tray path: the service outlives the verb, whatever it returned.
-    ///
-    /// Separate from the launch path on purpose. A recent repository that has since been deleted
-    /// answers <c>Exit(NotARepository)</c>, and honouring that here would quit the resident service
-    /// because a menu entry went stale.
+    /// The tray path: the service outlives the verb, whatever it returned. A recent repository that
+    /// has since been deleted answers <c>Exit(NotARepository)</c>, and honouring that here would quit
+    /// the resident service because a menu entry went stale.
     /// </summary>
     private async Task RunTrayVerbAsync(Verb verb) =>
         await RunAsync(verb, VerbOutput.Direct()).ConfigureAwait(true);
@@ -353,21 +314,18 @@ public partial class App : Application
 
     private void StartResident()
     {
-        //Per user. The name has to be unique to the account, or a second logged-on user's launch
-        //would silently forward into the first user's process -- and what it would forward into is
-        //a named pipe that must never be shared across accounts.
+        //Per user: the name has to be unique to the account, or a second logged-on user's launch would
+        //forward into the first user's process -- and into a named pipe that must never be shared across
+        //accounts.
         //
-        //`createdNew` is the whole test, and owning the mutex is what makes it mean something:
-        //created unowned, a second launch would acquire the free mutex, conclude it was first, and
-        //go resident alongside the real service -- two tray icons, and a listener that can never
-        //have the pipe. The handle closing at process exit releases it.
+        //Owning the mutex is what makes `createdNew` mean something. Created unowned, a second launch
+        //would acquire the free mutex, conclude it was first, and go resident alongside the real
+        //service -- two tray icons, and a listener that can never have the pipe.
         string mutexName = $"Local\\FlickGit.Resident.{Environment.UserName}";
         _singleInstanceMutex = new Mutex(initiallyOwned: true, mutexName, out bool createdNew);
 
         if (!createdNew)
         {
-            //A second resident launch is redundant: the first one owns the pipe, and every stub
-            //invocation reaches it. Leaving it alone is the whole of the single-instance rule.
             _log.Info("Another FlickGit instance is already resident; exiting.");
             Shutdown(ExitCodes.Success);
             return;
@@ -381,30 +339,26 @@ public partial class App : Application
             recent: () => recent.Paths,
             onOpenRecent: path => _ = RunTrayVerbAsync(new Verb(VerbKind.Commit, path, null)),
 
-            //The same window `flick settings` opens, through the same verb.
             onSettings: () => _ = RunTrayVerbAsync(new Verb(VerbKind.Settings, null, null)),
 
-            //About is a tab of that window rather than a notice of its own, so there is one place
-            //the version, the help page and the repository link live. Straight to the verb class
-            //because the tab is not something a command line can name -- and nothing else would be
-            //served by inventing a verb for it.
+            //About is a tab of that window rather than a notice of its own, so the version, the help page
+            //and the repository link live in one place.
             onAbout: () => services.GetRequiredService<EnvironmentVerbs>().Settings(output, SettingsTab.About),
             onExit: () => Shutdown(ExitCodes.Success));
 
-        //The pipe before the pre-warm, so a right-click arriving during it is served rather than
-        //falling back to a cold launch.
+        //The pipe before the pre-warm, so a right-click arriving during it is served rather than falling
+        //back to a cold launch.
         _pipe = services.GetRequiredService<PipeServer>();
         _pipe.Start(HandleRequestAsync);
 
-        //The tray icon is how a notification reaches the user, and the commit window closes itself
-        //on success by default -- so without this a successful commit would leave no trace at all.
+        //The tray icon is how a notification reaches the user, and the commit window closes itself on
+        //success by default -- so without this a successful commit would leave no trace at all.
         services.GetRequiredService<Notifier>().Tray = _trayIcon;
 
-        //The pipe name is logged by the listener itself; this line is for the version.
         _log.Info($"FlickGit {Version} resident.");
 
-        //After the tray and the pipe, so a trigger arriving during the pre-warm is served by the
-        //same code path as one arriving an hour later.
+        //After the tray and the pipe, so a trigger arriving during the pre-warm is served by the same
+        //code path as one arriving an hour later.
         _trigger = services.GetRequiredService<TriggerService>();
 
         var palette = services.GetRequiredService<PaletteWindowHost>();
@@ -412,37 +366,28 @@ public partial class App : Application
         TriggerStartup trigger = _trigger.Start(
             foreground => _ = services.GetRequiredService<CommitLauncher>().LaunchAsync(foreground),
 
-            //The foreground window is of no interest here: the palette is the surface for when the
-            //user is *not* looking at the folder they mean, so there is nothing to resolve from it.
+            //The foreground window is of no interest here: the palette is the surface for when the user is
+            //*not* looking at the folder they mean.
             foreground => _ = palette.ShowAsync());
 
         _log.Info($"Trigger: {trigger.Commit}   Palette: {trigger.Palette}");
 
         if (trigger.Error is not null)
         {
-            //Reported, and startup continues. A hotkey somebody else owns must not cost the user
-            //their tray icon, their context menu or their pipe.
+            //Reported, and startup continues. A hotkey somebody else owns must not cost the user their tray
+            //icon, their context menu or their pipe.
             _log.Warn(trigger.Error);
             services.GetRequiredService<Notifier>().Warn(Strings.Get("app.name"), trigger.Error);
         }
 
-        //After the tray icon exists and the pipe is listening. Queued at background priority so it
-        //cannot delay either: the point is to be ready before the user asks, not busy while they do.
-        //The provider connection, warmed alongside the windows. A cold TLS and HTTP/2 handshake
-        //costs 100-300 ms, which is a third of the 400 ms first-token budget -- and it is only worth
-        //doing when there is actually a key to use.
-        //
-        //Five seconds rather than two, because Copilot's probe is two round trips: it exchanges the
-        //short-lived token as well as opening the connection. A budget that cut the exchange short
-        //would cache nothing, so the cost it exists to avoid would be paid on the first commit
-        //anyway -- and this is fire-and-forget at background priority, where waiting longer costs
-        //the user nothing.
+        //After the tray icon exists and the pipe is listening, at background priority so it cannot delay
+        //either. A cold TLS and HTTP/2 handshake costs 100-300 ms, a third of the 400 ms first-token
+        //budget, and it is only worth doing when there is a key to use.
         if (services.GetRequiredService<AiTextService>().IsUsable)
         {
-            //The budget is the provider's, not a constant: for the hosted three this is a TLS
-            //handshake and five seconds is generous, while for Ollama the warm-up *is* the model
-            //load -- tens of seconds, and the whole reason to do it at logon rather than inside the
-            //user's first commit.
+            //The budget is the provider's, not a constant: for the hosted three this is a TLS handshake,
+            //while for Ollama the warm-up *is* the model load -- tens of seconds, and the whole reason to do
+            //it at logon rather than inside the user's first commit.
             var warmup = new CancellationTokenSource(
                 services.GetRequiredService<AiConfiguration>().Options.WarmUpBudget);
 
@@ -454,9 +399,8 @@ public partial class App : Application
         Dispatcher.BeginInvoke(
             () =>
             {
-                //The commit window first: it is now the only surface the trigger, the context menu
-                //and `flick commit` all land on, so if only one thing gets warmed before the user
-                //asks, it should be this one.
+                //The commit window first: it is the surface the trigger, the context menu and `flick commit` all
+                //land on.
                 services.GetRequiredService<CommitWindowHost>().Warm();
                 palette.Warm();
             },
@@ -464,11 +408,8 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Runs one request from the pipe, on the UI thread.
-    ///
-    /// The same parser and the same runner the stub's fallback launch would have used, so the two
-    /// paths cannot disagree about what a verb means. What differs is only where the answer goes:
-    /// into the response, for the stub to print.
+    /// Runs one request from the pipe, on the UI thread. The same parser and runner the stub's
+    /// fallback launch would have used, so the two paths cannot disagree about what a verb means.
     /// </summary>
     private Task<IpcResponse> HandleRequestAsync(IpcRequest request) =>
         Dispatcher.InvokeAsync(async () =>
@@ -480,8 +421,8 @@ public partial class App : Application
 
             VerbResult result = await RunAsync(verb, output).ConfigureAwait(true);
 
-            //VerbResult.ShutDown is about the *invoking* process. Over the pipe that is the stub, so
-            //the code travels back and this process stays up.
+            //VerbResult.ShutDown is about the *invoking* process. Over the pipe that is the stub, so the
+            //code travels back and this process stays up.
             return new IpcResponse(result.Code, output.Output, output.Error);
         }).Task.Unwrap();
 
@@ -494,9 +435,8 @@ public partial class App : Application
             $"{e.Exception.Message}\n\nThe log may hold more:\n{FileLog.DefaultDirectory}",
             compact: false);
 
-        //Handled, so the process survives. A resident service that dies on one bad window takes the
-        //tray icon and every pre-warmed window with it, leaving the user with a context menu whose
-        //entries do nothing.
+        //Handled, so the process survives. A resident service that dies on one bad window takes the tray
+        //icon and every pre-warmed window with it.
         e.Handled = true;
     }
 

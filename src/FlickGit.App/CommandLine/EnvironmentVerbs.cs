@@ -18,11 +18,9 @@ namespace FlickGit.App.CommandLine;
 
 /// <summary>
 /// The verbs that answer about the installation rather than about a repository: help, version,
-/// shell integration, autostart, and the two <c>diag</c> commands.
-///
-/// Split from <see cref="RepositoryVerbs"/> because <c>doctor</c> is the one thing that asks every
-/// environment question at once, and gathering those in the class that also runs `git push` gave a
-/// constructor that told you nothing. Here the dependency list *is* what doctor reports.
+/// shell integration, autostart, and the two <c>diag</c> commands. Split from
+/// <see cref="RepositoryVerbs"/> because <c>doctor</c> asks every environment question at once, so
+/// here the dependency list <i>is</i> what doctor reports.
 /// </summary>
 public sealed class EnvironmentVerbs(
     ShellIntegration shell,
@@ -39,8 +37,8 @@ public sealed class EnvironmentVerbs(
     OperationTimings timings)
 {
     /// <summary>
-    /// The settings window while it is open, so a second request activates it rather than opening
-    /// a second one. Null whenever there is none — the Closed handler is what keeps that true.
+    /// The settings window while it is open, so a second request activates it rather than opening a
+    /// second one. Null whenever there is none -- the Closed handler is what keeps that true.
     /// </summary>
     private SettingsWindow? _settingsWindow;
 
@@ -64,10 +62,8 @@ public sealed class EnvironmentVerbs(
     }
 
     /// <summary>
-    /// `flick autostart [on|off]` — the logon task, and what it currently is.
-    ///
-    /// A verb as well as the settings window's checkbox, because a logon task is something a script
-    /// and an unattended install both want to set, and neither has a window to tick.
+    /// `flick autostart [on|off]`. A verb as well as the settings checkbox, because a logon task is
+    /// something a script and an unattended install both want to set, and neither has a window to tick.
     /// </summary>
     public VerbResult Autostart(VerbOutput output, string? switchTo)
     {
@@ -86,7 +82,6 @@ public sealed class EnvironmentVerbs(
             }
 
             case null or "":
-                //No argument: say what it is now. A status query never changes anything.
                 output.Line(Strings.Get(autostart.IsEnabled() ? "autostart.enabled" : "autostart.disabled"));
                 return VerbResult.Exit(ExitCodes.Success);
 
@@ -96,13 +91,7 @@ public sealed class EnvironmentVerbs(
         }
     }
 
-    /// <summary>
-    /// `flick ai` — what the AI is configured to do, and `flick ai key [set|clear]`.
-    ///
-    /// A verb rather than a settings row for the same reason as `flick autostart`: the settings
-    /// files are the interface, and a key stored by some other command would be exactly the kind of
-    /// surprise this product should not spring.
-    /// </summary>
+    /// <summary>`flick ai`, and `flick ai key [set|clear]`.</summary>
     public async Task<VerbResult> AiAsync(VerbOutput output, string? subcommand, string? action)
     {
         switch (subcommand?.Trim().ToLowerInvariant())
@@ -131,9 +120,8 @@ public sealed class EnvironmentVerbs(
 
         if (!AiOptions.RequiresKey(provider))
         {
-            //Refused rather than stored. A key filed for Ollama would be read by nothing, and
-            //leaving the verb to accept one would suggest the local provider is somehow half
-            //configured until you do.
+            //Refused rather than stored. A key filed for Ollama would be read by nothing, and accepting one
+            //would suggest the local provider is somehow half configured until you do.
             output.Fail(Strings.Get("app.name"), Strings.Get("ai.key.notneeded", provider.ToString()));
             return VerbResult.Exit(ExitCodes.ConfigurationError);
         }
@@ -145,8 +133,8 @@ public sealed class EnvironmentVerbs(
 
             case "set":
             {
-                //A window, not an argument. A key on a command line is in the shell's history and
-                //visible in the process list -- see SecretWindow for the whole argument.
+                //A window, not an argument. A key on a command line is in the shell's history and visible in the
+                //process list.
                 string? typed = SecretWindow.AskForApiKey(provider);
 
                 if (typed is null)
@@ -188,8 +176,8 @@ public sealed class EnvironmentVerbs(
             return VerbResult.Exit(ExitCodes.Success);
         }
 
-        //Named rather than left empty, because "no model" is the one configuration error Ollama can
-        //have and the whole of its fix is one `ollama list` away.
+        //Named rather than left empty, because "no model" is the one configuration error Ollama can have
+        //and the whole of its fix is one `ollama list` away.
         output.Line($"model        {(ai.Options.ResolvedModel is { Length: > 0 } model ? model : "not set — required for Ollama; run `ollama list`")}");
 
         if (provider == AiProvider.Ollama)
@@ -197,8 +185,8 @@ public sealed class EnvironmentVerbs(
             output.Line($"endpoint     {ai.Options.OllamaUrl}");
             output.Line("api key      not needed — Ollama runs locally");
 
-            //The reason to run it. Said plainly here because this verb is where the privacy question
-            //is answered for every other provider.
+            //The reason to run it, said plainly here because this verb is where the privacy question is
+            //answered for every other provider.
             output.Line(ai.Options.OllamaUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase)
                     || ai.Options.OllamaUrl.Contains("127.0.0.1", StringComparison.Ordinal)
                 ? "diffs        stay on this machine"
@@ -228,12 +216,9 @@ public sealed class EnvironmentVerbs(
     }
 
     /// <summary>
-    /// `flick language` — what the interface languages are, and which one is in use.
-    /// `flick language fr` switches to one; `flick language auto` goes back to following Windows.
-    ///
-    /// The settings window has the same picker, and this stays for the same reason `flick autostart`
-    /// does: a script has no window to click in. Both read <see cref="Strings.Available"/> rather
-    /// than a list of codes, so neither can offer a language the exe was not built with.
+    /// `flick language [code|auto]`. The settings window has the same picker; this stays for the
+    /// reason `flick autostart` does. Both read <see cref="Strings.Available"/> rather than a list of
+    /// codes, so neither can offer a language the exe was not built with.
     /// </summary>
     public VerbResult Language(VerbOutput output, string? code)
     {
@@ -245,8 +230,7 @@ public sealed class EnvironmentVerbs(
             return VerbResult.Exit(ExitCodes.Success);
         }
 
-        //"auto" is the empty setting spelled out. A user cannot type nothing on a command line, and
-        //`flick language ""` is not a thing anyone would guess.
+        //"auto" is the empty setting spelled out. A user cannot type nothing on a command line.
         bool automatic = requested.Equals("auto", StringComparison.OrdinalIgnoreCase);
 
         if (!automatic && !Strings.Has(requested))
@@ -260,8 +244,8 @@ public sealed class EnvironmentVerbs(
         settings.Language = automatic ? string.Empty : requested.ToLowerInvariant();
         settings.Save();
 
-        //The applied name, not the requested code: "auto" has to resolve through Windows to say
-        //anything useful, and an embedded file is the only place the name lives.
+        //The applied name, not the requested code: "auto" has to resolve through Windows to say anything
+        //useful.
         Strings.Use(settings.Language);
 
         //A struct, so FirstOrDefault cannot answer "not found" with null -- the pattern is what
@@ -278,10 +262,9 @@ public sealed class EnvironmentVerbs(
     }
 
     /// <summary>
-    /// The embedded languages, one per line, with the one in use marked.
-    ///
-    /// Names are shown as each language writes its own, never translated: someone looking for their
-    /// language in an interface they cannot read is looking for "Français", not for "French".
+    /// The embedded languages, one per line, with the one in use marked. Names as each language writes
+    /// its own, never translated: someone looking for their language in an interface they cannot read
+    /// is looking for "Francais", not "French".
     /// </summary>
     private void ListLanguages(VerbOutput output)
     {
@@ -301,7 +284,7 @@ public sealed class EnvironmentVerbs(
         output.Line(Strings.Get("language.usage"));
     }
 
-    /// <summary>`flick diag doctor` — what is installed, and where things live.</summary>
+    /// <summary>`flick diag doctor` -- what is installed, and where things live.</summary>
     public async Task<VerbResult> DoctorAsync(VerbOutput output)
     {
         output.Line($"FlickGit {App.Version}");
@@ -335,18 +318,15 @@ public sealed class EnvironmentVerbs(
         output.Line($"logs             {FileLog.DefaultDirectory}");
         output.Line();
 
-        //CLAUDE.md, "Repository Palette": suggest core.fsmonitor for large repositories, where it
-        //takes `git status` from ~300 ms to a few milliseconds on Windows.
+        //core.fsmonitor takes `git status` from ~300 ms to a few milliseconds on Windows.
         output.Line("For a large repository, consider:  git config core.fsmonitor true");
 
         return VerbResult.Exit(ExitCodes.Success);
     }
 
     /// <summary>
-    /// The catalog's state, for `diag doctor`.
-    ///
-    /// Names the load failure when there is one. A custom action that silently stopped appearing is
-    /// otherwise unanswerable, and this is where people look.
+    /// The catalog's state. Names the load failure when there is one: a custom action that silently
+    /// stopped appearing is otherwise unanswerable, and this is where people look.
     /// </summary>
     private string DescribeActions()
     {
@@ -359,20 +339,16 @@ public sealed class EnvironmentVerbs(
     }
 
     /// <summary>
-    /// Where the palette looks for repositories, for `diag doctor`.
-    ///
-    /// "none" is not a fault: the palette fills itself from the most-recently-used list as soon as
-    /// the tool has been used once. Saying so is what stops an empty palette from reading as broken.
+    /// Where the palette looks for repositories. "none" is not a fault -- the most-recently-used list
+    /// fills it as soon as the tool has been used once, and saying so stops an empty palette from
+    /// reading as broken.
     /// </summary>
     private string DescribeScanRoots() =>
         settings.PaletteScanRoots.Count == 0
             ? "none configured (recent repositories only)"
             : string.Join(", ", settings.PaletteScanRoots);
 
-    /// <summary>
-    /// The one-line AI summary for `diag doctor`. The detail lives in `flick ai`, which is where a
-    /// user who wants it will look — and doctor stays one screen.
-    /// </summary>
+    /// <summary>The one-line AI summary. The detail lives in `flick ai`, so doctor stays one screen.</summary>
     private string DescribeAi()
     {
         AiProvider provider = ai.Provider;
@@ -382,14 +358,12 @@ public sealed class EnvironmentVerbs(
 
         string name = provider.ToString().ToLowerInvariant();
 
-        //A missing key is only a fault for a provider that needs one -- otherwise this line reported
-        //a perfectly configured Ollama as "no key", which is the sort of thing a doctor is read to
-        //rule out rather than to invent.
+        //A missing key is only a fault for a provider that needs one -- otherwise this reported a
+        //perfectly configured Ollama as "no key".
         if (ai.RequiresKey && !ai.HasKey)
             return $"{name} (no key)";
 
-        //And the model is only optional for the three that have a default. Ollama has none, so an
-        //empty one is the fault worth naming here.
+        //The model is only optional for the three that have a default. Ollama has none.
         if (ai.Options.ResolvedModel is not { Length: > 0 } model)
             return $"{name} (no model — set aiModel; `ollama list` shows what is installed)";
 
@@ -397,10 +371,8 @@ public sealed class EnvironmentVerbs(
     }
 
     /// <summary>
-    /// The language in use, for `diag doctor`.
-    ///
-    /// Names the requested code when it is not the one in use, because "I set it to sv and nothing
-    /// changed" is otherwise unanswerable: there is no sv.lang, and this is the line that says so.
+    /// The language in use. Names the requested code when it is not the one in use, because "I set it
+    /// to sv and nothing changed" is otherwise unanswerable.
     /// </summary>
     private string DescribeLanguage()
     {
@@ -415,15 +387,15 @@ public sealed class EnvironmentVerbs(
             : $"{current} - no language file for '{requested}'";
     }
 
-    /// <summary>`flick diag timings` — recent latency measurements.</summary>
+    /// <summary>`flick diag timings` -- recent latency measurements.</summary>
     public VerbResult Timings(VerbOutput output)
     {
         IReadOnlyList<OperationTimings.Summary> summaries = timings.Summarise();
 
         if (summaries.Count == 0)
         {
-            //Honest about the limitation rather than printing an empty table: measurements live in
-            //the process that took them, so a one-shot launch has only its own.
+            //Honest about the limitation rather than printing an empty table: measurements live in the
+            //process that took them, so a one-shot launch has only its own.
             output.Line("No measurements in this process.");
             output.Line("Timings accumulate in the resident service — start it with `flick autostart on`.");
             return VerbResult.Exit(ExitCodes.Success);
@@ -440,13 +412,6 @@ public sealed class EnvironmentVerbs(
         return VerbResult.Exit(ExitCodes.Success);
     }
 
-    /// <summary>
-    /// `flick settings`, and the tray's Settings and About entries.
-    ///
-    /// A window, and a deliberately small one — see <see cref="SettingsWindow"/> for what is in it
-    /// and why the rest is not. The file paths are still printed when there is a console, because a
-    /// terminal invocation is usually someone looking for exactly that.
-    /// </summary>
     /// <param name="tab">Which tab to open on. The tray's About entry is the only caller that picks.</param>
     public VerbResult Settings(VerbOutput output, SettingsTab tab = SettingsTab.General)
     {
@@ -458,9 +423,8 @@ public sealed class EnvironmentVerbs(
             output.Line($"  {FlickSettings.ActionsFilePath}");
         }
 
-        //One window, reused while it is open. A second Settings click — from the tray, from a
-        //terminal, from the context menu — has to reach the one already on screen, or the user ends
-        //up with two of them disagreeing about what the checkboxes say.
+        //One window, reused while it is open. A second Settings click has to reach the one already on
+        //screen, or the user ends up with two of them disagreeing about what the checkboxes say.
         if (_settingsWindow is null)
         {
             _settingsWindow = new SettingsWindow(settings, shell, autostart, keys);
@@ -474,8 +438,8 @@ public sealed class EnvironmentVerbs(
 
         _settingsWindow.Select(tab);
 
-        //The stub granted this process foreground rights before sending the request; without this
-        //the window comes up behind whatever the user was looking at.
+        //The stub granted this process foreground rights before sending the request; without this the
+        //window comes up behind whatever the user was looking at.
         _settingsWindow.Activate();
 
         return VerbResult.Stay();
