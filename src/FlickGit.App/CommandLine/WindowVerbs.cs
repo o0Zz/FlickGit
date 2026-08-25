@@ -21,6 +21,7 @@ using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Status;
 using FlickGit.Tags;
+using FlickGit.Worktrees;
 
 namespace FlickGit.App.CommandLine;
 
@@ -40,6 +41,7 @@ public sealed class WindowVerbs(
     StatusService status,
     SwitchService switches,
     BranchService branches,
+    WorktreeService worktrees,
     PullService pulls,
     CloneService clones,
     TagService tags,
@@ -215,7 +217,7 @@ public sealed class WindowVerbs(
             .GetStatusAsync(repository, CancellationToken.None)
             .ConfigureAwait(true);
 
-        var picker = new SwitchBranchWindow(repository, switches, branches, state.Branch);
+        var picker = new SwitchBranchWindow(repository, switches, branches, worktrees, state.Branch);
 
         AppWindow.Present(picker);
 

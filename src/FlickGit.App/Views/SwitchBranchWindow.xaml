@@ -55,7 +55,8 @@
                  HorizontalContentAlignment="Stretch"
                  MouseDoubleClick="OnAccept"
                  PreviewMouseRightButtonDown="OnRowRightClick"
-                 ContextMenuOpening="OnContextMenuOpening">
+                 ContextMenuOpening="OnContextMenuOpening"
+                 SelectionChanged="OnSelectionChanged">
             <ListBox.ContextMenu>
                 <ContextMenu x:Name="RowMenu" />
             </ListBox.ContextMenu>
@@ -68,7 +69,11 @@
 
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Grid>
+                    <!-- The tooltip is where a worktree's path goes: the Kind column has room for the
+                         word and not for a path, and the path is what the user needs before pressing
+                         Enter on a row that opens a folder rather than switching. Null on every other
+                         row, which leaves the tooltip off rather than showing an empty one. -->
+                    <Grid ToolTip="{Binding Hint}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />

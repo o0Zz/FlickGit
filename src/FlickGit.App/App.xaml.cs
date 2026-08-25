@@ -35,6 +35,7 @@ using FlickGit.Remotes;
 using FlickGit.Repositories;
 using FlickGit.Status;
 using FlickGit.Tags;
+using FlickGit.Worktrees;
 using H.NotifyIcon;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -165,6 +166,7 @@ public partial class App : Application
         services.AddSingleton<CommitFlow>();
         services.AddSingleton<PullService>();
         services.AddSingleton<SwitchService>();
+        services.AddSingleton<WorktreeService>();
         services.AddSingleton<PushService>();
         services.AddSingleton<RemoteService>();
         services.AddSingleton<RepositoryConfigService>();

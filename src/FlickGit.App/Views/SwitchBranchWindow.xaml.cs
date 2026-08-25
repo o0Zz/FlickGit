@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System.Diagnostics;
+using System.IO;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -6,6 +8,8 @@ using FlickGit.App.Localization;
 using FlickGit.Branches;
 using FlickGit.Matching;
 using FlickGit.Models;
+using FlickGit.Worktrees;
+using Microsoft.Win32;
 
 namespace FlickGit.App.Views;
 
@@ -21,12 +25,19 @@ namespace FlickGit.App.Views;
 /// <b>The destructive spelling is never reached by the window deciding to reach it.</b> A delete
 /// runs <c>branch -d</c>; when Git refuses an unmerged branch, that refusal gets its own second
 /// question, and only an answer to it calls back with force.
+///
+/// <b>Worktrees live on these rows rather than in a window of their own</b>, because Git allows at
+/// most one worktree per branch -- so a branch row is the only index there is. A branch checked out
+/// somewhere else cannot be switched to at all, which is the state this used to report as a raw Git
+/// error: the row now says where it is, and Enter opens that folder instead of attempting a switch
+/// Git is certain to refuse.
 /// </summary>
 public partial class SwitchBranchWindow : Window
 {
     private readonly RepositoryInfo _repository;
     private readonly SwitchService _switches;
     private readonly BranchService _branches;
+    private readonly WorktreeService _worktrees;
     private readonly List<Candidate> _candidates = [];
 
     private string? _pendingBranch;
@@ -35,6 +46,7 @@ public partial class SwitchBranchWindow : Window
         RepositoryInfo repository,
         SwitchService switches,
         BranchService branches,
+        WorktreeService worktrees,
         string? currentBranch)
     {
         InitializeComponent();
@@ -42,6 +54,7 @@ public partial class SwitchBranchWindow : Window
         _repository = repository;
         _switches = switches;
         _branches = branches;
+        _worktrees = worktrees;
 
         Title = Strings.Get("switch.title", repository.Name);
         CurrentBranch = currentBranch;
@@ -61,9 +74,21 @@ public partial class SwitchBranchWindow : Window
 
     private async Task LoadAsync()
     {
-        SwitchCandidates candidates = await _switches
-            .ListCandidatesAsync(_repository, CancellationToken.None)
-            .ConfigureAwait(true);
+        //Both reads at once. The worktree list is one more process on a window with no latency target,
+        //and running it in parallel keeps it off the wall-clock entirely.
+        Task<SwitchCandidates> candidateTask = _switches.ListCandidatesAsync(_repository, CancellationToken.None);
+        Task<IReadOnlyList<GitWorktree>> worktreeTask = _worktrees.ListAsync(_repository, CancellationToken.None);
+
+        SwitchCandidates candidates = await candidateTask.ConfigureAwait(true);
+        IReadOnlyList<GitWorktree> worktrees = await worktreeTask.ConfigureAwait(true);
+
+        //Keyed by branch because Git allows at most one worktree per branch, which is what makes a
+        //dictionary the right shape rather than a list to search. Detached and bare worktrees have no
+        //branch and so are absent: there is no row for them here, which the class comment records.
+        Dictionary<string, GitWorktree> byBranch = worktrees
+            .Where(w => w.Branch is { Length: > 0 })
+            .GroupBy(w => w.Branch!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
         _candidates.Clear();
 
@@ -71,12 +96,22 @@ public partial class SwitchBranchWindow : Window
         {
             bool current = string.Equals(branch, CurrentBranch, StringComparison.Ordinal);
 
+            byBranch.TryGetValue(branch, out GitWorktree? worktree);
+
+            //The worktree this window was opened on is not "somewhere else", so it is dropped rather than
+            //labelled. The comparison is against the resolved root rather than against IsMain, because the
+            //window can perfectly well be opened *on* a linked worktree -- in which case the main one holds
+            //some other branch and is the row that needs the label.
+            if (worktree is not null && IsHere(worktree))
+                worktree = null;
+
             _candidates.Add(new Candidate(
                 branch,
                 //The current branch is labelled rather than hidden: seeing it in the list is what tells the user
                 //where they are.
                 current ? Strings.Get("branch.current") : Strings.Get("switch.local"),
-                current ? CandidateKind.Current : CandidateKind.Local));
+                current ? CandidateKind.Current : CandidateKind.Local,
+                worktree));
         }
 
         foreach (string branch in candidates.Remote)
@@ -86,7 +121,26 @@ public partial class SwitchBranchWindow : Window
         FilterBox.Focus();
     }
 
+    /// <summary>True when this worktree is the checkout the window was opened on.</summary>
+    private bool IsHere(GitWorktree worktree) =>
+        string.Equals(worktree.Path, _repository.Root, StringComparison.OrdinalIgnoreCase);
+
     private void OnFilterChanged(object sender, RoutedEventArgs e) => ApplyFilter();
+
+    /// <summary>
+    /// Keeps the primary button honest about what it will do.
+    ///
+    /// On a row whose branch is checked out in another worktree the button opens a folder, and Git
+    /// would refuse a switch outright -- so a button still reading "Switch" would be naming the one
+    /// thing that row cannot do. The label follows the selection rather than the filter, because the
+    /// arrow keys move it without re-running <see cref="ApplyFilter"/>.
+    /// </summary>
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        SwitchButton.Content = BranchList.SelectedItem is Candidate { Worktree: { IsPrunable: false } }
+            ? Strings.Get("worktree.open")
+            : Strings.Get("switch.button");
+    }
 
     private void ApplyFilter()
     {
@@ -188,6 +242,44 @@ public partial class SwitchBranchWindow : Window
             return;
         }
 
+        //The worktree items come first: on a row that has one they are the only things that work, since
+        //Git refuses to switch to a branch checked out elsewhere and refuses to delete it either.
+        if (candidate.Worktree is { } worktree)
+        {
+            if (worktree.IsPrunable)
+            {
+                RowMenu.Items.Add(MenuItemFor(
+                    Strings.Get("worktree.menu.prune"),
+                    () => PruneAsync(candidate.Name, worktree)));
+            }
+            else
+            {
+                RowMenu.Items.Add(MenuItemFor(
+                    Strings.Get("worktree.menu.open"),
+                    () =>
+                    {
+                        OpenFolder(worktree.Path);
+                        return Task.CompletedTask;
+                    }));
+
+                RowMenu.Items.Add(MenuItemFor(
+                    Strings.Get("worktree.menu.remove"),
+                    () => RemoveWorktreeAsync(candidate.Name, worktree)));
+            }
+
+            return;
+        }
+
+        //Offered on every remaining row, local and remote alike. A remote row creates a local branch
+        //tracking it, which is what switching to a remote row already does -- so this is not a hole the
+        //user has to work around by switching first. Rows that already have a worktree returned above:
+        //Git allows at most one per branch.
+        RowMenu.Items.Add(MenuItemFor(
+            Strings.Get("worktree.menu.add"),
+            () => AddWorktreeAsync(candidate)));
+
+        RowMenu.Items.Add(new Separator());
+
         if (candidate.Row == CandidateKind.Local)
         {
             RowMenu.Items.Add(MenuItemFor(
@@ -232,7 +324,49 @@ public partial class SwitchBranchWindow : Window
             return;
         }
 
+        //Checked out in another worktree, where Git refuses a switch outright. Opening that folder is the
+        //only thing this row can usefully do, so it is what the primary gesture does -- rather than
+        //running a command whose failure the user can do nothing about.
+        if (candidate.Worktree is { } worktree)
+        {
+            if (worktree.IsPrunable)
+            {
+                //The directory is gone and Git still believes the branch is checked out there, which is why
+                //every switch to it is refused. Pruning is the fix, and it is offered rather than performed.
+                await PruneAsync(candidate.Name, worktree).ConfigureAwait(true);
+                return;
+            }
+
+            OpenFolder(worktree.Path);
+            return;
+        }
+
         await AttemptAsync(candidate).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Shows a worktree in Explorer.
+    ///
+    /// Explorer rather than an editor: which editor the user wants is a guess, and a folder window is
+    /// the one answer that is right on every machine. From there the folder is an ordinary repository
+    /// -- <c>flick commit</c> and the context menu work in it, because <c>RepositoryService</c> asks
+    /// Git for the root rather than looking for a <c>.git</c> directory.
+    /// </summary>
+    private void OpenFolder(string path)
+    {
+        try
+        {
+            //UseShellExecute is required to hand a directory to the shell; without it this would be an
+            //attempt to execute the folder.
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            StatusText.Text = Strings.Get("worktree.opened", path);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException or IOException)
+        {
+            //A path that has gone away since the list was read, or one the shell refuses. Reported rather
+            //than thrown: nothing has changed, and the row is still there to try again.
+            StatusText.Text = Strings.Get("worktree.openfailed", path);
+        }
     }
 
     /// <summary>
@@ -442,6 +576,215 @@ public partial class SwitchBranchWindow : Window
         }
     }
 
+    /// <summary>
+    /// Creates a worktree for the clicked branch: a second checkout of this repository, in its own
+    /// folder, on its own branch.
+    ///
+    /// <b>Not confirmed, and it needs no confirmation.</b> Nothing existing is touched -- it makes a
+    /// directory and checks a branch out into it, which is the only Git operation reachable from this
+    /// window that cannot lose anything.
+    ///
+    /// The dialog picks the <i>parent</i> and the leaf is derived from the repository and branch names,
+    /// which is what keeps the whole interaction one dialog. A path typed by hand would need a window
+    /// of its own to type it into, and the folder picker already knows how to make a directory.
+    /// </summary>
+    private async Task AddWorktreeAsync(Candidate candidate)
+    {
+        //What to check out, and under what local name. A remote row creates a local branch tracking it --
+        //the same thing switching to a remote row does -- unless that branch already exists here, in
+        //which case there is nothing to create and `--track -b` would fail on the name.
+        string branch = candidate.Name;
+        WorktreeStart start;
+
+        if (candidate.IsRemote)
+        {
+            RemoteBranch? resolved = await _branches
+                .ResolveRemoteBranchAsync(_repository, candidate.Name, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (resolved is null)
+            {
+                StatusText.Text = Strings.Get("branch.delete.noremote", candidate.Name);
+                return;
+            }
+
+            branch = resolved.Branch;
+
+            bool existsLocally = _candidates.Any(c =>
+                c.Row is CandidateKind.Local or CandidateKind.Current &&
+                string.Equals(c.Name, branch, StringComparison.Ordinal));
+
+            start = existsLocally
+                ? WorktreeStart.Existing(branch)
+                : WorktreeStart.Track(branch, candidate.Name);
+        }
+        else
+        {
+            start = WorktreeStart.Existing(branch);
+        }
+
+        //Defaulting beside the repository rather than inside it, which is both the shape of the
+        //suggestion and the thing CheckTarget refuses outright.
+        var dialog = new OpenFolderDialog
+        {
+            Title = Strings.Get("worktree.pick", branch),
+            InitialDirectory = Directory.GetParent(_repository.Root)?.FullName ?? _repository.Root,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        string path = Path.Combine(dialog.FolderName, WorktreeService.SuggestFolderName(_repository.Name, branch));
+
+        SetBusy(true);
+
+        try
+        {
+            WorktreeOutcome outcome = await _worktrees
+                .AddAsync(_repository, path, start, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (outcome.Succeeded)
+            {
+                //Re-listed rather than patched, so the new row comes from `worktree list` like every other --
+                //there is no second place for what a worktree row says to be decided.
+                await LoadAsync().ConfigureAwait(true);
+                StatusText.Text = Strings.Get("worktree.created", path);
+                return;
+            }
+
+            if (outcome.Refusal != WorktreeRefusal.None)
+            {
+                StatusText.Text = RefusalText(outcome.Refusal, path);
+                return;
+            }
+
+            Report(Strings.Get("worktree.menu.add"), outcome.GitError ?? string.Empty);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>
+    /// Removes a worktree, asking once.
+    ///
+    /// <b>There is no second question and no forced spelling</b>, which is the one place this window's
+    /// worktree items depart from its branch ones. <c>git worktree remove --force</c> deletes modified
+    /// and untracked files outright -- no reflog, and no Recycle Bin, because nothing in Git has ever
+    /// seen them. So a dirty worktree is reported with the two ways out that destroy nothing, and
+    /// forcing stays something the user types themselves.
+    /// </summary>
+    private async Task RemoveWorktreeAsync(string branch, GitWorktree worktree)
+    {
+        if (!ConfirmWindow.Ask(
+                this,
+                Strings.Get("worktree.remove.title"),
+                Strings.Get("worktree.remove.ask", branch, worktree.Path),
+                Strings.Get("worktree.remove.yes"),
+                Strings.Get("common.cancel")))
+        {
+            return;
+        }
+
+        SetBusy(true);
+
+        try
+        {
+            WorktreeOutcome outcome = await _worktrees
+                .RemoveAsync(_repository, worktree, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (outcome.Succeeded)
+            {
+                await LoadAsync().ConfigureAwait(true);
+                StatusText.Text = Strings.Get("worktree.removed", worktree.Path);
+                return;
+            }
+
+            if (outcome.Refusal != WorktreeRefusal.None)
+            {
+                StatusText.Text = RefusalText(outcome.Refusal, worktree.Path);
+                return;
+            }
+
+            //Git refused because there is work in there. Reported with what to do about it rather than with
+            //a button that would delete it.
+            Report(
+                Strings.Get("worktree.remove.title"),
+                outcome.HasLocalChanges
+                    ? Strings.Get("worktree.remove.dirty", worktree.Path)
+                    : outcome.GitError ?? string.Empty);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>
+    /// Drops Git's bookkeeping for worktrees whose folder is gone -- the state a user reaches by
+    /// deleting a worktree in Explorer, and the only one in this feature they cannot otherwise get out
+    /// of: until it is pruned, Git still believes the branch is checked out and refuses every switch to
+    /// it, naming a directory that does not exist.
+    ///
+    /// Confirmed because it is repository-wide rather than about the one row that was clicked, and
+    /// there is no such thing as pruning a single entry. Nothing on disk is destroyed: a worktree that
+    /// still exists is not prunable, whatever state it is in.
+    /// </summary>
+    private async Task PruneAsync(string branch, GitWorktree worktree)
+    {
+        if (!ConfirmWindow.Ask(
+                this,
+                Strings.Get("worktree.prune.title"),
+                Strings.Get("worktree.prune.ask", branch, worktree.Path),
+                Strings.Get("worktree.prune.yes"),
+                Strings.Get("common.cancel")))
+        {
+            return;
+        }
+
+        SetBusy(true);
+
+        try
+        {
+            WorktreeOutcome outcome = await _worktrees
+                .PruneAsync(_repository, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (!outcome.Succeeded)
+            {
+                Report(Strings.Get("worktree.prune.title"), outcome.GitError ?? string.Empty);
+                return;
+            }
+
+            await LoadAsync().ConfigureAwait(true);
+            StatusText.Text = Strings.Get("worktree.pruned", branch);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>
+    /// A refusal that happened before Git was asked anything, in words that say what to do instead.
+    /// One function rather than a message per call site, so the same refusal cannot come to mean two
+    /// things depending on which operation hit it.
+    /// </summary>
+    private static string RefusalText(WorktreeRefusal refusal, string path) => refusal switch
+    {
+        WorktreeRefusal.InsideRepository => Strings.Get("worktree.refused.inside", path),
+        WorktreeRefusal.NotEmpty => Strings.Get("worktree.refused.notempty", path),
+        WorktreeRefusal.IsMainWorktree => Strings.Get("worktree.refused.main"),
+        WorktreeRefusal.IsLocked => Strings.Get("worktree.refused.locked", path),
+
+        //NotAbsolute is unreachable from here -- the path is built from a folder dialog's answer -- but a
+        //silent empty status line would be worse than naming it.
+        _ => Strings.Get("worktree.refused.path", path),
+    };
+
     private async void OnStashSwitch(object sender, RoutedEventArgs e)
     {
         if (_pendingBranch is null)
@@ -509,11 +852,33 @@ public partial class SwitchBranchWindow : Window
     /// content is a <c>DataTemplate</c> has no text of its own, so UI Automation falls back to it --
     /// and a record's synthesised version reads every property name out to a screen reader.
     /// </summary>
-    private sealed record Candidate(string Name, string Kind, CandidateKind Row)
+    /// <param name="Worktree">
+    /// The linked worktree holding this branch, when one does and it is not the checkout this window
+    /// was opened on. Null for every other row, which is what <see cref="Kind"/> and the context menu
+    /// both branch on.
+    /// </param>
+    private sealed record Candidate(string Name, string BaseKind, CandidateKind Row, GitWorktree? Worktree = null)
     {
         public bool IsRemote => Row == CandidateKind.Remote;
 
         public string Display => Row == CandidateKind.Create ? Strings.Get("switch.create", Name) : Name;
+
+        /// <summary>
+        /// What the right-hand column says. A worktree replaces "Local" rather than sitting beside it: a
+        /// branch checked out elsewhere is not switchable, so "Local" would name the one thing this row
+        /// cannot do.
+        /// </summary>
+        public string Kind => Worktree switch
+        {
+            //Distinguished because the two need opposite things done to them -- one is opened, the other is
+            //pruned -- and because "missing" is the only honest word for a directory that is gone.
+            { IsPrunable: true } => Strings.Get("worktree.kind.missing"),
+            not null => Strings.Get("worktree.kind"),
+            _ => BaseKind,
+        };
+
+        /// <summary>The worktree's path, for the row's tooltip. Null leaves the tooltip off entirely.</summary>
+        public string? Hint => Worktree?.Path;
 
         /// <summary>
         /// The accent for the create row, resolved from the window's own resources rather than hard-coded
