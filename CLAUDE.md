@@ -420,6 +420,7 @@ flick push <path>
 flick pr <path>                      open a pull request for this branch
 flick switch <path> [branch]         branch picker when omitted
 flick tag <path> [name]              tag window when omitted; creates and pushes it when named
+flick submodule <path>               submodules: add, remove, initialise
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
 flick blame <file>                   who last touched each line, and what came before
@@ -2777,12 +2778,105 @@ Update submodules    ⟳  3 of 7
 A submodule failure does **not** roll back the pull. Report it separately: the pull
 succeeded, the submodules are stale, here is the error.
 
+## The window
+
+Beside **Branches** and **Tags** in the submenu, and one screen for the same reason: what is there,
+add one, remove one — all three of which begin with "what is there already". Reached from the
+FlickGit submenu, the palette and `flick submodule <path>`.
+
+```text
+┌─ Submodules — d360-portal ─────────────────────────────────────────┐
+│ >                                                                  │
+├────────────────────────────────────────────────────────────────────┤
+│ libs/protocol    git@github.com:acme/protocol.git      changed     │
+│ vendor/spdlog    https://github.com/gabime/spdlog.git              │
+│ third/asio       https://github.com/chriskohlhoff/asio  not init'd │
+├────────────────────────────────────────────────────────────────────┤
+│ ADD A SUBMODULE                                                    │
+│ URL  [                        ]   Into [ libs/protocol ]  [ Add ]  │
+├────────────────────────────────────────────────────────────────────┤
+│ Added libs/protocol.  Staged, not committed. [ Commit… ] [ Close ] │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**It commits nothing, and that is the point.** `submodule add` and `git rm` both leave their work in
+the index, and the window stops there: it says *staged, not committed* and its button opens the
+commit window. **Commit Window** is the only commit surface, so a message box here would be a second
+place for the primary-branch warning, the staging defaults and the push guardrails to live — and the
+staged `.gitmodules` and gitlink show up in that window as ordinary ticked rows with no work at all.
+
+## Two reads, and `submodule status` is not one of them
+
+```bash
+git -C <repo> --no-optional-locks config -f .gitmodules --list -z
+git -C <repo> --no-optional-locks diff HEAD --name-only -z --ignore-submodules=none -- <paths>
+```
+
+**`git submodule status` has no `--porcelain`**, so its output is the form shaped for a terminal and
+**Coding Guidelines** forbids parsing it. What it would have given comes from three cheaper places
+instead, and each one is exact:
+
+- **`.gitmodules`, through the parser the repository's own config already goes through.** That is
+  what `GitConfigList` is: `ParseList` and `SubsectionOf` moved out of `RepositoryConfigService` when
+  the second caller arrived. It is also the only source that lists a submodule **nobody has
+  initialised yet** — which is the row most worth showing, being the one with something to do.
+- **Initialised is `File.Exists(<path>/.git)`**, a probe costing microseconds, the same rule this
+  section already sets for `.gitmodules` itself. No Git call, no process.
+- **Changed is one `diff HEAD`.** Against HEAD rather than the index, so a pointer the user has
+  already staged still reads as changed: "you updated this, commit it" is the question, and staging
+  is half an answer to it. `--ignore-submodules=none` because a user's own `diff.ignoreSubmodules`
+  would otherwise silently empty the column.
+
+The name trap is `remote.*`'s, and worse: **a submodule's name defaults to its path**, so
+`libs/proto.v2` is a subsection with a dot in it. The name is everything between the first separator
+and the last, never the second field.
+
+## Removing asks twice, and only the second answer forces
+
+```bash
+git submodule deinit -- <path>
+git rm -- <path>
+```
+
+`deinit` first: `git rm` on a populated submodule works, but it is `deinit`'s refusal that names the
+user's uncommitted work, and reaching `rm` first would have emptied the checkout the question is
+about. `git rm` on a gitlink takes the `.gitmodules` entry with it, so there is no third command.
+
+When Git refuses because the submodule holds work that was never committed, **that refusal gets its
+own second question naming what is at stake**, and only an answer to *that* calls back with `-f` —
+the shape `branch -d` and `branch -D` already have, and the only route to a forced spelling here.
+`SubmoduleService` never escalates on its own; `force` is a parameter, and both commands take it
+together, because `deinit -f` leaves a checkout `rm` would still refuse.
+
+**`.git/modules/<name>` is never deleted, forced or not.** It is the submodule's own clone, and it
+can hold commits made in there and never pushed — work the outer repository has never seen, which is
+the one thing **Safety Rules** makes unconditional. The price is that re-adding the same submodule
+later needs that directory cleared by hand, and the confirmation says so rather than doing it.
+
+## Adding refuses before Git runs
+
+`submodule add -- <url> <path>`, with every refusal answered first so the window can show it as a
+hint while the user is still typing: no URL, no path, a path that is absolute or climbs out with
+`..`, a target that exists and is not empty, and a path already declared. The path guard is
+`WorkingTreeWriter.ResolveInsideRepository`, which is public for exactly this and catches the
+absolute and the escaping case in one test.
+
+The target folder is derived from the URL's last segment with `.git` stripped — **Clone**'s rule,
+and Git's own — and stops being derived the moment the user types in the box.
+
 ## Deliberately out of scope
 
-Committing inside submodules, changing submodule pointers, `--remote` updates, and adding or
-removing submodules. These are rare, dangerous, and belong in a full client. If the status
-shows a modified submodule pointer, display it as a normal changed entry and let the user
-decide.
+> **No committing inside a submodule, no changing a pointer by hand, no `--remote` updates, no
+> deleting `.git/modules/<name>`, and no branch, sync or foreach.**
+
+If the status shows a modified submodule pointer, it is displayed as a normal changed entry and the
+user decides — which is what `--porcelain=v2` already produces with no special case, and what makes
+committing an update work without this window at all.
+
+**The menu entry is not gated on `hasSubmodules`.** `GitAction` carries only `RequiresRepository`,
+and this window is where the *first* submodule is added — so hiding it in a repository with none
+would hide the way in. A repository with no `.gitmodules` opens to an empty list that says so, the
+way the tag window's does.
 
 ---
 
@@ -2965,6 +3059,7 @@ FlickGit                          ▸
       ├── Show log…
       ├── Branches…
       ├── Tags…
+      ├── Submodules…
       ├── Push
       ├── Pull request…
       ├── Repository settings…

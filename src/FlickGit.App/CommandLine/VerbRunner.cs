@@ -55,7 +55,8 @@ public sealed class VerbRunner(
     private static bool NeedsRepository(VerbKind kind) =>
         kind is VerbKind.Commit or VerbKind.Status or VerbKind.PullRebase
             or VerbKind.Switch or VerbKind.Push or VerbKind.Tag or VerbKind.Log
-            or VerbKind.Blame or VerbKind.Repo or VerbKind.PullRequest;
+            or VerbKind.Blame or VerbKind.Repo or VerbKind.PullRequest
+            or VerbKind.Submodule;
 
     /// <summary>
     /// Runs a catalog action by id.
@@ -162,6 +163,7 @@ public sealed class VerbRunner(
             VerbKind.PullRebase => await windowVerbs.PullAsync(repository!).ConfigureAwait(true),
             VerbKind.Log => await windowVerbs.LogAsync(repository!).ConfigureAwait(true),
             VerbKind.Repo => windowVerbs.Repo(repository!),
+            VerbKind.Submodule => windowVerbs.Submodules(repository!),
             VerbKind.PullRequest => await windowVerbs.PullRequestAsync(repository!).ConfigureAwait(true),
 
             //`verb.Path` is the clicked *file*, which routing carries through untouched --

@@ -124,6 +124,25 @@ costs a network round trip.
 Double-click a tag to check it out. That is the one thing in FlickGit that **detaches HEAD**, so it
 asks once and the window then tells you how to come back.
 
+### Submodules
+
+**FlickGit ▸ Submodules…**, or `flick submodule`. What the repository declares, whether
+each one is checked out, and whether it has moved since the last commit.
+
+- **Initialise** — a submodule that arrived with somebody else's commit and was never fetched. It
+  runs the same `submodule update --init --recursive` that already follows every pull.
+- **Update** — the same thing for one that is already there.
+- **Add** — paste a URL at the bottom and name a folder inside the repository. The folder is
+  suggested from the URL until you type your own.
+- **Remove…** — asks first, then runs `deinit` and `git rm` with nothing forced. If the submodule
+  holds work that was never committed, Git refuses and a **second** question names what forcing
+  would destroy before anything happens. Its clone under `.git/modules` is kept either way, so a
+  commit made in there and never pushed is never lost.
+
+**This window commits nothing.** Adding and removing both leave their change staged, and the footer
+says so and offers **Commit…**, which opens the commit window. That is the only place FlickGit
+commits from.
+
 ## Commit messages by AI
 
 Everything you need is in **Settings**, under *Commit messages (AI)*:
@@ -314,6 +333,7 @@ Everything in the menus is also a verb. `<path>` defaults to the current directo
 flick commit <path>              flick switch <path> [branch]
 flick pull-rebase <path>         flick tag <path> [name]
 flick push <path>                flick status <path>
+flick submodule <path>           add, remove, initialise submodules
 flick pr <path>                  open a pull request for this branch
 flick log <path>                 commit history + combined diffs
 flick blame <file>               who wrote each line

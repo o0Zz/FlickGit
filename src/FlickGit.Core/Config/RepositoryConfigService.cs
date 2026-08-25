@@ -66,7 +66,7 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         await Task.WhenAll(local, name, email, head).ConfigureAwait(false);
 
         IReadOnlyList<ConfigEntry> entries = local.Result.Succeeded
-            ? ParseList(local.Result.StdOut)
+            ? GitConfigList.ParseList(local.Result.StdOut)
             : [];
 
         string? branch = head.Result.Succeeded ? NullIfEmpty(head.Result.StdOut) : null;
@@ -175,33 +175,6 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     }
 
     /// <summary>
-    /// Splits <c>config --list -z</c> into key/value pairs.
-    ///
-    /// Records are NUL-terminated and the key is separated from its value by the <b>first</b>
-    /// newline -- which is what makes a value containing newlines survive, and why this is a state
-    /// machine over the NUL stream rather than a line split. A record with no newline at all is a key
-    /// set with no value, which Git reads as true.
-    /// </summary>
-    internal static IReadOnlyList<ConfigEntry> ParseList(string standardOutput)
-    {
-        var entries = new List<ConfigEntry>();
-
-        foreach (string record in standardOutput.Split('\0'))
-        {
-            if (record.Length == 0)
-                continue;
-
-            int newline = record.IndexOf('\n');
-
-            entries.Add(newline < 0
-                ? new ConfigEntry(record, null)
-                : new ConfigEntry(record[..newline], record[(newline + 1)..]));
-        }
-
-        return entries;
-    }
-
-    /// <summary>
     /// The remotes, origin first.
     ///
     /// <b>The name is the middle of the key, taken verbatim.</b> <c>git config --list</c> lower-cases
@@ -220,9 +193,9 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
             if (!entry.Key.StartsWith("remote.", StringComparison.OrdinalIgnoreCase) || entry.Value is null)
                 continue;
 
-            if (NameBetween(entry.Key, ".url") is { } urlOf)
+            if (GitConfigList.SubsectionOf(entry.Key, "remote", ".url") is { } urlOf)
                 fetch[urlOf] = entry.Value;
-            else if (NameBetween(entry.Key, ".pushurl") is { } pushOf)
+            else if (GitConfigList.SubsectionOf(entry.Key, "remote", ".pushurl") is { } pushOf)
                 push[pushOf] = entry.Value;
         }
 
@@ -238,15 +211,6 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
             .OrderByDescending(remote => string.Equals(remote.Name, "origin", StringComparison.Ordinal))
             .ThenBy(remote => remote.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-    }
-
-    private static string? NameBetween(string key, string suffix)
-    {
-        if (!key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        string name = key["remote.".Length..^suffix.Length];
-        return name.Length == 0 ? null : name;
     }
 
     private static ConfigEntry? Entry(IReadOnlyList<ConfigEntry> entries, string key) =>
@@ -285,10 +249,6 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         return trimmed.Length == 0 ? null : trimmed;
     }
 }
-
-/// <param name="Key">As Git reported it: section and final component lower-cased, subsection verbatim.</param>
-/// <param name="Value">Null when the key was set with no value, which Git reads as true.</param>
-internal sealed record ConfigEntry(string Key, string? Value);
 
 /// <param name="PushUrl">Where <c>push</c> goes, only when it differs from <paramref name="FetchUrl"/>.</param>
 public sealed record GitRemote(string Name, string FetchUrl, string? PushUrl);

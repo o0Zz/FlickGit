@@ -186,6 +186,27 @@ public class VerbTests
     }
 
     /// <summary>
+    /// `submodule` is the picker and nothing else: no second token, and the path still defaults.
+    ///
+    /// Adding takes a URL *and* a folder, so there is no one value the single positional slot could
+    /// safely hold -- and a token that was silently ignored would be worse than one that is refused.
+    /// </summary>
+    [Fact]
+    public void Submodule_is_the_picker_and_takes_no_argument()
+    {
+        Verb bare = Verb.Parse(["submodule"], @"C:\dev\repo");
+
+        Assert.Equal(VerbKind.Submodule, bare.Kind);
+        Assert.Equal(@"C:\dev\repo", bare.Path);
+        Assert.Null(bare.Argument);
+
+        Verb located = Verb.Parse(["submodule", @"C:\dev\other"], @"C:\dev");
+
+        Assert.Equal(@"C:\dev\other", located.Path);
+        Assert.Null(located.Argument);
+    }
+
+    /// <summary>
     /// Every verb the help text advertises parses to something other than an error.
     ///
     /// Cheap, and it catches the failure mode where a verb is documented, wired into the registry

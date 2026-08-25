@@ -51,6 +51,16 @@ public enum VerbKind
     Tag,
 
     /// <summary>
+    /// The submodules window: what is declared, what is checked out, what has moved.
+    ///
+    /// <b>The picker and nothing else -- there is no second token.</b> Adding takes a URL <i>and</i>
+    /// a path, and neither is the obvious one to put in the single positional slot; removing needs
+    /// intent expressed in the moment, the same reason <see cref="Tag"/> gives for having no
+    /// deletion spelling.
+    /// </summary>
+    Submodule,
+
+    /// <summary>
     /// <c>repo</c> rather than <c>config</c>, because <c>flick settings</c> is already FlickGit's own
     /// configuration and two verbs a token apart from meaning opposite things is a grammar nobody
     /// remembers.
@@ -141,6 +151,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "push" => VerbKind.Push,
             "switch" => VerbKind.Switch,
             "tag" => VerbKind.Tag,
+            "submodule" => VerbKind.Submodule,
             "status" => VerbKind.Status,
             "log" => VerbKind.Log,
             "blame" => VerbKind.Blame,
@@ -203,6 +214,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick log <path>                    commit history; multi-select for a combined diff
           flick blame <file>                  who last touched each line, and what was there before
           flick repo <path>                   the identity it commits as, its remotes, its defaults
+          flick submodule <path>              submodules: add, remove, initialise
           flick terminal <path>               open a terminal there
           flick clone <path> [url]
           flick run <id> [path]               run a catalog action by id

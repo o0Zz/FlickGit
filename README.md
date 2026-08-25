@@ -62,6 +62,9 @@ pre-warmed. It is an optimisation, never a dependency — with it stopped, every
 - **Worktrees** — a second checkout of the same repository, on the same branch rows: create one,
   open its folder, remove it, or clean up one whose folder is gone.
 - **Tags** — list, create, publish, delete, and double-click to check one out. Nothing is forced.
+- **Submodules** — what is declared, what is checked out, what has moved: add one, initialise
+  one that was never fetched, remove one. Removing never forces on its own, and the submodule's own
+  clone is kept so nothing committed inside it is lost.
 
 **Diff and history**
 

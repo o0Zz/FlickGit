@@ -34,6 +34,7 @@ using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Repositories;
 using FlickGit.Status;
+using FlickGit.Submodules;
 using FlickGit.Tags;
 using FlickGit.Worktrees;
 using H.NotifyIcon;
@@ -167,6 +168,7 @@ public partial class App : Application
         services.AddSingleton<PullService>();
         services.AddSingleton<SwitchService>();
         services.AddSingleton<WorktreeService>();
+        services.AddSingleton<SubmoduleService>();
         services.AddSingleton<PushService>();
         services.AddSingleton<RemoteService>();
         services.AddSingleton<RepositoryConfigService>();

@@ -252,6 +252,75 @@ tag.confirm.local = Delete the tag {0} from this repository?\n\nA tag has no ref
 tag.confirm.remote = Delete the tag {0} from this repository and from {1}?\n\nAnyone who has already fetched it keeps their copy, and a tag has no reflog — this cannot be undone from here.
 tag.confirm.yes = Delete
 
+# ---- submodules window ------------------------------------------------------
+# A submodule is another repository pinned at one commit inside this one. The window is the third
+# of the "one screen per kind of ref" set, beside Branches and Tags, and it commits nothing: add
+# and remove both leave their work staged, and the footer hands off to the commit window.
+
+# {0} repository name
+submodule.title = Submodules — {0}
+submodule.none = This repository has no submodules. Add one below.
+submodule.nomatch = Nothing matches.
+# {0} count
+submodule.count = {0} submodules
+
+# The right-hand column, empty when there is nothing to do — which is most rows most of the time.
+# Declared in .gitmodules but never fetched: the usual state after cloning without --recurse-submodules.
+submodule.state.uninitialised = not initialised
+# The pinned commit has moved, or the checkout is dirty. Either way it is a change to commit here.
+submodule.state.changed = changed
+
+submodule.menu.init = Initialise
+submodule.menu.update = Update
+submodule.menu.open = Open folder
+submodule.menu.remove = Remove…
+
+# {0} path
+submodule.initialising = Fetching {0}…
+submodule.initialised = Initialised {0}.
+submodule.updating = Updating {0}…
+submodule.updated = Updated {0}.
+submodule.opened = Opened {0}
+submodule.openfailed = {0} could not be opened.
+submodule.notinitialised = {0} is not initialised yet — there is no folder to open.
+
+# ---- adding -----------------------------------------------------------------
+submodule.add = ADD A SUBMODULE
+submodule.add.url = Repository URL
+submodule.add.into = Into this folder
+submodule.add.button = Add
+# {0} the target folder, relative to the repository root
+submodule.add.hint = Clones into {0} and stages it. Nothing is committed.
+submodule.add.refused.nourl = Paste the URL of the repository to add.
+submodule.add.refused.nopath = Name a folder inside this repository to clone it into.
+# {0} the typed path: absolute, or it climbs out with "..".
+submodule.add.refused.outside = {0} is outside this repository. A submodule has to live inside it.
+submodule.add.refused.notempty = {0} already exists and is not empty. Choose another folder.
+submodule.add.refused.exists = {0} is already a submodule here.
+# {0} path
+submodule.adding = Adding {0}…
+submodule.added = Added {0}.
+
+# ---- removing ---------------------------------------------------------------
+submodule.remove.title = Remove submodule
+# {0} path. Deliberately says what is NOT done: the inner clone under .git/modules survives, which
+# is what stops a commit made in there and never pushed from being destroyed by a click out here.
+submodule.remove.ask = Remove the submodule at {0}?\n\nIt goes from .gitmodules and from the working tree, and the change is staged for you to commit.\n\nIts clone under .git/modules is kept, so nothing committed inside it is lost — delete that folder by hand if you ever want to add {0} again.
+submodule.remove.yes = Remove
+# {0} path
+submodule.removed = Removed {0}.
+
+# The second question, and only after Git has actually refused. Forcing is reachable from nowhere
+# else in the product, so this is the sentence that has to carry the whole cost.
+submodule.remove.dirty.title = Remove anyway
+submodule.remove.dirty.ask = {0} holds changes that were never committed.\n\nNothing has been removed. Removing it anyway destroys those changes: they are not in this repository, there is no Recycle Bin behind them, and git restore cannot bring them back.\n\nCommit them inside {0} first if you want to keep them.
+submodule.remove.dirty.yes = Remove and discard
+
+# ---- the hand-off -----------------------------------------------------------
+# Appended to whatever the footer already says, once something is in the index.
+submodule.staged = Staged, not committed.
+submodule.commit = Commit…
+
 # ---- log window ----
 
 # {0} repository name
@@ -517,6 +586,7 @@ action.tag = Tags…
 action.log = Show log…
 action.blame = Blame…
 action.repo = Repository settings…
+action.submodule = Submodules…
 action.clone = Clone…
 action.terminal = Open terminal here
 

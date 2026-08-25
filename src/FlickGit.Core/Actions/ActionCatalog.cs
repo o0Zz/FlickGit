@@ -335,6 +335,16 @@ public sealed class ActionCatalog
         new("tag", VerbKind.Tag, 115, ActionSurfaces.All, "tag.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Tag),
 
+        //117, immediately after Tags: this is the third of the "one screen per kind of ref" set, and
+        //the menu should read that way. Three digits, because Explorer sorts submenu keys as strings.
+        //A submodule is a nested clone, which is why it borrows that icon rather than shipping a
+        //twelfth one.
+        //
+        //NeedsRepository only, deliberately not gated on RepositoryInfo.HasSubmodules: this window is
+        //where the *first* submodule is added, so hiding it in a repository with none hides the way in.
+        new("submodule", VerbKind.Submodule, 117, ActionSurfaces.All, "clone.ico", InMore: true,
+            NeedsRepository: true),
+
         new("push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
 
         new("pr", VerbKind.PullRequest, 125, ActionSurfaces.All, "pr.ico", InMore: true,
@@ -342,6 +352,7 @@ public sealed class ActionCatalog
 
         new("repo", VerbKind.Repo, 130, ActionSurfaces.All, "status.ico", InMore: true,
             NeedsRepository: true),
+
 
         //Not on the palette: the palette lists repositories, and cloning is what you do when there is not
         //one yet.

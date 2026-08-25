@@ -20,6 +20,7 @@ using FlickGit.Models;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Status;
+using FlickGit.Submodules;
 using FlickGit.Tags;
 using FlickGit.Worktrees;
 
@@ -45,6 +46,7 @@ public sealed class WindowVerbs(
     PullService pulls,
     CloneService clones,
     TagService tags,
+    SubmoduleService submodules,
     RepositoryConfigService repositoryConfig,
     RemoteService remotes,
     HistoryService history,
@@ -231,6 +233,27 @@ public sealed class WindowVerbs(
     public VerbResult TagPicker(RepositoryInfo repository)
     {
         var window = new TagsWindow(repository, tags, switches);
+
+        AppWindow.Present(window);
+
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// The submodules window. Per call, for the reason <see cref="TagPicker"/> gives.
+    ///
+    /// The commit hand-off is wired here rather than inside the window: the window has staged
+    /// something and knows nothing about how a commit surface is reached, and the resident service's
+    /// pre-warmed commit window is exactly the kind of collaborator a view is not given.
+    /// </summary>
+    public VerbResult Submodules(RepositoryInfo repository)
+    {
+        var window = new SubmodulesWindow(repository, submodules);
+
+        //Discarded rather than awaited in an async lambda: the event is an Action, so `async () =>`
+        //would be async void and a fault there takes the process down. The palette's own handler
+        //does the same.
+        window.CommitRequested += () => _ = commitWindow.ShowAsync(repository);
 
         AppWindow.Present(window);
 

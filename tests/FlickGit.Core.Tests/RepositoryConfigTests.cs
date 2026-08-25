@@ -28,7 +28,7 @@ public class RepositoryConfigTests
     [Fact]
     public void A_record_splits_at_the_first_newline()
     {
-        IReadOnlyList<ConfigEntry> entries = RepositoryConfigService.ParseList(
+        IReadOnlyList<ConfigEntry> entries = GitConfigList.ParseList(
             Stream("user.name\nThierry Quemerais", "user.email\nt.q@example.com"));
 
         Assert.Equal(2, entries.Count);
@@ -44,7 +44,7 @@ public class RepositoryConfigTests
     [Fact]
     public void A_value_keeps_its_own_newlines()
     {
-        IReadOnlyList<ConfigEntry> entries = RepositoryConfigService.ParseList(
+        IReadOnlyList<ConfigEntry> entries = GitConfigList.ParseList(
             Stream("alias.lg\nlog --oneline \\\n  --graph", "user.name\nThierry"));
 
         Assert.Equal("alias.lg", entries[0].Key);
@@ -59,7 +59,7 @@ public class RepositoryConfigTests
     [Fact]
     public void A_key_with_no_value_is_read_as_true()
     {
-        IReadOnlyList<ConfigEntry> entries = RepositoryConfigService.ParseList(
+        IReadOnlyList<ConfigEntry> entries = GitConfigList.ParseList(
             Stream("flickgit.allowupstreamcreation"));
 
         Assert.Null(entries[0].Value);
@@ -73,7 +73,7 @@ public class RepositoryConfigTests
     [Fact]
     public void A_remote_keeps_its_case()
     {
-        IReadOnlyList<ConfigEntry> entries = RepositoryConfigService.ParseList(Stream(
+        IReadOnlyList<ConfigEntry> entries = GitConfigList.ParseList(Stream(
             "remote.MyFork.url\ngit@github.com:o0Zz/FlickGit.git",
             "flickgit.primarybranch\ndevelop"));
 
@@ -90,7 +90,7 @@ public class RepositoryConfigTests
     public void A_dotted_remote_name_survives()
     {
         IReadOnlyList<GitRemote> remotes = RepositoryConfigService.RemotesFrom(
-            RepositoryConfigService.ParseList(Stream("remote.my.fork.url\nhttps://example.com/r.git")));
+            GitConfigList.ParseList(Stream("remote.my.fork.url\nhttps://example.com/r.git")));
 
         Assert.Equal("my.fork", Assert.Single(remotes).Name);
     }
@@ -103,7 +103,7 @@ public class RepositoryConfigTests
     public void Only_urls_become_remotes_and_a_matching_pushurl_is_dropped()
     {
         IReadOnlyList<GitRemote> remotes = RepositoryConfigService.RemotesFrom(
-            RepositoryConfigService.ParseList(Stream(
+            GitConfigList.ParseList(Stream(
                 "remote.origin.url\nhttps://example.com/r.git",
                 "remote.origin.fetch\n+refs/heads/*:refs/remotes/origin/*",
                 "remote.origin.pushurl\nhttps://example.com/r.git",
