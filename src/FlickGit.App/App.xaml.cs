@@ -24,6 +24,7 @@ using FlickGit.Diagnostics;
 using FlickGit.Forges;
 using FlickGit.Blame;
 using FlickGit.Diff;
+using FlickGit.Files;
 using FlickGit.History;
 using FlickGit.Git;
 using FlickGit.Ipc;
@@ -179,6 +180,7 @@ public partial class App : Application
         services.AddSingleton<WorkingTreeWriter>();
         services.AddSingleton<WorkingTreeDeleter>();
         services.AddSingleton<RestoreService>();
+        services.AddSingleton<FileTrackingService>();
         services.AddSingleton<UntrackedFileMeasurer>();
 
         services.AddSingleton<ShellIntegration>();

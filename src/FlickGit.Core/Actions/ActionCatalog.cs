@@ -324,8 +324,16 @@ public sealed class ActionCatalog
         //the two root entries are the two the user *performs* all day.
         new("log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
 
-        //The file menu, which is this entry and nothing else so far.
+        //The file menu: read what is there, then the two operations that put a file under Git's control
+        //or take it out again. Three digits, in their own hundred, because ordering only ever compares
+        //them with each other -- the folder entries are a different click.
         new("blame", VerbKind.Blame, 100, ActionSurfaces.File, "blame.ico", InMore: true, NeedsRepository: true),
+
+        //`rm` deletes, so it is last: the destructive entry is the one furthest from the pointer's
+        //resting place. Neither is on the folder menu -- `git add` on a directory stages everything
+        //under it and `git rm -r` removes it, which is a blast radius a single click should not have.
+        new("add", VerbKind.Add, 101, ActionSurfaces.File, "add.ico", InMore: true, NeedsRepository: true),
+        new("rm", VerbKind.Remove, 102, ActionSurfaces.File, "remove.ico", InMore: true, NeedsRepository: true),
 
         new("switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Branch),

@@ -302,6 +302,9 @@ src/
 │   ├── Diff/                DiffService, FileTextLoader, WorkingTreeWriter,
 │   │                        DiffDocument, and Hunks + PatchService -- the patch
 │   │                        generator and `git apply --cached`
+│   ├── Files/               FileTrackingService -- `git add` and `git rm` on the one
+│   │                        file the Explorer file menu was opened on. Neither is ever
+│   │                        forced, recursive, or a pathspec that can glob.
 │   ├── Commits/             CommitService, and CommitFlow -- the stage/switch/
 │   │                        verify/commit/push sequence
 │   ├── Blame/               BlameService and BlamePorcelainParser -- the annotation,
@@ -424,6 +427,8 @@ flick submodule <path>               submodules: add, remove, initialise
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
 flick blame <file>                   who last touched each line, and what came before
+flick add <file>                     stage one file, tracking it if it is new
+flick rm <file>                      delete one file and stage the deletion; asks first
 flick repo <path>                    identity, remotes and this repository's defaults
 flick run <id> [path]                run a catalog action by id
 flick palette                        global repository palette
@@ -3075,13 +3080,46 @@ answers for the thing that was clicked. A right-clicked **file** gets its own, m
 … the rest of the Explorer context menu …
 ─────────────────────────────────────────
 FlickGit                          ▸
-      └── Blame…
+      ├── Blame…
+      ├── Add
+      └── Remove…
 ```
 
 Nothing else applies to a file, and the folder entries are absent rather than greyed out. This is the
 one thing a static registry verb cannot do — a verb is written once and drawn on every file on the
 machine, repository or not — which is why the file surface is handler-only and has no static
 fallback. `ActionSurfaces.File` is what puts an action here.
+
+### Add and Remove
+
+`git add` and `git rm`, on the one file that was clicked. `FileTrackingService` is the whole of it,
+and the two verbs answer in text rather than in a window, so `flick add <file>` and `flick rm <file>`
+are the same code path.
+
+**Add stages the file**, which for one Git has never seen is what starts tracking it. Nothing to
+confirm: staging discards nothing, and unticking the row in the commit window is how it comes back
+out.
+
+**Remove deletes the file and stages the deletion** — TortoiseGit's Delete, and a different operation
+from the file list's **Deleting one**, which sends the file to the Recycle Bin and runs no Git command
+at all. Four rules make it safe enough to sit behind one question:
+
+- **Nothing is forced.** `git rm` without `-f` refuses a file whose content differs from both HEAD and
+  the index, so "never discard uncommitted work" is enforced by Git rather than by us. What is left
+  is recoverable: HEAD still has the content, and **Reverting one** puts it back.
+- **An untracked file is refused before the question is asked**, because Git's own answer —
+  `fatal: pathspec … did not match any files` — is accurate about a question the user did not ask.
+  The exit code stays Git's, so a script branches on the same number either way.
+- **It asks on every surface, and with a dialog even from the command line.** The same rule and the
+  same reason as creating an upstream: the fast surfaces are not shortcuts around **Safety Rules**.
+- **The pathspec cannot glob.** Everything after `--` is still a pathspec, so `a[1].txt` — an ordinary
+  Windows file name — is read as a character class and matches `a1.txt` instead. Both commands pass
+  `:(literal)<path>`, which is what makes one click delete exactly one file.
+
+**Neither is on the folder menu.** `git add` on a directory stages everything under it and `git rm -r`
+removes it, which is a blast radius a single click should not have — and there is no `-r` anywhere in
+the service. A directory reaching `rm` from the command line is refused by Git, in words that name the
+flag it would need.
 
 Two entries in the context menu itself, because those are the two the user performs all day.
 **Show log… was considered for a third and left in the submenu**, on that same rule: the root
@@ -3969,6 +4007,9 @@ the *arguments* are assertable, which is the half a temporary repository would h
 - A diverged push is refused, with no state change
 - Reverting a file names one path after `--` and takes both sides from HEAD, and a row HEAD does
   not have — untracked, added, renamed, conflicted — is refused before any command runs
+- The file menu's `git rm` names one path after `--` and carries no `-f` and no `-r`, and both it and
+  `git add` pass the path as `:(literal)…` so a bracketed file name cannot glob onto another file
+- An untracked path answers "not tracked" from one `ls-files -z` read, and no `rm` runs at all
 - No argument list ever contains `add -A`, `add .`, `reset --hard`, `clean -fd` or `push --force`
 - Opening a pull request reaches a remote only through `PushService`, so no `--force`, `-f` or
   `--force-with-lease` can appear on that path either

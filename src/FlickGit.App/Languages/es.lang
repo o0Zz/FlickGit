@@ -82,6 +82,23 @@ revert.done = {0} revertido
 revert.failed = No se pudo revertir {0}:
 revert.binned = La versión que estaba en el disco está en la Papelera de reciclaje.
 
+# ---- menú contextual de un archivo ----
+# Clic derecho sobre un *archivo*, junto a Blame. `add` lo prepara — que para un archivo que Git
+# nunca ha visto es empezar a seguirlo; `rm` lo elimina y prepara la eliminación, y por eso solo ese
+# pregunta.
+# {0} ruta relativa al repositorio
+file.added = {0} preparado
+file.removed = {0} eliminado — la eliminación está preparada, no confirmada.
+file.untracked = Git no sigue {0}, así que no hay nada que quitar. La eliminación del Explorador borra el archivo en sí.
+# {0} la ruta tal como se dio, {1} raíz del repositorio
+file.outside = {0} está fuera de {1} y no se tocará.
+# {0} la ruta tal como se dio
+file.notafile = {0} es una carpeta. «Añadir» y «Eliminar» actúan sobre un solo archivo.
+file.remove.title = Eliminar archivo
+# {0} ruta relativa al repositorio
+file.remove.ask = ¿Eliminar {0}?\n\nSe borra del disco y la eliminación queda preparada, no confirmada. HEAD sigue teniendo el archivo, así que «Revertir archivo…» lo devuelve.\n\nGit se niega si el archivo tiene cambios que nunca se confirmaron.
+file.remove.yes = Eliminar
+
 # ---- visor de diferencias ----
 diff.mode.head = Copia de trabajo ↔ HEAD
 diff.left.readonly = ← solo lectura
@@ -372,6 +389,8 @@ action.switch = Ramas…
 action.tag = Etiquetas…
 action.log = Mostrar historial…
 action.blame = Blame…
+action.add = Añadir
+action.rm = Eliminar…
 action.repo = Configuración del repositorio…
 action.clone = Clonar…
 action.terminal = Abrir un terminal aquí

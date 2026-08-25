@@ -82,6 +82,23 @@ revert.done = {0} ripristinato
 revert.failed = Impossibile ripristinare {0}:
 revert.binned = La versione che era sul disco è nel Cestino.
 
+# ---- menu contestuale di un file ----
+# Clic destro su un *file*, accanto a Blame. `add` lo mette nell'indice — per un file che Git non ha
+# mai visto significa iniziare a tracciarlo; `rm` lo elimina e mette l'eliminazione nell'indice, ed è
+# per questo che solo quello chiede.
+# {0} percorso relativo al repository
+file.added = {0} aggiunto all'indice
+file.removed = {0} eliminato — l'eliminazione è nell'indice, non nel commit.
+file.untracked = Git non traccia {0}, quindi non c'è nulla da rimuovere. L'eliminazione di Explorer cancella il file stesso.
+# {0} il percorso così come è stato passato, {1} radice del repository
+file.outside = {0} è fuori da {1} e non verrà toccato.
+# {0} il percorso così come è stato passato
+file.notafile = {0} è una cartella. «Aggiungi» e «Rimuovi» agiscono su un solo file.
+file.remove.title = Rimuovi il file
+# {0} percorso relativo al repository
+file.remove.ask = Rimuovere {0}?\n\nViene cancellato dal disco e l'eliminazione va nell'indice, non nel commit. HEAD ce l'ha ancora, quindi «Ripristina il file…» lo rimette a posto.\n\nGit rifiuta se il file contiene modifiche mai confermate.
+file.remove.yes = Rimuovi
+
 # ---- visualizzatore diff ----
 diff.mode.head = Copia di lavoro ↔ HEAD
 diff.left.readonly = ← sola lettura
@@ -372,6 +389,8 @@ action.switch = Rami…
 action.tag = Tag…
 action.log = Mostra il log…
 action.blame = Blame…
+action.add = Aggiungi
+action.rm = Rimuovi…
 action.repo = Impostazioni del repository…
 action.clone = Clona…
 action.terminal = Apri un terminale qui

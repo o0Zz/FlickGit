@@ -33,6 +33,22 @@ public enum VerbKind
     /// <summary>The blame window. Its path is a <b>file</b>, not a directory.</summary>
     Blame,
 
+    /// <summary>
+    /// <c>git add</c> on one file, which for a file Git has never seen is what starts tracking it.
+    /// A <b>file</b> path, like <see cref="Blame"/> and <see cref="Remove"/>.
+    /// </summary>
+    Add,
+
+    /// <summary>
+    /// <c>git rm</c> on one file: gone from the working tree, and the deletion staged.
+    ///
+    /// Spelled <c>rm</c> rather than <c>remove</c> or <c>delete</c>, because it is <i>exactly</i>
+    /// <c>git rm</c> and a second word for it would be a second thing to remember. It asks before it
+    /// runs, on every surface — see <c>RepositoryVerbs</c> — which is what CLAUDE.md's "explicit user
+    /// intent, expressed in the moment" means for a verb a script can also reach.
+    /// </summary>
+    Remove,
+
     Clone,
 
     /// <summary>
@@ -155,6 +171,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "status" => VerbKind.Status,
             "log" => VerbKind.Log,
             "blame" => VerbKind.Blame,
+            "add" => VerbKind.Add,
+            "rm" => VerbKind.Remove,
             "repo" => VerbKind.Repo,
             "terminal" => VerbKind.Terminal,
             "clone" => VerbKind.Clone,
@@ -213,6 +231,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick status <path>
           flick log <path>                    commit history; multi-select for a combined diff
           flick blame <file>                  who last touched each line, and what was there before
+          flick add <file>                    stage one file, tracking it if it is new
+          flick rm <file>                     delete one file and stage the deletion; asks first
           flick repo <path>                   the identity it commits as, its remotes, its defaults
           flick submodule <path>              submodules: add, remove, initialise
           flick terminal <path>               open a terminal there

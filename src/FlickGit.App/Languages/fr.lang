@@ -82,6 +82,23 @@ revert.done = {0} rétabli
 revert.failed = {0} n'a pas pu être rétabli :
 revert.binned = La version qui était sur le disque est dans la corbeille.
 
+# ---- menu contextuel d'un fichier ----
+# Clic droit sur un *fichier*, à côté de Blame. `add` l'indexe — ce qui, pour un fichier que Git n'a
+# jamais vu, revient à commencer à le suivre ; `rm` le supprime et indexe la suppression, et c'est
+# pour cela que seul celui-là pose une question.
+# {0} chemin relatif au dépôt
+file.added = {0} indexé
+file.removed = {0} supprimé — la suppression est indexée, pas validée.
+file.untracked = Git ne suit pas {0} : il n'y a rien à retirer. La suppression d'Explorer efface le fichier lui-même.
+# {0} le chemin tel qu'il a été donné, {1} racine du dépôt
+file.outside = {0} est en dehors de {1} et ne sera pas touché.
+# {0} le chemin tel qu'il a été donné
+file.notafile = {0} est un dossier. « Ajouter » et « Supprimer » agissent sur un seul fichier.
+file.remove.title = Supprimer le fichier
+# {0} chemin relatif au dépôt
+file.remove.ask = Supprimer {0} ?\n\nLe fichier est effacé du disque et la suppression est indexée, pas validée. HEAD l'a toujours : « Rétablir le fichier… » le remet en place.\n\nGit refuse si le fichier contient des modifications jamais validées.
+file.remove.yes = Supprimer
+
 # ---- visionneuse de diff ----
 diff.mode.head = Copie de travail ↔ HEAD
 diff.left.readonly = ← lecture seule
@@ -372,6 +389,8 @@ action.switch = Branches…
 action.tag = Étiquettes…
 action.log = Afficher le journal…
 action.blame = Blame…
+action.add = Ajouter
+action.rm = Supprimer…
 action.repo = Paramètres du dépôt…
 action.clone = Cloner…
 action.terminal = Ouvrir un terminal ici

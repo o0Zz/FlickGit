@@ -99,6 +99,23 @@ revert.done = Reverted {0}
 revert.failed = {0} could not be reverted:
 revert.binned = The version that was on disk is in the Recycle Bin.
 
+# ---- the Explorer file menu ----
+# Right-click a *file*, beside Blame. `add` stages it, which for a file Git has never seen is what
+# starts tracking it; `rm` deletes it and stages the deletion, which is why only that one asks.
+# {0} repository-relative path
+file.added = Staged {0}
+file.removed = Removed {0} — the deletion is staged, not committed.
+file.untracked = Git is not tracking {0}, so there is nothing for it to remove. Explorer's own Delete removes the file itself.
+# {0} the path as it was given, {1} repository root
+file.outside = {0} is outside {1} and will not be touched.
+# {0} the path as it was given. Reached from a terminal, never from the menu: the entries are on
+# files only, and `git add` on a directory would stage everything under it.
+file.notafile = {0} is a folder. Add and Remove act on one file.
+file.remove.title = Remove file
+# {0} repository-relative path
+file.remove.ask = Remove {0}?\n\nIt is deleted from disk and the deletion is staged, not committed. HEAD still has the file, so Revert file… puts it back.\n\nGit refuses if the file holds changes that were never committed.
+file.remove.yes = Remove
+
 # ---- diff viewer ----
 diff.mode.head = Working tree ↔ HEAD
 diff.left.readonly = ← read-only
@@ -585,6 +602,8 @@ action.switch = Branches…
 action.tag = Tags…
 action.log = Show log…
 action.blame = Blame…
+action.add = Add
+action.rm = Remove…
 action.repo = Repository settings…
 action.submodule = Submodules…
 action.clone = Clone…

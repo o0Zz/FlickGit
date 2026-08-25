@@ -55,7 +55,8 @@ public sealed class VerbRunner(
     private static bool NeedsRepository(VerbKind kind) =>
         kind is VerbKind.Commit or VerbKind.Status or VerbKind.PullRebase
             or VerbKind.Switch or VerbKind.Push or VerbKind.Tag or VerbKind.Log
-            or VerbKind.Blame or VerbKind.Repo or VerbKind.PullRequest
+            or VerbKind.Blame or VerbKind.Add or VerbKind.Remove
+            or VerbKind.Repo or VerbKind.PullRequest
             or VerbKind.Submodule;
 
     /// <summary>
@@ -169,6 +170,11 @@ public sealed class VerbRunner(
             //`verb.Path` is the clicked *file*, which routing carries through untouched --
             //`repository` was resolved from its directory.
             VerbKind.Blame => await windowVerbs.BlameAsync(output, repository!, verb.Path!).ConfigureAwait(true),
+
+            //The other two file verbs, and the same carried-through path. They answer in text rather than
+            //in a window, which is why they are the repository verbs' and not the window verbs'.
+            VerbKind.Add => await repositoryVerbs.AddFileAsync(output, repository!, verb.Path!).ConfigureAwait(true),
+            VerbKind.Remove => await repositoryVerbs.RemoveFileAsync(output, repository!, verb.Path!).ConfigureAwait(true),
 
             //`status` is text, always. It used to open the commit window when there was no console to
             //print into, which is every click -- so the catalog's entry for it was the root Commit

@@ -1,8 +1,11 @@
+using System.IO;
 using FlickGit.App.Localization;
 using FlickGit.App.Views;
 using FlickGit.Branches;
 using FlickGit.Cli;
 using FlickGit.Commits;
+using FlickGit.Diff;
+using FlickGit.Files;
 using FlickGit.Models;
 using FlickGit.Remotes;
 using FlickGit.Status;
@@ -11,7 +14,8 @@ using FlickGit.Tags;
 namespace FlickGit.App.CommandLine;
 
 /// <summary>
-/// The verbs that answer with text about a repository: status, switch, tag, push.
+/// The verbs that answer with text about a repository: status, switch, tag, push, and the two that
+/// act on one file.
 ///
 /// Text rather than a window is the product's distinction, not this file's: the CLI stub waits for
 /// exactly these and forwards their exit code, and refuses to wait for the ones that open something.
@@ -28,6 +32,7 @@ public sealed class RepositoryVerbs(
     SwitchService switches,
     PushService pushes,
     TagService tags,
+    FileTrackingService files,
     UpstreamConsent consent)
 {
     /// <summary>`flick status` — the file list as text.</summary>
@@ -215,6 +220,125 @@ public sealed class RepositoryVerbs(
 
         output.Fail(Strings.Get("push.button"), outcome.Error ?? string.Empty);
         return VerbResult.Exit(outcome.Refused ? ExitCodes.RefusedForSafety : ExitCodes.GitError);
+    }
+
+    /// <summary>
+    /// `flick add &lt;file&gt;` — the Explorer file menu's Add, and the CLI spelling of it.
+    ///
+    /// Nothing to confirm: staging discards nothing, and unticking the row in the commit window is
+    /// how it is taken back out again.
+    /// </summary>
+    public async Task<VerbResult> AddFileAsync(VerbOutput output, RepositoryInfo repository, string path)
+    {
+        string title = Strings.Get("action.add");
+
+        if (OneFileIn(output, title, repository, path) is not { } relative)
+            return VerbResult.Exit(ExitCodes.NotARepository);
+
+        TrackingResult result = await files
+            .AddAsync(repository, relative, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (!result.Succeeded)
+        {
+            output.Fail(title, result.Error ?? string.Empty);
+            return VerbResult.Exit(ExitCodes.GitError);
+        }
+
+        output.Say(title, Strings.Get("file.added", relative));
+        return VerbResult.Exit(ExitCodes.Success);
+    }
+
+    /// <summary>
+    /// `flick rm &lt;file&gt;` — the file menu's Remove: gone from the working tree, and the deletion
+    /// staged, not committed.
+    ///
+    /// <b>It asks first, on every surface, and a dialog even from the command line</b> — the same
+    /// rule and the same reason as <see cref="ConsentToUpstreamAsync"/>: CLAUDE.md's Safety Rules
+    /// want explicit intent expressed in the moment, and the fast surfaces are not shortcuts around
+    /// them. Nothing is forced afterwards, so Git still refuses a file whose content differs from
+    /// both HEAD and the index, and the confirmation says what remains recoverable rather than
+    /// promising more than that.
+    ///
+    /// An untracked file is refused <i>before</i> the question, because a question about an operation
+    /// that cannot happen is worse than the refusal it precedes.
+    /// </summary>
+    public async Task<VerbResult> RemoveFileAsync(VerbOutput output, RepositoryInfo repository, string path)
+    {
+        string title = Strings.Get("action.rm");
+
+        if (OneFileIn(output, title, repository, path) is not { } relative)
+            return VerbResult.Exit(ExitCodes.NotARepository);
+
+        if (!await files.IsTrackedAsync(repository, relative, CancellationToken.None).ConfigureAwait(true))
+        {
+            //Git's own answer here is `fatal: pathspec … did not match any files`, which is accurate
+            //about a question the user did not ask. The exit code is still Git's, so a script branches
+            //on the same number either way.
+            output.Fail(title, Strings.Get("file.untracked", relative));
+            return VerbResult.Exit(ExitCodes.GitError);
+        }
+
+        if (!ConfirmWindow.Ask(
+                null,
+                Strings.Get("file.remove.title"),
+                Strings.Get("file.remove.ask", relative),
+                Strings.Get("file.remove.yes"),
+                Strings.Get("common.cancel")))
+        {
+            return VerbResult.Exit(ExitCodes.UserCancelled);
+        }
+
+        TrackingResult result = await files
+            .RemoveAsync(repository, relative, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (!result.Succeeded)
+        {
+            output.Fail(title, result.Error ?? string.Empty);
+            return VerbResult.Exit(ExitCodes.GitError);
+        }
+
+        output.Say(title, Strings.Get("file.removed", relative));
+        return VerbResult.Exit(ExitCodes.Success);
+    }
+
+    /// <summary>
+    /// The clicked file as the repository-relative, forward-slashed path Git speaks — or null after
+    /// saying why it is not one.
+    ///
+    /// Two refusals, and the first is the one a terminal reaches: <c>flick add</c> with no path
+    /// defaults to the working directory, and a whole directory handed to <c>git add</c> stages
+    /// everything under it. The menu cannot produce that — the entries are on files only — so this is
+    /// where the command line is told the same thing the surface already knows.
+    ///
+    /// The second is <c>WorkingTreeWriter</c>'s own guard rather than a second answer to the same
+    /// question: a path that resolves outside the root is either a bug or an attack, and this is not
+    /// the layer that guesses which.
+    /// </summary>
+    private static string? OneFileIn(
+        VerbOutput output,
+        string title,
+        RepositoryInfo repository,
+        string path)
+    {
+        string full = Path.GetFullPath(path);
+
+        if (Directory.Exists(full))
+        {
+            output.Fail(title, Strings.Get("file.notafile", full));
+            return null;
+        }
+
+        string relative = Path.GetRelativePath(repository.Root, full).Replace('\\', '/');
+
+        if (WorkingTreeWriter.ResolveInsideRepository(repository.Root, relative) is null)
+        {
+            output.Fail(title, Strings.Get("file.outside", full, repository.Root));
+            return null;
+        }
+
+        return relative;
     }
 
     /// <summary>

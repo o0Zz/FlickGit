@@ -325,6 +325,26 @@ is how you get past the reformat that touched every line to the change that actu
 Nothing here changes the repository. You can also reach it from the log window: right-click a file
 there to blame it at the commit you are reading rather than at the working tree.
 
+## Add and Remove a file
+
+The other two entries on a **file**'s FlickGit menu, beside Blame.
+
+**Add** stages the file, which for one Git has never seen is what starts tracking it. Nothing is
+committed, so the file simply turns up ticked in the commit window. There is nothing to confirm and
+nothing to undo — untick the row and it is out again.
+
+**Remove…** deletes the file and stages the deletion, and asks first because it is the one that
+deletes. Two things are worth knowing before you press it:
+
+- **Git refuses if the file holds changes that were never committed**, and says which file. Nothing
+  is forced, so nothing you have not committed can be lost this way.
+- **HEAD still has the file**, so **Revert file…** in the commit window puts it back. What it does
+  *not* do is send anything to the Recycle Bin — that is **Delete file…** in the commit window, which
+  removes the file and runs no Git command at all.
+
+An untracked file has nothing for Git to remove, and says so: Explorer's own Delete is what removes
+the file itself. Both entries act on the one file you clicked, and neither appears on a folder.
+
 ## Command line
 
 Everything in the menus is also a verb. `<path>` defaults to the current directory.
@@ -337,6 +357,8 @@ flick submodule <path>           add, remove, initialise submodules
 flick pr <path>                  open a pull request for this branch
 flick log <path>                 commit history + combined diffs
 flick blame <file>               who wrote each line
+flick add <file>                 stage one file
+flick rm <file>                  delete one file, staged; asks first
 flick palette                    flick clone <path> [url]
 flick settings                   flick terminal <path>
                                  flick run <id> [path]

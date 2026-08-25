@@ -82,6 +82,23 @@ revert.done = {0} zurückgesetzt
 revert.failed = {0} konnte nicht zurückgesetzt werden:
 revert.binned = Die Version, die auf der Festplatte lag, liegt im Papierkorb.
 
+# ---- Kontextmenü einer Datei ----
+# Rechtsklick auf eine *Datei*, neben Blame. `add` staged sie — bei einer Datei, die Git noch nie
+# gesehen hat, beginnt damit die Versionierung; `rm` löscht sie und staged das Löschen, weshalb nur
+# dieser Eintrag fragt.
+# {0} repository-relativer Pfad
+file.added = {0} gestaged
+file.removed = {0} gelöscht — das Löschen ist gestaged, nicht committet.
+file.untracked = Git verfolgt {0} nicht, es gibt also nichts zu entfernen. Das Löschen im Explorer entfernt die Datei selbst.
+# {0} der übergebene Pfad, {1} Repository-Wurzel
+file.outside = {0} liegt außerhalb von {1} und wird nicht angetastet.
+# {0} der übergebene Pfad
+file.notafile = {0} ist ein Ordner. „Hinzufügen“ und „Entfernen“ arbeiten auf einer einzelnen Datei.
+file.remove.title = Datei entfernen
+# {0} repository-relativer Pfad
+file.remove.ask = {0} entfernen?\n\nDie Datei wird von der Festplatte gelöscht und das Löschen wird gestaged, nicht committet. HEAD hat sie weiterhin, „Datei zurücksetzen…“ holt sie zurück.\n\nGit verweigert es, wenn die Datei nie committete Änderungen enthält.
+file.remove.yes = Entfernen
+
 # ---- Diff-Ansicht ----
 diff.mode.head = Arbeitsverzeichnis ↔ HEAD
 diff.left.readonly = ← schreibgeschützt
@@ -372,6 +389,8 @@ action.switch = Branches…
 action.tag = Tags…
 action.log = Log anzeigen…
 action.blame = Blame…
+action.add = Hinzufügen
+action.rm = Entfernen…
 action.repo = Repository-Einstellungen…
 action.clone = Klonen…
 action.terminal = Terminal hier öffnen

@@ -76,6 +76,9 @@ pre-warmed. It is an optimisation, never a dependency — with it stopped, every
   at once. Read-only, with **Save as patch…**.
 - **Blame, with the walk back** — right-click a file, then **Blame previous revision** to re-blame
   it as it was before that commit, following renames, until Git says there is nothing before it.
+- **Add and Remove, on a file** — the same right-click stages one file, or deletes it and stages the
+  deletion after one question. Nothing is forced, so Git still refuses a file holding changes that
+  were never committed.
 
 **AI**
 
