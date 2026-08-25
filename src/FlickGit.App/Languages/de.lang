@@ -434,7 +434,7 @@ settings.ai.key.stored = Für {0} ist ein Schlüssel in der Windows-Anmeldeinfor
 settings.ai.key.missing = Für {0} ist kein Schlüssel gespeichert. Ohne Schlüssel wird nichts erzeugt.
 settings.ai.key.notneeded = Ollama läuft auf {0} und braucht keinen Schlüssel. Setzen Sie aiModel in settings.json auf das gewünschte Modell — `ollama list` zeigt sie an.
 
-settings.advanced = Alles Weitere wird in diesen beiden Dateien eingestellt:
+settings.advanced = Alles Weitere wird in diesen Dateien eingestellt:
 settings.advanced.open = Konfigurationsordner öffnen
 settings.save = Speichern
 settings.savefailed = settings.json konnte nicht geschrieben werden: {0}

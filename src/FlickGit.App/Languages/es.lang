@@ -434,7 +434,7 @@ settings.ai.key.stored = Hay una clave guardada para {0}, en el Administrador de
 settings.ai.key.missing = No hay clave guardada para {0}. No se generará nada hasta que haya una.
 settings.ai.key.notneeded = Ollama se ejecuta en {0} y no necesita clave. Defina aiModel en settings.json con el modelo que quiera — ejecute `ollama list` para verlos.
 
-settings.advanced = Todo lo demás se configura en estos dos archivos:
+settings.advanced = Todo lo demás se configura en estos archivos:
 settings.advanced.open = Abrir la carpeta de configuración
 settings.save = Guardar
 settings.savefailed = No se pudo escribir settings.json: {0}

@@ -172,6 +172,37 @@ matching a secret pattern is redacted or dropped.
 The AI is never a dependency. If it is slow, unreachable or unconfigured, the message box is an
 ordinary text box and every button still works.
 
+### Changing what the AI is asked
+
+The wording FlickGit sends is two Markdown files in `%LOCALAPPDATA%\FlickGit`, written the first
+time it runs:
+
+- **`commit-prompt.md`** — how a commit message is written.
+- **`pull-request-prompt.md`** — how a pull request title and description are written.
+
+Edit one and the next message uses it. There is nothing to restart, and nothing to press.
+
+The whole file is the prompt, sent as written. HTML comments are removed first, so the notes at the
+top of each file are for you rather than for the model — and so you can comment a rule out instead
+of deleting it. **Delete a file to start over** — FlickGit writes it again with its built-in prompt
+the next time it runs. A file with nothing left in it is refused and the built-in is used instead,
+which `flick ai` will tell you.
+
+Because FlickGit always prefers these files to its own wording, a later version that improves the
+built-in prompt will not change what you see here.
+
+While `commit-prompt.md` exists, `aiConventionalCommits` is not consulted — your file is the whole
+prompt, so say there whether you want Conventional Commits.
+
+What you cannot change here is what FlickGit puts underneath: the branch, the files you are
+committing, the files held back and why, and the capped, redacted diff. That half is what decides
+what leaves the machine, and no prompt can widen it.
+
+```
+flick ai              names the file in use, or says built-in
+flick diag doctor     the same in one line
+```
+
 ## The log
 
 **Show log…** in the FlickGit submenu, or `flick log`. A commit list, what each commit changed,
@@ -261,13 +292,15 @@ error, `5` refused for safety.
 
 ## Configuration files
 
-Everything this window does not show lives in two files, in
+Everything this window does not show lives in four files, in
 `%LOCALAPPDATA%\FlickGit`:
 
 - **`settings.json`** — hotkeys, diff font, AI provider and model, palette scan roots, the
   primary-branch override.
 - **`actions.json`** — your own context-menu and palette entries, and overrides that hide,
   rename or reorder the built-in ones.
+- **`commit-prompt.md`** and **`pull-request-prompt.md`** — what the AI is asked for (see
+  **Commit messages**). Delete either one to go back to the built-in wording.
 
 Two more live in the repository's own `.git/config`, because they are facts about that repository
 rather than about you: `flickgit.pullRequestTarget` and `flickgit.forge` (see **Pull requests**),

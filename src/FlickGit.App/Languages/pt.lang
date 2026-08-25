@@ -434,7 +434,7 @@ settings.ai.key.stored = Está guardada uma chave para {0}, no Gestor de Credenc
 settings.ai.key.missing = Não há chave guardada para {0}. Nada será gerado até existir uma.
 settings.ai.key.notneeded = O Ollama é executado em {0} e não precisa de chave. Defina aiModel no settings.json com o modelo que quiser — execute `ollama list` para os ver.
 
-settings.advanced = Tudo o resto configura-se nestes dois ficheiros:
+settings.advanced = Tudo o resto configura-se nestes ficheiros:
 settings.advanced.open = Abrir a pasta de configuração
 settings.save = Guardar
 settings.savefailed = Não foi possível escrever o settings.json: {0}

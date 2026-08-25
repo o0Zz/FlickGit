@@ -434,7 +434,7 @@ settings.ai.key.stored = Une clé est enregistrée pour {0}, dans le Gestionnair
 settings.ai.key.missing = Aucune clé enregistrée pour {0}. Rien ne sera généré tant qu'il n'y en a pas.
 settings.ai.key.notneeded = Ollama s'exécute sur {0} et ne nécessite aucune clé. Renseignez aiModel dans settings.json avec le modèle voulu — `ollama list` les affiche.
 
-settings.advanced = Tout le reste se configure dans ces deux fichiers :
+settings.advanced = Tout le reste se configure dans ces fichiers :
 settings.advanced.open = Ouvrir le dossier de configuration
 settings.save = Enregistrer
 settings.savefailed = settings.json n'a pas pu être écrit : {0}

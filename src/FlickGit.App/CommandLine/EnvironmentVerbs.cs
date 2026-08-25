@@ -29,6 +29,7 @@ public sealed class EnvironmentVerbs(
     TriggerService trigger,
     AiTextService messages,
     AiConfiguration ai,
+    PromptStore prompts,
     CredentialStore keys,
     ActionCatalog catalog,
     GitExecutable git,
@@ -199,6 +200,17 @@ public sealed class EnvironmentVerbs(
         }
         output.Line($"max diff     {ai.Options.MaxDiffBytes / 1024} KB (hard ceiling {DiffPayload.TokenCeilingBytes / 1024} KB of payload)");
 
+        ResolvedPrompt commit = prompts.ForCommit(ai.Options.ConventionalCommits);
+
+        output.Line($"prompt       {DescribePrompt(commit, PromptStore.CommitFileName)}");
+
+        //Only when it would otherwise look ignored. The setting is real and does nothing while a file
+        //is in use, and a user who set it and saw no change has no other way to find that out.
+        if (commit.Source is not null && ai.Options.ConventionalCommits)
+            output.Line("             aiConventionalCommits is not consulted while that file exists");
+
+        output.Line($"pr prompt    {DescribePrompt(prompts.ForPullRequest(), PromptStore.PullRequestFileName)}");
+
         //Only worth a round trip when a request could actually be made.
         if (messages.IsUsable)
         {
@@ -313,6 +325,7 @@ public sealed class EnvironmentVerbs(
         output.Line($"palette roots    {DescribeScanRoots()}");
         output.Line($"actions          {DescribeActions()}");
         output.Line($"ai               {DescribeAi()}");
+        output.Line($"prompts          {DescribePrompts()}");
         output.Line($"language         {DescribeLanguage()}");
         output.Line($"settings         {FlickSettings.FilePath}");
         output.Line($"logs             {FileLog.DefaultDirectory}");
@@ -368,6 +381,40 @@ public sealed class EnvironmentVerbs(
             return $"{name} (no model — set aiModel; `ollama list` shows what is installed)";
 
         return $"{name} ({model})";
+    }
+
+    /// <summary>
+    /// One prompt, for `flick ai`: the file it came from, or the built-in and why.
+    ///
+    /// A deleted file is not a fault -- deleting one is how a user goes back to the built-in -- so it
+    /// reads as a statement rather than as a problem, and only a file that exists and could not be
+    /// used carries a reason.
+    /// </summary>
+    private static string DescribePrompt(ResolvedPrompt prompt, string fileName) =>
+        prompt.Source
+            ?? (prompt.Error is { Length: > 0 } error
+                ? $"built-in — {error}"
+                : $"built-in ({fileName} is not there; it is written at startup)");
+
+    /// <summary>
+    /// Both prompts in one line, for doctor. Shaped like <see cref="DescribeActions"/>: a summary,
+    /// and the reason appended when a file that exists was not used.
+    /// </summary>
+    private string DescribePrompts()
+    {
+        ResolvedPrompt commit = prompts.ForCommit(ai.Options.ConventionalCommits);
+        ResolvedPrompt pullRequest = prompts.ForPullRequest();
+
+        //"from file" rather than "custom": the files are seeded at first run, so every install would
+        //read as customised and the word would carry no signal. What doctor is being asked is which
+        //of the two is actually in use.
+        string summary =
+            $"commit {(commit.Source is not null ? "from file" : "built-in")}, " +
+            $"pr {(pullRequest.Source is not null ? "from file" : "built-in")}";
+
+        string[] errors = [.. new[] { commit.Error, pullRequest.Error }.OfType<string>()];
+
+        return errors.Length > 0 ? $"{summary} - {string.Join("; ", errors)}" : summary;
     }
 
     /// <summary>

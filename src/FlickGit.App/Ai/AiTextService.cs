@@ -29,6 +29,7 @@ public readonly record struct GenerationOutcome(bool Succeeded, string Message, 
 public sealed class AiTextService(
     IAiGenerator generator,
     AiContextBuilder contexts,
+    PromptStore prompts,
     AiConfiguration config,
     Notifier notifier,
     OperationTimings timings,
@@ -73,7 +74,10 @@ public sealed class AiTextService(
 
         return await StreamAsync(
             new AiPrompt(
-                CommitPrompt.For(config.Options.ConventionalCommits),
+                //Read per generation, not cached: editing commit-prompt.md takes effect on the next
+                //message, which is what makes iterating on the wording possible without restarting
+                //the resident service.
+                prompts.ForCommit(config.Options.ConventionalCommits).Text,
                 context.ToPromptText(),
                 AiOptions.CommitMaxTokens),
             "ai",
@@ -121,7 +125,7 @@ public sealed class AiTextService(
             return refused;
 
         return await StreamAsync(
-            new AiPrompt(PullRequestPrompt.System, context.ToPromptText(), AiOptions.PullRequestMaxTokens),
+            new AiPrompt(prompts.ForPullRequest().Text, context.ToPromptText(), AiOptions.PullRequestMaxTokens),
 
             //Its own timing prefix, so `flick diag timings` can show that a description takes longer than a
             //commit message rather than averaging the two into one meaningless number.

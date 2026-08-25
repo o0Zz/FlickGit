@@ -313,11 +313,14 @@ src/
 │   │                        ActionSafety, ActionPlaceholders, actions.json
 │   ├── Palette/             RepositoryScanner and the cached overview the palette
 │   │                        paints from before Git is asked anything
-│   ├── Ai/                  What may leave the machine (DiffPayload,
-│   │                        CommitContextBuilder, PullRequestContextBuilder) and the
-│   │                        three providers. AiEndpoint is the request all three make,
-│   │                        and IAiGenerator takes a prompt rather than a commit --
-│   │                        which is what lets a second surface use them.
+│   ├── Ai/                  What may leave the machine (DiffPayload, AiContextBuilder --
+│   │                        one builder, because the two surfaces differ only in their
+│   │                        revisions) and the four providers. AiEndpoint is the request
+│   │                        they all make, and IAiGenerator takes a prompt rather than a
+│   │                        commit -- which is what lets a second surface use them.
+│   │                        PromptStore is the other half of that: the system prompt as
+│   │                        a file the user owns, with CommitPrompt and
+│   │                        PullRequestPrompt left as the built-in it falls back to.
 │   ├── Forges/              Pull requests, on GitHub, GitLab and Azure DevOps.
 │   │                        ForgeUrl is the parser; PullRequestService assembles the
 │   │                        plan; PullRequestFlow is the push-then-create order;
@@ -1644,6 +1647,11 @@ started into the payload, and the model would faithfully describe somebody else'
 description, which is a title plus a few paragraphs of Markdown. One number would either truncate the
 second or stop guarding the first.
 
+**The prompt is a file too**, `%LOCALAPPDATA%\FlickGit\pull-request-prompt.md`, on the same terms as the
+commit one — see **Prompt**. Its seeded header carries one rule the other does not: keep the
+first-line-is-the-title shape, because `PullRequestPrompt.Split` is what fills the two boxes, and a
+prompt that asks for JSON or a `Title:` label puts that text in the title box.
+
 **With no AI configured the window still works**, which is what "the AI is an accelerator, never a
 dependency" requires: the title prefills from the single commit's subject or from the branch name,
 and the description from the commit subjects as a bulleted list. Neither is ever overwritten once the
@@ -2097,6 +2105,33 @@ Rules:
 
 Input: the capped diff, changed file names, optionally the branch name. Never send the whole
 repository.
+
+**That text is the default, not the prompt.** It lives in `CommitPrompt`, and `PromptStore` puts it
+in `%LOCALAPPDATA%\FlickGit\commit-prompt.md` the first time FlickGit runs, from where the user
+owns it. What the file says is sent verbatim; HTML comments are stripped first, which is the one
+piece of syntax in it and exists so the seeded header can explain itself without reaching the model.
+A file with no prompt left in it is refused rather than sent — an empty system prompt does not fail,
+it produces confident nonsense. **Deleting one resets it, it does not unbind from it:** the seed runs
+on every launch, because "missing" is the only signal there is and a marker file would be state
+nobody asked for, so the file comes back holding the built-in wording. The header says so rather than
+promising otherwise. The cost is that a later build improving the built-in prompt does not reach an
+install that already has one written — accepted, because on-demand seeding buys that back only by
+making the feature undiscoverable, which is the failure the AI key already had.
+
+**`aiConventionalCommits` is not consulted while that file exists.** The setting picks between the
+two built-in variants; a file is the whole prompt, and appending a rule the user did not write to a
+prompt they thought was final is exactly the surprise this exists to remove. `flick ai` says so when
+both are set, because a setting that silently does nothing is otherwise unanswerable.
+
+**The payload is not templatable, and that is the boundary.** `AiContext.ToPromptText` and
+`DiffPayload` decide what may leave the machine. A prompt file changes the instructions and can
+never widen them, so this adds no privacy surface — and the seeded header names what is appended
+underneath, because a user who does not know that cannot write a prompt that makes sense.
+
+It is read on **every generation** rather than cached at startup, deliberately unlike
+`ActionCatalog`: iterating on wording is the point, and a resident service that had to be restarted
+between attempts would make it unusable. A kilobyte read costs microseconds on a path already
+costing hundreds of milliseconds.
 
 **Not `git diff --cached`.** That would be right in a tool that stages as the user ticks, and wrong
 here: `CommitFlow` stages as its *first* step, at commit time, so when the popup asks for a message
@@ -3162,6 +3197,8 @@ of its own, so the version, the help page and the repository link live in one pl
 ```text
 %LOCALAPPDATA%\FlickGit\settings.json     schemaVersion + general settings
 %LOCALAPPDATA%\FlickGit\actions.json      user actions + built-in overrides
+%LOCALAPPDATA%\FlickGit\commit-prompt.md  what the AI is asked for a commit message
+%LOCALAPPDATA%\FlickGit\pull-request-prompt.md   ...and for a pull request
 %LOCALAPPDATA%\FlickGit\icons\            user-supplied .ico files
 %LOCALAPPDATA%\FlickGit\Logs\
 ```
@@ -3180,6 +3217,11 @@ it is a fact about the *user*, not about any one repository.
 
 `schemaVersion` 3 dropped `aiAllowDiffsToLeaveMachine` and `aiDiffConsentShown`, the AI consent pair.
 A named provider with a key stored for it is the consent — see **Privacy and secrets**.
+
+**The two prompt files carry no `schemaVersion` and needed no bump.** They are text, not a format:
+there is nothing in one a future build could misread, and the only failure — no prompt left in it —
+falls back to the built-in and says so. Nothing was added to `settings.json` for them either, so
+`CurrentSchemaVersion` stays 3. See **Prompt**.
 
 **API keys are never written to these files.** Windows Credential Manager or DPAPI only.
 

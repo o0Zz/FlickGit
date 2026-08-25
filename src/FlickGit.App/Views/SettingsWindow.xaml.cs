@@ -90,7 +90,10 @@ public partial class SettingsWindow : Window
         LanguageHint.Text = Strings.Get("settings.language.hint");
 
         AdvancedText.Text = Strings.Get("settings.advanced");
-        AdvancedPaths.Text = $"{FlickSettings.FilePath}\n{FlickSettings.ActionsFilePath}";
+        AdvancedPaths.Text =
+            $"{FlickSettings.FilePath}\n{FlickSettings.ActionsFilePath}\n" +
+            $"{Path.Combine(FlickSettings.DirectoryPath, PromptStore.CommitFileName)}\n" +
+            $"{Path.Combine(FlickSettings.DirectoryPath, PromptStore.PullRequestFileName)}";
         OpenFolderButton.Content = Strings.Get("settings.advanced.open");
 
         SaveButton.Content = Strings.Get("settings.save");

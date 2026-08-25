@@ -529,7 +529,7 @@ settings.ai.key.missing = No key is stored for {0}. Nothing will be generated un
 # {0} the Ollama URL
 settings.ai.key.notneeded = Ollama runs at {0} and needs no key. Set aiModel in settings.json to the model you want — run `ollama list` to see them.
 
-settings.advanced = Everything else is configured in these two files:
+settings.advanced = Everything else is configured in these files:
 settings.advanced.open = Open configuration folder
 settings.save = Save
 # {0} why the file could not be written

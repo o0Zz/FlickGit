@@ -94,6 +94,11 @@ public partial class App : Application
         if (settingsError is not null)
             _log.Warn(settingsError);
 
+        //Both prompt files, when they are not there yet. Before any verb runs, so `flick ai` and the
+        //settings window can name files that exist -- and idempotent, so every launch after the first
+        //costs two File.Exists calls.
+        _services.GetRequiredService<PromptStore>().SeedMissingFiles(settings.AiConventionalCommits);
+
         Verb verb = Verb.Parse(e.Args);
         _log.Debug($"Starting: {verb.Kind} {verb.Path}");
 
@@ -144,6 +149,12 @@ public partial class App : Application
         services.AddSingleton(provider => new ActionCatalog(
             FlickSettings.ActionsFilePath,
             Strings.Get,
+            provider.GetRequiredService<ILog>()));
+
+        //The same shape, and the same reason: the prompt files sit beside settings.json, and where
+        //that is is a fact about Windows that FlickGit.Core does not get to know.
+        services.AddSingleton(provider => new PromptStore(
+            FlickSettings.DirectoryPath,
             provider.GetRequiredService<ILog>()));
         services.AddSingleton<RepositoryOverviewCache>();
         services.AddSingleton<DiffService>();

@@ -434,7 +434,7 @@ settings.ai.key.stored = Una chiave è memorizzata per {0}, in Gestione credenzi
 settings.ai.key.missing = Nessuna chiave memorizzata per {0}. Senza chiave non verrà generato nulla.
 settings.ai.key.notneeded = Ollama è in esecuzione su {0} e non richiede chiavi. Imposta aiModel in settings.json sul modello desiderato — esegui `ollama list` per vederli.
 
-settings.advanced = Tutto il resto si configura in questi due file:
+settings.advanced = Tutto il resto si configura in questi file:
 settings.advanced.open = Apri la cartella di configurazione
 settings.save = Salva
 settings.savefailed = Non è stato possibile scrivere settings.json: {0}

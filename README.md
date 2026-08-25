@@ -212,15 +212,29 @@ everything below is the file itself.
 | `hotkeyGesture` | `Ctrl+Alt+G` | At least one modifier is required. An unparseable value falls back to the default and is logged. |
 | `paletteHotkeyGesture` | `Ctrl+Alt+R` | Opens the repository palette. Not `Ctrl+Alt+G`: one combination cannot be registered twice, and the commit trigger has it. |
 | `paletteScanRoots` | `[]` | Folders the palette searches for repositories, three levels deep. Empty is fine — the palette also lists the ones you have already used. |
-| `aiProvider` | `anthropic` | `anthropic`, `openai` or `disabled`. Inert until `aiAllowDiffsToLeaveMachine` is true. |
-| `aiModel` | *(empty)* | Empty means the provider's default. |
+| `aiProvider` | `anthropic` | `anthropic`, `openai`, `copilot`, `ollama` or `disabled`. Naming one, with a key stored for it, is the consent to send it a diff. |
+| `aiModel` | *(empty)* | Empty means the provider's default — except for `ollama`, which has none and requires this. |
+| `aiOllamaUrl` | `http://localhost:11434` | Where Ollama is listening. Point it off this machine and the diff leaves this computer, even though it does not leave the network. |
 | `aiReasoningEffort` | `none` | OpenAI only: `none`, `low` or `medium`. `none` is the latency baseline, which is the point of the tier. |
 | `aiMaxDiffBytes` | `12288` | Above this the payload becomes a file summary plus 40 lines per file. |
-| `aiConventionalCommits` | `false` | On requires Conventional Commits; off leaves it to the model. |
-| `aiAllowDiffsToLeaveMachine` | `false` | **Nothing is sent until this is true.** Asked once, on first use. |
+| `aiConventionalCommits` | `false` | On requires Conventional Commits; off leaves it to the model. Not consulted while `commit-prompt.md` exists. |
 | `showSuccessNotification` | `true` | The toast after a commit, a pull or a push. |
 
 API keys are never written here — Windows Credential Manager or DPAPI only.
+
+### The AI prompts
+
+`%LOCALAPPDATA%\FlickGit\commit-prompt.md` and `pull-request-prompt.md` are what the AI is asked
+for. Both are written the first time FlickGit runs, seeded with its built-in wording, and both are
+plain Markdown — edit one and the next message uses it, with nothing to restart.
+
+The whole file is the prompt, sent as written; HTML comments are stripped first, so the notes at the
+top are for you and not for the model. **Delete a file to start over** and FlickGit writes it again
+with its built-in prompt. A file with no prompt left in it is refused rather than sent, and
+`flick ai` names the file in use or says built-in.
+
+What a prompt cannot change is the payload underneath it — the branch, the file list, the
+exclusions, and the capped, secret-redacted diff. That half is what decides what leaves the machine.
 
 ### Custom actions
 
