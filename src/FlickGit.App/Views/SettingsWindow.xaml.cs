@@ -93,7 +93,8 @@ public partial class SettingsWindow : Window
         AdvancedPaths.Text =
             $"{FlickSettings.FilePath}\n{FlickSettings.ActionsFilePath}\n" +
             $"{Path.Combine(FlickSettings.DirectoryPath, PromptStore.CommitFileName)}\n" +
-            $"{Path.Combine(FlickSettings.DirectoryPath, PromptStore.PullRequestFileName)}";
+            $"{Path.Combine(FlickSettings.DirectoryPath, PromptStore.PullRequestFileName)}\n" +
+            $"{Path.Combine(FlickSettings.DirectoryPath, PromptStore.ChangelogFileName)}";
         OpenFolderButton.Content = Strings.Get("settings.advanced.open");
 
         SaveButton.Content = Strings.Get("settings.save");

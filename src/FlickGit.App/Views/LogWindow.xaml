@@ -321,7 +321,8 @@
                            Style="{StaticResource Muted}" />
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button x:Name="SavePatchButton" MinWidth="130" Padding="8,3" IsEnabled="False" Click="OnSavePatch" />
+                    <Button x:Name="ChangelogButton" MinWidth="140" Padding="8,3" IsEnabled="False" Click="OnChangelog" />
+                    <Button x:Name="SavePatchButton" Margin="8,0,0,0" MinWidth="130" Padding="8,3" IsEnabled="False" Click="OnSavePatch" />
                     <Button x:Name="CloseButton" Margin="16,0,0,0" MinWidth="80" Padding="8,3" IsCancel="True" Click="OnClose" />
                 </StackPanel>
             </Grid>

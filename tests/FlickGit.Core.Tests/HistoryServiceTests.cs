@@ -19,7 +19,7 @@ public class HistoryServiceTests
         Oldest = Commit("c3", "b2"),
         Newest = Commit("e5", "d4"),
         SelectedCount = 3,
-        SpannedCount = 3,
+        Commits = [Commit("e5", "d4"), Commit("d4", "c3"), Commit("c3", "b2")],
     };
 
     private static LogCommit Commit(string sha, params string[] parents) => new()

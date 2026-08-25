@@ -235,6 +235,24 @@ log.patch.filter = Fichiers patch (*.patch)|*.patch|Tous les fichiers (*.*)|*.*
 log.patch.saved = {0} enregistré.
 log.patch.empty = Cette plage ne produit aucun diff, il n'y avait donc rien à enregistrer.
 log.patch.failed = Le patch n'a pas pu être écrit.
+log.changelog = Créer un changelog…
+
+# ---- fenêtre du changelog ----
+changelog.title = Changelog — {0}
+changelog.style = Style
+changelog.style.brief = Bref
+changelog.style.detailed = Détaillé
+changelog.write = Réécrire
+changelog.writing = Rédaction du changelog…
+changelog.hint = Modifiez-le ici, puis copiez-le ou enregistrez-le. Rien n'est écrit dans le dépôt.
+changelog.copy = Copier
+changelog.copied = Copié dans le presse-papiers.
+changelog.copy.failed = Le presse-papiers n'a pas pu être écrit.
+changelog.save = Enregistrer sous…
+changelog.filter = Fichiers Markdown (*.md)|*.md|Tous les fichiers (*.*)|*.*
+changelog.saved = {0} enregistré.
+changelog.save.failed = Le changelog n'a pas pu être écrit.
+changelog.nothing = Il n'y a rien à décrire : ces commits ne changent aucun fichier.
 
 # ---- fenêtre blame ----
 blame.title = Blame — {0}

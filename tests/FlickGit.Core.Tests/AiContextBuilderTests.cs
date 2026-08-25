@@ -1,4 +1,5 @@
 ﻿using FlickGit.Ai;
+using FlickGit.History;
 using FlickGit.Models;
 using Xunit;
 
@@ -108,4 +109,58 @@ public class AiContextBuilderTests
         Assert.True(context.IsEmpty);
         Assert.Empty(git.Invocations);
     }
+
+    /// <summary>
+    /// A changelog is computed over the range it was handed, and its style travels in the payload.
+    ///
+    /// Both halves are in scope. The revisions are the safety-critical half: a changelog over history
+    /// computed against HEAD would describe whatever happens to be checked out. The style is the other
+    /// half of the same argument -- it rides in the payload precisely so that a prompt file the user
+    /// owns stays the whole prompt.
+    /// </summary>
+    [Fact]
+    public async Task The_changelog_diffs_the_range_and_carries_the_style_in_the_payload()
+    {
+        var git = new FakeGitRunner()
+            .Returns(["diff", "b2", "e5"], "diff --git a/src/A.cs b/src/A.cs\n+new\n");
+
+        AiContext context = await new AiContextBuilder(git).ForChangelogAsync(
+            Repository,
+            baseSpec: "b2",
+            tipSpec: "e5",
+            commits: [Commit("e5", "add pooling"), Commit("c3", "fix the leak")],
+            changed: [File("src/A.cs"), File("package-lock.json")],
+            ChangelogStyle.Detailed,
+            DiffPayload.VerbatimCeilingBytes,
+            CancellationToken.None);
+
+        FakeGitRunner.Invocation diff = git.Invocations.Single(i => i.Args.Contains("diff"));
+
+        //The range's two ends, in that order, and no HEAD anywhere near it.
+        Assert.Equal(["diff", "b2", "e5"], diff.Args.Take(3));
+        Assert.DoesNotContain("HEAD", diff.Args);
+        Assert.True(diff.ReadOnly);
+
+        //The same exclusion rules as every other payload: one builder, one set of rules.
+        Assert.DoesNotContain("package-lock.json", diff.Args);
+
+        string text = context.ToPromptText();
+
+        //Oldest first, which is the order the work was done in and the order a changelog reads in.
+        Assert.True(text.IndexOf("fix the leak", StringComparison.Ordinal) < text.IndexOf("add pooling", StringComparison.Ordinal));
+
+        //Last, and the whole of how a style reaches the model.
+        Assert.EndsWith(ChangelogPrompt.Instruction(ChangelogStyle.Detailed) + "\n", text, StringComparison.Ordinal);
+    }
+
+    private static LogCommit Commit(string sha, string subject) => new()
+    {
+        Sha = sha,
+        ShortSha = sha,
+        Parents = [],
+        Author = "Ana",
+        When = DateTimeOffset.UnixEpoch,
+        Refs = string.Empty,
+        Message = subject,
+    };
 }

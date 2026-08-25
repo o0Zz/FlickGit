@@ -235,6 +235,24 @@ log.patch.filter = File patch (*.patch)|*.patch|Tutti i file (*.*)|*.*
 log.patch.saved = {0} salvato.
 log.patch.empty = Questo intervallo non produce alcun diff, quindi non c'era nulla da salvare.
 log.patch.failed = Non è stato possibile scrivere la patch.
+log.changelog = Crea changelog…
+
+# ---- finestra del changelog ----
+changelog.title = Changelog — {0}
+changelog.style = Stile
+changelog.style.brief = Breve
+changelog.style.detailed = Dettagliato
+changelog.write = Riscrivi
+changelog.writing = Scrittura del changelog…
+changelog.hint = Modificalo qui, poi copialo o salvalo. Nel repository non viene scritto nulla.
+changelog.copy = Copia
+changelog.copied = Copiato negli appunti.
+changelog.copy.failed = Non è stato possibile scrivere negli appunti.
+changelog.save = Salva con nome…
+changelog.filter = File Markdown (*.md)|*.md|Tutti i file (*.*)|*.*
+changelog.saved = {0} salvato.
+changelog.save.failed = Non è stato possibile scrivere il changelog.
+changelog.nothing = Non c'è nulla da descrivere: questi commit non cambiano alcun file.
 
 # ---- finestra di blame ----
 blame.title = Blame — {0}

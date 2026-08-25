@@ -210,6 +210,7 @@ public sealed class EnvironmentVerbs(
             output.Line("             aiConventionalCommits is not consulted while that file exists");
 
         output.Line($"pr prompt    {DescribePrompt(prompts.ForPullRequest(), PromptStore.PullRequestFileName)}");
+        output.Line($"changelog    {DescribePrompt(prompts.ForChangelog(), PromptStore.ChangelogFileName)}");
 
         //Only worth a round trip when a request could actually be made.
         if (messages.IsUsable)
@@ -397,22 +398,24 @@ public sealed class EnvironmentVerbs(
                 : $"built-in ({fileName} is not there; it is written at startup)");
 
     /// <summary>
-    /// Both prompts in one line, for doctor. Shaped like <see cref="DescribeActions"/>: a summary,
-    /// and the reason appended when a file that exists was not used.
+    /// Every prompt in one line, for doctor. Shaped like <see cref="DescribeActions"/>: a summary, and
+    /// the reason appended when a file that exists was not used.
     /// </summary>
     private string DescribePrompts()
     {
         ResolvedPrompt commit = prompts.ForCommit(ai.Options.ConventionalCommits);
         ResolvedPrompt pullRequest = prompts.ForPullRequest();
+        ResolvedPrompt changelog = prompts.ForChangelog();
 
         //"from file" rather than "custom": the files are seeded at first run, so every install would
         //read as customised and the word would carry no signal. What doctor is being asked is which
-        //of the two is actually in use.
+        //of them is actually in use.
         string summary =
             $"commit {(commit.Source is not null ? "from file" : "built-in")}, " +
-            $"pr {(pullRequest.Source is not null ? "from file" : "built-in")}";
+            $"pr {(pullRequest.Source is not null ? "from file" : "built-in")}, " +
+            $"changelog {(changelog.Source is not null ? "from file" : "built-in")}";
 
-        string[] errors = [.. new[] { commit.Error, pullRequest.Error }.OfType<string>()];
+        string[] errors = [.. new[] { commit.Error, pullRequest.Error, changelog.Error }.OfType<string>()];
 
         return errors.Length > 0 ? $"{summary} - {string.Join("; ", errors)}" : summary;
     }

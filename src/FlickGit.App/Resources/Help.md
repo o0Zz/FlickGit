@@ -235,11 +235,12 @@ ordinary text box and every button still works.
 
 ### Changing what the AI is asked
 
-The wording FlickGit sends is two Markdown files in `%LOCALAPPDATA%\FlickGit`, written the first
+The wording FlickGit sends is three Markdown files in `%LOCALAPPDATA%\FlickGit`, written the first
 time it runs:
 
 - **`commit-prompt.md`** — how a commit message is written.
 - **`pull-request-prompt.md`** — how a pull request title and description are written.
+- **`changelog-prompt.md`** — how a changelog is written (see **The log**).
 
 Edit one and the next message uses it. There is nothing to restart, and nothing to press.
 
@@ -254,6 +255,10 @@ built-in prompt will not change what you see here.
 
 While `commit-prompt.md` exists, `aiConventionalCommits` is not consulted — your file is the whole
 prompt, so say there whether you want Conventional Commits.
+
+Do not put the length in `changelog-prompt.md`. **Brief** and **Detailed** are chosen in the
+changelog window itself and are sent with the commits rather than with the prompt, so a rule about
+length written here fights that box instead of replacing it.
 
 What you cannot change here is what FlickGit puts underneath: the branch, the files you are
 committing, the files held back and why, and the capped, redacted diff. That half is what decides
@@ -274,8 +279,19 @@ per commit. That is `git diff <oldest>^ <newest>`, so a selection with gaps in i
 the commits in between — and the window says so, in words, above the file list.
 
 Nothing in this window changes the repository. There is no checkout, reset, revert or
-cherry-pick here, and the diff is read-only on both sides. **Save as patch…** writes the diff you
-are looking at to a file you choose.
+cherry-pick here, and the diff is read-only on both sides. It has two ways of handing the range to
+somebody else, and both write outside the repository.
+
+**Save as patch…** writes the diff you are looking at to a file you choose.
+
+**Create changelog…** writes what those commits mean for the people who *use* the software — for a
+release note rather than for a reviewer. It opens on **Brief**, a flat list of one-liners; switch it
+to **Detailed** for entries grouped under headings with a sentence each, and it rewrites. The text
+is yours to edit before you **Copy** or **Save as…** it, and nothing is written to the repository —
+there is no `CHANGELOG.md` to append to and no version number invented for you.
+
+With no AI provider configured the window still opens, holding the commit subjects as a list. What
+the AI is asked is `changelog-prompt.md`, which you can edit — see **Commit messages**.
 
 ## Pull requests
 
@@ -383,15 +399,15 @@ Everything this window does not show lives in four files, in
   primary-branch override.
 - **`actions.json`** — your own context-menu and palette entries, and overrides that hide,
   rename or reorder the built-in ones.
-- **`commit-prompt.md`** and **`pull-request-prompt.md`** — what the AI is asked for (see
-  **Commit messages**). Delete either one to go back to the built-in wording.
+- **`commit-prompt.md`**, **`pull-request-prompt.md`** and **`changelog-prompt.md`** — what the AI
+  is asked for (see **Commit messages**). Delete any of them to go back to the built-in wording.
 
 Two more live in the repository's own `.git/config`, because they are facts about that repository
 rather than about you: `flickgit.pullRequestTarget` and `flickgit.forge` (see **Pull requests**),
 alongside `flickgit.primaryBranch` and `flickgit.allowUpstreamCreation`.
 
 `settings.json` and `actions.json` are read at startup, so restart FlickGit after editing either
-one; the two prompt files are read on every generation and need nothing. `flick diag doctor` shows
+one; the prompt files are read on every generation and need nothing. `flick diag doctor` shows
 what all of them resolved to.
 
 ## What FlickGit will not do

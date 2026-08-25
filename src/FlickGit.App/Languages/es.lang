@@ -235,6 +235,24 @@ log.patch.filter = Archivos de parche (*.patch)|*.patch|Todos los archivos (*.*)
 log.patch.saved = Se guardó {0}.
 log.patch.empty = Este rango no produce ninguna diferencia, así que no había nada que guardar.
 log.patch.failed = No se pudo escribir el parche.
+log.changelog = Crear registro de cambios…
+
+# ---- ventana del registro de cambios ----
+changelog.title = Registro de cambios — {0}
+changelog.style = Estilo
+changelog.style.brief = Breve
+changelog.style.detailed = Detallado
+changelog.write = Volver a escribir
+changelog.writing = Escribiendo el registro de cambios…
+changelog.hint = Edítalo aquí y luego cópialo o guárdalo. No se escribe nada en el repositorio.
+changelog.copy = Copiar
+changelog.copied = Copiado al portapapeles.
+changelog.copy.failed = No se pudo escribir en el portapapeles.
+changelog.save = Guardar como…
+changelog.filter = Archivos Markdown (*.md)|*.md|Todos los archivos (*.*)|*.*
+changelog.saved = Se guardó {0}.
+changelog.save.failed = No se pudo escribir el registro de cambios.
+changelog.nothing = No hay nada que describir: estos commits no cambian ningún archivo.
 
 # ---- ventana de blame ----
 blame.title = Blame — {0}

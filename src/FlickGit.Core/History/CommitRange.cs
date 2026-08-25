@@ -46,8 +46,22 @@ public sealed record CommitRange
     /// <summary>How many rows the user actually picked.</summary>
     public required int SelectedCount { get; init; }
 
+    /// <summary>
+    /// Every commit the range spans, newest first: the rows between the two ends, including the
+    /// ones a gapped selection passed over.
+    ///
+    /// Sliced here rather than by the caller for the reason <see cref="Resolve"/> is here at all --
+    /// the list is newest-first, so the slice runs from the <i>newest</i> index to the <i>oldest</i>,
+    /// and an off-by-one at either end silently drops the commit somebody asked about.
+    ///
+    /// It is the spanned set and not the selected one on purpose: the diff, the patch and the
+    /// changelog all describe the same range, and one of the three quietly describing a narrower one
+    /// is worse than <see cref="ImplicitCount"/>, which at least says so out loud.
+    /// </summary>
+    public required IReadOnlyList<LogCommit> Commits { get; init; }
+
     /// <summary>How many commits the range spans, gaps included.</summary>
-    public required int SpannedCount { get; init; }
+    public int SpannedCount => Commits.Count;
 
     /// <summary>
     /// Commits dragged in by a gapped selection.
@@ -118,7 +132,7 @@ public sealed record CommitRange
             Oldest = basis,
             Newest = tip,
             SelectedCount = selected,
-            SpannedCount = oldest - newest + 1,
+            Commits = [.. newestFirst.Skip(newest).Take(oldest - newest + 1)],
         };
     }
 }

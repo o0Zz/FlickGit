@@ -30,6 +30,14 @@ namespace FlickGit.Ai;
 /// <c>Describe</c> for a pull-request description. One word, so it is a field rather than a second
 /// <c>ToPromptText</c>.
 /// </param>
+/// <param name="Instruction">
+/// One line appended last, saying something about <i>this request</i> rather than about the task --
+/// today, the changelog's Brief-or-Detailed choice. Empty for the surfaces with nothing to choose.
+///
+/// <b>Here rather than in the system prompt</b>, because the system prompt is a file the user owns:
+/// see <see cref="ChangelogPrompt"/>. It cannot widen what may leave the machine, being one sentence
+/// of English appended to a payload that was already capped, filtered and redacted above it.
+/// </param>
 public sealed record AiContext(
     string Heading,
     IReadOnlyList<string> Subjects,
@@ -37,9 +45,10 @@ public sealed record AiContext(
     IReadOnlyList<string> Excluded,
     string Diff,
     bool Truncated,
-    string TruncationVerb)
+    string TruncationVerb,
+    string Instruction)
 {
-    public static AiContext Empty { get; } = new(string.Empty, [], [], [], string.Empty, false, "Summarise");
+    public static AiContext Empty { get; } = new(string.Empty, [], [], [], string.Empty, false, "Summarise", string.Empty);
 
     /// <summary>True when there is nothing worth asking about.</summary>
     public bool IsEmpty => Files.Count == 0 && Subjects.Count == 0;
@@ -69,6 +78,11 @@ public sealed record AiContext(
 
         if (Truncated)
             text.Append($"\nThe diff above is truncated. {TruncationVerb} the intent, not the omissions.\n");
+
+        //Last, where a trailing instruction carries the most weight and cannot be read as part of
+        //the diff above it.
+        if (Instruction.Length > 0)
+            text.Append('\n').Append(Instruction).Append('\n');
 
         return text.ToString();
     }
@@ -127,6 +141,7 @@ public sealed class AiContextBuilder(IGitProcessRunner git, OperationTimings? ti
             //An unborn HEAD is not a revision, so there is nothing to diff against.
             revisions: status.IsUnborn ? null : ["HEAD"],
             truncationVerb: "Summarise",
+            instruction: string.Empty,
             timingKey: "ai.payload",
             maxDiffBytes,
             cancellationToken);
@@ -155,7 +170,48 @@ public sealed class AiContextBuilder(IGitProcessRunner git, OperationTimings? ti
             heading: $"Branch: {sourceBranch} → {targetBranch}",
             revisions: mergeBase.Length > 0 ? [mergeBase, "HEAD"] : null,
             truncationVerb: "Describe",
+            instruction: string.Empty,
             timingKey: "ai.pr.payload",
+            maxDiffBytes,
+            cancellationToken);
+
+    /// <summary>
+    /// What a range of commits changed: the range's own commits and files, against its base.
+    ///
+    /// The third caller, and the one that justifies the second sentence of this class's summary --
+    /// it differs from the other two in its revisions and in one line of instruction, and in nothing
+    /// that decides what may leave the machine.
+    /// </summary>
+    /// <param name="baseSpec">
+    /// The left side of the range: <see cref="History.CommitRange.BaseSpec"/>, which is a bare object
+    /// id and is the empty tree when the oldest commit is the repository's first. Passed through
+    /// rather than re-derived, so the changelog describes exactly the range the diff and the patch do.
+    /// </param>
+    /// <param name="commits">
+    /// The commits the range spans, newest first -- gaps included, because they are in the diff.
+    /// </param>
+    public Task<AiContext> ForChangelogAsync(
+        RepositoryInfo repository,
+        string baseSpec,
+        string tipSpec,
+        IReadOnlyList<LogCommit> commits,
+        IReadOnlyList<GitFileChange> changed,
+        ChangelogStyle style,
+        int maxDiffBytes,
+        CancellationToken cancellationToken) =>
+        BuildAsync(
+            repository,
+            changed,
+            subjects: [.. commits.Reverse().Select(c => c.Subject).Where(s => s.Length > 0)],
+
+            //No heading, where the other two name a branch. The branch name and the two hashes are
+            //precisely what the prompt asks the model to keep out of a changelog, and the cheapest way
+            //to keep them out of the answer is to keep them out of the question.
+            heading: string.Empty,
+            revisions: [baseSpec, tipSpec],
+            truncationVerb: "Describe",
+            instruction: ChangelogPrompt.Instruction(style),
+            timingKey: "ai.changelog.payload",
             maxDiffBytes,
             cancellationToken);
 
@@ -170,6 +226,7 @@ public sealed class AiContextBuilder(IGitProcessRunner git, OperationTimings? ti
         string heading,
         IReadOnlyList<string>? revisions,
         string truncationVerb,
+        string instruction,
         string timingKey,
         int maxDiffBytes,
         CancellationToken cancellationToken)
@@ -204,7 +261,7 @@ public sealed class AiContextBuilder(IGitProcessRunner git, OperationTimings? ti
 
         timings?.Record(timingKey, Stopwatch.GetElapsedTime(startedAt));
 
-        return new AiContext(heading, subjects, files, excluded, payload.Text, payload.Truncated, truncationVerb);
+        return new AiContext(heading, subjects, files, excluded, payload.Text, payload.Truncated, truncationVerb, instruction);
     }
 
     private async Task<string> ReadDiffAsync(

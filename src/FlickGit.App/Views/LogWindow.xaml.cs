@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using FlickGit.App.Ai;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.Settings;
@@ -29,7 +30,8 @@ namespace FlickGit.App.Views;
 ///
 /// <b>It performs nothing.</b> No checkout, reset, revert, cherry-pick, tag or branch-from-here.
 /// That list is a boundary, and it is written down so it does not grow one release at a time. The
-/// single outward action is Save as patch, which writes outside the repository.
+/// two outward actions are Save as patch and Create changelog, and both write outside the
+/// repository -- one a file the user names, the other a draft in a window.
 ///
 /// Code-behind rather than a view model: <c>ListBox.SelectedItems</c> is not bindable, so a view
 /// model would need an attached behaviour invented so a second class could avoid touching the
@@ -50,6 +52,7 @@ public partial class LogWindow : Window
     private readonly HistoryService _history;
     private readonly DiffService _diffs;
     private readonly BlameService _blame;
+    private readonly AiTextService _ai;
     private readonly FlickSettings _settings;
     private readonly OperationTimings _timings;
     private readonly ILog _log;
@@ -73,6 +76,13 @@ public partial class LogWindow : Window
     private int _headCount;
 
     private CommitRange? _shown;
+
+    /// <summary>
+    /// The range's files, as Core hands them over. Kept beside the rows the list is bound to, because
+    /// the changelog payload wants the changes and not their presentation.
+    /// </summary>
+    private IReadOnlyList<GitFileChange> _files = [];
+
     private CancellationTokenSource? _inFlight;
     private int _generation;
     private bool _endOfHistory;
@@ -83,6 +93,7 @@ public partial class LogWindow : Window
         HistoryService history,
         DiffService diffs,
         BlameService blame,
+        AiTextService ai,
         FlickSettings settings,
         OperationTimings timings,
         ILog log)
@@ -93,6 +104,7 @@ public partial class LogWindow : Window
         _history = history;
         _diffs = diffs;
         _blame = blame;
+        _ai = ai;
         _settings = settings;
         _timings = timings;
         _log = log;
@@ -103,6 +115,7 @@ public partial class LogWindow : Window
         LoadMoreButton.Content = Strings.Get("log.loadmore", HistoryService.PageSize);
         BlameFileItem.Header = Strings.Get("log.blame");
         SavePatchButton.Content = Strings.Get("log.patch");
+        ChangelogButton.Content = Strings.Get("log.changelog");
         CloseButton.Content = Strings.Get("common.close");
         PagingText.Text = Strings.Get("log.loading");
         RangeText.Text = Strings.Get("log.select.prompt");
@@ -272,8 +285,10 @@ public partial class LogWindow : Window
             FileList.ItemsSource = null;
             Diff.Show(null, isLoading: false);
             SavePatchButton.IsEnabled = false;
+            ChangelogButton.IsEnabled = false;
             StatusText.Text = string.Empty;
             _shown = null;
+            _files = [];
             return;
         }
 
@@ -312,6 +327,7 @@ public partial class LogWindow : Window
             return;
 
         _shown = range;
+        _files = files;
         ApplyFiles(files);
         _timings.Record("log.range", clock.Elapsed);
 
@@ -334,6 +350,11 @@ public partial class LogWindow : Window
 
         StatusText.Text = Strings.Get("log.totals", rows.Count, added, removed);
         SavePatchButton.IsEnabled = rows.Count > 0;
+
+        //Not gated on the file count, unlike the patch. A range that changes no file still has commit
+        //messages, and "these commits changed nothing anybody can see" is a legitimate changelog --
+        //an empty patch is not a legitimate patch.
+        ChangelogButton.IsEnabled = true;
 
         if (rows.Count == 0)
             Diff.Show(null, isLoading: false);
@@ -480,6 +501,26 @@ public partial class LogWindow : Window
         {
             Report(Strings.Get("log.patch.failed"), $"{ex.Message}\n\n{dialog.FileName}");
         }
+    }
+
+    /// <summary>
+    /// Writes a changelog over the selected commits -- the same range the diff and the patch are of,
+    /// which is why it is handed <see cref="CommitRange"/> rather than the selection.
+    ///
+    /// Its own window rather than a dialog here: the answer arrives a token at a time, it is worth
+    /// editing before it is used, and it has two destinations of its own. Nothing in it touches the
+    /// repository, so this window's "it performs nothing" is unchanged by it.
+    /// </summary>
+    private async void OnChangelog(object sender, RoutedEventArgs e)
+    {
+        if (_shown is not { } range)
+            return;
+
+        var window = new ChangelogWindow(_repository, range, _files, _ai, _log) { Owner = this };
+
+        window.Show();
+
+        await window.StartAsync().ConfigureAwait(true);
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

@@ -15,7 +15,7 @@ namespace FlickGit.Ai;
 public readonly record struct ResolvedPrompt(string Text, string? Source, string? Error);
 
 /// <summary>
-/// The two system prompts, as files the user can edit.
+/// The three system prompts, as files the user can edit.
 ///
 /// <b>Only the system prompt.</b> The other half of a request -- <see cref="AiContext.ToPromptText"/>,
 /// fed by <see cref="DiffPayload"/> -- is the safety-critical half: it is what decides what may leave
@@ -31,10 +31,13 @@ public sealed class PromptStore(string directoryPath, ILog log)
 {
     public const string CommitFileName = "commit-prompt.md";
     public const string PullRequestFileName = "pull-request-prompt.md";
+    public const string ChangelogFileName = "changelog-prompt.md";
 
     public string CommitFilePath { get; } = Path.Combine(directoryPath, CommitFileName);
 
     public string PullRequestFilePath { get; } = Path.Combine(directoryPath, PullRequestFileName);
+
+    public string ChangelogFilePath { get; } = Path.Combine(directoryPath, ChangelogFileName);
 
     /// <summary>
     /// The commit-message prompt.
@@ -49,6 +52,16 @@ public sealed class PromptStore(string directoryPath, ILog log)
 
     public ResolvedPrompt ForPullRequest() =>
         Resolve(PullRequestFilePath, PullRequestFileName, PullRequestPrompt.System);
+
+    /// <summary>
+    /// The changelog prompt.
+    ///
+    /// It takes no argument, unlike <see cref="ForCommit"/>, and that is deliberate rather than a
+    /// gap: the Brief-or-Detailed choice belongs to the payload, so this file is the whole prompt
+    /// whatever the window's box says. See <see cref="ChangelogPrompt"/>.
+    /// </summary>
+    public ResolvedPrompt ForChangelog() =>
+        Resolve(ChangelogFilePath, ChangelogFileName, ChangelogPrompt.System);
 
     /// <summary>
     /// Writes either file that is not there yet, seeded with the built-in prompt.
@@ -67,6 +80,7 @@ public sealed class PromptStore(string directoryPath, ILog log)
     {
         Seed(CommitFilePath, CommitHeader, CommitPrompt.For(conventionalCommits));
         Seed(PullRequestFilePath, PullRequestHeader, PullRequestPrompt.System);
+        Seed(ChangelogFilePath, ChangelogHeader, ChangelogPrompt.System);
     }
 
     /// <summary>
@@ -210,6 +224,28 @@ public sealed class PromptStore(string directoryPath, ILog log)
         FlickGit appends this underneath, and it cannot be changed here: the source and target
         branches, the commit subjects oldest first, the changed files, the files held back and why,
         and the diff against the merge base -- capped in size and redacted.
+        -->
+        """;
+
+    private const string ChangelogHeader = """
+        <!--
+        This is the prompt FlickGit sends when it writes a changelog for the commits you selected in
+        the log window. The text below is FlickGit's built-in prompt, copied here so you can change
+        it. Save the file and the next changelog uses it -- there is nothing to restart.
+
+          - The whole file is the prompt, sent verbatim. HTML comments are removed first, so
+            anything written inside one is for you rather than for the model.
+          - Delete this file to start over: FlickGit writes it again, with the built-in prompt,
+            the next time it runs. It always prefers this file to its own built-in wording, so
+            a later version that improves that wording will not change what you see here.
+          - An empty file is refused, and the built-in prompt is used instead.
+          - Do not put the length in here. Brief and Detailed are chosen in the window, and they
+            reach the model as the last line of what is appended below -- so a rule about length
+            written here fights the box rather than replacing it.
+
+        FlickGit appends this underneath, and it cannot be changed here: the subjects of the commits
+        you selected, oldest first, the files they changed, the files held back and why, the diff
+        over that range -- capped in size and redacted -- and the Brief or Detailed line.
         -->
         """;
 }

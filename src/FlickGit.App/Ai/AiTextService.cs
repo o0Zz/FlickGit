@@ -136,6 +136,59 @@ public sealed class AiTextService(
     }
 
     /// <summary>
+    /// Streams a changelog over a range of commits, for the log window.
+    ///
+    /// <b>The commits are passed in rather than read.</b> The log window already holds the whole range
+    /// in memory and <see cref="History.CommitRange"/> has already sliced it, so reading it again
+    /// would be a second answer to a question that has one -- and the two could differ, because a
+    /// second <c>git log</c> would be over the branch rather than over the range.
+    /// </summary>
+    /// <param name="baseSpec">
+    /// The range's left side, a bare object id. The same two specs the diff and the patch were
+    /// computed from, so all three describe one range.
+    /// </param>
+    public async Task<GenerationOutcome> StreamChangelogAsync(
+        RepositoryInfo repository,
+        string baseSpec,
+        string tipSpec,
+        IReadOnlyList<LogCommit> commits,
+        IReadOnlyList<GitFileChange> files,
+        ChangelogStyle style,
+        Action<string> onDelta,
+        CancellationToken cancellationToken)
+    {
+        if (Unavailable() is { } refusal)
+            return refusal;
+
+        (AiContext? context, GenerationOutcome refused) = await GatherAsync(
+            token => contexts.ForChangelogAsync(
+                repository,
+                baseSpec,
+                tipSpec,
+                commits,
+                files,
+                style,
+                config.Options.MaxDiffBytes,
+                token),
+            Strings.Get("changelog.nothing"),
+            cancellationToken).ConfigureAwait(true);
+
+        if (context is null)
+            return refused;
+
+        return await StreamAsync(
+            new AiPrompt(prompts.ForChangelog().Text, context.ToPromptText(), AiOptions.ChangelogMaxTokens),
+            "ai.changelog",
+
+            //Fence stripping rather than the description's bare trim: a changelog is Markdown, and a
+            //model handed a Markdown task wraps the answer in ```markdown often enough to be worth
+            //defending against. Clean leaves text that does not start with a fence alone.
+            CommitPrompt.Clean,
+            onDelta,
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
     /// Builds the payload, and turns the two ways it can produce nothing into the outcome to return.
     /// Neither counts towards the tray warning, because neither is the provider's fault.
     /// </summary>

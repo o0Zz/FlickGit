@@ -100,7 +100,7 @@ public sealed class WindowVerbs(
     {
         var clock = Stopwatch.StartNew();
 
-        var window = new LogWindow(repository, history, diffs, blame, settings, timings, log);
+        var window = new LogWindow(repository, history, diffs, blame, ai, settings, timings, log);
 
         AppWindow.Present(window);
 

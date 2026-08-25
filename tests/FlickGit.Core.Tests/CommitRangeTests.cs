@@ -76,6 +76,21 @@ public class CommitRangeTests
     }
 
     [Fact]
+    public void TheSpannedCommitsAreTheRangeAndNotTheSelection()
+    {
+        //What the changelog is written over, and what makes ImplicitCount a claim about a list that
+        //exists rather than a number nothing can be checked against. The slice runs from the newest
+        //index to the oldest, which is the one piece of arithmetic in this file that reads backwards.
+        CommitRange range = Assert.IsType<CommitRange>(
+            CommitRange.Resolve(Chain(), new HashSet<string> { "e5", "c3" }));
+
+        //Newest first, the list's own order, and holding d4 -- which nobody picked.
+        Assert.Equal(["e5", "d4", "c3"], range.Commits.Select(c => c.Sha));
+        Assert.Equal(2, range.SelectedCount);
+        Assert.Equal(1, range.ImplicitCount);
+    }
+
+    [Fact]
     public void TheRootCommitDiffsAgainstTheEmptyTree()
     {
         //"<root>^" is not a revision, it is an error -- so without this the repository's first

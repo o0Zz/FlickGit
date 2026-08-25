@@ -412,6 +412,30 @@ log.patch.filter = Patch files (*.patch)|*.patch|All files (*.*)|*.*
 log.patch.saved = Saved {0}.
 log.patch.empty = This range produces no diff, so there was nothing to save.
 log.patch.failed = The patch could not be written.
+# Beside Save as patch, and the other half of what this window hands to somebody else: the patch
+# is for a machine, the changelog for a person.
+log.changelog = Create changelog…
+
+# ---- changelog window ----
+
+# {0} repository name
+changelog.title = Changelog — {0}
+changelog.style = Style
+# The two registers. Brief is a flat list of one-liners; Detailed is grouped, with a sentence each.
+changelog.style.brief = Brief
+changelog.style.detailed = Detailed
+changelog.write = Write again
+changelog.writing = Writing a changelog…
+changelog.hint = Edit it here, then copy it or save it. Nothing is written to the repository.
+changelog.copy = Copy
+changelog.copied = Copied to the clipboard.
+changelog.copy.failed = The clipboard could not be written.
+changelog.save = Save as…
+changelog.filter = Markdown files (*.md)|*.md|All files (*.*)|*.*
+# {0} file name
+changelog.saved = Saved {0}.
+changelog.save.failed = The changelog could not be written.
+changelog.nothing = There is nothing to write about: these commits change no file.
 
 # ---- blame window ----
 

@@ -35,7 +35,8 @@ public class AiStreamTests
                 Excluded: [],
                 "diff --git a/src/A.cs b/src/A.cs\n+new\n",
                 Truncated: false,
-                "Summarise")
+                "Summarise",
+                Instruction: string.Empty)
             .ToPromptText(),
         AiOptions.CommitMaxTokens);
 

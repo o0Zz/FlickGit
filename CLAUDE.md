@@ -1167,7 +1167,7 @@ only showed one commit at a time would not have earned its place beside **Produc
 │  A src/PgBouncerPool.cs +156   │  43- var pool = new Pool();  │ 43+ var pool = pooled(…)  │
 │  D src/LegacyPool.cs      -203 │  ← read-only                              read-only →    │
 ├────────────────────────────────┴─────────────────────────────────────────────────────────┤
-│ 12 files · +418 −233                                       [ Save as patch… ]  [ Close ]  │
+│ 12 files · +418 −233                  [ Create changelog… ]  [ Save as patch… ]  [ Close ]│
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1216,11 +1216,74 @@ Nothing in this window writes to the repository. `HistoryService` reaches Git on
 `ReadAsync`, and a test asserts that every invocation the surface makes is a read — which is what
 catches somebody later hanging a checkout off a right-click here.
 
-The one outward action is **Save as patch…**, which writes `git diff --binary --output=<file>` at a
-path the user chose in a dialog, outside the repository. `--output` rather than capturing stdout is
-load-bearing: the patch never becomes a C# string, so a Latin-1 source file gets byte-exact bytes
-rather than U+FFFD, and the BOM question — a BOM in front of `diff --git` makes `git apply` refuse
-the file — never arises. `--binary` is what makes the result a patch that actually applies.
+There are two outward actions, and neither touches the repository. **Save as patch…** writes
+`git diff --binary --output=<file>` at a path the user chose in a dialog, outside the repository.
+`--output` rather than capturing stdout is load-bearing: the patch never becomes a C# string, so a
+Latin-1 source file gets byte-exact bytes rather than U+FFFD, and the BOM question — a BOM in front
+of `diff --git` makes `git apply` refuse the file — never arises. `--binary` is what makes the
+result a patch that actually applies.
+
+**Create changelog…** is the other, and it is the same range described for a different reader.
+
+## The changelog
+
+A patch is for a machine and a changelog is for a person — and the person is who the repository has
+nothing for. `git log` answers *what did we do*, in the words of somebody who was mid-way through
+doing it; nobody outside the team can read that, and turning it into something they can is the job
+somebody does by hand before every release.
+
+```text
+┌─ Changelog — d360-portal ────────────────────────────────────────────┐
+│ 3 commits · 4d5e6f7^..a1b2c3d   ·   including 1 you did not select   │
+│ Style [ Brief                  ▾ ]                   [ Write again ] │
+├──────────────────────────────────────────────────────────────────────┤
+│ - Adds connection pooling, so the gateway stops running out of       │
+│   connections under load                                             │
+│ - Fixes the leak that made reconnects get slower over a long session │
+├──────────────────────────────────────────────────────────────────────┤
+│ Edit it here, then copy or save.  [ Copy ] [ Save as… ]    [ Close ] │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**It is written over the selected commits** — the same `CommitRange` the diff and the patch are of,
+which is what `CommitRange.Commits` exists for: the commits the range *spans*, gaps included, sliced
+in Core where the newest-first arithmetic is tested. So the gap disclosure is repeated in this
+window's header rather than left behind in the one that produced the selection. A changelog quietly
+describing a narrower range than the diff beside it would be the same failure that disclosure exists
+to prevent.
+
+**The payload is the commit subjects and the range's diff**, through the same `AiContextBuilder`
+every other surface uses — so a lock file, a minified bundle and a secret-matching path are held
+back here by the same code and for the same reason. It carries no branch name and no hashes, which
+is the one place its payload differs from the other two: those are precisely what the prompt asks
+the model to keep out of a changelog, and the cheapest way to keep them out of the answer is to keep
+them out of the question.
+
+**Brief or Detailed, and the choice is a line of the payload rather than part of the prompt.** That
+is the whole shape of `ChangelogPrompt`. The system prompt is a file the user owns — see
+**Prompt** — and a file is sent verbatim, so a length rule written into the built-in prompt would
+silently stop working the moment anybody edited theirs, leaving a box in the window that does
+nothing. As the payload's last line it reads as what it is: an instruction about this request, not a
+rule about changelogs. A user's own prompt keeps working, and the box keeps meaning something. It is
+chosen per changelog and persisted nowhere; a `settings.json` key for it would be Hard
+Requirement 2's setting nobody asked for.
+
+**With no AI configured the window still works**, which is what "the AI is an accelerator, never a
+dependency" requires of a window whose only content the AI writes: the box opens holding the commit
+subjects as a bulleted list, oldest first, and that is a serviceable changelog rather than a
+placeholder. It is also what is on screen while the first tokens arrive.
+
+**The text is a draft in a box** — editable, copyable, savable, and gone when the window closes
+unless the user does one of those three things. There is no working tree on the other side of it, so
+an edit costs a keystroke and risks nothing, and that is what makes the Style box safe to press
+twice. Typing wins over a stream still arriving, the pull-request window's rule; **Write again** and
+a style change both override that, because both *are* the user asking. Saving writes UTF-8 without a
+BOM into the repository's parent — the patch's directory rule, for the patch's reason: a file
+dropped inside the working tree comes straight back as an untracked row in the commit window.
+
+**No version number, no date, no `CHANGELOG.md`.** Deciding which version this is, and appending to
+a file that is then committed, are both writes to the repository — which is the line this window
+does not cross. It produces the text and hands it over; where it goes is the user's.
 
 ## Reading history
 
@@ -1765,7 +1828,7 @@ description, which is a title plus a few paragraphs of Markdown. One number woul
 second or stop guarding the first.
 
 **The prompt is a file too**, `%LOCALAPPDATA%\FlickGit\pull-request-prompt.md`, on the same terms as the
-commit one — see **Prompt**. Its seeded header carries one rule the other does not: keep the
+commit one and the changelog one — see **Prompt**. Its seeded header carries one rule the other does not: keep the
 first-line-is-the-title shape, because `PullRequestPrompt.Split` is what fills the two boxes, and a
 prompt that asks for JSON or a `Title:` label puts that text in the title box.
 
@@ -2239,6 +2302,13 @@ making the feature undiscoverable, which is the failure the AI key already had.
 two built-in variants; a file is the whole prompt, and appending a rule the user did not write to a
 prompt they thought was final is exactly the surprise this exists to remove. `flick ai` says so when
 both are set, because a setting that silently does nothing is otherwise unanswerable.
+
+**There is a third file**, `changelog-prompt.md`, seeded and resolved by the same `PromptStore` on
+the same terms. Its header carries the one rule the other two do not: do not put the length in it.
+Brief and Detailed are chosen in the log window and reach the model as the payload's last line, so a
+rule about length written into the prompt fights that box rather than replacing it — which is
+**The changelog**'s argument, and the reason `PromptStore.ForChangelog` takes no argument where
+`ForCommit` takes one.
 
 **The payload is not templatable, and that is the boundary.** `AiContext.ToPromptText` and
 `DiffPayload` decide what may leave the machine. A prompt file changes the instructions and can
@@ -3532,6 +3602,7 @@ of its own, so the version, the help page and the repository link live in one pl
 %LOCALAPPDATA%\FlickGit\actions.json      user actions + built-in overrides
 %LOCALAPPDATA%\FlickGit\commit-prompt.md  what the AI is asked for a commit message
 %LOCALAPPDATA%\FlickGit\pull-request-prompt.md   ...and for a pull request
+%LOCALAPPDATA%\FlickGit\changelog-prompt.md      ...and for a changelog
 %LOCALAPPDATA%\FlickGit\icons\            user-supplied .ico files
 %LOCALAPPDATA%\FlickGit\Logs\
 ```
@@ -3551,7 +3622,7 @@ it is a fact about the *user*, not about any one repository.
 `schemaVersion` 3 dropped `aiAllowDiffsToLeaveMachine` and `aiDiffConsentShown`, the AI consent pair.
 A named provider with a key stored for it is the consent — see **Privacy and secrets**.
 
-**The two prompt files carry no `schemaVersion` and needed no bump.** They are text, not a format:
+**The three prompt files carry no `schemaVersion` and needed no bump.** They are text, not a format:
 there is nothing in one a future build could misread, and the only failure — no prompt left in it —
 falls back to the built-in and says so. Nothing was added to `settings.json` for them either, so
 `CurrentSchemaVersion` stays 3. See **Prompt**.
@@ -3674,6 +3745,7 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | Pull request window painted                | 250 ms | 600 ms     |
 | Pull request plan settled -> summary       | 200 ms | 500 ms     |
 | AI description first token                 | 600 ms | 2 s        |
+| AI changelog first token                   | 600 ms | 2 s        |
 | Commit + push, warm, excluding network      | 400 ms | 1 s        |
 | `IExplorerCommand::GetState`               | 20 ms  | 50 ms      |
 | `IExplorerCommand::GetTitle` (branch read) | 20 ms  | 50 ms      |
@@ -3970,8 +4042,11 @@ the first FlickGit entry on a *file* rather than a folder, which is what `Action
 the handler's `*` registration exist for.
 
 Definition of value: the user can answer "what changed between these commits" and "who wrote this
-line, and what was here before" without leaving FlickGit, and can hand the first answer to
-somebody else as a `.patch`.
+line, and what was here before" without leaving FlickGit, and can hand the first answer to somebody
+else — as a `.patch` for somebody who will apply it, or as a **changelog** for somebody who will
+never read the code. The changelog arrived after the rest of the phase and needed no new plumbing:
+one more `AiContextBuilder` method, one more prompt file, and `CommitRange.Commits` so the window
+that writes it is describing exactly the range the diff and the patch are of.
 
 ## Phase 8 — The repository's own settings
 

@@ -235,6 +235,24 @@ log.patch.filter = Ficheiros patch (*.patch)|*.patch|Todos os ficheiros (*.*)|*.
 log.patch.saved = {0} guardado.
 log.patch.empty = Este intervalo não produz qualquer diff, portanto não havia nada para guardar.
 log.patch.failed = Não foi possível escrever o patch.
+log.changelog = Criar changelog…
+
+# ---- janela do changelog ----
+changelog.title = Changelog — {0}
+changelog.style = Estilo
+changelog.style.brief = Breve
+changelog.style.detailed = Detalhado
+changelog.write = Escrever de novo
+changelog.writing = A escrever o changelog…
+changelog.hint = Edite-o aqui e depois copie-o ou guarde-o. Nada é escrito no repositório.
+changelog.copy = Copiar
+changelog.copied = Copiado para a área de transferência.
+changelog.copy.failed = Não foi possível escrever na área de transferência.
+changelog.save = Guardar como…
+changelog.filter = Ficheiros Markdown (*.md)|*.md|Todos os ficheiros (*.*)|*.*
+changelog.saved = {0} guardado.
+changelog.save.failed = Não foi possível escrever o changelog.
+changelog.nothing = Não há nada a descrever: estes commits não mudam nenhum ficheiro.
 
 # ---- janela de blame ----
 blame.title = Blame — {0}

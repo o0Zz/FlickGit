@@ -94,6 +94,14 @@ public sealed record AiOptions(
     /// </summary>
     public const int PullRequestMaxTokens = 700;
 
+    /// <summary>
+    /// And for a changelog, which is the longest answer the product ever asks for: a range of twenty
+    /// commits is a page of entries. The ceiling has to sit above what was asked for, because a
+    /// changelog cut off in the middle of a list reads exactly like a complete one -- there is no
+    /// half-sentence to notice, only an entry that is not there.
+    /// </summary>
+    public const int ChangelogMaxTokens = 1200;
+
     /// <summary>The model used when <see cref="Model"/> is empty.</summary>
     public string ResolvedModel => Model.Length > 0
         ? Model
