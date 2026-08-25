@@ -104,12 +104,12 @@ branch.willcreate = nuovo: verrà creato
 branch.invalid = nome di ramo non valido
 branch.switched = Passato a {0}.
 branch.blocked = Impossibile cambiare ramo: questi file verrebbero sovrascritti:\n\n{0}
-branch.blocked.hint = Non è stato modificato né scartato nulla. Farne prima il commit, oppure usare Cambia ramo per metterli in stash.
+branch.blocked.hint = Non è stato modificato né scartato nulla. Farne prima il commit, oppure usare Rami per metterli in stash.
 switch.blocked.hint = Non è stato modificato né scartato nulla. Farne prima il commit, oppure metterli in stash qui sotto.
 branch.aborted = Il cambio di ramo ha modificato file che erano stati selezionati:\n\n{0}\n\nL'elenco è stato aggiornato. Non è stato fatto alcun commit.
 
-# ---- finestra Cambia ramo ----
-switch.title = Cambia ramo — {0}
+# ---- finestra Rami ----
+switch.title = Rami — {0}
 switch.local = Locali
 switch.remote = Remoti
 switch.button = Cambia
@@ -117,7 +117,7 @@ switch.stash = Stash, cambia, ripristina
 switch.none = Nessun ramo corrisponde.
 switch.stashkept = Le modifiche sono ancora nello stash. Recuperarle con:\n\ngit stash pop {0}
 
-# ---- branch delete / create, from the Switch branch window ----
+# ---- branch delete / create, from the Branches window ----
 switch.create = Crea «{0}»
 switch.create.kind = nuovo
 switch.menu.delete = Elimina il branch…
@@ -155,6 +155,13 @@ tag.willannotate.local = {0} sarà creato su HEAD come tag annotato. Non c'è al
 tag.created = {0} creato.
 tag.created.pushed = {0} creato e inviato a {1}.
 tag.push.failed = {0} è stato creato qui, ma l'invio a {1} non è riuscito.
+tag.menu.checkout = Passa a {0}…
+tag.checkout.title = Passare a questo tag?
+tag.checkout.confirm = Passare a {0}?\n\nHEAD sarà scollegata: sarai sul commit taggato e non su un ramo. Non si perde nulla — aprire Rami e sceglierne uno per tornare indietro.
+tag.checkout.yes = Passa
+tag.checkout.done = HEAD è scollegata su {0}.
+tag.checkout.blocked = Impossibile passare a {0} — questi file verrebbero sovrascritti. Non è stato modificato né scartato nulla. Farne prima il commit oppure metterli in stash.
+
 tag.menu.delete = Elimina tag…
 tag.menu.delete.remote = Elimina tag, qui e su {0}…
 tag.deleted = {0} eliminato.
@@ -362,7 +369,7 @@ action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
 action.push = Push
 action.pr = Pull request…
-action.switch = Cambia ramo…
+action.switch = Rami…
 action.tag = Tag…
 action.log = Mostra il log…
 action.blame = Blame…

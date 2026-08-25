@@ -104,12 +104,12 @@ branch.willcreate = nouvelle — sera créée
 branch.invalid = nom de branche invalide
 branch.switched = Basculé sur {0}.
 branch.blocked = Bascule impossible — ces fichiers seraient écrasés :\n\n{0}
-branch.blocked.hint = Rien n'a été modifié ni supprimé. Committez-les d'abord, ou utilisez Changer de branche pour les remiser.
+branch.blocked.hint = Rien n'a été modifié ni supprimé. Committez-les d'abord, ou utilisez Branches pour les remiser.
 switch.blocked.hint = Rien n'a été modifié ni supprimé. Committez-les d'abord, ou remisez-les ci-dessous.
 branch.aborted = La bascule a modifié des fichiers que vous aviez sélectionnés :\n\n{0}\n\nLa liste a été actualisée. Rien n'a été committé.
 
-# ---- fenêtre Changer de branche ----
-switch.title = Changer de branche — {0}
+# ---- fenêtre Branches ----
+switch.title = Branches — {0}
 switch.local = Locales
 switch.remote = Distantes
 switch.button = Basculer
@@ -117,7 +117,7 @@ switch.stash = Remiser, basculer, restaurer
 switch.none = Aucune branche ne correspond.
 switch.stashkept = Vos modifications sont toujours dans la remise. Récupérez-les avec :\n\ngit stash pop {0}
 
-# ---- branch delete / create, from the Switch branch window ----
+# ---- branch delete / create, from the Branches window ----
 switch.create = Créer « {0} »
 switch.create.kind = nouvelle
 switch.menu.delete = Supprimer la branche…
@@ -155,6 +155,13 @@ tag.willannotate.local = {0} sera créée sur HEAD comme étiquette annotée. Il
 tag.created = {0} créée.
 tag.created.pushed = {0} créée et poussée vers {1}.
 tag.push.failed = {0} a été créée ici, mais son envoi vers {1} a échoué.
+tag.menu.checkout = Basculer sur {0}…
+tag.checkout.title = Basculer sur cette étiquette ?
+tag.checkout.confirm = Basculer sur {0} ?\n\nHEAD sera détachée : vous serez sur le commit étiqueté et non sur une branche. Rien n'est perdu — ouvrez Branches et choisissez-en une pour revenir.
+tag.checkout.yes = Basculer
+tag.checkout.done = HEAD est détachée sur {0}.
+tag.checkout.blocked = Impossible de basculer sur {0} — ces fichiers seraient écrasés. Rien n'a été modifié ni supprimé. Committez-les ou remisez-les d'abord.
+
 tag.menu.delete = Supprimer l'étiquette…
 tag.menu.delete.remote = Supprimer l'étiquette, ici et sur {0}…
 tag.deleted = {0} supprimée.
@@ -362,7 +369,7 @@ action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
 action.push = Push
 action.pr = Pull request…
-action.switch = Changer de branche…
+action.switch = Branches…
 action.tag = Étiquettes…
 action.log = Afficher le journal…
 action.blame = Blame…

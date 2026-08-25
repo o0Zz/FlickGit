@@ -55,10 +55,12 @@ FlickGit is built for developers who work across multiple repositories and switc
       the machine.
 - [x] **Push with guardrails** — asks once per repository before creating an upstream, offers
       pull-then-push when behind, and **refuses a diverged push**. Force push is never offered.
-- [x] **Switch branch** — fuzzy filter over local and remote branches. If Git refuses, it names
-      the files and offers stash-switch-restore as an explicit choice.
+- [x] **Branches** — fuzzy filter over local and remote branches, create by typing a name that
+      matches nothing, delete by right-clicking a row. If Git refuses a switch, it names the files
+      and offers stash-switch-restore as an explicit choice.
 - [x] **Tags** — list, create, publish and delete in one window. Nothing is forced, and deleting
-      always asks first.
+      always asks first. Double-click a tag to check it out — the one thing in FlickGit that
+      detaches HEAD, so it asks once and says how to come back.
 - [x] **Clone** — clipboard prefill when what you copied really is a remote URL, determinate
       progress, and a cancel that removes the partial directory.
 - [x] **Pull (rebase)** — with `git submodule update` afterwards, but only when the repository
@@ -357,7 +359,7 @@ dependencies as typed constructor parameters so that stays a choice rather than 
 | Phase | | |
 |---|---|---|
 | **1** | The commit path | ✅ Repository detection · Git runner · registry menu · commit window · file list with line counts · stage/unstage · side-by-side diff · commit · pull --rebase · error handling · logging |
-| **2** | Branches, push, live editing | ✅ Branch ComboBox with switch/create · branch validation · push with upstream handling and divergence refusal · Switch branch with stash-switch-restore · Clone with clipboard prefill and progress · **editable right pane** with encoding and line-ending preservation · atomic save · external-modification detection · restage prompt |
+| **2** | Branches, push, live editing | ✅ Branch ComboBox with switch/create · branch validation · push with upstream handling and divergence refusal · Branches window with stash-switch-restore · Clone with clipboard prefill and progress · **editable right pane** with encoding and line-ending preservation · atomic save · external-modification detection · restage prompt |
 | **3** | Speed | ✅ Resident service with tray menu and MRU · named-pipe IPC with direct-launch fallback · pre-warmed windows · foreground activation · logon task · diff prefetch cache · notifications |
 | **4** | The trigger and AI | ✅ Global hotkey trigger · `IShellWindows` folder resolution with tab ambiguity · queued Enter · streaming AI commit messages (Anthropic / OpenAI) · diff capping and redaction · key in Credential Manager. *The cursor-anchored quick-commit popup was built and then removed: the trigger opens the commit window instead, which took over the caret-in-the-message-box opening, Enter-commits and the streamed message. The Explorer-scoped input hooks — a key or a mouse side button swallowed only over Explorer — are still open; the setting falls back to the global hotkey and says so in `diag doctor`.* |
 | **5** | Customisation | ✅ Repository palette (`Ctrl+Alt+R`) with fuzzy filtering, action mode, branch completion and `Ctrl+Enter` to pull everything behind · Action Catalog with `actions.json`, projected onto the context menu, the palette and the CLI · `flick run <id>` · `diag` commands · a small settings window (`flick settings`) carrying the context menu, autostart, the commit switches, the AI provider and its API key, the language picker, a Help tab rendering an editable `Help.md` and an About tab. *Two items were dropped on purpose: the drag-and-drop action editor (`actions.json` is the interface) and speculative generation. The Ollama provider was dropped here and built later — the original argument covered the feature and missed the point of the provider, which is that the other three send source code to a third party.* |

@@ -28,14 +28,45 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
     /// </summary>
     internal const string StashMessagePrefix = "flickgit-switch";
 
-    public async Task<SwitchOutcome> SwitchAsync(
+    public Task<SwitchOutcome> SwitchAsync(
         RepositoryInfo repository,
         string branch,
+        CancellationToken cancellationToken) =>
+        RunSwitchAsync(repository, ["switch", branch], branch, cancellationToken);
+
+    /// <summary>
+    /// Checks a revision out by name -- a tag, from the tag window -- leaving HEAD detached.
+    ///
+    /// <b>The only place in the product that detaches HEAD on purpose.</b> Everywhere else it is a
+    /// state to be reported and refused: <see cref="ListCandidatesAsync"/> drops <c>origin/HEAD</c>
+    /// rather than offer a row that would produce one, and both <c>PushService</c> and
+    /// <c>PullRequestService</c> stop when they find one. So the surface that reaches this asks
+    /// first, in words that say what the state is and how to leave it.
+    ///
+    /// <c>switch --detach</c> rather than <c>checkout</c>: Git 2.23 is the stated minimum, and the
+    /// older spelling would be a second way to say the same thing.
+    /// </summary>
+    public Task<SwitchOutcome> DetachAsync(
+        RepositoryInfo repository,
+        string revision,
+        CancellationToken cancellationToken) =>
+        RunSwitchAsync(repository, ["switch", "--detach", revision], revision, cancellationToken);
+
+    /// <summary>
+    /// One `git switch`, and what to make of its answer. Shared by the two entry points above rather
+    /// than copied, so a refusal cannot come to mean two different things depending on which of them
+    /// was called.
+    /// </summary>
+    /// <param name="target">The branch or revision, for the log line only.</param>
+    private async Task<SwitchOutcome> RunSwitchAsync(
+        RepositoryInfo repository,
+        IReadOnlyList<string> args,
+        string target,
         CancellationToken cancellationToken)
     {
         GitResult result = await git.RunAsync(
             repository.Root,
-            ["switch", branch],
+            args,
             cancellationToken).ConfigureAwait(false);
 
         repositories.Invalidate(repository.Root);
@@ -47,7 +78,7 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
         //exactly what the user needs to decide what to do next -- nothing has been modified or discarded.
         IReadOnlyList<string> blocking = ParseBlockingFiles(result.ErrorText);
 
-        log.Info($"Switch to {branch} refused; {blocking.Count} blocking file(s).");
+        log.Info($"Switch to {target} refused; {blocking.Count} blocking file(s).");
 
         return new SwitchOutcome(
             Succeeded: false,

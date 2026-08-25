@@ -228,7 +228,7 @@ public sealed class WindowVerbs(
     /// </summary>
     public VerbResult TagPicker(RepositoryInfo repository)
     {
-        var window = new TagsWindow(repository, tags);
+        var window = new TagsWindow(repository, tags, switches);
 
         AppWindow.Present(window);
 

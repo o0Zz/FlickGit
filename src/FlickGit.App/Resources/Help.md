@@ -48,7 +48,7 @@ registry context menus, not a setting: the Windows 11 top-level menu needs a sig
 - **Commit / Push…** and **Pull (rebase)** are entries in the menu itself, at the bottom, one
   click from the right-click. Pull runs a submodule update afterwards when the repository has a
   `.gitmodules`.
-- **FlickGit ▸** holds the rest: Switch branch…, Tags…, Push, Clone…, Repository status, Open
+- **FlickGit ▸** holds the rest: Branches…, Tags…, Push, Clone…, Repository status, Open
   terminal here, and any action you added yourself.
 
 **Clone…** lives in that submenu rather than replacing the menu outside a repository: a registry

@@ -104,12 +104,12 @@ branch.willcreate = novo — vai ser criado
 branch.invalid = nome de ramo inválido
 branch.switched = Mudou para {0}.
 branch.blocked = Não é possível mudar de ramo — estes ficheiros seriam substituídos:\n\n{0}
-branch.blocked.hint = Nada foi alterado nem descartado. Faça commit primeiro, ou use Mudar de ramo para os guardar no stash.
+branch.blocked.hint = Nada foi alterado nem descartado. Faça commit primeiro, ou use Ramos para os guardar no stash.
 switch.blocked.hint = Nada foi alterado nem descartado. Faça commit primeiro, ou guarde-os no stash abaixo.
 branch.aborted = A mudança de ramo alterou ficheiros que tinha selecionado:\n\n{0}\n\nA lista foi atualizada. Não foi feito nenhum commit.
 
-# ---- janela Mudar de ramo ----
-switch.title = Mudar de ramo — {0}
+# ---- janela Ramos ----
+switch.title = Ramos — {0}
 switch.local = Locais
 switch.remote = Remotos
 switch.button = Mudar
@@ -117,7 +117,7 @@ switch.stash = Stash, mudar, repor
 switch.none = Nenhum ramo corresponde.
 switch.stashkept = As suas alterações continuam no stash. Recupere-as com:\n\ngit stash pop {0}
 
-# ---- branch delete / create, from the Switch branch window ----
+# ---- branch delete / create, from the Branches window ----
 switch.create = Criar «{0}»
 switch.create.kind = novo
 switch.menu.delete = Eliminar o ramo…
@@ -155,6 +155,13 @@ tag.willannotate.local = {0} será criada em HEAD como etiqueta anotada. Não h�
 tag.created = {0} criada.
 tag.created.pushed = {0} criada e enviada para {1}.
 tag.push.failed = {0} foi criada aqui, mas o envio para {1} falhou.
+tag.menu.checkout = Mudar para {0}…
+tag.checkout.title = Mudar para esta etiqueta?
+tag.checkout.confirm = Mudar para {0}?\n\nA HEAD ficará destacada: estará no commit etiquetado e não num ramo. Nada se perde — abra Ramos e escolha um para voltar.
+tag.checkout.yes = Mudar
+tag.checkout.done = A HEAD está destacada em {0}.
+tag.checkout.blocked = Não é possível mudar para {0} — estes ficheiros seriam substituídos. Nada foi alterado nem descartado. Faça commit ou guarde-os no stash primeiro.
+
 tag.menu.delete = Eliminar etiqueta…
 tag.menu.delete.remote = Eliminar etiqueta, aqui e em {0}…
 tag.deleted = {0} eliminada.
@@ -362,7 +369,7 @@ action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
 action.push = Push
 action.pr = Pull request…
-action.switch = Mudar de ramo…
+action.switch = Ramos…
 action.tag = Etiquetas…
 action.log = Mostrar histórico…
 action.blame = Blame…

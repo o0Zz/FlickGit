@@ -124,13 +124,13 @@ branch.invalid = not a valid branch name
 branch.switched = Switched to {0}.
 # {0} newline-separated file list
 branch.blocked = Cannot switch — these files would be overwritten:\n\n{0}
-branch.blocked.hint = Nothing was modified or discarded. Commit them first, or use Switch branch to stash them.
+branch.blocked.hint = Nothing was modified or discarded. Commit them first, or use Branches to stash them.
 switch.blocked.hint = Nothing was modified or discarded. Commit them first, or stash them below.
 # {0} newline-separated file list
 branch.aborted = The switch changed files you had selected:\n\n{0}\n\nThe list has been refreshed. Nothing was committed.
 
-# ---- switch branch window ----
-switch.title = Switch branch — {0}
+# ---- branches window ----
+switch.title = Branches — {0}
 switch.local = Local
 switch.remote = Remote
 switch.button = Switch
@@ -139,7 +139,7 @@ switch.none = No branch matches.
 # {0} stash reference
 switch.stashkept = Your changes are still in the stash. Recover them with:\n\ngit stash pop {0}
 
-# ---- branch delete / create, from the Switch branch window ----
+# ---- branch delete / create, from the Branches window ----
 switch.create = Create '{0}'
 switch.create.kind = new
 switch.menu.delete = Delete branch…
@@ -182,6 +182,15 @@ tag.willannotate.local = {0} will be created on HEAD as an annotated tag. There 
 tag.created = Created {0}.
 tag.created.pushed = Created {0} and pushed it to {1}.
 tag.push.failed = {0} was created here, but pushing it to {1} failed.
+# ---- checking a tag out ----
+# {0} the tag
+tag.menu.checkout = Check out {0}…
+tag.checkout.title = Check out this tag?
+tag.checkout.confirm = Check out {0}?\n\nHEAD will be detached: you will be on the tagged commit rather than on a branch. Nothing is lost — open Branches and pick one to come back.
+tag.checkout.yes = Check out
+tag.checkout.done = HEAD is detached at {0}.
+tag.checkout.blocked = Cannot check out {0} — these files would be overwritten. Nothing was modified or discarded. Commit or stash them first.
+
 tag.menu.delete = Delete tag…
 # {0} the remote the deletion also lands on
 tag.menu.delete.remote = Delete tag, here and on {0}…
@@ -453,7 +462,7 @@ action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
 action.push = Push
 action.pr = Pull request…
-action.switch = Switch branch…
+action.switch = Branches…
 action.tag = Tags…
 action.log = Show log…
 action.blame = Blame…

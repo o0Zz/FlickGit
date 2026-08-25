@@ -2391,7 +2391,7 @@ HKCU\Software\Classes\Directory\shell\FlickGit.zz.menu
     CommandFlags           = dword:00000040        ; ECF_SEPARATORAFTER
 
 HKCU\Software\Classes\FlickGit.Menu\shell\110switch
-    MUIVerb                = "Switch branch..."
+    MUIVerb                = "Branches..."
     Icon                   = "<install>\icons\branch.ico"
     \command  (default)    = "<install>\flick.exe" switch "%V"
 ```
@@ -2769,13 +2769,22 @@ decide.
 
 ---
 
-# Switch Branch
+# Branches
 
-Lives under **More** in the context menu, and as `switch` in the palette and CLI. It is
-separate from the commit-surface ComboBox, which only switches as part of committing.
+Lives in the FlickGit submenu, and as `switch` in the palette and CLI. It is separate from the
+commit-surface ComboBox, which only switches as part of committing.
+
+**The label is "Branches…", the verb is still `switch`**, and the two disagree on purpose. The
+window does three things — switch, create, delete, locally and on a remote — so "Switch branch…"
+named one of them, and "Branches" beside "Tags" is what the two entries actually are: one screen
+per kind of ref. The verb names the operation a command line performs, which is the one thing
+`flick switch <path> <branch>` still does and the spelling `git switch` already has. Labels and
+action ids diverge elsewhere for the same reason — `log` is "Show log…", `pr` is "Pull request…"
+— so nothing structural changed with the name: three strings per `.lang` file, and the built-in's
+id stayed `switch` because a built-in's id **is** its verb.
 
 ```text
-┌─ Switch branch — d360-portal ───────────────┐
+┌─ Branches — d360-portal ────────────────────┐
 │ > sto│                                      │
 ├─────────────────────────────────────────────┤
 │   feature/storage-gw          (current)     │
@@ -2857,6 +2866,64 @@ nothing here prunes anything by hand.
 
 ---
 
+# Tags
+
+Beside **Branches** in the submenu, and one screen for the same reason: what exists, create one,
+delete one, all three of which begin with "what is there already". `TagService` carries the rules —
+the remote goes first in a deletion, nothing is ever forced, and no window open costs an
+`ls-remote`.
+
+## Checking one out
+
+**Double-click a tag, or pick `Check out v1.4.0…` from the same right-click menu the deletion is
+on**, and after one question HEAD is on that commit.
+
+```bash
+git switch --detach <tag>
+```
+
+**This is the only thing in FlickGit that detaches HEAD**, and that is why it asks. Everywhere else
+the state is something to be *reported and refused*: `SwitchService.ListCandidatesAsync` drops
+`origin/HEAD` from the picker rather than offer a row that would produce one, and both
+`PushService` and `PullRequestService` stop with "HEAD is detached, so there is no branch to…".
+Producing it deliberately in one place is a decision, so it is taken in words the user reads —
+naming the state and naming the way back — rather than performed on a double-click and explained
+afterwards.
+
+`switch --detach` rather than `checkout`, on the rule the rest of the product follows: Git 2.23 is
+the stated minimum, and the older spelling would be a second way to say the same thing.
+
+Four consequences, each of which is where this could have gone wrong:
+
+- **The question names the tag and no sha.** `GitTag.Target` is `%(objectname:short)`, which for an
+  *annotated* tag is the tag object rather than the commit HEAD would land on. A number in a
+  confirmation has to be the number the operation uses, so there is no number.
+- **The row is the one under the pointer, not the selected one.** `ApplyFilter` selects index 0
+  every time the list is rebuilt, so a double-click on the empty space below the last row would
+  otherwise check out the newest tag in the repository from a gesture aimed at nothing.
+- **A refusal offers no stash.** `git switch` refuses rather than overwriting, and the blocking
+  files are reported with "nothing was modified or discarded" — but `StashSwitchRestoreAsync` is
+  the Branches window's and cannot switch to a tag, so a button offering it here would be a button
+  that cannot work. That is the same rule **Branches** applies to a refusal a stash cannot fix.
+- **The window stays open and says so**: *"HEAD is detached at v1.4.0."* The branch picker closes on
+  a successful switch; this one cannot, because the sentence naming the state is the whole reason
+  the question was worth asking, and a window that closes cannot say it.
+
+**There is no command-line spelling**, exactly as there is none for deleting a tag and for the
+reason `VerbKind.Tag` already records: detaching HEAD needs intent expressed in the moment, and a
+token in a script is the opposite of that. `flick tag <path> <name>` creates a tag and does only
+that.
+
+## What it deliberately does not do
+
+> **No moving a tag, no `--force`, no signing, no tag-at-a-chosen-commit.**
+
+A tag is created on HEAD, because the log window offers no action on a commit to pick one *from* —
+which is a decision rather than a missing feature. Moving a published version number is the one
+operation whose only implementation is `--force`, and there is none anywhere below this window.
+
+---
+
 # Context Menu Layout
 
 The default projection of the Action Catalog. Everything here is reorderable and hideable in
@@ -2879,7 +2946,7 @@ Commit / Push…
 Pull (rebase)                       ← + submodule update when .gitmodules exists
 FlickGit                          ▸
       ├── Show log…
-      ├── Switch branch…
+      ├── Branches…
       ├── Tags…
       ├── Push
       ├── Pull request…
@@ -2982,7 +3049,7 @@ One word per meaning, and there are exactly two keys for it: `common.close` and
 `common.cancel`.
 
 **A button that only dismisses a window says Close.** The commit window, the pull-request
-window, Settings, Switch branch, the log, blame, tags and the repository window all end in the
+window, Settings, Branches, the log, blame, tags and the repository window all end in the
 same gesture -- nothing is running, nothing is undone, the window goes away -- and for a while
 four of them called it Cancel and four called it Close. A button promising to call something
 off, on a window where there is nothing to call off, is a promise about work that was never at
@@ -3424,7 +3491,7 @@ Definition of value: the user can right-click, review, and commit, faster than T
 ## Phase 2 — Branches, push, live editing
 
 **Branch ComboBox** with switch/create resolution · branch validation · primary branch
-resolution and warning · push with upstream handling · **Switch branch** action under More ·
+resolution and warning · push with upstream handling · the **Branches** action in the submenu ·
 **Clone** with clipboard prefill and progress · **submodule update after pull** ·
 **editable right pane** · encoding and line-ending preservation · atomic save ·
 external-modification detection · staged-vs-worktree restage prompt.

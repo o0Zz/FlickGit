@@ -104,12 +104,12 @@ branch.willcreate = neu — wird angelegt
 branch.invalid = kein gültiger Branch-Name
 branch.switched = Zu {0} gewechselt.
 branch.blocked = Wechsel nicht möglich — diese Dateien würden überschrieben:\n\n{0}
-branch.blocked.hint = Es wurde nichts geändert oder verworfen. Erst committen, oder sie über Branch wechseln stashen.
+branch.blocked.hint = Es wurde nichts geändert oder verworfen. Erst committen, oder sie über Branches stashen.
 switch.blocked.hint = Es wurde nichts geändert oder verworfen. Erst committen, oder sie unten stashen.
 branch.aborted = Der Wechsel hat Dateien verändert, die Sie ausgewählt hatten:\n\n{0}\n\nDie Liste wurde aktualisiert. Es wurde nichts committet.
 
-# ---- Fenster Branch wechseln ----
-switch.title = Branch wechseln — {0}
+# ---- Fenster Branches ----
+switch.title = Branches — {0}
 switch.local = Lokal
 switch.remote = Remote
 switch.button = Wechseln
@@ -117,7 +117,7 @@ switch.stash = Stashen, wechseln, zurückholen
 switch.none = Kein Branch passt.
 switch.stashkept = Ihre Änderungen liegen weiterhin im Stash. Zurückholen mit:\n\ngit stash pop {0}
 
-# ---- branch delete / create, from the Switch branch window ----
+# ---- branch delete / create, from the Branches window ----
 switch.create = „{0}“ erstellen
 switch.create.kind = neu
 switch.menu.delete = Branch löschen…
@@ -155,6 +155,13 @@ tag.willannotate.local = {0} wird auf HEAD als annotierter Tag erstellt. Es gibt
 tag.created = {0} erstellt.
 tag.created.pushed = {0} erstellt und nach {1} gepusht.
 tag.push.failed = {0} wurde hier erstellt, aber das Pushen nach {1} ist fehlgeschlagen.
+tag.menu.checkout = {0} auschecken…
+tag.checkout.title = Diesen Tag auschecken?
+tag.checkout.confirm = {0} auschecken?\n\nHEAD wird detached: Sie sind dann auf dem getaggten Commit statt auf einem Branch. Nichts geht verloren — öffnen Sie Branches und wählen Sie einen aus, um zurückzukommen.
+tag.checkout.yes = Auschecken
+tag.checkout.done = HEAD ist detached bei {0}.
+tag.checkout.blocked = {0} kann nicht ausgecheckt werden — diese Dateien würden überschrieben. Es wurde nichts geändert oder verworfen. Committen oder stashen Sie sie zuerst.
+
 tag.menu.delete = Tag löschen…
 tag.menu.delete.remote = Tag löschen, hier und in {0}…
 tag.deleted = {0} gelöscht.
@@ -362,7 +369,7 @@ action.commit = Commit / Push…
 action.pull-rebase = Pull (Rebase)
 action.push = Push
 action.pr = Pull Request…
-action.switch = Branch wechseln…
+action.switch = Branches…
 action.tag = Tags…
 action.log = Log anzeigen…
 action.blame = Blame…

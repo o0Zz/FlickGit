@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using FlickGit.App.Localization;
+using FlickGit.Branches;
 using FlickGit.Matching;
 using FlickGit.Models;
 using FlickGit.Tags;
@@ -34,11 +35,16 @@ namespace FlickGit.App.Views;
 /// <item><description><b>No button deletes.</b> Enter in the filter box creates or does nothing, and
 /// the only path to a deletion is a right-click on a named row.</description></item>
 /// </list>
+///
+/// <b>It also checks a tag out</b>, on a double-click or from the same right-click menu -- the one
+/// thing in FlickGit that leaves HEAD detached, which is why it is the one thing here that asks a
+/// question naming a Git state rather than a consequence. See <see cref="CheckOutAsync"/>.
 /// </summary>
 public partial class TagsWindow : Window
 {
     private readonly RepositoryInfo _repository;
     private readonly TagService _tags;
+    private readonly SwitchService _switches;
     private readonly List<GitTag> _all = [];
 
     /// <summary>
@@ -48,12 +54,13 @@ public partial class TagsWindow : Window
     /// </summary>
     private string? _remote;
 
-    public TagsWindow(RepositoryInfo repository, TagService tags)
+    public TagsWindow(RepositoryInfo repository, TagService tags, SwitchService switches)
     {
         InitializeComponent();
 
         _repository = repository;
         _tags = tags;
+        _switches = switches;
 
         Title = Strings.Get("tag.title", repository.Name);
         NewLabel.Text = Strings.Get("tag.new");
@@ -147,9 +154,12 @@ public partial class TagsWindow : Window
     }
 
     /// <summary>
-    /// One item, built when the menu opens rather than declared in XAML, because its label has to
-    /// name the remote the deletion would reach — "Delete tag, here and on origin…" is a different
-    /// promise from "Delete tag…", and it is the one the user needs before pressing it.
+    /// Built when the menu opens rather than declared in XAML, because both labels have to name the
+    /// row they would act on — "Delete tag, here and on origin…" is a different promise from
+    /// "Delete tag…", and it is the one the user needs before pressing it.
+    ///
+    /// Check out comes first, and it is here as well as on the double-click because a double-click
+    /// is a gesture nobody discovers by looking.
     /// </summary>
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
@@ -161,15 +171,107 @@ public partial class TagsWindow : Window
             return;
         }
 
-        var item = new MenuItem
-        {
-            Header = _remote is { } remote
+        RowMenu.Items.Add(MenuItemFor(
+            Strings.Get("tag.menu.checkout", name),
+            () => CheckOutAsync(name)));
+
+        RowMenu.Items.Add(MenuItemFor(
+            _remote is { } remote
                 ? Strings.Get("tag.menu.delete.remote", remote)
                 : Strings.Get("tag.menu.delete"),
-        };
+            () => ConfirmAndDeleteAsync(name)));
+    }
 
-        item.Click += async (_, _) => await ConfirmAndDeleteAsync(name).ConfigureAwait(true);
-        RowMenu.Items.Add(item);
+    private static MenuItem MenuItemFor(string header, Func<Task> action)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += async (_, _) => await action().ConfigureAwait(true);
+        return item;
+    }
+
+    /// <summary>
+    /// Double-click checks out the row <i>under the pointer</i>, never the selected one.
+    /// <see cref="ApplyFilter"/> selects index 0 whenever the list is rebuilt, so a double-click on
+    /// the empty space below the last row would otherwise check out the newest tag in the
+    /// repository -- from a gesture aimed at nothing.
+    /// </summary>
+    private async void OnCheckout(object sender, MouseButtonEventArgs e)
+    {
+        if ((e.OriginalSource as DependencyObject).FindAncestor<ListBoxItem>()?.Content is not TagRow row)
+            return;
+
+        await CheckOutAsync(row.Name).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Checks the tag out, after one question.
+    ///
+    /// <b>This is the only thing in FlickGit that detaches HEAD</b>, and everywhere else in the
+    /// product that state is something to be reported and refused. So it is asked about once, in
+    /// words that name the state and say how to leave it, rather than performed on a double-click
+    /// and explained afterwards. It is not destructive -- Git refuses rather than overwriting, which
+    /// is the branch below.
+    ///
+    /// The question names the tag and no sha. <see cref="GitTag.Target"/> is the ref's own object,
+    /// which for an annotated tag is the tag object rather than the commit HEAD would land on, and a
+    /// number in a confirmation has to be the number the operation uses.
+    /// </summary>
+    private async Task CheckOutAsync(string name)
+    {
+        bool confirmed = ConfirmWindow.Ask(
+            this,
+            Strings.Get("tag.checkout.title"),
+            Strings.Get("tag.checkout.confirm", name),
+            Strings.Get("tag.checkout.yes"),
+            Strings.Get("common.cancel"));
+
+        if (!confirmed)
+            return;
+
+        SetBusy(true);
+
+        try
+        {
+            SwitchOutcome outcome = await _switches
+                .DetachAsync(_repository, name, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (outcome.Succeeded)
+            {
+                //Said in the footer, and the window stays open to say it. The branch picker closes on
+                //a successful switch; this one cannot, because the sentence naming the state HEAD is
+                //now in is the whole reason the question above was worth asking. Nothing is reloaded:
+                //checking a tag out changes no tag.
+                StatusText.Text = Strings.Get("tag.checkout.done", name);
+                return;
+            }
+
+            if (outcome.RefusedByLocalChanges)
+            {
+                //Refused, with the working tree byte-identical. No stash offer here: that sequence is
+                //the Branches window's, it cannot switch to a tag, and the accurate answer at this
+                //window's size is the file list and the fact that nothing happened.
+                new NoticeWindow(
+                    Strings.Get("tag.checkout.yes"),
+                    Strings.Get("tag.checkout.blocked", name),
+                    compact: false,
+                    string.Join('\n', outcome.BlockingFiles))
+                { Owner = this }.ShowDialog();
+
+                return;
+            }
+
+            //A failure the file list cannot explain. Git's own words, unparaphrased.
+            new NoticeWindow(
+                Strings.Get("tag.checkout.yes"),
+                outcome.GitError ?? string.Empty,
+                compact: false)
+            { Owner = this }.ShowDialog();
+        }
+        finally
+        {
+            SetBusy(false);
+        }
     }
 
     private void OnNewNameChanged(object sender, RoutedEventArgs e) => UpdateNewHint();

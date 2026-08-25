@@ -48,12 +48,17 @@
              for the same reason: deleting is the one destructive thing this window can do, and a
              footer button that acts on "whatever is highlighted" is how the wrong tag goes. The menu
              is built in ContextMenuOpening rather than declared here because its one item names the
-             remote it would delete from. -->
+             remote it would delete from.
+
+             Double-click checks the row out, the way the branch picker's does. It is the invisible
+             half of that gesture, which is why the same act is on the menu as well: nobody discovers
+             a double-click, and a window whose rows do something has to say so somewhere. -->
         <ListBox x:Name="TagList"
                  Grid.Row="1"
                  BorderThickness="0"
                  Background="{StaticResource Surface}"
                  HorizontalContentAlignment="Stretch"
+                 MouseDoubleClick="OnCheckout"
                  PreviewMouseRightButtonDown="OnRowRightClick"
                  ContextMenuOpening="OnContextMenuOpening">
             <ListBox.ContextMenu>

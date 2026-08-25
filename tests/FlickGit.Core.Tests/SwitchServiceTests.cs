@@ -104,6 +104,47 @@ public class SwitchServiceTests
     }
 
     [Fact]
+    public async Task CheckingOutATagDetachesRatherThanSwitching()
+    {
+        //A tag is not a branch, so `git switch <tag>` refuses outright. --detach is the one spelling
+        //that means "go there", and the one place in the product that asks for it -- CLAUDE.md,
+        //"Blame"/"Log" hold the line that reading history changes nothing; this crosses it on purpose
+        //and does so with a confirmation, not with a force.
+        var git = new FakeGitRunner().Returns(["switch", "--detach"]);
+
+        SwitchOutcome outcome = await Create(git).DetachAsync(Repository, "v1.4.0", CancellationToken.None);
+
+        Assert.True(outcome.Succeeded);
+
+        string[] args = Assert.Single(git.Invocations).Args;
+        Assert.Equal(["switch", "--detach", "v1.4.0"], args);
+
+        //The three ways this could have become destructive, none of which is reachable from here.
+        Assert.True(git.NeverCalledWith("--force"));
+        Assert.True(git.NeverCalledWith("-f"));
+        Assert.True(git.NeverCalledWith("checkout"));
+    }
+
+    [Fact]
+    public async Task ABlockedCheckoutChangesNothing()
+    {
+        //The same rule the branch path has, reached through the same code: refused, with the files
+        //named and the working tree byte-identical. No stash is attempted -- that sequence belongs to
+        //the Branches window and cannot switch to a tag anyway.
+        var git = new FakeGitRunner().Returns(["switch", "--detach"], exitCode: 1, stderr: BlockedStderr);
+
+        SwitchOutcome outcome = await Create(git).DetachAsync(Repository, "v1.4.0", CancellationToken.None);
+
+        Assert.False(outcome.Succeeded);
+        Assert.True(outcome.RefusedByLocalChanges);
+        Assert.Contains("src/GatewayClient.cs", outcome.BlockingFiles);
+
+        Assert.Single(git.Invocations);
+        Assert.True(git.NeverCalledWith("stash"));
+        Assert.True(git.NeverCalledWith("reset"));
+    }
+
+    [Fact]
     public async Task CreatingABranchUsesSwitchDashCWithNoFallbackToCheckout()
     {
         var git = new FakeGitRunner().Returns(["switch", "-c"]);
