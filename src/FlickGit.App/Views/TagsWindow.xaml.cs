@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using FlickGit.App.Localization;
 using FlickGit.Matching;
@@ -8,23 +9,30 @@ using FlickGit.Tags;
 namespace FlickGit.App.Views;
 
 /// <summary>
-/// The tag window: what exists, create one, publish one, delete one.
+/// The tag window: what exists, create one, delete one.
 ///
-/// One window rather than four, because all four questions are the same question with a different
+/// One window rather than three, because all three questions are the same question with a different
 /// verb attached — and every one of them starts with "what is there already". A create dialog that
 /// could not show the existing tags would be a dialog whose first job the user has to do somewhere
 /// else.
 ///
+/// <b>It is shaped like the branch picker on purpose.</b> Creating is the filter box's neighbour and
+/// deleting is a right-click on the row it acts on — not a footer button acting on "whatever is
+/// highlighted", which is how the wrong tag goes. The three buttons that used to sit in the footer
+/// (Push, Delete locally, Delete here and on remote) are gone rather than hidden: publishing is no
+/// longer a separate act, and there was never a second question worth asking about where a deletion
+/// should land.
+///
 /// Three things it refuses to do, all of them from CLAUDE.md's "Safety Rules":
 ///
 /// <list type="bullet">
-/// <item><description><b>Deleting always asks first</b>, on both surfaces, and the remote variant
-/// asks a different question rather than the same one twice.</description></item>
+/// <item><description><b>Deleting always asks first</b>, and the remote variant asks a different
+/// question rather than the same one twice.</description></item>
 /// <item><description><b>Nothing is ever forced.</b> There is no <c>--force</c> anywhere below this,
 /// so an existing tag cannot be moved onto a different commit by accident — Git refuses and says so.
 /// </description></item>
-/// <item><description><b>Delete is never the default button.</b> Enter in the filter box creates or
-/// does nothing; it can never reach a deletion.</description></item>
+/// <item><description><b>No button deletes.</b> Enter in the filter box creates or does nothing, and
+/// the only path to a deletion is a right-click on a named row.</description></item>
 /// </list>
 /// </summary>
 public partial class TagsWindow : Window
@@ -35,8 +43,8 @@ public partial class TagsWindow : Window
 
     /// <summary>
     /// The remote to publish to and delete from, resolved once on open. Null when there is none, or
-    /// when there are several and none is called <c>origin</c> — in which case the remote buttons stay
-    /// disabled rather than guessing which of them other people read.
+    /// when there are several and none is called <c>origin</c> — in which case creating stays local
+    /// and the delete item says so, rather than guessing which remote other people read.
     /// </summary>
     private string? _remote;
 
@@ -49,10 +57,9 @@ public partial class TagsWindow : Window
 
         Title = Strings.Get("tag.title", repository.Name);
         NewLabel.Text = Strings.Get("tag.new");
+        NameLabel.Text = Strings.Get("tag.name.label");
+        MessageLabel.Text = Strings.Get("tag.message.label");
         CreateButton.Content = Strings.Get("tag.create");
-        PushButton.Content = Strings.Get("tag.push");
-        DeleteButton.Content = Strings.Get("tag.delete");
-        DeleteRemoteButton.Content = Strings.Get("tag.deleteremote");
         CloseButton.Content = Strings.Get("tag.close");
 
         NoteBox.ToolTip = Strings.Get("tag.message.hint");
@@ -126,31 +133,51 @@ public partial class TagsWindow : Window
         }
     }
 
-    private void OnSelectionChanged(object sender, RoutedEventArgs e) => UpdateSelectionButtons();
+    private string? Selected => (TagList.SelectedItem as TagRow)?.Name;
 
     /// <summary>
-    /// The three buttons that act on the highlighted row.
-    ///
-    /// Both remote ones are gated on <see cref="_remote"/> as well as on a selection: a repository
-    /// with no remote, or with several and no <c>origin</c>, has nowhere unambiguous to publish to —
-    /// and a button that would have to guess is a button that stays off.
+    /// The row under the pointer becomes the selected one before the menu is built. Without this the
+    /// menu would be built for whatever was highlighted before, and a right-click on one tag would
+    /// delete another.
     /// </summary>
-    private void UpdateSelectionButtons()
+    private void OnRowRightClick(object sender, MouseButtonEventArgs e)
     {
-        bool selected = Selected is not null;
-
-        DeleteButton.IsEnabled = selected;
-        PushButton.IsEnabled = selected && _remote is not null;
-        DeleteRemoteButton.IsEnabled = selected && _remote is not null;
+        if ((e.OriginalSource as DependencyObject).FindAncestor<ListBoxItem>() is { } row)
+            row.IsSelected = true;
     }
 
-    private string? Selected => (TagList.SelectedItem as TagRow)?.Name;
+    /// <summary>
+    /// One item, built when the menu opens rather than declared in XAML, because its label has to
+    /// name the remote the deletion would reach — "Delete tag, here and on origin…" is a different
+    /// promise from "Delete tag…", and it is the one the user needs before pressing it.
+    /// </summary>
+    private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        RowMenu.Items.Clear();
+
+        if (Selected is not { } name)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var item = new MenuItem
+        {
+            Header = _remote is { } remote
+                ? Strings.Get("tag.menu.delete.remote", remote)
+                : Strings.Get("tag.menu.delete"),
+        };
+
+        item.Click += async (_, _) => await ConfirmAndDeleteAsync(name).ConfigureAwait(true);
+        RowMenu.Items.Add(item);
+    }
 
     private void OnNewNameChanged(object sender, RoutedEventArgs e) => UpdateNewHint();
 
     /// <summary>
     /// Live feedback on the name being typed, in the spirit of the branch ComboBox: the consequence
-    /// is visible before Enter rather than reported after it.
+    /// is visible before Enter rather than reported after it. That consequence now includes the push,
+    /// which is why the hint names the remote.
     /// </summary>
     private void UpdateNewHint()
     {
@@ -179,19 +206,33 @@ public partial class TagsWindow : Window
             return;
         }
 
-        NewHint.Text = NoteBox.Text.Trim().Length > 0
-            ? Strings.Get("tag.willannotate", typed)
-            : Strings.Get("tag.willcreate", typed);
+        bool annotated = NoteBox.Text.Trim().Length > 0;
+
+        NewHint.Text = _remote is { } remote
+            ? Strings.Get(annotated ? "tag.willannotate" : "tag.willcreate", typed, remote)
+            : Strings.Get(annotated ? "tag.willannotate.local" : "tag.willcreate.local", typed);
 
         CreateButton.IsEnabled = true;
     }
 
+    /// <summary>
+    /// Creates the tag and publishes it, in that order, with no question in between.
+    ///
+    /// <b>The push is not a second decision.</b> A tag that exists only on this machine is a version
+    /// number nobody else can resolve, and "and push it?" has the same answer every time it is asked
+    /// — so it is not asked. Nothing is forced: a name the remote already carries is refused by Git
+    /// and reported in Git's own words.
+    /// </summary>
     private async void OnCreate(object sender, RoutedEventArgs e)
     {
         string name = NameBox.Text.Trim();
 
         if (name.Length == 0)
             return;
+
+        //Captured before the reload below, which resolves it again: the status line has to name the
+        //remote the push actually went to.
+        string? remote = _remote;
 
         SetBusy(true);
 
@@ -201,24 +242,35 @@ public partial class TagsWindow : Window
             //offers no action on a commit -- no checkout, reset, revert, cherry-pick or tag. So
             //there is still nothing to pick a commit *from*, and that is a decision rather than a
             //missing feature.
-            TagOutcome outcome = await _tags
+            TagOutcome created = await _tags
                 .CreateAsync(_repository, name, NoteBox.Text, null, CancellationToken.None)
                 .ConfigureAwait(true);
 
-            if (!outcome.Succeeded)
+            if (!created.Succeeded)
             {
-                Report(Strings.Get("tag.create"), outcome);
+                Report(Strings.Get("tag.create"), created);
                 return;
             }
 
             NameBox.Clear();
             NoteBox.Clear();
 
+            TagOutcome published = remote is null
+                ? TagOutcome.Ok
+                : await _tags.PushAsync(_repository, name, remote, CancellationToken.None).ConfigureAwait(true);
+
             await LoadAsync().ConfigureAwait(true);
 
             //Said in the footer rather than as a toast: the new row is on screen a line above, so
             //the confirmation is really just a label for what the user can already see.
-            StatusText.Text = Strings.Get("tag.created", name);
+            StatusText.Text = remote is not null && published.Succeeded
+                ? Strings.Get("tag.created.pushed", name, remote)
+                : Strings.Get("tag.created", name);
+
+            //A failed push is its own report, because the two halves ended differently: the tag is
+            //here and it is not there, which is the one outcome the footer line cannot say on its own.
+            if (!published.Succeeded)
+                Report(Strings.Get("tag.push"), published, Strings.Get("tag.push.failed", name, remote!));
         }
         finally
         {
@@ -226,46 +278,14 @@ public partial class TagsWindow : Window
         }
     }
 
-    private async void OnPush(object sender, RoutedEventArgs e)
+    private Task ConfirmAndDeleteAsync(string name)
     {
-        if (Selected is not { } name || _remote is not { } remote)
-            return;
-
-        SetBusy(true);
-
-        try
-        {
-            TagOutcome outcome = await _tags
-                .PushAsync(_repository, name, remote, CancellationToken.None)
-                .ConfigureAwait(true);
-
-            if (outcome.Succeeded)
-                StatusText.Text = Strings.Get("tag.pushed", name, remote);
-            else
-                Report(Strings.Get("tag.push"), outcome);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
-    }
-
-    private Task OnDeleteAsync(bool includeRemote)
-    {
-        if (Selected is not { } name)
-            return Task.CompletedTask;
-
-        string? remote = includeRemote ? _remote : null;
-
-        if (includeRemote && remote is null)
-            return Task.CompletedTask;
-
         //Two different questions, because they are two different acts. A local tag is a line in
         //.git; a published one is something other people have already fetched, and a tag has no
         //reflog to recover it from either way.
-        string question = remote is null
-            ? Strings.Get("tag.confirm.local", name)
-            : Strings.Get("tag.confirm.remote", name, remote);
+        string question = _remote is { } remote
+            ? Strings.Get("tag.confirm.remote", name, remote)
+            : Strings.Get("tag.confirm.local", name);
 
         bool confirmed = ConfirmWindow.Ask(
             this,
@@ -274,7 +294,7 @@ public partial class TagsWindow : Window
             Strings.Get("tag.confirm.yes"),
             Strings.Get("action.confirm.no"));
 
-        return confirmed ? DeleteAsync(name, remote) : Task.CompletedTask;
+        return confirmed ? DeleteAsync(name, _remote) : Task.CompletedTask;
     }
 
     private async Task DeleteAsync(string name, string? remote)
@@ -307,12 +327,6 @@ public partial class TagsWindow : Window
         }
     }
 
-    private async void OnDelete(object sender, RoutedEventArgs e) =>
-        await OnDeleteAsync(includeRemote: false).ConfigureAwait(true);
-
-    private async void OnDeleteEverywhere(object sender, RoutedEventArgs e) =>
-        await OnDeleteAsync(includeRemote: true).ConfigureAwait(true);
-
     /// <summary>Git's own words, never paraphrased — CLAUDE.md, "Error Handling".</summary>
     private void Report(string title, TagOutcome outcome, string? preamble = null)
     {
@@ -333,18 +347,14 @@ public partial class TagsWindow : Window
         if (busy)
         {
             CreateButton.IsEnabled = false;
-            PushButton.IsEnabled = false;
-            DeleteButton.IsEnabled = false;
-            DeleteRemoteButton.IsEnabled = false;
             return;
         }
 
-        //Re-derived rather than restored to what it was. Two rules decide these four buttons — is the
-        //typed name usable, and is a row selected — and a command that just ran may well have changed
-        //both. Putting them back the way they were is how a Create button survives creating the tag
-        //whose name is now taken.
+        //Re-derived rather than restored to what it was. One rule decides the Create button — is the
+        //typed name usable — and the command that just ran may well have changed the answer. Putting
+        //it back the way it was is how a Create button survives creating the tag whose name is now
+        //taken.
         UpdateNewHint();
-        UpdateSelectionButtons();
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

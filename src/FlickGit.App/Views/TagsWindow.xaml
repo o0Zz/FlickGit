@@ -44,12 +44,22 @@
             </Grid>
         </Border>
 
+        <!-- Right-click acts on the row under the pointer, exactly as the branch picker does, and
+             for the same reason: deleting is the one destructive thing this window can do, and a
+             footer button that acts on "whatever is highlighted" is how the wrong tag goes. The menu
+             is built in ContextMenuOpening rather than declared here because its one item names the
+             remote it would delete from. -->
         <ListBox x:Name="TagList"
                  Grid.Row="1"
                  BorderThickness="0"
                  Background="{StaticResource Surface}"
                  HorizontalContentAlignment="Stretch"
-                 SelectionChanged="OnSelectionChanged">
+                 PreviewMouseRightButtonDown="OnRowRightClick"
+                 ContextMenuOpening="OnContextMenuOpening">
+            <ListBox.ContextMenu>
+                <ContextMenu x:Name="RowMenu" />
+            </ListBox.ContextMenu>
+
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="Padding" Value="6,3" />
@@ -98,7 +108,12 @@
 
         <!-- Create. Below the list rather than in a dialog of its own, so the tag being typed and
              the tags that already exist are on screen together: "does v1.4.0 exist already" is the
-             question every tag creation actually begins with. -->
+             question every tag creation actually begins with.
+
+             Each box carries its own label above it. Two bare boxes side by side said nothing about
+             which was which, and the second one is the part nobody guesses: a tag has a message, and
+             whether it has one is the whole difference between an annotated tag and a lightweight
+             one. -->
         <Border Grid.Row="2"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
@@ -108,18 +123,36 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="200" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock x:Name="NewLabel" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock x:Name="NewLabel"
+                           Grid.ColumnSpan="3"
+                           Margin="0,0,0,8"
+                           Style="{StaticResource SectionLabel}" />
+
+                <TextBlock x:Name="NameLabel"
+                           Grid.Row="1"
+                           Margin="0,0,0,3"
+                           FontSize="11"
+                           Style="{StaticResource Muted}" />
+
+                <TextBlock x:Name="MessageLabel"
+                           Grid.Row="1"
+                           Grid.Column="1"
+                           Margin="8,0,0,3"
+                           FontSize="11"
+                           TextTrimming="CharacterEllipsis"
+                           Style="{StaticResource Muted}" />
 
                 <TextBox x:Name="NameBox"
-                         Grid.Column="1"
+                         Grid.Row="2"
                          VerticalAlignment="Center"
                          FontFamily="Cascadia Mono, Consolas, Courier New"
                          TextChanged="OnNewNameChanged" />
@@ -127,13 +160,15 @@
                 <!-- A message here makes the tag annotated, which is why this box also drives the
                      hint below: the kind of tag being created changes as it is typed into. -->
                 <TextBox x:Name="NoteBox"
-                         Grid.Column="2"
+                         Grid.Row="2"
+                         Grid.Column="1"
                          Margin="8,0,0,0"
                          VerticalAlignment="Center"
                          TextChanged="OnNewNameChanged" />
 
                 <Button x:Name="CreateButton"
-                        Grid.Column="3"
+                        Grid.Row="2"
+                        Grid.Column="2"
                         Margin="8,0,0,0"
                         MinWidth="90"
                         IsEnabled="False"
@@ -141,16 +176,17 @@
                         Click="OnCreate" />
 
                 <TextBlock x:Name="NewHint"
-                           Grid.Row="1"
-                           Grid.Column="1"
+                           Grid.Row="3"
                            Grid.ColumnSpan="3"
-                           Margin="0,6,0,0"
+                           Margin="0,7,0,0"
                            FontSize="11.5"
                            TextWrapping="Wrap"
                            Style="{StaticResource Muted}" />
             </Grid>
         </Border>
 
+        <!-- Status and Close, and nothing else. Push and the two Delete buttons are gone: creating
+             publishes, and deleting is the right-click on the row it acts on. -->
         <Border Grid.Row="3"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
@@ -163,15 +199,11 @@
                            TextTrimming="CharacterEllipsis"
                            Style="{StaticResource Muted}" />
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <!-- Publish before delete, and both a deliberate distance from the primary
-                         Create button above. Deleting is the destructive one and it is never the
-                         default: no IsDefault, so Enter in the filter box cannot reach it. -->
-                    <Button x:Name="PushButton" MinWidth="110" IsEnabled="False" Click="OnPush" />
-                    <Button x:Name="DeleteButton" Margin="8,0,0,0" MinWidth="110" IsEnabled="False" Click="OnDelete" />
-                    <Button x:Name="DeleteRemoteButton" Margin="8,0,0,0" MinWidth="150" IsEnabled="False" Click="OnDeleteEverywhere" />
-                    <Button x:Name="CloseButton" Margin="16,0,0,0" MinWidth="80" IsCancel="True" Click="OnClose" />
-                </StackPanel>
+                <Button x:Name="CloseButton"
+                        HorizontalAlignment="Right"
+                        MinWidth="80"
+                        IsCancel="True"
+                        Click="OnClose" />
             </Grid>
         </Border>
     </Grid>

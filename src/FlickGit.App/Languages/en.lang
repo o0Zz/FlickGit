@@ -154,12 +154,13 @@ branch.delete.noremote = '{0}' does not begin with the name of a configured remo
 # {0} repository name
 tag.title = Tags — {0}
 tag.new = New tag
+tag.name.label = Name
+tag.message.label = Message — optional; a message makes it an annotated tag
 tag.create = Create
-tag.push = Push to remote
-tag.delete = Delete locally
-tag.deleteremote = Delete here and on remote
+tag.push = Push tag
+tag.delete = Delete tag
 tag.close = Close
-tag.message.hint = A message makes it an annotated tag. Leave it empty for a lightweight one.
+tag.message.hint = Leave it empty for a lightweight tag. Anything typed here becomes the tag's own message, and makes it an annotated tag.
 tag.none = No tags in this repository yet.
 tag.nomatch = No tag matches.
 # {0} number of tags
@@ -168,12 +169,18 @@ tag.lightweight = lightweight
 tag.invalid = not a valid tag name
 # {0} the tag that is already there
 tag.exists = {0} already exists. FlickGit never moves a tag — delete it first.
-tag.willcreate = new — will be created on HEAD
-tag.willannotate = new — will be created on HEAD, annotated
-# {0} the tag
-tag.created = Created {0}.
+# {0} the tag being typed, {1} the remote it will be pushed to
+tag.willcreate = {0} will be created on HEAD and pushed to {1}.
+tag.willannotate = {0} will be created on HEAD as an annotated tag, and pushed to {1}.
+tag.willcreate.local = {0} will be created on HEAD. There is no remote to publish it to.
+tag.willannotate.local = {0} will be created on HEAD as an annotated tag. There is no remote to publish it to.
 # {0} the tag, {1} the remote
-tag.pushed = Pushed {0} to {1}.
+tag.created = Created {0}.
+tag.created.pushed = Created {0} and pushed it to {1}.
+tag.push.failed = {0} was created here, but pushing it to {1} failed.
+tag.menu.delete = Delete tag…
+# {0} the remote the deletion also lands on
+tag.menu.delete.remote = Delete tag, here and on {0}…
 tag.deleted = Deleted {0}.
 tag.deleted.remote = Deleted {0}, here and on {1}.
 tag.delete.failed = Nothing was deleted.

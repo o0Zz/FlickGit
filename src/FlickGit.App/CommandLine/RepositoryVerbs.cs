@@ -110,30 +110,56 @@ public sealed class RepositoryVerbs(
     }
 
     /// <summary>
-    /// `flick tag &lt;path&gt; &lt;name&gt;` — creates that tag on HEAD.
+    /// `flick tag &lt;path&gt; &lt;name&gt;` — creates that tag on HEAD and publishes it.
     ///
-    /// Create and nothing else. The window is where deletion lives, because there is no `--force`
-    /// under this and so nothing here can overwrite anything, whereas deleting a published tag is
-    /// exactly the "explicit user intent, expressed in the moment" that a script flag is not.
+    /// Create and publish, because that is what creating a tag means in the window as well, and one
+    /// verb with two meanings depending on the surface is worse than either. Deletion stays in the
+    /// window: there is no `--force` under this and so nothing here can overwrite anything, whereas
+    /// deleting a published tag is exactly the "explicit user intent, expressed in the moment" that
+    /// a script flag is not.
     /// </summary>
     public async Task<VerbResult> TagAsync(VerbOutput output, RepositoryInfo repository, string name)
     {
         string title = Strings.Get("tag.create");
+        string tag = name.Trim();
 
         //Lightweight: a message would have to come from somewhere, and a second positional argument
         //that is sometimes a message is a grammar nobody can remember. `git tag -a` is right there
         //for anyone who wants one from a script.
-        TagOutcome outcome = await tags
-            .CreateAsync(repository, name, null, null, CancellationToken.None)
+        TagOutcome created = await tags
+            .CreateAsync(repository, tag, null, null, CancellationToken.None)
             .ConfigureAwait(true);
 
-        if (outcome.Succeeded)
+        if (!created.Succeeded)
         {
-            output.Say(title, Strings.Get("tag.created", name.Trim()));
+            output.Fail(title, created.GitError ?? string.Empty);
+            return VerbResult.Exit(ExitCodes.GitError);
+        }
+
+        //Null when there is no remote, or several and none called origin. Publishing to a guess is
+        //publishing a version number somewhere other people read, so it stays local and says so.
+        if (await tags.ResolveRemoteAsync(repository, CancellationToken.None).ConfigureAwait(true) is not { } remote)
+        {
+            output.Say(title, Strings.Get("tag.created", tag));
             return VerbResult.Exit(ExitCodes.Success);
         }
 
-        output.Fail(title, outcome.GitError ?? string.Empty);
+        TagOutcome published = await tags
+            .PushAsync(repository, tag, remote, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (published.Succeeded)
+        {
+            output.Say(title, Strings.Get("tag.created.pushed", tag, remote));
+            return VerbResult.Exit(ExitCodes.Success);
+        }
+
+        //The tag exists here and not there, which the exit code alone cannot say -- so the message
+        //says both halves before Git's own words.
+        output.Fail(
+            title,
+            $"{Strings.Get("tag.push.failed", tag, remote)}\n\n{published.GitError}");
+
         return VerbResult.Exit(ExitCodes.GitError);
     }
 

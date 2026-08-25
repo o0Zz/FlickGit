@@ -416,7 +416,7 @@ flick pull-rebase <path>             --autostash, + submodule update when applic
 flick push <path>
 flick pr <path>                      open a pull request for this branch
 flick switch <path> [branch]         branch picker when omitted
-flick tag <path> [name]              tag window when omitted; creates it when named
+flick tag <path> [name]              tag window when omitted; creates and pushes it when named
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
 flick blame <file>                   who last touched each line, and what came before
