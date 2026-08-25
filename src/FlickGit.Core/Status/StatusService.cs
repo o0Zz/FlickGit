@@ -1,4 +1,4 @@
-using FlickGit.Diagnostics;
+﻿using FlickGit.Diagnostics;
 using FlickGit.Git;
 using FlickGit.Models;
 using FlickGit.Secrets;
@@ -34,12 +34,17 @@ public sealed class StatusService(
         long startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
 
         //--branch so the header comes out of this call rather than a fourth process.
-        //--untracked-files=normal (Git's default) collapses a wholly-untracked directory
-        //to one entry; -all would list every file inside bin/ and obj/, which is a
-        //thousand rows nobody wants to scroll past.
+        //--untracked-files=all, not Git's default of normal, which collapses a wholly
+        //untracked directory to a single "dir/" row. That row is unusable in every way
+        //this window works: it cannot be ticked file by file, the measurer has nothing
+        //to count, and clicking it asks the diff pane to read a directory as text -- so
+        //a new folder holding new files was the one change the list could not show. The
+        //rows it adds are ignored-file noise only in a repository with no .gitignore,
+        //and they arrive unticked, which is what makes the extra length harmless.
+        
         Task<GitResult> statusTask = git.ReadAsync(
             repository.Root,
-            ["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=normal"],
+            ["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"],
             cancellationToken);
 
         Task<GitResult> worktreeTask = git.ReadAsync(
