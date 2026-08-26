@@ -56,6 +56,12 @@ files.tooltip.untracked = Unversioniert — von Git nicht gezählt; Zeilen von d
 files.tooltip.binary = Binärdatei — keine Zeilenzählung und kein Text-Diff.
 files.tooltip.renamed = Umbenannt von {1}
 
+# ---- Datei hinzufügen ----
+add.menu = Datei hinzufügen
+add.menu.many = {0} Dateien hinzufügen
+add.done = {0} bereitgestellt
+add.done.many = {0} Dateien bereitgestellt
+
 # ---- Datei löschen ----
 delete.menu = Datei löschen…
 delete.title = Datei löschen

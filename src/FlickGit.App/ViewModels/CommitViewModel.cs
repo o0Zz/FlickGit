@@ -98,6 +98,7 @@ public sealed class CommitViewModel : ObservableObject
         RefreshCommand = new AsyncCommand(RefreshAsync, () => !IsBusy, ReportError);
         SelectAllCommand = new RelayCommand(() => SetAllSelected(true));
         SelectNoneCommand = new RelayCommand(() => SetAllSelected(false));
+        AddFileCommand = new AsyncCommand(AddSelectedFilesAsync, () => CanAddFile, ReportError);
         DeleteFileCommand = new AsyncCommand(DeleteSelectedFilesAsync, () => CanDeleteFile, ReportError);
         RevertFileCommand = new AsyncCommand(RevertSelectedFilesAsync, () => CanRevertFile, ReportError);
 
@@ -112,6 +113,8 @@ public sealed class CommitViewModel : ObservableObject
     public RelayCommand SelectAllCommand { get; }
     public RelayCommand SelectNoneCommand { get; }
     public RelayCommand GenerateCommand { get; }
+
+    public AsyncCommand AddFileCommand { get; }
 
     public AsyncCommand DeleteFileCommand { get; }
 
@@ -313,14 +316,34 @@ public sealed class CommitViewModel : ObservableObject
     private List<FileChangeItem> Revertable =>
         [.. _selectedFiles.Where(f => RestoreService.CanRevert(f.Change))];
 
+    /// <summary>
+    /// The highlighted rows Add can act on — the ones <c>git add</c> has a pathspec for.
+    ///
+    /// Two kinds are filtered out, and both are CLAUDE.md's staging rules rather than taste. A
+    /// <see cref="GitFileChange.IsDeletionStaged"/> row is in neither the working tree nor the index,
+    /// so its pathspec matches nothing and <c>git add</c> fails the whole call — and there is nothing
+    /// to do anyway, since the index already holds the deletion. A conflicted row is the one thing
+    /// this window must never stage by accident: <c>git add</c> on it records the file with its
+    /// conflict markers as the resolution.
+    ///
+    /// Filtered rather than refused, for the same reason Revert filters: Ctrl+A over the list is the
+    /// ordinary way to reach a mass add, and the label counts what the click would touch.
+    /// </summary>
+    private List<FileChangeItem> Addable =>
+        [.. _selectedFiles.Where(f => !f.IsConflicted && !f.Change.IsDeletionStaged)];
+
     /// <summary>What the context menu's labels count, so they name what the click would touch.</summary>
     public int DeletableCount => Deletable.Count;
 
     public int RevertableCount => Revertable.Count;
 
+    public int AddableCount => Addable.Count;
+
     public bool CanDeleteFile => !_isBusy && Deletable.Count > 0;
 
     public bool CanRevertFile => !_isBusy && Revertable.Count > 0;
+
+    public bool CanAddFile => !_isBusy && Addable.Count > 0;
 
     /// <summary>
     /// False hides the button rather than showing a permanently dead one -- with no key stored there
@@ -757,6 +780,67 @@ public sealed class CommitViewModel : ObservableObject
         {
             IsDiffLoading = false;
         }
+    }
+
+    /// <summary>
+    /// Stages every selected file <c>git add</c> has something to match, which for a file Git has
+    /// never seen is what starts tracking it.
+    ///
+    /// <b>It asks nothing, and that is the rule rather than an omission.</b> Staging discards no work:
+    /// the working tree is untouched and the index is recoverable with <c>git restore --staged</c>, so
+    /// there is nothing here for a confirmation to protect — the same reason CLAUDE.md gives Explorer's
+    /// <i>Add</i> no ellipsis while <i>Remove…</i> has one.
+    ///
+    /// <b>One <c>git add</c> for the whole selection</b>, unlike Delete and Revert, which loop one path
+    /// per call so a failure half way leaves a countable amount done. That argument does not apply
+    /// here: <c>git add</c> with several pathspecs either stages them all or refuses before touching
+    /// the index, and nothing is destroyed either way. It goes through
+    /// <see cref="CommitService.StageAsync"/> — the very call the commit sequence makes — so a file
+    /// staged from this menu is staged exactly as committing would have staged it.
+    ///
+    /// The rows are ticked <i>before</i> the refresh, because <see cref="Adopt"/> carries tick state
+    /// across by path: staging a file the user has not ticked and leaving it out of the commit is the
+    /// one outcome this item must not produce. The refresh is also what moves them — an untracked row
+    /// staged becomes an added one, which sorts out of the untracked block at the bottom.
+    /// </summary>
+    private async Task AddSelectedFilesAsync()
+    {
+        List<FileChangeItem> files = Addable;
+
+        if (files.Count == 0 || _isBusy)
+            return;
+
+        IsBusy = true;
+
+        try
+        {
+            await _commits
+                .StageAsync(_repository, [.. files.Select(f => f.Path)], CancellationToken.None)
+                .ConfigureAwait(true);
+
+            foreach (FileChangeItem file in files)
+            {
+                //The whole file is in the index now, so the hunk choice is spent -- and leaving the flag
+                //set would tell the commit sequence to leave this file alone, which is no longer what
+                //the index needs if the user unticks it again.
+                file.Change.HasChosenHunks = false;
+                file.IsSelected = true;
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+
+            //Always, including when the stage above threw: it refuses before touching the index, but a
+            //list that has not been re-read cannot say that.
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        //After the refresh, for the same reason Delete says so: a status line set before it would be
+        //reporting on a list that had not been rebuilt yet.
+        StatusText = files.Count == 1
+            ? Strings.Get("add.done", files[0].Path)
+            : Strings.Get("add.done.many", files.Count);
     }
 
     /// <summary>
@@ -1261,6 +1345,8 @@ public sealed class CommitViewModel : ObservableObject
         DeleteFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(CanRevertFile));
         RevertFileCommand.RaiseCanExecuteChanged();
+        Raise(nameof(CanAddFile));
+        AddFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(IsAiConfigured));
         CommitCommand.RaiseCanExecuteChanged();
         CommitAndPushCommand.RaiseCanExecuteChanged();

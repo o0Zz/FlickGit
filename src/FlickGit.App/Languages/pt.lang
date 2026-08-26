@@ -56,6 +56,12 @@ files.tooltip.untracked = Não controlado — o Git não o conta; linhas contada
 files.tooltip.binary = Ficheiro binário — sem contagem de linhas e sem diff de texto.
 files.tooltip.renamed = Renomeado a partir de {1}
 
+# ---- adicionar um ficheiro ----
+add.menu = Adicionar ficheiro
+add.menu.many = Adicionar {0} ficheiros
+add.done = {0} preparado
+add.done.many = {0} ficheiros preparados
+
 # ---- eliminar um ficheiro ----
 delete.menu = Eliminar ficheiro…
 delete.title = Eliminar ficheiro

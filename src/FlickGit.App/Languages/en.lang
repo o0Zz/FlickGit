@@ -63,6 +63,18 @@ files.tooltip.binary = Binary file — no line count and no text diff.
 # {0} old path
 files.tooltip.renamed = Renamed from {1}
 
+# ---- adding a file ----
+# The commit window's file list, right-click. Stages the selected rows, which for a file Git has
+# never seen is what starts tracking it. No ellipsis and no question: staging discards nothing --
+# the working tree is untouched and `git restore --staged` takes it back out.
+add.menu = Add file
+# {0} how many files the menu item would act on -- the stageable ones only
+add.menu.many = Add {0} files
+# {0} repository-relative path
+add.done = Staged {0}
+# {0} how many files were staged
+add.done.many = Staged {0} files
+
 # ---- deleting a file ----
 # The commit window's file list, right-click. Removes the file from the working tree and sends
 # it to the Recycle Bin, which is what makes one question enough for a destructive action.

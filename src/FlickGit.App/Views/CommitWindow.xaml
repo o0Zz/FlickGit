@@ -167,6 +167,14 @@
                          the menu is drawn — and labels each item with how many it would touch. -->
                     <ListBox.ContextMenu>
                         <ContextMenu>
+                            <!-- Add first and on its own, above the separator, because it is the only
+                                 item here that destroys nothing: it stages the file, which the
+                                 working tree never feels and an unstage takes straight back out. That is
+                                 also why it has no ellipsis — nothing is asked. -->
+                            <MenuItem x:Name="AddFileMenuItem"
+                                      Command="{Binding PlacementTarget.DataContext.AddFileCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <Separator />
                             <!-- Revert above Delete, and separated from it. They are the two
                                  destructive things this window does and they are not the same
                                  destructive thing: Revert puts a tracked file back the way HEAD has
