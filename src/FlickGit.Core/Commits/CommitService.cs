@@ -37,12 +37,14 @@ public sealed class CommitService(IGitProcessRunner git, RepositoryService repos
         if (paths.Count == 0)
             return;
 
-        //--force so a file the user explicitly ticked is staged even if a .gitignore rule
-        //covers it. The user ticking an ignored file is an explicit instruction, and the
-        //alternative is a silent no-op followed by a commit that does not contain it.
-        //Untracked-and-ignored files are unticked by default, so reaching here means a
-        //deliberate click.
-        var args = new List<string>(paths.Count + 3) { "add", "--force", "--" };
+        //No --force. It cannot do any good here and it can do harm: StatusService passes no
+        //--ignored, so an ignored file never appears in the list and can never be ticked -- there is
+        //no "the user explicitly asked for this ignored file" case for the flag to serve. What it
+        //would do is remove the last .gitignore backstop for any path that reaches this method by
+        //another route, on the one code path that stages the commit. CLAUDE.md, "Staging defaults":
+        //keeping .env, appsettings.Development.json, bin/ and obj/ out of a hurried commit is "the
+        //single most valuable safety default in the product", and gitignore is half of it.
+        var args = new List<string>(paths.Count + 2) { "add", "--" };
         args.AddRange(paths);
 
         GitResult result = await git.RunAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
@@ -151,8 +153,15 @@ public sealed class CommitService(IGitProcessRunner git, RepositoryService repos
         //Cheaper than parsing a diff nobody is going to read.
         GitResult result = await git.ReadAsync(
             repository.Root,
-            ["diff", "--cached", "--quiet"],
+            ["diff", "--cached", "--quiet", .. GitDiffFlags.ReadSafe],
             cancellationToken).ConfigureAwait(false);
+
+        //0 and 1 are the answer; anything else is Git failing, and "no" is then a guess rather than
+        //a reading. Still answered "no" -- the caller disables a button with it, and a window that
+        //refused to open would be worse -- but logged, because otherwise the case is invisible and
+        //the user is told there is nothing to commit when the truth is that git did not run.
+        if (result.ExitCode is not (0 or 1))
+            log.Warn($"git diff --cached --quiet exited {result.ExitCode}: {result.StdErr.Trim()}");
 
         return result.ExitCode == 1;
     }

@@ -365,6 +365,8 @@ clone.cancelled = Clonagem cancelada. A pasta parcial foi removida.
 
 # ---- edição da cópia de trabalho ----
 edit.save = Guardar (Ctrl+S)
+edit.save.button = Guardar
+edit.dirty = alterações por guardar
 edit.saved = Guardado.
 edit.right.editable = editável — Ctrl+S para guardar →
 edit.restage = Voltar a preparar

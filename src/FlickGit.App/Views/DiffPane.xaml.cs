@@ -130,6 +130,16 @@ public partial class DiffPane : UserControl
         UnstageHunkButton.Content = Strings.Get("hunk.unstage");
         RevertHunkButton.Content = Strings.Get("hunk.revert");
 
+        //Beside the hunk buttons rather than in the XAML, which is the point: these four shipped as
+        //hard-coded English in every language because a literal in a XAML attribute is invisible to
+        //the .lang files. The shortcut lives in the tooltip -- "Save (Ctrl+S)" does not fit a 56 px
+        //button once it is "Erneut bereitstellen" long.
+        SaveButton.Content = Strings.Get("edit.save.button");
+        SaveButton.ToolTip = Strings.Get("edit.save");
+        RestageButton.Content = Strings.Get("edit.restage");
+        DirtyText.Text = Strings.Get("edit.dirty");
+        SavedText.Text = Strings.Get("edit.saved");
+
         _document = new AlignedDocument(RightEditor);
 
         LeftEditor.TextArea.TextView.BackgroundRenderers.Add(_leftRenderer);

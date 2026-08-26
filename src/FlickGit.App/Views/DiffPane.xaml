@@ -44,7 +44,6 @@
                             Orientation="Horizontal"
                             Visibility="Collapsed">
                     <TextBlock x:Name="DirtyText"
-                               Text="unsaved changes"
                                Visibility="Collapsed"
                                VerticalAlignment="Center"
                                Margin="0,0,8,0"
@@ -53,7 +52,6 @@
                                Foreground="{StaticResource DangerText}" />
 
                     <TextBlock x:Name="SavedText"
-                               Text="Saved."
                                Visibility="Collapsed"
                                VerticalAlignment="Center"
                                Margin="0,0,8,0"
@@ -89,7 +87,6 @@
                             Click="OnRevertHunk" />
 
                     <Button x:Name="SaveButton"
-                            Content="Save"
                             MinWidth="56"
                             Padding="8,2"
                             IsEnabled="False"
@@ -202,7 +199,7 @@
                            Margin="0,0,80,0"
                            FontSize="11.5" />
 
-                <Button Content="Restage"
+                <Button x:Name="RestageButton"
                         HorizontalAlignment="Right"
                         MinWidth="70"
                         Padding="8,2"

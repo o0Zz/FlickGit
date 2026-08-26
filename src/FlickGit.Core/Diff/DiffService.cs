@@ -262,15 +262,15 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     /// one view that shows a file this size would be a diff missing half its content.
     /// </summary>
     private static IReadOnlyList<string> UnifiedArgs(GitFileChange file) =>
-        ["diff", "HEAD", "--", file.Path];
+        ["diff", "HEAD", .. GitDiffFlags.ReadSafe, "--", file.Path];
 
     private static IReadOnlyList<string> RangeUnifiedArgs(GitFileChange file, CommitRange range)
     {
-        var args = new List<string>
-        {
-            "diff", "--no-color", "--no-ext-diff", "--no-textconv", "-M",
+        List<string> args =
+        [
+            "diff", .. GitDiffFlags.ReadSafe, "-M",
             range.BaseSpec, range.TipSpec, "--", file.Path,
-        };
+        ];
 
         //A rename needs both pathspecs or `git diff -M` has nothing to pair, and the file would come
         //back as an unrelated add.

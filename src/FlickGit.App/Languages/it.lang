@@ -365,6 +365,8 @@ clone.cancelled = Clone annullato. La cartella parziale è stata rimossa.
 
 # ---- modifica della copia di lavoro ----
 edit.save = Salva (Ctrl+S)
+edit.save.button = Salva
+edit.dirty = modifiche non salvate
 edit.saved = Salvato.
 edit.right.editable = modificabile — Ctrl+S per salvare →
 edit.restage = Rimetti in stage

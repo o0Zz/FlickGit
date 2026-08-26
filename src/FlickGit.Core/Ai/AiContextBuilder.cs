@@ -277,12 +277,10 @@ public sealed class AiContextBuilder(IGitProcessRunner git, OperationTimings? ti
         //Renames as renames, so a moved file does not read as a delete plus an add.
         args.Add("-M");
 
-        //All three are load-bearing against the user's own gitconfig. `color.diff = always` would
-        //fill the payload with ANSI escapes; `diff.external` would replace it entirely; a textconv
-        //filter would spawn a process per blob on a latency-critical path.
-        args.Add("--no-color");
-        args.Add("--no-ext-diff");
-        args.Add("--no-textconv");
+        //All three are load-bearing against the user's own gitconfig -- see GitDiffFlags. On this
+        //path a textconv filter would also spawn a process per blob, which the AI first-token budget
+        //cannot absorb.
+        args.AddRange(GitDiffFlags.ReadSafe);
 
         //Excluding at the pathspec rather than filtering afterwards, so excluded content never
         //enters this process in the first place.

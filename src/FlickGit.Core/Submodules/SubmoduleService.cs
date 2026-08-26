@@ -255,12 +255,11 @@ public sealed class SubmoduleService(IGitProcessRunner git, RepositoryService re
         IReadOnlyList<string> paths,
         CancellationToken cancellationToken)
     {
-        var args = new List<string>(paths.Count + 6)
-        {
-            "diff", "HEAD", "--name-only", "-z", "--ignore-submodules=none", "--",
-        };
-
-        args.AddRange(paths);
+        List<string> args =
+        [
+            "diff", "HEAD", "--name-only", "-z", "--ignore-submodules=none", .. GitDiffFlags.ReadSafe, "--",
+            .. paths,
+        ];
 
         GitResult result = await git.ReadAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
 

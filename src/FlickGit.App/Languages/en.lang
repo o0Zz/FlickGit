@@ -588,6 +588,8 @@ clone.cancelled = Clone cancelled. The partial directory was removed.
 
 # ---- editing the working tree ----
 edit.save = Save (Ctrl+S)
+edit.save.button = Save
+edit.dirty = unsaved changes
 edit.saved = Saved.
 edit.right.editable = editable — Ctrl+S to save →
 edit.restage = Restage

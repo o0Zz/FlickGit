@@ -365,6 +365,8 @@ clone.cancelled = Clone annulé. Le dossier partiel a été supprimé.
 
 # ---- modification de la copie de travail ----
 edit.save = Enregistrer (Ctrl+S)
+edit.save.button = Enregistrer
+edit.dirty = modifications non enregistrées
 edit.saved = Enregistré.
 edit.right.editable = modifiable — Ctrl+S pour enregistrer →
 edit.restage = Réindexer

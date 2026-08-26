@@ -32,6 +32,7 @@ internal static partial class Program
     [
         "commit", "pull-rebase", "log", "blame", "repo", "pr",
         "switch", "tag", "clone", "palette", "terminal", "tray",
+        "submodule",
     ];
 
     /// <summary>
@@ -47,6 +48,13 @@ internal static partial class Program
     //whose whole output is text has to be waited for or the console gets nothing.
 
     //`push` is deliberately absent for the reason above -- it can refuse for safety, exit code 5.
+
+    //The test for membership is what the verb does on the *fallback* path, not what it is called:
+    //`submodule` writes nothing to the console and returns VerbResult.Stay(), which is `repo`'s
+    //shape exactly, so it belongs here. It was missing, and the cost was the harm this list exists
+    //to prevent -- with the resident service stopped, `flick submodule` took the waiting branch and
+    //blocked draining a pipe until the user closed the window, leaving one flick.exe alive per
+    //right-click. Anything added to WindowVerbs in App must be checked against this list.
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 

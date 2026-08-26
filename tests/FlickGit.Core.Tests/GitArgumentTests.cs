@@ -112,7 +112,7 @@ public class GitArgumentTests
     {
         //`--` before a path list is not decoration: without it, a file named "-f" or
         //"--cached" is read as an option.
-        List<string> args = Build(@"C:\dev\repo", ["add", "--force", "--", "-f", "--cached"], readOnly: false);
+        List<string> args = Build(@"C:\dev\repo", ["add", "--", "-f", "--cached"], readOnly: false);
 
         int separator = args.IndexOf("--");
 

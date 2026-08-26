@@ -365,6 +365,8 @@ clone.cancelled = Klonen abgebrochen. Das unvollständige Verzeichnis wurde entf
 
 # ---- Bearbeiten des Arbeitsverzeichnisses ----
 edit.save = Speichern (Strg+S)
+edit.save.button = Speichern
+edit.dirty = ungespeicherte Änderungen
 edit.saved = Gespeichert.
 edit.right.editable = bearbeitbar — Strg+S zum Speichern →
 edit.restage = Erneut bereitstellen

@@ -36,7 +36,7 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
     /// differently <i>relative to each other</i>, which is the only way they can produce two file
     /// lists that disagree about whether a rename happened.
     /// </summary>
-    private static readonly string[] DiffFlags = ["--no-color", "--no-ext-diff", "--no-textconv", "-M"];
+    private static readonly string[] DiffFlags = [.. GitDiffFlags.ReadSafe, "-M"];
 
     /// <param name="skip">
     /// How many commits to pass over. <c>--skip</c> rather than a "start from the last sha I saw"

@@ -62,14 +62,17 @@ public sealed class StatusService(
             ["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"],
             cancellationToken);
 
+        //GitDiffFlags on both, or a `textconv` filter reports line counts for a binary file and the
+        //list shows a fabricated "+42 -17" where it owes the user "bin". No -M: these are merged onto
+        //the porcelain paths below, and porcelain does its own rename detection.
         Task<GitResult> worktreeTask = git.ReadAsync(
             repository.Root,
-            ["diff", "--numstat", "-z"],
+            ["diff", "--numstat", "-z", .. GitDiffFlags.ReadSafe],
             cancellationToken);
 
         Task<GitResult> stagedTask = git.ReadAsync(
             repository.Root,
-            ["diff", "--cached", "--numstat", "-z"],
+            ["diff", "--cached", "--numstat", "-z", .. GitDiffFlags.ReadSafe],
             cancellationToken);
 
         await Task.WhenAll(statusTask, worktreeTask, stagedTask).ConfigureAwait(false);
