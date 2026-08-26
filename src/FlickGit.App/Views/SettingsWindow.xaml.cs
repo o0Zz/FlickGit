@@ -81,6 +81,9 @@ public partial class SettingsWindow : Window
         CloseAfterBox.Content = Strings.Get("settings.closeafter");
         NotifyBox.Content = Strings.Get("settings.notify");
 
+        PullSection.Text = Strings.Get("settings.section.pull");
+        ClosePullBox.Content = Strings.Get("settings.closepull");
+
         AiSection.Text = Strings.Get("settings.section.ai");
         AiProviderLabel.Text = Strings.Get("settings.ai.provider");
         AiKeyButton.Content = Strings.Get("settings.ai.key");
@@ -131,6 +134,7 @@ public partial class SettingsWindow : Window
         WarnPrimaryBox.IsChecked = _settings.WarnWhenCommittingToPrimaryBranch;
         CloseAfterBox.IsChecked = _settings.CloseCommitWindowAfterSuccess;
         NotifyBox.IsChecked = _settings.ShowSuccessNotification;
+        ClosePullBox.IsChecked = _settings.ClosePullWindowAfterSuccess;
 
         LanguageBox.Items.Add(new ComboBoxItem { Content = Strings.Get("settings.language.auto"), Tag = string.Empty });
 
@@ -214,6 +218,7 @@ public partial class SettingsWindow : Window
         _settings.WarnWhenCommittingToPrimaryBranch = WarnPrimaryBox.IsChecked == true;
         _settings.CloseCommitWindowAfterSuccess = CloseAfterBox.IsChecked == true;
         _settings.ShowSuccessNotification = NotifyBox.IsChecked == true;
+        _settings.ClosePullWindowAfterSuccess = ClosePullBox.IsChecked == true;
 
         string language = LanguageBox.SelectedItem is ComboBoxItem { Tag: string code } ? code : string.Empty;
         bool languageChanged = !language.Equals(_languageOnOpen, StringComparison.OrdinalIgnoreCase);

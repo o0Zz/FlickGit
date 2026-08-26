@@ -714,6 +714,9 @@ settings.warnprimary = Warn when committing to the primary branch
 settings.closeafter = Close the commit window after a successful commit
 settings.notify = Show a notification after a successful commit
 
+settings.section.pull = Pull
+settings.closepull = Close the pull window after a successful pull
+
 settings.section.language = Language
 settings.language.auto = Automatic (follow Windows)
 settings.language.hint = Windows read their text once, when they are built, so a new language shows after a restart.

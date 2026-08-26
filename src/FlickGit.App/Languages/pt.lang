@@ -481,6 +481,9 @@ settings.warnprimary = Avisar ao fazer commit no ramo principal
 settings.closeafter = Fechar a janela de commit após um commit bem-sucedido
 settings.notify = Mostrar uma notificação após um commit bem-sucedido
 
+settings.section.pull = Pull
+settings.closepull = Fechar a janela de pull após um pull bem-sucedido
+
 settings.section.language = Idioma
 settings.language.auto = Automático (seguir o Windows)
 settings.language.hint = As janelas leem o seu texto uma só vez, ao serem criadas: o novo idioma aparece depois de reiniciar.

@@ -481,6 +481,9 @@ settings.warnprimary = Avertir lors d'un commit sur la branche principale
 settings.closeafter = Fermer la fenêtre de commit après un commit réussi
 settings.notify = Afficher une notification après un commit réussi
 
+settings.section.pull = Pull
+settings.closepull = Fermer la fenêtre de pull après un pull réussi
+
 settings.section.language = Langue
 settings.language.auto = Automatique (suivre Windows)
 settings.language.hint = Les fenêtres lisent leur texte une seule fois, à leur création : la nouvelle langue apparaît après un redémarrage.

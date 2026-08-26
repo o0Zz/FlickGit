@@ -30,6 +30,14 @@ public sealed class FlickSettings
 
     public bool CloseCommitWindowAfterSuccess { get; set; } = true;
 
+    /// <summary>
+    /// The pull window is a step list, so a clean pull leaves nothing on it worth reading and closing
+    /// it is a keystroke spent on an answer that can only be "yes". Off by default: a window that
+    /// disappears is only legible to somebody who asked for it to. A failure, and a pull whose
+    /// submodules went stale, keep the window whatever this says -- those have something to report.
+    /// </summary>
+    public bool ClosePullWindowAfterSuccess { get; set; }
+
     public bool ShowSuccessNotification { get; set; } = true;
 
     /// <summary>Interface language as a two-letter code. Empty follows Windows.</summary>

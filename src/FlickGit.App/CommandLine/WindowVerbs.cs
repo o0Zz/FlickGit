@@ -209,6 +209,15 @@ public sealed class WindowVerbs(
             return VerbResult.Stay();
         }
 
+        if (settings.ClosePullWindowAfterSuccess)
+        {
+            //A clean pull leaves nothing on this window worth reading, so it goes rather than waiting for
+            //a keystroke that can only mean "yes". Only this branch: the two above have something to
+            //report, and a window that closes cannot report it.
+            window.Close();
+            return VerbResult.Stay();
+        }
+
         window.Succeed(Strings.Get("pull.success"));
         return VerbResult.Stay();
     }

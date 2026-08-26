@@ -1630,6 +1630,18 @@ stash/pull/pop sequence of ours: there is no window in which a stash exists that
 tracking. A rebase that stops on conflicts still stops — the autostash is restored by
 `git rebase --continue` or `--abort`, and the user is told which.
 
+**The window closes itself on a clean pull when `Close the pull window after a successful pull` is
+on**, off by default. A step list with every step ticked says only "yes", and paying a keystroke for
+that on an action performed several times a day is the trade the commit window's own
+close-after-success setting already makes. **Only a clean pull.** A failure keeps the window, with
+the Git error and the next command on it, and so does a pull whose submodule update failed — both
+have something to report, and a window that closes cannot report it. So silence means success, which
+is the only thing this setting is allowed to make it mean.
+
+The switch is in the settings window rather than on the progress window itself, which is where a
+checkbox for it would be more discoverable and where it could not be unticked: the first pull after
+ticking it takes the window away before the box can be reached again.
+
 ---
 
 # Push
@@ -3489,6 +3501,9 @@ one. Three tabs and nothing else:
 │  ☑ Warn when committing to the primary branch            │
 │  ☑ Close the commit window after a successful commit     │
 │  ☑ Show a notification after a successful commit         │
+│                                                          │
+│  PULL                                                    │
+│  ☐ Close the pull window after a successful pull         │
 │                                                          │
 │  COMMIT MESSAGES (AI)                                    │
 │  Written by                                              │
