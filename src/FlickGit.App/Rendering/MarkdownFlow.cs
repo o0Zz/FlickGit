@@ -17,7 +17,7 @@ namespace FlickGit.App.Rendering;
 /// fenced code, and the four inline forms (<c>**bold**</c>, <c>*italic*</c>, <c>`code`</c>,
 /// <c>[text](url)</c>). Anything else shows as the literal text it is.
 ///
-/// <b>Not a Markdown library.</b> CLAUDE.md fixes the third-party list at three MIT packages, and a
+/// <b>Not a Markdown library.</b> CLAUDE.md fixes the third-party list at three packages, and a
 /// dependency for one tab rendering one file we ship ourselves is not the trade this product makes.
 /// A construct this does not understand degrades to its own source text, which for a help file is a
 /// legible failure rather than a broken one.

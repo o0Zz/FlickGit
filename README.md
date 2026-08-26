@@ -9,7 +9,7 @@ and tags managed seamlessly in one window each.
 For developers who work across many repositories, want to be fast with Git, and would rather not
 spend their day in a Git client at all.
 
-*Windows 10 / 11 · per-user install, no administrator rights · MIT*
+*Windows 10 / 11 · per-user install, no administrator rights · Apache 2.0*
 
 
 ## What it looks like
@@ -169,8 +169,9 @@ it live in [CLAUDE.md](CLAUDE.md).
 
 ## Licence
 
-MIT. Third-party dependencies, all MIT: [AvalonEdit](https://github.com/icsharpcode/AvalonEdit)
-(diff editor), [DiffPlex](https://github.com/mmanela/diffplex) (line and word diff),
-[H.NotifyIcon](https://github.com/HavenDV/H.NotifyIcon) (tray icon without WinForms).
+Apache 2.0. Third-party dependencies, all permissively licensed:
+[AvalonEdit](https://github.com/icsharpcode/AvalonEdit) (diff editor, MIT),
+[DiffPlex](https://github.com/mmanela/diffplex) (line and word diff, Apache 2.0),
+[H.NotifyIcon](https://github.com/HavenDV/H.NotifyIcon) (tray icon without WinForms, MIT).
 
 By **o0Zz** — [github.com/o0Zz/FlickGit](https://github.com/o0Zz/FlickGit/)

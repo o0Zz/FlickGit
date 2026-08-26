@@ -147,9 +147,13 @@ do not write it.
 - **Minimum Git 2.23** — `switch` and `restore` are used unconditionally, with no fallback to
   `checkout` or `reset`
 
-Third-party dependencies, all MIT, and the list is fixed at three: **AvalonEdit** (editor control),
-**DiffPlex** (line/word diff), **H.NotifyIcon** (tray icon, avoids WinForms). No Electron-style or web
-UI layer. A minimal `Microsoft.Extensions.DependencyInjection` container is fine; nothing heavier.
+FlickGit itself is **Apache 2.0** — `LICENSE` at the root and `src/FlickGit.Setup/License.rtf`, which
+is the MSI's licence page, carry the same text and must not drift apart.
+
+Third-party dependencies must be permissively licensed, and the list is fixed at three:
+**AvalonEdit** (MIT, editor control), **DiffPlex** (Apache 2.0, line/word diff) and
+**H.NotifyIcon** (MIT, tray icon, avoids WinForms). No Electron-style or web UI layer. A minimal
+`Microsoft.Extensions.DependencyInjection` container is fine; nothing heavier.
 
 ---
 

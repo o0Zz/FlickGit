@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The line and word diff. MIT, no UI dependency, and CLAUDE.md is explicit that
+    <!-- The line and word diff. Apache 2.0, no UI dependency, and CLAUDE.md is explicit that
          it is used rather than hand-rolled: "Do not write a Myers implementation."
 
          It lives in Core, not App, because the diff is computed and tested here and only

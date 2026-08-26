@@ -34,7 +34,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The three MIT dependencies named in CLAUDE.md, "Technical Direction", and nothing
+    <!-- The three permissively licensed dependencies named in CLAUDE.md, "Technical
+         Direction" (AvalonEdit and H.NotifyIcon are MIT, DiffPlex is Apache 2.0), and nothing
          else. AvalonEdit is the editor control behind both diff panes; H.NotifyIcon is the
          tray icon without WinForms. -->
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
