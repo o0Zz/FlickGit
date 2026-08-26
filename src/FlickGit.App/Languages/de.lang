@@ -216,6 +216,38 @@ tag.confirm.local = Den Tag {0} aus diesem Repository löschen?\n\nEin Tag hat k
 tag.confirm.remote = Den Tag {0} aus diesem Repository und aus {1} löschen?\n\nWer ihn schon geholt hat, behält seine Kopie, und ein Tag hat kein Reflog — das lässt sich von hier aus nicht rückgängig machen.
 tag.confirm.yes = Löschen
 
+# ---- Stash-Fenster ----
+# Ein Stash ist weggelegte Arbeit. Eine Zeile wird über eine *Position* angesprochen — stash@{1} ist
+# das, was gerade an zweiter Stelle steht. FlickGit prüft vor jedem Anwenden oder Verwerfen, dass es
+# noch derselbe Stash ist; stash.moved meldet den anderen Fall.
+
+# {0} Repository-Name
+stash.title = Stashes — {0}
+stash.new = Änderungen stashen
+stash.message.label = Nachricht — optional; ohne sie benennt Git den Commit, auf dem Sie waren
+stash.untracked = Nicht versionierte Dateien einschließen
+stash.untracked.hint = Neue, Git unbekannte Dateien wandern mit in den Stash und kommen mit ihm zurück. Von .gitignore ausgeschlossene Dateien sind in keinem Fall dabei.
+stash.push = Stashen
+stash.pop = Stash anwenden
+stash.drop = Stash verwerfen
+stash.none = In diesem Repository ist nichts gestasht.
+# {0} Anzahl der Stashes
+stash.count = {0} Stash(es)
+stash.pushed = Gestasht. Ihre Änderungen liegen im Stash.
+stash.nothing = Nichts zu stashen. Es gibt keine Änderungen, und nicht versionierte Dateien zählen nur, wenn sie einbezogen werden.
+# {0} Stash-Referenz
+stash.popped = {0} angewendet und entfernt.
+stash.dropped = {0} verworfen.
+stash.pop.kept = {0} liegt weiterhin in der Liste, es ist also nichts verloren. Die Meldung von Git steht darunter: entweder wurde nichts geändert, oder es wurde angewendet, was möglich war, und Konflikte bleiben zum Auflösen.
+stash.menu.pop = {0} anwenden
+stash.menu.drop = {0} verwerfen…
+stash.confirm.title = Diesen Stash verwerfen?
+# {0} Stash-Referenz, {1} Beschreibung des Stashes
+stash.confirm.drop = {0} — {1} verwerfen?\n\nDie enthaltenen Änderungen werden weggeworfen, ohne angewendet zu werden. Ein Stash hat kein Reflog, FlickGit kann ihn nicht zurückholen.
+stash.confirm.yes = Verwerfen
+stash.moved.title = Die Stash-Liste hat sich geändert
+stash.moved = Es wurde nichts getan: der angeklickte Stash ist nicht mehr der an dieser Position — zwischenzeitlich wurde ein Stash angelegt oder angewendet. Die Liste wurde neu geladen, bitte erneut auswählen.
+
 # ---- Log-Fenster ----
 log.title = Log — {0}
 log.files.header = Geänderte Dateien
@@ -435,6 +467,7 @@ action.push = Push
 action.pr = Pull Request…
 action.switch = Branches…
 action.tag = Tags…
+action.stash = Stashes…
 action.log = Log anzeigen…
 action.blame = Blame…
 action.add = Hinzufügen

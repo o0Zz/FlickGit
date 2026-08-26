@@ -27,6 +27,10 @@ public class ActionSafetyTests
     //reflog, so `tag -d` is strictly more final than the `branch -D` that is on the list.
     [InlineData("tag", "-d")]
     [InlineData("tag", "--delete")]
+    //The same argument again, and ActionSafety makes it there: a stash has no reflog of its own, so the
+    //list entry is the only handle on the commit. `clear` does it to every stash at once.
+    [InlineData("stash", "drop")]
+    [InlineData("stash", "clear")]
     //Removing a ref other people have already fetched, which is the harm --force is listed for.
     [InlineData("push", "--delete")]
     [InlineData("push", "-d")]

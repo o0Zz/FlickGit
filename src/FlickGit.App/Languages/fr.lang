@@ -216,6 +216,38 @@ tag.confirm.local = Supprimer l'étiquette {0} de ce dépôt ?\n\nUne étiquette
 tag.confirm.remote = Supprimer l'étiquette {0} de ce dépôt et de {1} ?\n\nCeux qui l'ont déjà récupérée gardent leur copie, et une étiquette n'a pas de reflog : impossible de revenir en arrière depuis ici.
 tag.confirm.yes = Supprimer
 
+# ---- fenêtre des remises ----
+# Une remise est du travail mis de côté. Une ligne se désigne par sa *position* — stash@{1} est ce
+# qui se trouve en deuxième à cet instant. FlickGit vérifie qu'il s'agit toujours de la même remise
+# avant de l'appliquer ou de la supprimer ; stash.moved signale l'autre cas.
+
+# {0} nom du dépôt
+stash.title = Remises — {0}
+stash.new = Remiser vos modifications
+stash.message.label = Message — facultatif ; sans lui, Git nomme le commit où vous étiez
+stash.untracked = Inclure les fichiers non suivis
+stash.untracked.hint = Les fichiers neufs que Git n'a jamais vus partent aussi dans la remise et en reviennent avec elle. Ceux que votre .gitignore exclut déjà n'y sont dans aucun cas.
+stash.push = Remiser
+stash.pop = Appliquer la remise
+stash.drop = Supprimer la remise
+stash.none = Rien n'est remisé dans ce dépôt.
+# {0} nombre de remises
+stash.count = {0} remise(s)
+stash.pushed = Remisé. Vos modifications sont dans la remise.
+stash.nothing = Rien à remiser. Il n'y a aucune modification à mettre de côté, et les fichiers non suivis ne comptent que s'ils sont inclus.
+# {0} référence de la remise
+stash.popped = {0} appliquée et retirée.
+stash.dropped = {0} supprimée.
+stash.pop.kept = {0} est toujours dans la liste, rien n'est donc perdu. Le message de Git est en dessous : soit il n'a rien changé, soit il a appliqué ce qu'il pouvait et laissé des conflits à résoudre.
+stash.menu.pop = Appliquer {0}
+stash.menu.drop = Supprimer {0}…
+stash.confirm.title = Supprimer cette remise ?
+# {0} référence de la remise, {1} description de la remise
+stash.confirm.drop = Supprimer {0} — {1} ?\n\nLes modifications qu'elle contient sont jetées sans être appliquées. Une remise n'a pas de reflog : FlickGit ne peut pas la récupérer.
+stash.confirm.yes = Supprimer
+stash.moved.title = La liste des remises a changé
+stash.moved = Rien n'a été fait : la remise sur laquelle vous avez cliqué n'est plus celle qui occupe cette position — une remise a été créée ou appliquée entre-temps. La liste a été rechargée, choisissez-la de nouveau.
+
 # ---- fenêtre du journal ----
 log.title = Journal — {0}
 log.files.header = Fichiers modifiés
@@ -435,6 +467,7 @@ action.push = Push
 action.pr = Pull request…
 action.switch = Branches…
 action.tag = Étiquettes…
+action.stash = Remises…
 action.log = Afficher le journal…
 action.blame = Blame…
 action.add = Ajouter

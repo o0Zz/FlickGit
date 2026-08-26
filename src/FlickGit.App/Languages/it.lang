@@ -216,6 +216,38 @@ tag.confirm.local = Eliminare il tag {0} da questo repository?\n\nUn tag non ha 
 tag.confirm.remote = Eliminare il tag {0} da questo repository e da {1}?\n\nChi lo ha già scaricato conserva la sua copia, e un tag non ha reflog: da qui non si può annullare.
 tag.confirm.yes = Elimina
 
+# ---- finestra degli stash ----
+# Uno stash è lavoro messo da parte. Una riga si indica con la sua *posizione* — stash@{1} è ciò che
+# in questo momento sta al secondo posto. FlickGit verifica che sia ancora lo stesso stash prima di
+# applicarlo o eliminarlo; stash.moved segnala l'altro caso.
+
+# {0} nome del repository
+stash.title = Stash — {0}
+stash.new = Metti da parte le modifiche
+stash.message.label = Messaggio — facoltativo; senza, Git nomina il commit su cui si era
+stash.untracked = Includi i file non tracciati
+stash.untracked.hint = I file nuovi che Git non ha mai visto entrano anch'essi nello stash e tornano con esso. Quelli già esclusi dal .gitignore non vi rientrano in nessun caso.
+stash.push = Metti da parte
+stash.pop = Applica lo stash
+stash.drop = Elimina lo stash
+stash.none = In questo repository non c'è nulla nello stash.
+# {0} numero di stash
+stash.count = {0} stash
+stash.pushed = Messo da parte. Le modifiche sono nello stash.
+stash.nothing = Nulla da mettere da parte. Non ci sono modifiche, e i file non tracciati contano solo se vengono inclusi.
+# {0} riferimento dello stash
+stash.popped = {0} applicato e rimosso.
+stash.dropped = {0} eliminato.
+stash.pop.kept = {0} è ancora nell'elenco, quindi non è andato perso nulla. Il messaggio di Git è qui sotto: o non ha cambiato niente, o ha applicato quel che poteva lasciando dei conflitti da risolvere.
+stash.menu.pop = Applica {0}
+stash.menu.drop = Elimina {0}…
+stash.confirm.title = Eliminare questo stash?
+# {0} riferimento dello stash, {1} descrizione dello stash
+stash.confirm.drop = Eliminare {0} — {1}?\n\nLe modifiche che contiene vengono buttate senza essere applicate. Uno stash non ha un reflog, quindi FlickGit non può recuperarlo.
+stash.confirm.yes = Elimina
+stash.moved.title = L'elenco degli stash è cambiato
+stash.moved = Non è stato fatto nulla: lo stash su cui si è fatto clic non è più quello in quella posizione — nel frattempo qualcosa ne ha creato o applicato uno. L'elenco è stato ricaricato, si scelga di nuovo.
+
 # ---- finestra del log ----
 log.title = Log — {0}
 log.files.header = File modificati
@@ -435,6 +467,7 @@ action.push = Push
 action.pr = Pull request…
 action.switch = Rami…
 action.tag = Tag…
+action.stash = Stash…
 action.log = Mostra il log…
 action.blame = Blame…
 action.add = Aggiungi

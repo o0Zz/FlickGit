@@ -77,6 +77,18 @@ public enum VerbKind
     Submodule,
 
     /// <summary>
+    /// The stash: the window when nothing follows, otherwise put the working tree away under that
+    /// message.
+    ///
+    /// <b>Popping and dropping have no command-line spelling</b>, and for the two halves of the reason
+    /// <see cref="Tag"/> gives. A stash cannot overwrite anything, so creating one from a script is
+    /// safe; but both of the others name an existing stash by a reflog selector, and a selector in a
+    /// script is a position that will have moved by the time it runs -- which is the one mistake this
+    /// feature is built to make impossible.
+    /// </summary>
+    Stash,
+
+    /// <summary>
     /// <c>repo</c> rather than <c>config</c>, because <c>flick settings</c> is already FlickGit's own
     /// configuration and two verbs a token apart from meaning opposite things is a grammar nobody
     /// remembers.
@@ -167,6 +179,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "push" => VerbKind.Push,
             "switch" => VerbKind.Switch,
             "tag" => VerbKind.Tag,
+            "stash" => VerbKind.Stash,
             "submodule" => VerbKind.Submodule,
             "status" => VerbKind.Status,
             "log" => VerbKind.Log,
@@ -228,6 +241,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick pr <path>                     open a pull request for this branch
           flick switch <path> [branch]        branch picker when omitted
           flick tag <path> [name]             tag picker when omitted, else creates it
+          flick stash <path> [message]        stash window when omitted, else stashes your changes
           flick status <path>
           flick log <path>                    commit history; multi-select for a combined diff
           flick blame <file>                  who last touched each line, and what was there before

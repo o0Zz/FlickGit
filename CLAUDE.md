@@ -216,6 +216,8 @@ src/
 │   ├── Forges/              ForgeUrl, PullRequestService, PullRequestFlow, three clients
 │   │                        over one ForgeApi, GitCredentialFill
 │   ├── Branches/            BranchService, SwitchService
+│   ├── Stashes/             StashService + GitStash. The list is positional, so every pop
+│   │                        and drop re-reads it and checks the sha first
 │   ├── Config/              RepositoryConfigService, GitConfigList
 │   ├── Remotes/             PushService, RemoteService
 │   └── Pulls/ Clone/ Secrets/ Matching/ Logging/ Diagnostics/ Models/
@@ -324,6 +326,7 @@ flick push <path>
 flick pr <path>                      open a pull request for this branch
 flick switch <path> [branch]         branch picker when omitted
 flick tag <path> [name]              tag window when omitted; creates and pushes when named
+flick stash <path> [message]         stash window when omitted; stashes the working tree when named
 flick submodule <path>               submodules: add, remove, initialise
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
@@ -716,7 +719,7 @@ The gutter is a `BlameMargin` on one read-only editor, drawn once per **run** of
 `BlameService` reaches Git only through `ReadAsync`. No `-L` range, no author filter, no branch picker,
 and none of the history-rewriting verbs.
 
-## Branches, tags, submodules, clone, repository settings
+## Branches, tags, stashes, submodules, clone, repository settings
 
 **Branches** — fuzzy filter over local branches with remote-tracking ones below. Attempt a plain switch
 first; if Git refuses, **do not stash automatically** — show the blocking files and offer
@@ -734,6 +737,24 @@ open). Checking one out runs `git switch --detach <tag>` after one question, and
 thing in FlickGit that detaches HEAD** — everywhere else that state is reported and refused. The window
 stays open to say so. No moving a tag, no `--force`, no signing, no tag-at-a-chosen-commit, and no
 command-line spelling.
+
+**Stashes** — what is put away, put the working tree away, pop one back, drop one. Untracked files are
+a checkbox, ticked by default, and **`--all` is never passed** — that would take ignored files too.
+
+**A stash is named by a position, and that is the whole safety rule here.** `stash@{1}` is whatever is
+second at the moment the command runs, and the list is renumbered by any push or pop — a terminal's, an
+IDE's, or FlickGit's own stash-switch-restore, while the window sits open. So `GitStash` carries the
+stash commit's sha and **every pop and drop re-reads the list and refuses unless the reference still
+names that commit**, which is how the rule `SwitchService` keeps by finding its own stash by message is
+kept by a window that has to address rows the user points at. Popping the wrong stash is a merge nobody
+asked for; dropping the wrong one is somebody's work gone.
+
+Pop asks nothing — it restores work rather than discarding any, and Git refuses rather than overwriting
+— and a failed pop **always** leaves the stash in place, because Git applies and only then drops. Drop
+asks in its own words: a stash has no reflog, so nothing here finds it again. **No `clear`** (one click
+that destroys every saved change), **no `apply`** (a second spelling of pop), no `stash branch`, no
+`--keep-index`, no force. Popping and dropping have **no command-line spelling**, because a reflog
+selector written into a script is a position that will have moved by the time it runs.
 
 **Submodules** — what is there, add one, remove one, and **it commits nothing**: both operations leave
 their work in the index and the window's button opens the commit window. Two reads only:
@@ -881,7 +902,8 @@ FlickGit            ▸                                            Remove…
       ├── Branches…          ├── Repository settings…
       ├── Tags…              ├── Clone…
       ├── Submodules…        ├── Fetch (prune)
-      └── Push               └── Open terminal here
+      ├── Stashes…           └── Open terminal here
+      └── Push
 ```
 
 Two root entries, because those are the two the user *performs* all day. Everything else is one hover

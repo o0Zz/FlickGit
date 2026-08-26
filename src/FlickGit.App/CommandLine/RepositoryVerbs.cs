@@ -8,6 +8,7 @@ using FlickGit.Diff;
 using FlickGit.Files;
 using FlickGit.Models;
 using FlickGit.Remotes;
+using FlickGit.Stashes;
 using FlickGit.Status;
 using FlickGit.Tags;
 
@@ -32,6 +33,7 @@ public sealed class RepositoryVerbs(
     SwitchService switches,
     PushService pushes,
     TagService tags,
+    StashService stashes,
     FileTrackingService files,
     UpstreamConsent consent)
 {
@@ -166,6 +168,45 @@ public sealed class RepositoryVerbs(
             $"{Strings.Get("tag.push.failed", tag, remote)}\n\n{published.GitError}");
 
         return VerbResult.Exit(ExitCodes.GitError);
+    }
+
+    /// <summary>
+    /// `flick stash &lt;path&gt; &lt;message&gt;` — puts the working tree away under that message.
+    ///
+    /// The tag verb's grammar, and the same division of labour: creating cannot overwrite anything,
+    /// so a script may do it, while the two operations that name an *existing* stash stay in the
+    /// window. That is a sharper line here than it is for tags — a reflog selector is a position, and
+    /// a position written into a script is one that will have moved by the time the script runs.
+    ///
+    /// Untracked files are included, matching the window's ticked-by-default box: a command called
+    /// "stash" that left a new file sitting in the working tree would have done half the job.
+    /// </summary>
+    public async Task<VerbResult> StashAsync(VerbOutput output, RepositoryInfo repository, string message)
+    {
+        string title = Strings.Get("stash.push");
+
+        StashOutcome outcome = await stashes
+            .PushAsync(repository, message, includeUntracked: true, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (outcome.Refusal == StashRefusal.NothingToStash)
+        {
+            //Success, on the precedent <see cref="SwitchAsync"/> sets for naming the branch you are
+            //already on: the caller asked for the working tree to be put away and the working tree has
+            //nothing outstanding, so the requested state is the state. 5 would be wrong -- CLAUDE.md
+            //spends that code on "refused for safety", and nothing here was refused.
+            output.Say(title, Strings.Get("stash.nothing"));
+            return VerbResult.Exit(ExitCodes.Success);
+        }
+
+        if (!outcome.Succeeded)
+        {
+            output.Fail(title, outcome.GitError ?? string.Empty);
+            return VerbResult.Exit(ExitCodes.GitError);
+        }
+
+        output.Say(title, Strings.Get("stash.pushed"));
+        return VerbResult.Exit(ExitCodes.Success);
     }
 
     /// <summary>

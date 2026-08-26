@@ -57,7 +57,7 @@ public sealed class VerbRunner(
             or VerbKind.Switch or VerbKind.Push or VerbKind.Tag or VerbKind.Log
             or VerbKind.Blame or VerbKind.Add or VerbKind.Remove
             or VerbKind.Repo or VerbKind.PullRequest
-            or VerbKind.Submodule;
+            or VerbKind.Submodule or VerbKind.Stash;
 
     /// <summary>
     /// Runs a catalog action by id.
@@ -192,6 +192,13 @@ public sealed class VerbRunner(
             VerbKind.Tag => string.IsNullOrWhiteSpace(verb.Argument)
                 ? windowVerbs.TagPicker(repository!)
                 : await repositoryVerbs.TagAsync(output, repository!, verb.Argument).ConfigureAwait(true),
+
+            //`stash` reads the way `tag` does: a message given is a script's command and answers with
+            //an exit code, bare it is the window. Popping and dropping name a stash that already
+            //exists, and those stay in the window -- see VerbKind.Stash.
+            VerbKind.Stash => string.IsNullOrWhiteSpace(verb.Argument)
+                ? windowVerbs.StashPicker(repository!)
+                : await repositoryVerbs.StashAsync(output, repository!, verb.Argument).ConfigureAwait(true),
 
             VerbKind.Push => await repositoryVerbs.PushAsync(output, repository!).ConfigureAwait(true),
 

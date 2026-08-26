@@ -216,6 +216,38 @@ tag.confirm.local = ¿Eliminar la etiqueta {0} de este repositorio?\n\nUna etiqu
 tag.confirm.remote = ¿Eliminar la etiqueta {0} de este repositorio y de {1}?\n\nQuien ya la haya obtenido conserva su copia, y una etiqueta no tiene reflog: esto no se puede deshacer desde aquí.
 tag.confirm.yes = Eliminar
 
+# ---- ventana de stashes ----
+# Un stash es trabajo apartado. Una fila se nombra por su *posición* — stash@{1} es lo que está en
+# segundo lugar en este momento. FlickGit comprueba que sigue siendo el mismo stash antes de
+# aplicarlo o descartarlo; stash.moved informa del otro caso.
+
+# {0} nombre del repositorio
+stash.title = Stashes — {0}
+stash.new = Guardar sus cambios
+stash.message.label = Mensaje — opcional; sin él, Git nombra el commit en el que estaba
+stash.untracked = Incluir los no rastreados
+stash.untracked.hint = Los archivos nuevos que Git nunca ha visto entran también en el stash y vuelven con él. Los que su .gitignore ya excluye no se incluyen en ningún caso.
+stash.push = Guardar
+stash.pop = Aplicar el stash
+stash.drop = Descartar el stash
+stash.none = No hay nada guardado en el stash de este repositorio.
+# {0} número de stashes
+stash.count = {0} stash(es)
+stash.pushed = Guardado. Sus cambios están en el stash.
+stash.nothing = Nada que guardar. No hay cambios que apartar, y los archivos no rastreados solo cuentan si se incluyen.
+# {0} referencia del stash
+stash.popped = {0} aplicado y eliminado.
+stash.dropped = {0} descartado.
+stash.pop.kept = {0} sigue en la lista, así que no se ha perdido nada. El mensaje de Git está abajo: o bien no cambió nada, o aplicó lo que pudo y dejó conflictos por resolver.
+stash.menu.pop = Aplicar {0}
+stash.menu.drop = Descartar {0}…
+stash.confirm.title = ¿Descartar este stash?
+# {0} referencia del stash, {1} descripción del stash
+stash.confirm.drop = ¿Descartar {0} — {1}?\n\nLos cambios que contiene se tiran sin aplicarse. Un stash no tiene reflog, así que FlickGit no puede recuperarlo.
+stash.confirm.yes = Descartar
+stash.moved.title = La lista de stashes ha cambiado
+stash.moved = No se ha hecho nada: el stash que pulsó ya no es el que ocupa esa posición — algo creó o aplicó un stash mientras tanto. La lista se ha recargado; vuelva a elegirlo.
+
 # ---- ventana de historial ----
 log.title = Historial — {0}
 log.files.header = Archivos modificados
@@ -435,6 +467,7 @@ action.push = Push
 action.pr = Pull request…
 action.switch = Ramas…
 action.tag = Etiquetas…
+action.stash = Stashes…
 action.log = Mostrar historial…
 action.blame = Blame…
 action.add = Añadir

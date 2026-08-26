@@ -37,9 +37,7 @@ public static class ActionSafety
     /// <c>git add -A</c> is deliberately absent. It is banned from <i>the product's own</i> staging
     /// path — the user's selection decides what is committed — but it discards nothing, so demanding
     /// confirmation for a user action that stages everything would spend the user's attention on the
-    /// wrong thing. <c>git stash drop</c> and <c>clear</c> are absent for a narrower reason: they are
-    /// not on CLAUDE.md's list, and this class is a reading of that list rather than an improvement
-    /// on it.
+    /// wrong thing.
     /// </summary>
     private static readonly Rule[] Destructive =
     [
@@ -65,6 +63,16 @@ public static class ActionSafety
         //on the list and it is strictly the *less* final of the two.
         new("tag", "-d"),
         new("tag", "--delete"),
+
+        //Throwing a stash away, on the argument the line above has just made. These two used to be
+        //named here as deliberately *absent*, on the grounds that CLAUDE.md's list does not mention
+        //them -- which was the right call while nothing in the product had a stash surface. It has one
+        //now, so a saved action running `stash drop` is a thing somebody writes. A stash has no reflog
+        //of its own: the entry is the only handle on the commit, so dropping it leaves nothing this
+        //product can find again, which is exactly what earned `tag -d` its place. `clear` does it to
+        //every stash at once, which is why the Stashes window offers it nowhere at all.
+        new("stash", "drop"),
+        new("stash", "clear"),
 
         //Deleting any ref on a remote. Not force-push, but it removes something other people have
         //already fetched, which is the harm `push --force` is on the list for.

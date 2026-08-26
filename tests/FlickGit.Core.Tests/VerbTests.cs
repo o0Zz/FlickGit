@@ -166,6 +166,27 @@ public class VerbTests
     }
 
     /// <summary>
+    /// `stash` reads a message as the second positional slot, the way `tag` reads a name below.
+    ///
+    /// Bare it is the window; with a message it puts the working tree away. Nothing spells popping or
+    /// dropping, because both name an existing stash by a reflog selector and a selector written into
+    /// a script is a position that will have moved by the time it runs.
+    /// </summary>
+    [Fact]
+    public void Stash_carries_its_message_as_the_argument()
+    {
+        Verb bare = Verb.Parse(["stash", @"C:\dev\repo"], @"C:\dev");
+
+        Assert.Equal(VerbKind.Stash, bare.Kind);
+        Assert.Equal(@"C:\dev\repo", bare.Path);
+        Assert.Null(bare.Argument);
+
+        Verb described = Verb.Parse(["stash", @"C:\dev\repo", "pool leak"], @"C:\dev");
+
+        Assert.Equal("pool leak", described.Argument);
+    }
+
+    /// <summary>
     /// `tag` reads its name as the second positional slot, the way `switch` reads a branch.
     ///
     /// Bare it is the picker, so the argument stays null rather than becoming the empty string --

@@ -19,6 +19,7 @@ using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
+using FlickGit.Stashes;
 using FlickGit.Status;
 using FlickGit.Submodules;
 using FlickGit.Tags;
@@ -46,6 +47,7 @@ public sealed class WindowVerbs(
     PullService pulls,
     CloneService clones,
     TagService tags,
+    StashService stashes,
     SubmoduleService submodules,
     RepositoryConfigService repositoryConfig,
     RemoteService remotes,
@@ -242,6 +244,18 @@ public sealed class WindowVerbs(
     public VerbResult TagPicker(RepositoryInfo repository)
     {
         var window = new TagsWindow(repository, tags, switches);
+
+        AppWindow.Present(window);
+
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// The stash window. Per call, for the reason <see cref="TagPicker"/> gives.
+    /// </summary>
+    public VerbResult StashPicker(RepositoryInfo repository)
+    {
+        var window = new StashesWindow(repository, stashes);
 
         AppWindow.Present(window);
 

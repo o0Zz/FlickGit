@@ -313,6 +313,41 @@ tag.confirm.local = Delete the tag {0} from this repository?\n\nA tag has no ref
 tag.confirm.remote = Delete the tag {0} from this repository and from {1}?\n\nAnyone who has already fetched it keeps their copy, and a tag has no reflog — this cannot be undone from here.
 tag.confirm.yes = Delete
 
+# ---- stashes window ---------------------------------------------------------
+# A stash is work put away: the working tree as it was, saved and rolled back. The window is the
+# list, plus the one thing you create below it. The rule underneath it is that a row is addressed
+# by a *position* -- stash@{1} is whatever happens to be second right now -- so FlickGit checks the
+# stash is still the one on screen before it pops or drops anything. stash.moved is the other case.
+#
+# There is no wording here for `stash clear` or `stash apply`, because neither is offered anywhere.
+
+# {0} repository name
+stash.title = Stashes — {0}
+stash.new = Stash your changes
+stash.message.label = Message — optional; without one, Git names the commit you were on
+stash.untracked = Include untracked
+stash.untracked.hint = New files Git has never seen go into the stash too, and come back with it. Files your .gitignore already excludes are never included either way.
+stash.push = Stash
+stash.pop = Pop stash
+stash.drop = Drop stash
+stash.none = Nothing is stashed in this repository.
+# {0} number of stashes
+stash.count = {0} stash(es)
+stash.pushed = Stashed. Your changes are in the stash.
+stash.nothing = Nothing to stash. There are no changes to put away, and untracked files count only when they are included.
+# {0} stash reference
+stash.popped = Popped {0}.
+stash.dropped = Dropped {0}.
+stash.pop.kept = {0} is still in the list, so nothing is lost. Git's own message is below: it either refused and changed nothing, or applied what it could and left conflicts for you to resolve.
+stash.menu.pop = Pop {0}
+stash.menu.drop = Drop {0}…
+stash.confirm.title = Drop this stash?
+# {0} stash reference, {1} what the stash was called
+stash.confirm.drop = Drop {0} — {1}?\n\nThe changes in it are thrown away without being applied. A stash has no reflog, so FlickGit cannot bring it back.
+stash.confirm.yes = Drop
+stash.moved.title = The stash list changed
+stash.moved = Nothing was done, because the stash you clicked is no longer the one at that position — something pushed or popped a stash in the meantime. The list has been reloaded; please pick it again.
+
 # ---- submodules window ------------------------------------------------------
 # A submodule is another repository pinned at one commit inside this one. The window is the third
 # of the "one screen per kind of ref" set, beside Branches and Tags, and it commits nothing: add
@@ -676,6 +711,7 @@ action.add = Add
 action.rm = Remove…
 action.repo = Repository settings…
 action.submodule = Submodules…
+action.stash = Stashes…
 action.clone = Clone…
 action.terminal = Open terminal here
 

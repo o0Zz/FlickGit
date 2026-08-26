@@ -3,8 +3,8 @@
 ### Press one key, press Enter, it's committed and pushed — and the AI wrote the message.
 
 A lightweight Git front-end for Windows, built for speed and wired straight into Explorer. Fast
-commits and fast Git actions from a keyboard shortcut or a right-click, with branches, worktrees
-and tags managed seamlessly in one window each.
+commits and fast Git actions from a keyboard shortcut or a right-click, with branches, worktrees,
+tags and stashes managed seamlessly in one window each.
 
 For developers who work across many repositories, want to be fast with Git, and would rather not
 spend their day in a Git client at all.
@@ -62,6 +62,9 @@ pre-warmed. It is an optimisation, never a dependency — with it stopped, every
 - **Worktrees** — a second checkout of the same repository, on the same branch rows: create one,
   open its folder, remove it, or clean up one whose folder is gone.
 - **Tags** — list, create, publish, delete, and double-click to check one out. Nothing is forced.
+- **Stashes** — what is put away, put more away, pop one back, drop one. Untracked files are included
+  by default. A stash is named by its *position*, so FlickGit checks the row is still the stash it was
+  drawn as before it pops or drops anything. No "drop all", and no force.
 - **Submodules** — what is declared, what is checked out, what has moved: add one, initialise
   one that was never fetched, remove one. Removing never forces on its own, and the submodule's own
   clone is kept so nothing committed inside it is lost.

@@ -34,6 +34,7 @@ using FlickGit.Palette;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Repositories;
+using FlickGit.Stashes;
 using FlickGit.Status;
 using FlickGit.Submodules;
 using FlickGit.Tags;
@@ -174,6 +175,7 @@ public partial class App : Application
         services.AddSingleton<RemoteService>();
         services.AddSingleton<RepositoryConfigService>();
         services.AddSingleton<TagService>();
+        services.AddSingleton<StashService>();
         services.AddSingleton<CloneService>();
 
         services.AddSingleton<FileTextLoader>();

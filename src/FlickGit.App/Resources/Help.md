@@ -85,7 +85,7 @@ The right side is a real editor, not a preview.
   `Working tree ↔ Index`. Editing while looking at the staged diff edits the **working tree** —
   a strip appears offering to restage.
 
-## Branches, worktrees and tags
+## Branches, worktrees, tags and stashes
 
 **FlickGit ▸ Branches…**, or `flick switch`. Type to filter; local branches first, then the
 remote-tracking ones. Type a name that matches nothing and the last row offers to **create** it,
@@ -123,6 +123,35 @@ costs a network round trip.
 
 Double-click a tag to check it out. That is the one thing in FlickGit that **detaches HEAD**, so it
 asks once and the window then tells you how to come back.
+
+### Stashes
+
+**FlickGit ▸ Stashes…**, or `flick stash`. What is put away, and the box at the bottom to put more
+away. A message is optional; without one Git names the commit you were on. **Include untracked** is
+ticked by default, so a file you have only just created goes in too and comes back with the rest —
+anything your `.gitignore` already excludes is never included either way.
+
+Right-click a row, or double-click it to pop:
+
+- **Pop** — puts the changes back and removes the entry. It asks nothing, because it restores work
+  rather than discarding any, and Git refuses outright rather than overwriting a file that is in the
+  way. If it fails or leaves conflicts, **the stash is still in the list** — Git only removes it once
+  it has applied cleanly.
+- **Drop…** — throws the stash away without applying it, and asks first. A stash has no reflog, so
+  FlickGit cannot bring one back.
+
+There is no "drop all": one click that destroys every saved change in the repository is not something
+this window offers. There is no `apply` either, because that is `pop` without the tidying up.
+
+**Why the window sometimes says the list changed.** A stash is named by its position — `stash@{1}` is
+whatever is second right now — and pushing or popping a stash anywhere renumbers the rest. So if you
+stash something in a terminal while this window is open, the row you then click is no longer the stash
+it was drawn as. FlickGit checks before it acts, does nothing, and reloads the list for you to pick
+again. That check is also why popping and dropping have no command-line spelling: a position written
+into a script is one that will have moved by the time it runs.
+
+`flick stash <path> "a message"` does the one thing that is safe from a script: it puts the working
+tree away, untracked files included, and prints what happened.
 
 ### Submodules
 
@@ -369,6 +398,7 @@ Everything in the menus is also a verb. `<path>` defaults to the current directo
 flick commit <path>              flick switch <path> [branch]
 flick pull-rebase <path>         flick tag <path> [name]
 flick push <path>                flick status <path>
+flick stash <path> [message]     stash the working tree, or open the window
 flick submodule <path>           add, remove, initialise submodules
 flick pr <path>                  open a pull request for this branch
 flick log <path>                 commit history + combined diffs
