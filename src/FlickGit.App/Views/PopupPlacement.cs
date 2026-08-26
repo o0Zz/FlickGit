@@ -17,9 +17,16 @@ namespace FlickGit.App.Views;
 /// monitor when it first paints, so WPF resolves that monitor's scale factor rather than laying out
 /// at the wrong one and rescaling on the <c>WM_DPICHANGED</c> that follows.
 ///
-/// One placement, because there is one caller: the palette. The cursor-anchored placement beside it
-/// belonged to the quick-commit popup, and went when that surface did — the commit window keeps the
-/// position WPF gives it.
+/// Two placements. <see cref="NearTopOfActiveScreen"/> is the palette's, and deliberately ignores
+/// where the pointer is. <see cref="AtPoint"/> is the tray menu's, and is anchored to it.
+///
+/// The tray menu needs its own because H.NotifyIcon's is wrong across mixed scale factors, and
+/// wrong in a way no setting can correct: it reports the click in physical pixels, divides by a DPI
+/// factor taken from an unpositioned <c>HwndSource</c> — so always the <i>primary</i> monitor's — and
+/// hands the result to <c>ContextMenu.HorizontalOffset</c>, which WPF multiplies back up by the
+/// popup HWND's own DPI, i.e. the monitor it last lived on. Divide by one display's scale, multiply
+/// by another's, and the menu lands a scale factor away from the pointer, often on a different
+/// screen. So the menu is opened by the library and immediately repositioned here.
 /// </summary>
 internal static partial class PopupPlacement
 {
@@ -72,6 +79,76 @@ internal static partial class PopupPlacement
         catch (Exception)
         {
             //Placement is cosmetic. Nothing here is worth failing the hotkey over.
+        }
+    }
+
+    /// <summary>
+    /// The pointer, in physical pixels.
+    ///
+    /// Exposed so the tray menu can capture its anchor at the moment the click is reported rather
+    /// than at the moment the menu paints: H.NotifyIcon defers a left-click open through its
+    /// double-click timer, and the pointer can have moved by then.
+    /// </summary>
+    public static bool TryGetCursor(out int x, out int y)
+    {
+        bool ok = GetCursorPos(out Point cursor);
+
+        x = cursor.X;
+        y = cursor.Y;
+        return ok;
+    }
+
+    /// <summary>
+    /// Puts <paramref name="handle"/> at a point, in physical pixels, and keeps it inside the work
+    /// area of the monitor that point is on.
+    ///
+    /// The tray menu's placement. It <b>flips</b> rather than slides: a menu that would run past the
+    /// right or bottom edge is drawn to the left of, or above, the anchor. That is what every other
+    /// notification-area menu does, and with the taskbar at the bottom it is the only behaviour that
+    /// does not cover the icon that was just clicked. Sliding it up instead would leave the menu
+    /// under the pointer, so the first item is highlighted before the user has aimed at anything.
+    ///
+    /// Safe to call more than once for the same menu: the size is re-read every time, so a second
+    /// call after Windows has rescaled the popup for a new monitor simply corrects the flip.
+    /// </summary>
+    public static void AtPoint(nint handle, int x, int y)
+    {
+        try
+        {
+            if (handle == 0)
+                return;
+
+            var anchor = new Point { X = x, Y = y };
+            nint monitor = MonitorFromPoint(anchor, MonitorDefaultToNearest);
+
+            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+
+            if (monitor == 0 || !GetMonitorInfoW(monitor, ref info) || !GetWindowRect(handle, out Rect bounds))
+                return;
+
+            int width = bounds.Right - bounds.Left;
+            int height = bounds.Bottom - bounds.Top;
+            Rect work = info.Work;
+
+            if (x + width > work.Right)
+                x -= width;
+
+            if (y + height > work.Bottom)
+                y -= height;
+
+            //After the flip, not instead of it. A menu taller than the work area has nowhere to go
+            //either way, and starting it inside the screen is the least bad of the two.
+            x = Math.Max(work.Left, Math.Min(x, Math.Max(work.Left, work.Right - width)));
+            y = Math.Max(work.Top, Math.Min(y, Math.Max(work.Top, work.Bottom - height)));
+
+            //SwpNoActivate because activating the popup is H.NotifyIcon's job -- it calls
+            //SetForegroundWindow on this same handle, which is the only reason the menu closes when
+            //the user clicks somewhere else.
+            SetWindowPos(handle, 0, x, y, 0, 0, SwpNoSize | SwpNoZOrder | SwpNoActivate);
+        }
+        catch (Exception)
+        {
+            //Placement is cosmetic. Nothing here is worth failing the tray click over.
         }
     }
 

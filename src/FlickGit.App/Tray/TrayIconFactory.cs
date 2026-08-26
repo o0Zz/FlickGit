@@ -1,7 +1,10 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Threading;
 using FlickGit.App.Localization;
+using FlickGit.App.Views;
 using H.NotifyIcon;
 
 namespace FlickGit.App.Tray;
@@ -44,10 +47,44 @@ public static class TrayIconFactory
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem(Strings.Get("tray.exit"), onExit));
 
-        //Rebuilt on open rather than kept in sync. The list changes with every commit and the menu
-        //is looked at rarely, so reading it when asked is both simpler and always right.
-        menu.Opened += (_, _) =>
+        var icon = new TaskbarIcon
         {
+            ToolTipText = Strings.Get("tray.tooltip"),
+            ContextMenu = menu,
+
+            //Left-click opens the menu, rather than committing something. There is no folder behind
+            //a tray click and therefore no repository to guess, so the menu -- with the recent list
+            //in it -- is the only honest thing one click can do.
+            MenuActivation = H.NotifyIcon.Core.PopupActivationMode.LeftOrRightClick,
+            NoLeftClickDelay = true,
+        };
+
+        //Where the menu goes, decided here rather than by H.NotifyIcon.
+        //
+        //The library reports the click in physical pixels, divides by a DPI factor it read from an
+        //unpositioned HwndSource -- so always the *primary* monitor's -- and hands the result to
+        //ContextMenu.HorizontalOffset, which WPF scales back up by the popup HWND's own DPI, i.e.
+        //whichever monitor it was last shown on. Divide by one display's scale and multiply by
+        //another's and the menu lands a whole scale factor away from the pointer, routinely on a
+        //different screen. Nothing in the library's API corrects it, so the menu is opened by it and
+        //immediately moved by us, in physical pixels, the way every other FlickGit surface is placed.
+        //
+        //A flag rather than a sentinel coordinate: a cursor read that failed must leave the menu
+        //where the library put it, not drag it to the top-left corner of the primary display.
+        bool anchored = false;
+        int anchorX = 0;
+        int anchorY = 0;
+
+        //Before IsOpen, which is what makes this the right place for both halves: the anchor is
+        //captured while the click is still current (a left click reaches ShowContextMenu through the
+        //library's double-click timer, by which time the pointer may have moved), and the items are
+        //built while the menu can still be measured without being on screen.
+        icon.PreviewTrayContextMenuOpen += (_, _) =>
+        {
+            anchored = PopupPlacement.TryGetCursor(out anchorX, out anchorY);
+
+            //Rebuilt on open rather than kept in sync. The list changes with every commit and the
+            //menu is looked at rarely, so reading it when asked is both simpler and always right.
             recentMenu.Items.Clear();
 
             IReadOnlyList<string> paths = recent();
@@ -75,17 +112,23 @@ public static class TrayIconFactory
             }
         };
 
-        var icon = new TaskbarIcon
+        menu.Opened += (_, _) =>
         {
-            ToolTipText = Strings.Get("tray.tooltip"),
-            ContextMenu = menu,
+            Place();
 
-            //Left-click opens the menu, rather than committing something. There is no folder behind
-            //a tray click and therefore no repository to guess, so the menu -- with the recent list
-            //in it -- is the only honest thing one click can do.
-            MenuActivation = H.NotifyIcon.Core.PopupActivationMode.LeftOrRightClick,
-            NoLeftClickDelay = true,
+            //Again once the layout has settled. Moving the popup onto a monitor at a different scale
+            //earns it a WM_DPICHANGED, WPF re-renders the menu at the new scale, and the size the
+            //flip above was decided from is then stale. AtPoint re-reads the window rect every call,
+            //so this corrects it and is a no-op when both monitors are at the same scale.
+            _ = menu.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, Place);
         };
+
+        void Place()
+        {
+            //The popup's own HWND, found the way the library finds it.
+            if (anchored && menu.IsOpen && PresentationSource.FromVisual(menu) is HwndSource source)
+                PopupPlacement.AtPoint(source.Handle, anchorX, anchorY);
+        }
 
         //Loaded from the exe's own directory rather than embedded: the same .ico file is
         //what the registry hands to Explorer for the context menu, so there is exactly one
