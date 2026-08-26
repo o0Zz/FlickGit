@@ -1231,8 +1231,8 @@ public partial class DiffPane : UserControl
     ///
     /// It also clamps: the two documents have the same line count but not the same longest line, so
     /// a horizontal offset the source can reach the target may not. The clamped result comes back as
-    /// a scroll event, and treating that as a gesture drags the source back to wherever the target
-    /// could reach.
+    /// a scroll event one layout pass later -- too late for <see cref="_syncTarget"/>, which only
+    /// catches the echo raised inside the call. <see cref="IsPinnedAtEnd"/> is what recognises it.
     /// </summary>
     private void Sync(TextEditor source, TextEditor target)
     {
@@ -1243,6 +1243,7 @@ public partial class DiffPane : UserControl
         //The text views, not the editors: TextEditor.VerticalOffset reads the ScrollViewer, which has
         //not caught up with its own IScrollInfo child when this fires.
         Vector from = source.TextArea.TextView.ScrollOffset;
+        var sourceInfo = (IScrollInfo)source.TextArea.TextView;
         var to = (IScrollInfo)target.TextArea.TextView;
 
         _syncTarget = target;
@@ -1251,15 +1252,41 @@ public partial class DiffPane : UserControl
         {
             //Vertical offsets are copied outright, which is only correct because both documents have the
             //same number of lines. Horizontal too: reading a long changed line means scrolling both halves.
-            if (Math.Abs(to.VerticalOffset - from.Y) > 0.5)
+            if (Math.Abs(to.VerticalOffset - from.Y) > 0.5
+                && !IsPinnedAtEnd(from.Y, sourceInfo.ExtentHeight, sourceInfo.ViewportHeight, to.VerticalOffset))
                 to.SetVerticalOffset(from.Y);
 
-            if (Math.Abs(to.HorizontalOffset - from.X) > 0.5)
+            if (Math.Abs(to.HorizontalOffset - from.X) > 0.5
+                && !IsPinnedAtEnd(from.X, sourceInfo.ExtentWidth, sourceInfo.ViewportWidth, to.HorizontalOffset))
                 to.SetHorizontalOffset(from.X);
         }
         finally
         {
             _syncTarget = null;
         }
+    }
+
+    /// <summary>
+    /// Whether the source pane sits at its own end while the target is already past it.
+    ///
+    /// The two documents have the same line count but not the same longest line, so the wider pane
+    /// scrolls to a place the narrower one cannot reach. Asked for it anyway, the narrower one takes
+    /// what it can and its next measure pass clamps the rest away -- and that clamp arrives here as
+    /// an ordinary scroll event, indistinguishable from the user having scrolled it. Copied on, it
+    /// drags the wider pane back to wherever the narrower one could reach, which the user sees as a
+    /// horizontal scrollbar that refuses to move.
+    ///
+    /// A pane at its end has nothing left to say about where the other belongs, so the other is left
+    /// where the gesture put it and only the pane that can still move follows. The maximum is
+    /// computed the way <c>TextView</c> clamps -- extent minus viewport, floored at zero -- so this
+    /// recognises exactly the offsets it produces. It is the same story vertically whenever one pane
+    /// shows a horizontal scrollbar and the other does not: that pane's viewport is a scrollbar
+    /// shorter, so it can scroll a little further down than its counterpart.
+    /// </summary>
+    private static bool IsPinnedAtEnd(double sourceOffset, double sourceExtent, double sourceViewport, double targetOffset)
+    {
+        double sourceMaximum = Math.Max(0, sourceExtent - sourceViewport);
+
+        return sourceOffset >= sourceMaximum - 0.5 && targetOffset > sourceOffset + 0.5;
     }
 }
