@@ -742,6 +742,14 @@ overlay.system.removed = The overlay was removed machine-wide. Restart Explorer 
 overlay.system.failed = The overlay's machine-wide half could not be written.
 overlay.usage = Usage: flick install-overlay [system]
 
+# --- flick status -------------------------------------------------------------
+# The branch line and the empty-list line of `flick status`. Separate from palette.clean
+# because the palette has a row's width to fill and this has a whole line.
+status.detached = HEAD detached
+status.nobranch = no branch
+status.clean = clean
+status.noupstream = (no upstream)
+
 # --- repository palette -------------------------------------------------------
 palette.hints = ⏎ run   ⇥ complete   ctrl+⏎ pull --rebase everything behind   esc dismiss
 palette.clean = clean

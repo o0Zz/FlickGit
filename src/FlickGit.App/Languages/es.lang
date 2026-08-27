@@ -489,6 +489,12 @@ overlay.system.removed = El icono superpuesto se eliminó para todo el equipo. R
 overlay.system.failed = No se pudo escribir la parte para todo el equipo.
 overlay.usage = Uso: flick install-overlay [system]
 
+# --- flick status -------------------------------------------------------------
+status.detached = HEAD desacoplada
+status.nobranch = sin rama
+status.clean = limpio
+status.noupstream = (sin upstream)
+
 # --- paleta de repositorios ---------------------------------------------------
 palette.hints = ⏎ ejecutar   ⇥ completar   ctrl+⏎ pull --rebase en todo lo atrasado   esc cerrar
 palette.clean = limpio

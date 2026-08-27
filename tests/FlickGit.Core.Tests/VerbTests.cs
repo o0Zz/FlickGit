@@ -260,7 +260,13 @@ public class VerbTests
             Verb verb = Verb.Parse(args, @"C:\dev");
 
             Assert.Null(verb.Error);
-            Assert.NotEqual(VerbKind.Help, verb.Kind);
+
+            //`help` is the one documented verb whose answer *is* Help, so the guard below cannot
+            //apply to it. Everywhere else, Help means the flat table did not recognise the head --
+            //and an unrecognised head also carries an Error, which the assertion above already
+            //catches. This keeps the second signal for every verb that can still give it.
+            if (head != "help")
+                Assert.NotEqual(VerbKind.Help, verb.Kind);
         }
     }
 

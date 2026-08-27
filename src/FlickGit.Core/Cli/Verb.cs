@@ -280,6 +280,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick language [code|auto]          interface language; lists them when omitted
           flick diag timings                  recent latency measurements
           flick diag doctor                   environment health check
+          flick version                       the build, also --version and -v
+          flick help                          this list, also --help, -h and /?
 
         <path> defaults to the current directory.
 

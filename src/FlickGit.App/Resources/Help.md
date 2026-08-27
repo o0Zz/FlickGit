@@ -432,16 +432,21 @@ flick log <path>                 commit history + combined diffs
 flick blame <file>               who wrote each line
 flick add <file>                 stage one file
 flick rm <file>                  delete one file, staged; asks first
+flick repo <path>                identity, remotes and this repository's defaults
 flick palette                    flick clone <path> [url]
 flick settings                   flick terminal <path>
                                  flick run <id> [path]
 
 flick install-shell              register the context menu
 flick uninstall-shell            remove it
+flick install-overlay            badge repository folders; asks for admin once
+flick uninstall-overlay          remove the badge
 flick autostart [on|off]         start with Windows
 flick language [code|auto]       interface language
 flick diag doctor                environment health check
 flick diag timings               recent latency measurements
+flick version                    the build, also --version and -v
+flick help                       this list, also --help, -h and /?
 ```
 
 Exit codes: `0` success, `1` Git error, `2` not a repository, `3` cancelled, `4` configuration

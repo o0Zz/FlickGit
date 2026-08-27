@@ -489,6 +489,12 @@ overlay.system.removed = Das Overlay wurde computerweit entfernt. Starten Sie de
 overlay.system.failed = Der computerweite Teil des Overlays konnte nicht geschrieben werden.
 overlay.usage = Verwendung: flick install-overlay [system]
 
+# --- flick status ---------------------------------------------------------------
+status.detached = HEAD detached
+status.nobranch = kein Branch
+status.clean = sauber
+status.noupstream = (kein Upstream)
+
 # --- Repository-Palette -------------------------------------------------------
 palette.hints = ⏎ ausführen   ⇥ vervollständigen   Strg+⏎ pull --rebase für alles Zurückliegende   Esc schließen
 palette.clean = sauber

@@ -489,6 +489,12 @@ overlay.system.removed = La superposition a été supprimée pour tout l'ordinat
 overlay.system.failed = La partie applicable à tout l'ordinateur n'a pas pu être écrite.
 overlay.usage = Utilisation : flick install-overlay [system]
 
+# --- flick status -------------------------------------------------------------
+status.detached = HEAD détachée
+status.nobranch = aucune branche
+status.clean = propre
+status.noupstream = (pas de branche amont)
+
 # --- palette de dépôts --------------------------------------------------------
 palette.hints = ⏎ exécuter   ⇥ compléter   ctrl+⏎ pull --rebase sur tout ce qui est en retard   échap fermer
 palette.clean = propre

@@ -50,13 +50,13 @@ public sealed class RepositoryVerbs(
         output.Line($"{repository.Name}  ({repository.Root})");
 
         output.Line(
-            state.IsDetachedHead ? "HEAD detached"
-            : state.Branch is null ? "no branch"
-            : $"{state.Branch}{(state.Upstream is null ? "  (no upstream)" : $"  ↑{state.Ahead} ↓{state.Behind}")}");
+            state.IsDetachedHead ? Strings.Get("status.detached")
+            : state.Branch is null ? Strings.Get("status.nobranch")
+            : $"{state.Branch}{(state.Upstream is null ? "  " + Strings.Get("status.noupstream") : $"  ↑{state.Ahead} ↓{state.Behind}")}");
 
         if (state.Files.Count == 0)
         {
-            output.Line("clean");
+            output.Line(Strings.Get("status.clean"));
             return VerbResult.Exit(ExitCodes.Success);
         }
 

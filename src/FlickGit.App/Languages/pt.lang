@@ -489,6 +489,12 @@ overlay.system.removed = O ícone sobreposto foi removido para todo o computador
 overlay.system.failed = Não foi possível escrever a parte para todo o computador.
 overlay.usage = Utilização: flick install-overlay [system]
 
+# --- flick status -------------------------------------------------------------
+status.detached = HEAD destacada
+status.nobranch = sem ramo
+status.clean = limpo
+status.noupstream = (sem upstream)
+
 # --- paleta de repositórios ---------------------------------------------------
 palette.hints = ⏎ executar   ⇥ completar   ctrl+⏎ pull --rebase em tudo o que está atrasado   esc fechar
 palette.clean = limpo

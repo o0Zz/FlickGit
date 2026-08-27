@@ -218,6 +218,8 @@ src/
 │   ├── Forges/              ForgeUrl, PullRequestService, PullRequestFlow, three clients
 │   │                        over one ForgeApi, GitCredentialFill
 │   ├── Branches/            BranchService, SwitchService
+│   ├── Worktrees/           WorktreeService + GitWorktree. `worktree list --porcelain`,
+│   │                        and the five refusals -- no command here ever carries --force
 │   ├── Stashes/             StashService + GitStash. The list is positional, so every pop
 │   │                        and drop re-reads it and checks the sha first
 │   ├── Config/              RepositoryConfigService, GitConfigList
@@ -387,6 +389,8 @@ flick ai key [set|clear]             store or remove the API key
 flick language [code|auto]           interface language; lists them when omitted
 flick diag timings                   recent latency measurements
 flick diag doctor                    environment and integration health check
+flick version                        the build, also `--version` and `-v`
+flick help                           this list, also `--help`, `-h` and `/?`
 ```
 
 `<path>` defaults to the current working directory when omitted. Explorer's quoted `%V` for a drive
@@ -797,6 +801,19 @@ answer to *that* forces. **Deleting on a remote is the only thing in FlickGit th
 people share** — confirmed in its own words, pushing a fully qualified `refs/heads/<branch>` (the bare
 name is ambiguous with a tag), with the remote resolved against the configured remotes rather than split
 at the first slash. No force, no lease.
+
+**Worktrees live on the branch picker's rows, not in a window of their own**, because Git allows a
+branch to be checked out in exactly one worktree — so "where is this branch" is a fact about the row
+the user is already looking at. A row whose branch is checked out elsewhere turns the primary button
+into *open that folder*, since a switch is the one thing Git would refuse there. `worktree
+list --porcelain` is the only read, and the first record is always the main worktree.
+
+`WorktreeService` **refuses before Git runs**, and the enum is the point — `InsideRepository` (a
+worktree nested in its own repository), `NotAbsolute`, `NotEmpty`, `IsMainWorktree` and `IsLocked`
+each stop a command that would otherwise half-succeed. **No worktree command ever carries `--force`**:
+a dirty worktree is reported and left alone, and `.git/worktrees/<name>` is Git's to prune, through
+`worktree prune`, never by deleting a directory. A test asserts the force rule across every command
+the service can issue.
 
 **Tags** — what exists, create one on HEAD, delete one (remote first, never forced, no `ls-remote` on
 open). Checking one out runs `git switch --detach <tag>` after one question, and **this is the only
