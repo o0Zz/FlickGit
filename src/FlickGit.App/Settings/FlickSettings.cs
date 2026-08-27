@@ -48,6 +48,16 @@ public sealed class FlickSettings
 
     public double DiffFontSize { get; set; } = 12.5;
 
+    /// <summary>
+    /// The program the commit window's Edit item hands a file to. Empty means <c>notepad.exe</c>.
+    ///
+    /// <b>A full path to an executable.</b> It is started with <c>UseShellExecute = false</c> and the
+    /// file as its one argument, so a bare <c>code</c> or a <c>.cmd</c> on PATH will not resolve --
+    /// which is deliberate, and the same mechanism that stops the file being <i>executed</i> rather
+    /// than opened: the path FlickGit passes is always an argument and never the program.
+    /// </summary>
+    public string ExternalEditor { get; set; } = string.Empty;
+
     public bool VerboseLogging { get; set; }
 
     /// <summary>

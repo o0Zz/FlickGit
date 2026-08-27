@@ -181,6 +181,7 @@ public partial class App : Application
         services.AddSingleton<FileTextLoader>();
         services.AddSingleton<WorkingTreeWriter>();
         services.AddSingleton<WorkingTreeDeleter>();
+        services.AddSingleton<EditorLauncher>();
         services.AddSingleton<RestoreService>();
         services.AddSingleton<TrackingService>();
         services.AddSingleton<FolderRemovalFlow>();

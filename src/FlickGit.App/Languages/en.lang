@@ -63,6 +63,26 @@ files.tooltip.binary = Binary file — no line count and no text diff.
 # {0} old path
 files.tooltip.renamed = Renamed from {1}
 
+# ---- opening a file in an editor ----
+# The commit window's file list, right-click. Hands the selected files to the program named by
+# `externalEditor` in settings.json, or to Notepad when that is empty. Nothing is asked and nothing
+# changes: the path is always an argument to an editor, never a program Windows is asked to run.
+edit.menu = Edit
+# {0} how many files the menu item would act on -- the ones still on disk
+edit.menu.many = Edit {0} files
+edit.title = Edit file
+# {0} repository-relative path
+edit.done = Opened {0}
+# {0} how many files were opened
+edit.done.many = Opened {0} files
+edit.missing = {0} is no longer on disk.
+# {0} repository-relative path, {1} repository root
+edit.outside = {0} is outside {1} and will not be opened.
+# {0} repository-relative path, {1} the editor it was given, {2} the reason Windows gave
+edit.failed = {0} could not be opened with {1}:\n\n{2}
+# {0} how many were opened before the failure reported above this line
+edit.partial = {0} files were opened before this one.
+
 # ---- adding a file ----
 # The commit window's file list, right-click. Stages the selected rows, which for a file Git has
 # never seen is what starts tracking it. No ellipsis and no question: staging discards nothing --
@@ -796,6 +816,11 @@ settings.section.commit = Commit
 settings.warnprimary = Warn when committing to the primary branch
 settings.closeafter = Close the commit window after a successful commit
 settings.notify = Show a notification after a successful commit
+
+settings.section.editor = Editor
+settings.editor.browse = Browse…
+settings.editor.hint = The program the Edit item in the commit window opens a file with. Leave it empty for Notepad.
+settings.editor.filter = Programs (*.exe)|*.exe|All files (*.*)|*.*
 
 settings.section.pull = Pull
 settings.closepull = Close the pull window after a successful pull

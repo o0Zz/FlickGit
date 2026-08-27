@@ -56,6 +56,17 @@ files.tooltip.untracked = Non suivi — non compté par Git ; lignes comptées d
 files.tooltip.binary = Fichier binaire — ni comptage de lignes ni diff texte.
 files.tooltip.renamed = Renommé depuis {1}
 
+# ---- ouverture d'un fichier dans un éditeur ----
+edit.menu = Modifier le fichier
+edit.menu.many = Modifier {0} fichiers
+edit.title = Modifier le fichier
+edit.done = {0} ouvert
+edit.done.many = {0} fichiers ouverts
+edit.missing = {0} n'est plus sur le disque.
+edit.outside = {0} est en dehors de {1} et ne sera pas ouvert.
+edit.failed = {0} n'a pas pu être ouvert avec {1} :\n\n{2}
+edit.partial = {0} fichiers ont été ouverts avant celui-ci.
+
 # ---- ajout d'un fichier ----
 add.menu = Ajouter le fichier
 add.menu.many = Ajouter {0} fichiers
@@ -549,6 +560,11 @@ settings.section.commit = Commit
 settings.warnprimary = Avertir lors d'un commit sur la branche principale
 settings.closeafter = Fermer la fenêtre de commit après un commit réussi
 settings.notify = Afficher une notification après un commit réussi
+
+settings.section.editor = Éditeur
+settings.editor.browse = Parcourir…
+settings.editor.hint = Le programme avec lequel l'élément Modifier de la fenêtre de commit ouvre un fichier. Laissez vide pour le Bloc-notes.
+settings.editor.filter = Programmes (*.exe)|*.exe|Tous les fichiers (*.*)|*.*
 
 settings.section.pull = Pull
 settings.closepull = Fermer la fenêtre de pull après un pull réussi

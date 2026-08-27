@@ -168,10 +168,14 @@
                          the menu is drawn — and labels each item with how many it would touch. -->
                     <ListBox.ContextMenu>
                         <ContextMenu>
-                            <!-- Add first and on its own, above the separator, because it is the only
-                                 item here that destroys nothing: it stages the file, which the
-                                 working tree never feels and an unstage takes straight back out. That is
-                                 also why it has no ellipsis — nothing is asked. -->
+                            <!-- Edit and Add first, together above the separator, because they are the
+                                 two items here that destroy nothing: one hands the file to an editor,
+                                 the other stages it — which the working tree never feels and an
+                                 unstage takes straight back out. That is also why neither has an
+                                 ellipsis: nothing is asked. -->
+                            <MenuItem x:Name="EditFileMenuItem"
+                                      Command="{Binding PlacementTarget.DataContext.EditFileCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                             <MenuItem x:Name="AddFileMenuItem"
                                       Command="{Binding PlacementTarget.DataContext.AddFileCommand,
                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" />

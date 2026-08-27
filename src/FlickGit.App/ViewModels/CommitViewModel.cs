@@ -33,6 +33,7 @@ public sealed class CommitViewModel : ObservableObject
     private readonly PatchService _patches;
     private readonly WorkingTreeWriter _writer;
     private readonly WorkingTreeDeleter _deleter;
+    private readonly EditorLauncher _editors;
     private readonly RestoreService _restore;
     private readonly AiTextService _messages;
     private readonly FlickSettings _settings;
@@ -73,6 +74,7 @@ public sealed class CommitViewModel : ObservableObject
         PatchService patches,
         WorkingTreeWriter writer,
         WorkingTreeDeleter deleter,
+        EditorLauncher editors,
         RestoreService restore,
         AiTextService messages,
         FlickSettings settings,
@@ -88,6 +90,7 @@ public sealed class CommitViewModel : ObservableObject
         _patches = patches;
         _writer = writer;
         _deleter = deleter;
+        _editors = editors;
         _restore = restore;
         _messages = messages;
         _settings = settings;
@@ -101,6 +104,11 @@ public sealed class CommitViewModel : ObservableObject
         AddFileCommand = new AsyncCommand(AddSelectedFilesAsync, () => CanAddFile, ReportError);
         DeleteFileCommand = new AsyncCommand(DeleteSelectedFilesAsync, () => CanDeleteFile, ReportError);
         RevertFileCommand = new AsyncCommand(RevertSelectedFilesAsync, () => CanRevertFile, ReportError);
+
+        //A RelayCommand rather than an AsyncCommand, unlike the three above it: no Git process runs and
+        //Process.Start is synchronous. Every failure comes back as an EditOutcome, so there is nothing
+        //for the error routing an AsyncCommand exists to provide.
+        EditFileCommand = new RelayCommand(EditSelectedFiles, () => CanEditFile);
 
         //Replaces whatever is in the box, unlike the automatic pass when the window opens: the user
         //pressed a button labelled "generate".
@@ -119,6 +127,8 @@ public sealed class CommitViewModel : ObservableObject
     public AsyncCommand DeleteFileCommand { get; }
 
     public AsyncCommand RevertFileCommand { get; }
+
+    public RelayCommand EditFileCommand { get; }
 
     public ObservableCollection<FileChangeItem> Files { get; } = [];
 
@@ -332,6 +342,15 @@ public sealed class CommitViewModel : ObservableObject
     private List<FileChangeItem> Addable =>
         [.. _selectedFiles.Where(f => !f.IsConflicted && !f.Change.IsDeletionStaged)];
 
+    /// <summary>
+    /// The highlighted rows Edit can act on — the ones there is still a file for.
+    ///
+    /// The same predicate as <see cref="Deletable"/> and deliberately not shared with it: they filter
+    /// the same rows for different reasons, and a single helper would have to explain both. Delete
+    /// leaves out a row with nothing left to delete; Edit leaves out a row with nothing left to open.
+    /// </summary>
+    private List<FileChangeItem> Editable => [.. _selectedFiles.Where(f => f.IsOnDisk)];
+
     /// <summary>What the context menu's labels count, so they name what the click would touch.</summary>
     public int DeletableCount => Deletable.Count;
 
@@ -339,11 +358,15 @@ public sealed class CommitViewModel : ObservableObject
 
     public int AddableCount => Addable.Count;
 
+    public int EditableCount => Editable.Count;
+
     public bool CanDeleteFile => !_isBusy && Deletable.Count > 0;
 
     public bool CanRevertFile => !_isBusy && Revertable.Count > 0;
 
     public bool CanAddFile => !_isBusy && Addable.Count > 0;
+
+    public bool CanEditFile => !_isBusy && Editable.Count > 0;
 
     /// <summary>
     /// False hides the button rather than showing a permanently dead one -- with no key stored there
@@ -841,6 +864,51 @@ public sealed class CommitViewModel : ObservableObject
         StatusText = files.Count == 1
             ? Strings.Get("add.done", files[0].Path)
             : Strings.Get("add.done.many", files.Count);
+    }
+
+    /// <summary>
+    /// Opens every selected file that is still on disk in the external editor.
+    ///
+    /// <b>Nothing is asked and nothing is refreshed.</b> It changes neither the working tree nor the
+    /// index -- what the editor does afterwards is an ordinary edit the user makes, and F5 is how the
+    /// list learns about it, the same as for an edit made anywhere else on the machine.
+    ///
+    /// One process per file, stopping at the first failure with a count of what opened before it, for
+    /// the reason the delete loop stops: three editors open and one error naming none of them is not a
+    /// report. The usual cause is a wrong path in the setting, where the first file fails and the
+    /// count is zero.
+    ///
+    /// No confirmation over a large selection either. The menu label counts the rows -- the same
+    /// disclosure the other three items make -- and unlike Revert and Delete there is nothing to
+    /// recover from: the way back from too many editor windows is closing them.
+    /// </summary>
+    private void EditSelectedFiles()
+    {
+        List<FileChangeItem> files = Editable;
+
+        if (files.Count == 0 || _isBusy)
+            return;
+
+        int opened = 0;
+
+        foreach (FileChangeItem file in files)
+        {
+            EditOutcome outcome = _editors.Edit(_repository.Root, file.Path);
+
+            if (!outcome.Succeeded)
+            {
+                if (Reason(outcome.Message, opened, "edit.partial") is { } reason)
+                    RaiseError(Strings.Get("edit.title"), reason);
+
+                return;
+            }
+
+            opened++;
+        }
+
+        StatusText = opened == 1
+            ? Strings.Get("edit.done", files[0].Path)
+            : Strings.Get("edit.done.many", opened);
     }
 
     /// <summary>
@@ -1347,6 +1415,8 @@ public sealed class CommitViewModel : ObservableObject
         RevertFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(CanAddFile));
         AddFileCommand.RaiseCanExecuteChanged();
+        Raise(nameof(CanEditFile));
+        EditFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(IsAiConfigured));
         CommitCommand.RaiseCanExecuteChanged();
         CommitAndPushCommand.RaiseCanExecuteChanged();

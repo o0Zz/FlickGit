@@ -56,6 +56,17 @@ files.tooltip.untracked = Unversioniert — von Git nicht gezählt; Zeilen von d
 files.tooltip.binary = Binärdatei — keine Zeilenzählung und kein Text-Diff.
 files.tooltip.renamed = Umbenannt von {1}
 
+# ---- Datei in einem Editor öffnen ----
+edit.menu = Datei bearbeiten
+edit.menu.many = {0} Dateien bearbeiten
+edit.title = Datei bearbeiten
+edit.done = {0} geöffnet
+edit.done.many = {0} Dateien geöffnet
+edit.missing = {0} ist nicht mehr auf der Festplatte.
+edit.outside = {0} liegt außerhalb von {1} und wird nicht geöffnet.
+edit.failed = {0} konnte nicht mit {1} geöffnet werden:\n\n{2}
+edit.partial = {0} Dateien wurden vor dieser geöffnet.
+
 # ---- Datei hinzufügen ----
 add.menu = Datei hinzufügen
 add.menu.many = {0} Dateien hinzufügen
@@ -549,6 +560,11 @@ settings.section.commit = Commit
 settings.warnprimary = Warnen, wenn auf den Hauptbranch committet wird
 settings.closeafter = Commit-Fenster nach erfolgreichem Commit schließen
 settings.notify = Nach erfolgreichem Commit eine Benachrichtigung anzeigen
+
+settings.section.editor = Editor
+settings.editor.browse = Durchsuchen…
+settings.editor.hint = Das Programm, mit dem der Eintrag „Bearbeiten“ im Commit-Fenster eine Datei öffnet. Leer lassen für Editor (Notepad).
+settings.editor.filter = Programme (*.exe)|*.exe|Alle Dateien (*.*)|*.*
 
 settings.section.pull = Pull
 settings.closepull = Pull-Fenster nach erfolgreichem Pull schließen

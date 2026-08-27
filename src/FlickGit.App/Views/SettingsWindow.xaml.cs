@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using Microsoft.Win32;
 using FlickGit.Ai;
 using FlickGit.App.Localization;
 using FlickGit.App.Rendering;
@@ -90,6 +91,10 @@ public partial class SettingsWindow : Window
         CloseAfterBox.Content = Strings.Get("settings.closeafter");
         NotifyBox.Content = Strings.Get("settings.notify");
 
+        EditorSection.Text = Strings.Get("settings.section.editor");
+        EditorBrowseButton.Content = Strings.Get("settings.editor.browse");
+        EditorHint.Text = Strings.Get("settings.editor.hint");
+
         PullSection.Text = Strings.Get("settings.section.pull");
         ClosePullBox.Content = Strings.Get("settings.closepull");
 
@@ -145,6 +150,10 @@ public partial class SettingsWindow : Window
         CloseAfterBox.IsChecked = _settings.CloseCommitWindowAfterSuccess;
         NotifyBox.IsChecked = _settings.ShowSuccessNotification;
         ClosePullBox.IsChecked = _settings.ClosePullWindowAfterSuccess;
+
+        //From settings.json, which is this one's source of truth -- unlike the boxes above, whose
+        //answer lives in the registry or the Task Scheduler.
+        EditorBox.Text = _settings.ExternalEditor;
 
         LanguageBox.Items.Add(new ComboBoxItem { Content = Strings.Get("settings.language.auto"), Tag = string.Empty });
 
@@ -229,6 +238,7 @@ public partial class SettingsWindow : Window
         _settings.CloseCommitWindowAfterSuccess = CloseAfterBox.IsChecked == true;
         _settings.ShowSuccessNotification = NotifyBox.IsChecked == true;
         _settings.ClosePullWindowAfterSuccess = ClosePullBox.IsChecked == true;
+        _settings.ExternalEditor = EditorBox.Text.Trim();
 
         string language = LanguageBox.SelectedItem is ComboBoxItem { Tag: string code } ? code : string.Empty;
         bool languageChanged = !language.Equals(_languageOnOpen, StringComparison.OrdinalIgnoreCase);
@@ -477,6 +487,27 @@ public partial class SettingsWindow : Window
             AiProvider.Ollama => "Ollama",
             _ => Provider.ToString(),
         };
+    }
+
+    /// <summary>
+    /// Picks the editor executable. It only fills the box in -- Save is still what applies it, like
+    /// everything else on this tab.
+    /// </summary>
+    private void OnBrowseEditor(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = Strings.Get("settings.editor.filter"),
+            CheckFileExists = true,
+
+            //Where editors install. Not the repository, and not wherever the process was started.
+            InitialDirectory = EditorBox.Text.Trim() is { Length: > 0 } current
+                ? Path.GetDirectoryName(current) ?? string.Empty
+                : Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+        };
+
+        if (dialog.ShowDialog(this) == true)
+            EditorBox.Text = dialog.FileName;
     }
 
     private void OnOpenFolder(object sender, RoutedEventArgs e)

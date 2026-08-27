@@ -70,6 +70,11 @@ The tick boxes decide the commit — nothing else does.
 - The **branch box** is an editable combo. Leave it alone to commit where you are, type an
   existing branch to switch first, or type a new name to create it. The hint beside it says
   which, before you press anything.
+- **Right-click a row for Edit**, which opens the file in the program set under
+  **Settings ▸ Editor** — Notepad with none set. Select several rows and it opens all of them; the
+  menu item says how many. Nothing is asked and nothing changes, so **F5** is how the list picks up
+  whatever you did over there. Whichever editor it is, the file is handed to it as an argument, so
+  pressing Edit on a `build.bat` or a stray `setup.exe` in the list opens it rather than running it.
 
 Right-click a row for **Add**, **Revert file…** and **Delete file…**, each acting on everything you
 have highlighted. **Del** is Delete file…: it sends the selected files to the Recycle Bin and runs no
@@ -431,8 +436,8 @@ error, `5` refused for safety.
 Everything this window does not show lives in four files, in
 `%LOCALAPPDATA%\FlickGit`:
 
-- **`settings.json`** — hotkeys, diff font, AI provider and model, palette scan roots, the
-  primary-branch override.
+- **`settings.json`** — hotkeys, diff font, the external editor, AI provider and model, palette
+  scan roots, the primary-branch override.
 - **`actions.json`** — your own context-menu and palette entries, and overrides that hide,
   rename or reorder the built-in ones.
 - **`commit-prompt.md`**, **`pull-request-prompt.md`** and **`changelog-prompt.md`** — what the AI

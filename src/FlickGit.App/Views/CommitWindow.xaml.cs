@@ -176,6 +176,7 @@ public partial class CommitWindow : Window
         if (_viewModel is null)
             return;
 
+        EditFileMenuItem.Header = Label("edit", _viewModel.EditableCount);
         AddFileMenuItem.Header = Label("add", _viewModel.AddableCount);
         RevertFileMenuItem.Header = Label("revert", _viewModel.RevertableCount);
         DeleteFileMenuItem.Header = Label("delete", _viewModel.DeletableCount);

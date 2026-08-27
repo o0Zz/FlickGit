@@ -56,6 +56,17 @@ files.tooltip.untracked = Sin seguimiento: Git no lo cuenta; las líneas se cuen
 files.tooltip.binary = Archivo binario: sin recuento de líneas y sin diff de texto.
 files.tooltip.renamed = Renombrado desde {1}
 
+# ---- abrir un archivo en un editor ----
+edit.menu = Editar archivo
+edit.menu.many = Editar {0} archivos
+edit.title = Editar archivo
+edit.done = {0} abierto
+edit.done.many = {0} archivos abiertos
+edit.missing = {0} ya no está en el disco.
+edit.outside = {0} está fuera de {1} y no se abrirá.
+edit.failed = No se pudo abrir {0} con {1}:\n\n{2}
+edit.partial = Se abrieron {0} archivos antes de este.
+
 # ---- añadir un archivo ----
 add.menu = Añadir archivo
 add.menu.many = Añadir {0} archivos
@@ -549,6 +560,11 @@ settings.section.commit = Commit
 settings.warnprimary = Avisar al hacer commit en la rama principal
 settings.closeafter = Cerrar la ventana de commit tras un commit correcto
 settings.notify = Mostrar una notificación tras un commit correcto
+
+settings.section.editor = Editor
+settings.editor.browse = Examinar…
+settings.editor.hint = El programa con el que el elemento Editar de la ventana de commit abre un archivo. Déjalo vacío para el Bloc de notas.
+settings.editor.filter = Programas (*.exe)|*.exe|Todos los archivos (*.*)|*.*
 
 settings.section.pull = Pull
 settings.closepull = Cerrar la ventana de pull tras un pull correcto

@@ -70,6 +70,36 @@
                         <CheckBox x:Name="CloseAfterBox" Margin="0,10,0,0" />
                         <CheckBox x:Name="NotifyBox" Margin="0,10,0,0" />
 
+                        <!-- The commit window's Edit item hands a file to this program. It earns a row
+                             for the same reason the checkboxes above it do: `externalEditor` is not a
+                             key anyone guesses, and the alternative to guessing it is not knowing the
+                             item exists. Empty is Notepad, which is why there is no "reset" button —
+                             clearing the box is the reset. -->
+                        <TextBlock x:Name="EditorSection"
+                                   Style="{StaticResource SectionLabel}"
+                                   Margin="0,22,0,0" />
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox x:Name="EditorBox" Padding="6,4" VerticalContentAlignment="Center" />
+
+                            <Button x:Name="EditorBrowseButton"
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    Padding="10,4"
+                                    Click="OnBrowseEditor" />
+                        </Grid>
+
+                        <TextBlock x:Name="EditorHint"
+                                   Style="{StaticResource Muted}"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0" />
+
                         <TextBlock x:Name="PullSection"
                                    Style="{StaticResource SectionLabel}"
                                    Margin="0,22,0,0" />
