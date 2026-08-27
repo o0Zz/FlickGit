@@ -136,8 +136,8 @@ together, then:
 .\flick.exe diag doctor       # check what it found
 ```
 
-`uninstall-shell` removes exactly the keys it created. Unsigned downloads are warned about by
-Chrome and SmartScreen — see [Signing](#signing).
+`uninstall-shell` removes exactly the keys it created. Chrome and SmartScreen warn on download,
+because the binaries are unsigned.
 
 
 ## Building

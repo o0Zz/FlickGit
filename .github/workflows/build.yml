@@ -14,6 +14,11 @@ on:
 permissions:
   contents: write
 
+# A superseded `main` or PR run is wasted CI time; a tag run is a release and is never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
 jobs:
   build:
     runs-on: windows-latest
@@ -22,23 +27,17 @@ jobs:
       SOLUTION: FlickGit.sln
       CONFIGURATION: Release
       STAGING: artifacts/FlickGit
-      SIGNED: artifacts/signed
 
       # Where the two files a release is cut from are assembled: the .msi and the portable .zip.
       RELEASE: artifacts/release
 
-      # Empty until the SignPath Foundation application is approved and the secret is added, which
-      # is what makes every signing step below skip itself. Lifted into env rather than read from
-      # `secrets` at the point of use because the `secrets` context is not available in a step's
-      # `if:` condition and the `env` context is.
-      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      # The release is tag-only. Computed once so the conditions cannot drift apart.
+      IS_TAG: ${{ github.ref_type == 'tag' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Unshallow: the version below comes from `git describe`, which needs the tags and
-          # the commits between them.
           fetch-depth: 0
 
       - name: Setup .NET SDK
@@ -53,195 +52,79 @@ jobs:
           $describe = git describe --tags --long --match 'v*' 2>$null
 
           if ($LASTEXITCODE -eq 0 -and $describe -match '^v(\d+\.\d+\.\d+)-(\d+)-g[0-9a-f]+$') {
-            $version = "{0}.{1}" -f $matches[1], $matches[2]
+            $version = if ($matches[2] -eq '0') { $matches[1] } else { "{0}.{1}" -f $matches[1], $matches[2] }
           } else {
-            $commits = (git rev-list --count HEAD).Trim()
-            $version = "0.0.0.$commits"
+            $version = "0.0.0.$((git rev-list --count HEAD).Trim())"
           }
 
-          # A SECOND VERSION, FOR THE MSI, AND IT HAS TO BE ITS OWN NUMBER.
-          #
-          # Windows Installer compares only major.minor.build when it decides whether one package
-          # upgrades another. The fourth field above -- the commit count -- is invisible to it, so
-          # feeding it the same string would make every build off one tag look like the same
-          # product version, and the second one would install *beside* the first.
-          #
-          # A tag gets the tag. Anything else gets 0.0.<commits>, deliberately not derived from the
-          # nearest tag: a `main` MSI must not be able to pass itself off as the release it came
-          # after, and it is a test artifact either way -- only tag builds are attached to a
-          # release. 65535 is the ceiling Windows Installer puts on that field.
-          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -match '^v(\d+\.\d+\.\d+)$') {
-            $msiversion = $matches[1]
-          } else {
-            $commits = [int](git rev-list --count HEAD).Trim()
-            $msiversion = "0.0.$([Math]::Min($commits, 65535))"
-          }
+          $msiversion = ($version -split '\.')[0..2] -join '.'
 
-          Write-Host "Computed version: $version (git describe: $(if ($describe) { $describe } else { 'none' }))"
-          Write-Host "Installer version: $msiversion"
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "msiversion=$msiversion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Version:   $version (git describe: $(if ($describe) { $describe } else { 'none' }))"
+          Write-Host "Installer: $msiversion (ProductVersion)"
 
-      - name: Restore
-        run: dotnet restore $env:SOLUTION
+          "version=$version", "msiversion=$msiversion" | Out-File $env:GITHUB_OUTPUT -Append
 
       - name: Build
         run: >
           dotnet build $env:SOLUTION
           -c $env:CONFIGURATION
-          --no-restore
           -p:ContinuousIntegrationBuild=true
+          -p:Version=${{ steps.version.outputs.version }}
           -p:AssemblyVersion=${{ steps.version.outputs.version }}
           -p:FileVersion=${{ steps.version.outputs.version }}
-          -p:Version=${{ steps.version.outputs.version }}
 
       - name: Test
         run: >
           dotnet test tests/FlickGit.Core.Tests/FlickGit.Core.Tests.csproj
           -c $env:CONFIGURATION
           --no-build
-          --logger "trx;LogFileName=core-tests.trx"
-          --results-directory artifacts/test-results
 
-      - name: Publish FlickGit.exe (WPF app)
-        run: >
-          dotnet publish src/FlickGit.App/FlickGit.App.csproj
-          -c $env:CONFIGURATION
-          -r win-x64
-          --self-contained false
-          -p:PublishSingleFile=true
-          -p:DebugType=none
-          -p:AssemblyVersion=${{ steps.version.outputs.version }}
-          -p:FileVersion=${{ steps.version.outputs.version }}
-          -p:Version=${{ steps.version.outputs.version }}
-          -o $env:STAGING
-
-      - name: Publish FlickGit.Shell.dll (Native AOT IExplorerCommand handler)
-        run: >
-          dotnet publish src/FlickGit.Shell/FlickGit.Shell.csproj
-          -c $env:CONFIGURATION
-          -r win-x64
-          -p:DebugType=none
-          -p:AssemblyVersion=${{ steps.version.outputs.version }}
-          -p:FileVersion=${{ steps.version.outputs.version }}
-          -p:Version=${{ steps.version.outputs.version }}
-          -o $env:STAGING
-
-      - name: Publish flick.exe (Native AOT stub)
-        run: >
-          dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj
-          -c $env:CONFIGURATION
-          -r win-x64
-          -p:DebugType=none
-          -p:AssemblyVersion=${{ steps.version.outputs.version }}
-          -p:FileVersion=${{ steps.version.outputs.version }}
-          -p:Version=${{ steps.version.outputs.version }}
-          -o $env:STAGING
-
-   
-      # The signing input, and only that: SignPath fetches this artifact from GitHub by id rather
-      # than having files pushed to it, so it has to exist before signing. Conditioned on exactly
-      # what the signing step is conditioned on, so the two are never out of step -- and so a build
-      # that is not being signed does not publish a second artifact holding the same loose binaries
-      # the portable artifact below already carries.
-      - name: Upload the signing input
-        id: artifact
-        if: env.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag'
-        uses: actions/upload-artifact@v4
-        with:
-          name: FlickGit-${{ steps.version.outputs.version }}-unsigned
-          path: ${{ env.STAGING }}
-          if-no-files-found: error
-
-      # ---------------------------------------------------------------------------------------
-      # Code signing, via the SignPath Foundation's free service for open-source projects.
-      #
-      # Why it is worth the step at all: Chrome's download protection and Windows SmartScreen both
-      # key on publisher reputation, and an unsigned download from a new publisher is warned about
-      # whatever it is packaged as -- a .msi is treated worse than a .zip, not better. Signing is
-      # the only thing that removes the warning. It also removes the one real exposure the shell
-      # DLL carries: an unsigned DLL loading into explorer.exe is a textbook malware shape, so it
-      # is what an AV heuristic reaches for first.
-      #
-      # THREE FILES MUST BE SIGNED, and the list lives in the artifact configuration on SignPath's
-      # side rather than here:
-      #
-      #   FlickGit.exe        the resident WPF service
-      #   flick.exe           the Native AOT CLI stub
-      #   FlickGit.Shell.dll  the Native AOT IExplorerCommand handler, which Explorer loads
-      #
-      # Tags only. A signing policy is a finite resource and a release is the only build anybody
-      # downloads; `main` builds stay unsigned on purpose.
-      - name: Submit signing request
-        id: signing
-        if: env.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag'
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ env.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.artifact.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: ${{ env.SIGNED }}
-
-      # The signed files come back in the same layout they went up in, so they overwrite the
-      # staging directory and everything downstream packages the signed build without knowing.
-      - name: Adopt the signed binaries
-        if: steps.signing.outcome == 'success'
+      - name: Publish the payload
         shell: pwsh
         run: |
-          Copy-Item -Path "$env:SIGNED/*" -Destination $env:STAGING -Recurse -Force
-          Write-Host "Signed binaries copied over the staging directory."
+          $version = '${{ steps.version.outputs.version }}'
+          $common = @(
+            '-c', $env:CONFIGURATION, '-r', 'win-x64', '-o', $env:STAGING,
+            '-p:DebugType=none',
+            "-p:Version=$version", "-p:AssemblyVersion=$version", "-p:FileVersion=$version"
+          )
 
-      # Read back what was signed. A signing service that silently returned the input would
-      # otherwise produce a release that looks signed and is not -- the same "verify by reading
-      # back" rule CLAUDE.md applies to the registry.
-      - name: Verify signatures
-        if: steps.signing.outcome == 'success'
-        shell: pwsh
-        run: |
-          $expected = 'FlickGit.exe', 'flick.exe', 'FlickGit.Shell.dll'
-          $failed = @()
+          $payload = @(
+            @{ Project = 'src/FlickGit.App/FlickGit.App.csproj'    # FlickGit.exe, the resident service
+               Extra   = @('--self-contained', 'false', '-p:PublishSingleFile=true') }
+            @{ Project = 'src/FlickGit.Shell/FlickGit.Shell.csproj'  # the shell handler explorer.exe loads
+               Extra   = @() }
+            @{ Project = 'src/FlickGit.Cli/FlickGit.Cli.csproj'      # flick.exe, the AOT stub
+               Extra   = @() }
+          )
 
-          foreach ($name in $expected) {
-            $path = Join-Path $env:STAGING $name
+          foreach ($item in $payload) {
+            $arguments = @('publish', $item.Project) + $common + $item.Extra
 
-            if (-not (Test-Path $path)) {
-              $failed += "$name is missing from the staging directory"
-              continue
-            }
+            Write-Host "::group::publish $($item.Project)"
+            dotnet @arguments
+            Write-Host '::endgroup::'
 
-            $signature = Get-AuthenticodeSignature $path
-            "{0,-22} {1}  {2}" -f $name, $signature.Status, $signature.SignerCertificate.Subject
-
-            if ($signature.Status -ne 'Valid') {
-              $failed += "$name is $($signature.Status)"
-            }
+            if ($LASTEXITCODE -ne 0) { throw "Publish failed: $($item.Project)" }
           }
-
-          if ($failed) {
-            throw "Signing did not produce valid signatures:`n" + ($failed -join "`n")
-          }
-
-      - name: Note that the build is unsigned
-        if: steps.signing.outcome == 'skipped'
-        shell: pwsh
-        run: |
-          Write-Host "::notice::No SIGNPATH_API_TOKEN, or not a tag build - the binaries are unsigned."
-          Write-Host "Chrome and SmartScreen will warn on download. See the Signing section of README.md."
 
       # ---------------------------------------------------------------------------------------
 
-      - name: Build the MSI installer
+      - name: Assemble the release
         shell: pwsh
         run: |
+          $version = '${{ steps.version.outputs.version }}'
+
+          New-Item -ItemType Directory -Force $env:RELEASE | Out-Null
+
           dotnet build src/FlickGit.Setup/FlickGit.Setup.wixproj `
             -c $env:CONFIGURATION `
             -p:Version=${{ steps.version.outputs.msiversion }} `
+            -p:PackageDisplayVersion=$version `
             -p:SkipPayloadPublish=true `
             -p:PayloadDir="$((Resolve-Path $env:STAGING).Path)"
+
+          if ($LASTEXITCODE -ne 0) { throw "The WiX build failed." }
 
           # Found rather than named: the WiX SDK puts its output under a culture subdirectory, and
           # a hard-coded path here would be a second place that has to know the version.
@@ -250,20 +133,24 @@ jobs:
 
           if (-not $msi) { throw "The WiX build produced no .msi." }
 
-          New-Item -ItemType Directory -Force $env:RELEASE | Out-Null
           Copy-Item $msi.FullName $env:RELEASE
           Write-Host "Installer: $($msi.Name) ($([Math]::Round($msi.Length / 1MB, 1)) MB)"
-          "msi=$env:RELEASE/$($msi.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "msi=$env:RELEASE/$($msi.Name)" | Out-File $env:GITHUB_ENV -Append
 
+          if ($env:IS_TAG -eq 'true') {
+            $zip = "$env:RELEASE/FlickGit-$version.zip"
+            Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
+            "zip=$zip" | Out-File $env:GITHUB_ENV -Append
+          }
 
       - name: Upload the installer
         uses: actions/upload-artifact@v4
         with:
-          name: FlickGit-${{ steps.version.outputs.msiversion }}-installer
+          name: FlickGit-${{ steps.version.outputs.version }}-installer
           path: ${{ env.msi }}
           if-no-files-found: error
 
-      # The staging directory itself rather than a zip of it: GitHub is going to zip whatever this
+      # The staging directory itself rather than the zip: GitHub is going to zip whatever this
       # points at, so uploading the .zip would make the portable build an archive inside an archive.
       - name: Upload the portable build
         uses: actions/upload-artifact@v4
@@ -272,18 +159,10 @@ jobs:
           path: ${{ env.STAGING }}
           if-no-files-found: error
 
-      - name: Package the portable zip
-        if: github.ref_type == 'tag'
-        shell: pwsh
-        run: |
-          $zip = "$env:RELEASE/FlickGit-${{ steps.version.outputs.version }}.zip"
-          Compress-Archive -Path "$env:STAGING/*" -DestinationPath $zip -Force
-          "zip=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       # Both assets. The MSI is the way in; the zip stays for the portable install, which is the
       # one that works without touching Explorer or the registry at all.
       - name: Draft GitHub Release
-        if: github.ref_type == 'tag'
+        if: env.IS_TAG == 'true'
         uses: softprops/action-gh-release@v2
         with:
           draft: true

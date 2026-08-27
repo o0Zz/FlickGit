@@ -1195,8 +1195,11 @@ because MSI waits for an exe action to exit; **FlickGit starts five seconds afte
 upgrade (`NOT UPGRADINGPRODUCTCODE`); the kills use `SystemFolder` as their working directory, since
 `INSTALLFOLDER` may not exist; and **`install-shell` is the only action allowed to fail the install.**
 
-**Three version fields, not four** — Windows Installer compares only `major.minor.build`, so `build.yml`
-computes a separate `msiversion`. Four ICEs are suppressed and each is argued with in the csproj
+**Three version fields in the package, four on the file** — Windows Installer compares only
+`major.minor.build`, so the `ProductVersion` is `build.yml`'s `msiversion`: the one version number with
+its last field dropped. Two builds off one tag therefore share it, which is what
+`AllowSameVersionUpgrades` is for. The `.msi`'s *name* carries all four fields
+(`PackageDisplayVersion`), so it and the portable zip are visibly the same build. Four ICEs are suppressed and each is argued with in the csproj
 (ICE38/64/91 object to a per-user install; ICE61 fires because of `AllowSameVersionUpgrades`); nothing
 else is, and ICE03 has already caught a real bug. The .NET Desktop Runtime is checked with a **directory
 probe**, because the .NET installer records versions as registry *value names*.

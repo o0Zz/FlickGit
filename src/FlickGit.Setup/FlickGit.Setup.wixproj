@@ -16,15 +16,8 @@
        the MSVC linker, exactly as `dotnet publish` on the CLI stub already does. -->
 
   <PropertyGroup>
-    <!-- FlickGit-1.2.3-x64.msi. `Version` comes from Directory.Build.props (0.0.0 unreleased) and
-         is overridden on the command line by CI.
-
-         THREE FIELDS, NOT FOUR, and that is not a cosmetic choice: Windows Installer compares only
-         major.minor.build when it decides whether one package upgrades another. The fourth field
-         the rest of the build carries — `git describe`'s commit count — is invisible to it, so
-         two builds off one tag would look like the same product version. build.yml computes a
-         separate three-field number for this reason; see its `msiversion` output. -->
-    <OutputName>FlickGit-$(Version)-x64</OutputName>
+    <PackageDisplayVersion Condition="'$(PackageDisplayVersion)' == ''">$(Version)</PackageDisplayVersion>
+    <OutputName>FlickGit-$(PackageDisplayVersion)-x64</OutputName>
     <InstallerPlatform>x64</InstallerPlatform>
 
     <!-- The payload: what gets packaged. Defaults to the same staging directory build.yml
