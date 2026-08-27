@@ -316,9 +316,12 @@ public sealed class ActionCatalog
     /// </summary>
     private static readonly BuiltIn[] BuiltIns =
     [
-        new("commit", VerbKind.Commit, 10, ActionSurfaces.All, "commit.ico", NeedsRepository: true),
-        new("pull-rebase", VerbKind.PullRebase, 20, ActionSurfaces.All, "pull.ico", NeedsRepository: true),
+        //Pull first: it is what you do on arriving at a repository and Commit is what you do on
+        //leaving it, so the two root entries read in the order the day goes.
+        new("pull-rebase", VerbKind.PullRebase, 10, ActionSurfaces.All, "pull.ico", NeedsRepository: true),
         //One pull entry, and it autostashes -- see PullService for why there is no plain one.
+
+        new("commit", VerbKind.Commit, 20, ActionSurfaces.All, "commit.ico", NeedsRepository: true),
 
         //Everything else, in the submenu. Log first: the most-reached, and still not a root entry because
         //the two root entries are the two the user *performs* all day.

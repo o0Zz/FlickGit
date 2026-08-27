@@ -43,7 +43,7 @@ pre-warmed. It is an optimisation, never a dependency — with it stopped, every
 
 **Commit**
 
-- Explorer context menu with **Commit / Push…** and **Pull (rebase)** as entries of their own,
+- Explorer context menu with **Pull (rebase)** and **Commit / Push…** as entries of their own,
   in the same block every other Git client sits in, the branch in the label, and both hidden on a
   folder that is not a repository.
 - Global hotkey commit window: caret in the message box, `Enter` commits and pushes.
