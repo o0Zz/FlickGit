@@ -68,15 +68,30 @@ internal static class ShellCommandIds
     public const string ValueInSubmenu = "FlickGit.InSubmenu";
 
     /// <summary>
-    /// Whether the item is drawn on a clicked <b>file</b>, and whether on a folder.
+    /// Which click the item is drawn on. Three values rather than one scope word, because the flags
+    /// they come from are independent: an action may sensibly be offered on more than one, and the
+    /// handler is asked about one click at a time.
     ///
-    /// Two values rather than one scope word, because the flags they come from are independent: an
-    /// action may sensibly be offered on both, and the handler is asked about one click at a time.
-    /// Today Blame is the only file item and everything else is folder-only.
+    /// A clicked <b>file</b>.
     /// </summary>
     public const string ValueOnFiles = "FlickGit.OnFiles";
 
+    /// <summary>
+    /// Any folder click at all — a folder, the background of the folder being browsed, or a drive.
+    /// This is what the repository entries carry.
+    /// </summary>
     public const string ValueOnFolders = "FlickGit.OnFolders";
+
+    /// <summary>
+    /// A folder the user <b>pointed at</b>: not a background, not a drive, and not the repository
+    /// root.
+    ///
+    /// Its own value rather than a narrowing of <see cref="ValueOnFolders"/>, because the two answer
+    /// different clicks and an item may want either. Add and Remove carry this one: each acts on
+    /// everything below the folder, which must not be reachable from a right-click that named no
+    /// folder in particular.
+    /// </summary>
+    public const string ValueOnClickedFolders = "FlickGit.OnClickedFolders";
 
     /// <summary>The popup's own label, already localised.</summary>
     public const string ValueSubmenuLabel = "FlickGit.SubmenuLabel";

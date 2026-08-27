@@ -34,13 +34,16 @@ public enum VerbKind
     Blame,
 
     /// <summary>
-    /// <c>git add</c> on one file, which for a file Git has never seen is what starts tracking it.
-    /// A <b>file</b> path, like <see cref="Blame"/> and <see cref="Remove"/>.
+    /// <c>git add</c> on one path, which for something Git has never seen is what starts tracking it.
+    /// A file or a folder, unlike <see cref="Blame"/>; a folder counts what it would stage and asks
+    /// before it does.
     /// </summary>
     Add,
 
     /// <summary>
-    /// <c>git rm</c> on one file: gone from the working tree, and the deletion staged.
+    /// <c>git rm</c> on one path: gone from the working tree, and the deletion staged. A file or a
+    /// folder — and a folder goes to the Recycle Bin rather than to <c>git rm -r</c>, because that is
+    /// where the untracked files are.
     ///
     /// Spelled <c>rm</c> rather than <c>remove</c> or <c>delete</c>, because it is <i>exactly</i>
     /// <c>git rm</c> and a second word for it would be a second thing to remember. It asks before it
@@ -245,8 +248,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick status <path>
           flick log <path>                    commit history; multi-select for a combined diff
           flick blame <file>                  who last touched each line, and what was there before
-          flick add <file>                    stage one file, tracking it if it is new
-          flick rm <file>                     delete one file and stage the deletion; asks first
+          flick add <path>                    stage one file or folder, tracking what is new
+          flick rm <path>                     delete one file or folder and stage the deletion; asks first
           flick repo <path>                   the identity it commits as, its remotes, its defaults
           flick submodule <path>              submodules: add, remove, initialise
           flick terminal <path>               open a terminal there

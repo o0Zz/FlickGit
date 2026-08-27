@@ -109,12 +109,29 @@ file.removed = {0} eliminato — l'eliminazione è nell'indice, non nel commit.
 file.untracked = Git non traccia {0}, quindi non c'è nulla da rimuovere. L'eliminazione di Explorer cancella il file stesso.
 # {0} il percorso così come è stato passato, {1} radice del repository
 file.outside = {0} è fuori da {1} e non verrà toccato.
-# {0} il percorso così come è stato passato
-file.notafile = {0} è una cartella. «Aggiungi» e «Rimuovi» agiscono su un solo file.
 file.remove.title = Rimuovi il file
 # {0} percorso relativo al repository
 file.remove.ask = Rimuovere {0}?\n\nViene cancellato dal disco e l'eliminazione va nell'indice, non nel commit. HEAD ce l'ha ancora, quindi «Ripristina il file…» lo rimette a posto.\n\nGit rifiuta se il file contiene modifiche mai confermate.
 file.remove.yes = Rimuovi
+
+# ---- il menu cartella di Explorer ----
+# {0} percorso relativo al repository
+folder.nothingtoadd = Non c'è nulla da aggiungere all'indice sotto {0}.
+# {0} percorso relativo al repository, {1} quanti file tracciati sono stati rimossi
+folder.removed = {0} è nel Cestino — l'eliminazione di {1} file è nell'indice, non nel commit.
+folder.untracked = Git non traccia nulla sotto {0}, quindi non c'è nulla da rimuovere. L'eliminazione di Explorer cancella la cartella stessa.
+# {0} il percorso così come è stato indicato
+folder.isroot = {0} è la radice del repository. È «Commit» che aggiunge all'indice un intero repository — «Aggiungi» e «Rimuovi» agiscono su una cartella al suo interno.
+folder.add.title = Aggiungi la cartella
+# {0} percorso, {1} file in totale, {2} quanti sono nuovi per Git
+folder.add.ask = Aggiungere {0}?\n\n{1} file al suo interno vanno nell'indice, {2} dei quali nuovi per Git.\n\nNulla viene committato e nulla viene inviato.
+folder.add.yes = Aggiungi
+folder.remove.title = Rimuovi la cartella
+# {0} percorso, {1} file tracciati, {2} file che Git non ha mai visto
+folder.remove.ask = Rimuovere {0}?\n\nLa cartella va nel Cestino e l'eliminazione dei suoi {1} file tracciati va nell'indice, non nel commit.\n\n{2} file al suo interno che Git non ha mai visto finiscono anch'essi nel Cestino — per quelli è l'unica via di ritorno, come per tutto ciò che .gitignore nasconde.\n\nGit rifiuta se un file tracciato al suo interno contiene modifiche mai confermate.
+folder.remove.yes = Rimuovi
+# {0} percorso relativo al repository
+folder.remove.binned = {0} è nel Cestino.
 
 # ---- visualizzatore diff ----
 diff.mode.head = Copia di lavoro ↔ HEAD

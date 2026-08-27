@@ -141,13 +141,35 @@ file.removed = Removed {0} — the deletion is staged, not committed.
 file.untracked = Git is not tracking {0}, so there is nothing for it to remove. Explorer's own Delete removes the file itself.
 # {0} the path as it was given, {1} repository root
 file.outside = {0} is outside {1} and will not be touched.
-# {0} the path as it was given. Reached from a terminal, never from the menu: the entries are on
-# files only, and `git add` on a directory would stage everything under it.
-file.notafile = {0} is a folder. Add and Remove act on one file.
 file.remove.title = Remove file
 # {0} repository-relative path
 file.remove.ask = Remove {0}?\n\nIt is deleted from disk and the deletion is staged, not committed. HEAD still has the file, so Revert file… puts it back.\n\nGit refuses if the file holds changes that were never committed.
 file.remove.yes = Remove
+
+# ---- the Explorer folder menu ----
+# The same Add and Remove, on a folder the user pointed at. Both act on everything below it, so both
+# ask, and the question carries the count -- the number is the only part of the blast radius the
+# user cannot see. Remove sends the folder to the Recycle Bin before it records anything, because a
+# folder is exactly where the untracked files are and `git rm -r` would refuse over them.
+# {0} repository-relative path
+folder.nothingtoadd = Nothing under {0} needs staging.
+# {0} repository-relative path, {1} how many tracked files were removed
+folder.removed = {0} is in the Recycle Bin — the deletion of {1} files is staged, not committed.
+folder.untracked = Git is not tracking anything under {0}, so there is nothing for it to remove. Explorer's own Delete removes the folder itself.
+# {0} the path as it was given. Reached from a terminal, never from the menu: the entries are not
+# drawn on a repository root.
+folder.isroot = {0} is the repository root. Commit is what stages a whole repository — Add and Remove act on a folder inside it.
+folder.add.title = Add folder
+# {0} repository-relative path, {1} how many files in total, {2} how many of them Git has never seen
+folder.add.ask = Add {0}?\n\n{1} files under it are staged, {2} of them new to Git.\n\nNothing is committed and nothing is pushed.
+folder.add.yes = Add
+folder.remove.title = Remove folder
+# {0} repository-relative path, {1} how many tracked files, {2} how many Git has never seen
+folder.remove.ask = Remove {0}?\n\nThe folder goes to the Recycle Bin, and the deletion of its {1} tracked files is staged, not committed.\n\n{2} files inside it that Git has never seen go to the bin as well — that is the only way back for those, along with anything .gitignore hides.\n\nGit refuses if a tracked file inside holds changes that were never committed.
+folder.remove.yes = Remove
+# Said after a failure that came *after* the folder was already binned, so the way back is named.
+# {0} repository-relative path
+folder.remove.binned = {0} is in the Recycle Bin.
 
 # ---- diff viewer ----
 diff.mode.head = Working tree ↔ HEAD

@@ -1,4 +1,5 @@
 using System.IO;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.Views;
 using FlickGit.Branches;
@@ -34,7 +35,9 @@ public sealed class RepositoryVerbs(
     PushService pushes,
     TagService tags,
     StashService stashes,
-    FileTrackingService files,
+    TrackingService files,
+    FolderRemovalFlow folderRemovals,
+    WorkingTreeDeleter deleter,
     UpstreamConsent consent)
 {
     /// <summary>`flick status` — the file list as text.</summary>
@@ -264,20 +267,29 @@ public sealed class RepositoryVerbs(
     }
 
     /// <summary>
-    /// `flick add &lt;file&gt;` — the Explorer file menu's Add, and the CLI spelling of it.
+    /// `flick add &lt;path&gt;` — the Explorer menu's Add on a file or on a folder, and the CLI
+    /// spelling of both.
     ///
-    /// Nothing to confirm: staging discards nothing, and unticking the row in the commit window is
-    /// how it is taken back out again.
+    /// <b>A file asks nothing</b>: staging discards nothing, and unticking the row in the commit
+    /// window is how it is taken back out again.
+    ///
+    /// <b>A folder asks, and the question carries the count.</b> Not because staging became
+    /// dangerous — it did not — but because one click on a directory can stage several hundred files
+    /// and the number is the only part of that the user cannot see. Counting first is also what lets
+    /// a folder with nothing to stage say so instead of running a command that would do nothing.
     /// </summary>
-    public async Task<VerbResult> AddFileAsync(VerbOutput output, RepositoryInfo repository, string path)
+    public async Task<VerbResult> AddAsync(VerbOutput output, RepositoryInfo repository, string path)
     {
         string title = Strings.Get("action.add");
 
-        if (OneFileIn(output, title, repository, path) is not { } relative)
+        if (PathIn(output, title, repository, path) is not { } target)
             return VerbResult.Exit(ExitCodes.NotARepository);
 
+        if (target.IsFolder && await ConfirmFolderAddAsync(output, repository, target.Relative) is { } refused)
+            return refused;
+
         TrackingResult result = await files
-            .AddAsync(repository, relative, CancellationToken.None)
+            .AddAsync(repository, target.Relative, CancellationToken.None)
             .ConfigureAwait(true);
 
         if (!result.Succeeded)
@@ -286,44 +298,96 @@ public sealed class RepositoryVerbs(
             return VerbResult.Exit(ExitCodes.GitError);
         }
 
-        output.Say(title, Strings.Get("file.added", relative));
+        output.Say(title, Strings.Get("file.added", target.Relative));
         return VerbResult.Exit(ExitCodes.Success);
     }
 
     /// <summary>
-    /// `flick rm &lt;file&gt;` — the file menu's Remove: gone from the working tree, and the deletion
-    /// staged, not committed.
+    /// The folder add's two reads and its question — or the result to return instead of adding.
+    ///
+    /// Two reads rather than one, because the two sets are disjoint and so neither needs
+    /// de-duplicating: <c>ls-files --others</c> is what Git has never seen, <c>diff --name-only</c>
+    /// is what it has and what has changed since. Their sum is what <c>git add</c> would touch.
+    /// </summary>
+    private async Task<VerbResult?> ConfirmFolderAddAsync(
+        VerbOutput output,
+        RepositoryInfo repository,
+        string relative)
+    {
+        int untracked = await files
+            .UntrackedCountAsync(repository, relative, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        int changed = await files
+            .ChangedCountAsync(repository, relative, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        int total = untracked + changed;
+
+        if (total == 0)
+        {
+            //Success, not a failure: the folder is simply already staged or already clean. Exit 0 so
+            //a script that adds several folders in a row is not stopped by the quiet one.
+            output.Say(Strings.Get("action.add"), Strings.Get("folder.nothingtoadd", relative));
+            return VerbResult.Exit(ExitCodes.Success);
+        }
+
+        if (!ConfirmWindow.Ask(
+                null,
+                Strings.Get("folder.add.title"),
+                Strings.Get("folder.add.ask", relative, total, untracked),
+                Strings.Get("folder.add.yes"),
+                Strings.Get("common.cancel")))
+        {
+            return VerbResult.Exit(ExitCodes.UserCancelled);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// `flick rm &lt;path&gt;` — the menu's Remove on a file or on a folder: gone from the working
+    /// tree, and the deletion staged, not committed.
     ///
     /// <b>It asks first, on every surface, and a dialog even from the command line</b> — the same
     /// rule and the same reason as <see cref="ConsentToUpstreamAsync"/>: CLAUDE.md's Safety Rules
     /// want explicit intent expressed in the moment, and the fast surfaces are not shortcuts around
-    /// them. Nothing is forced afterwards, so Git still refuses a file whose content differs from
-    /// both HEAD and the index, and the confirmation says what remains recoverable rather than
-    /// promising more than that.
+    /// them. Nothing is forced anywhere, so Git still refuses content that differs from both HEAD
+    /// and the index, and the confirmation says what remains recoverable rather than promising more
+    /// than that.
     ///
-    /// An untracked file is refused <i>before</i> the question, because a question about an operation
-    /// that cannot happen is worse than the refusal it precedes.
+    /// A path Git is not tracking is refused <i>before</i> the question, because a question about an
+    /// operation that cannot happen is worse than the refusal it precedes. That is the same count
+    /// the folder question then goes on to state, which is why it is read rather than asked as a
+    /// yes/no.
+    ///
+    /// The two halves part company after that: a file is <c>git rm</c>, which does the deleting
+    /// itself, and a folder is <see cref="RemoveFolderAsync"/>, which cannot be.
     /// </summary>
-    public async Task<VerbResult> RemoveFileAsync(VerbOutput output, RepositoryInfo repository, string path)
+    public async Task<VerbResult> RemoveAsync(VerbOutput output, RepositoryInfo repository, string path)
     {
         string title = Strings.Get("action.rm");
 
-        if (OneFileIn(output, title, repository, path) is not { } relative)
+        if (PathIn(output, title, repository, path) is not { } target)
             return VerbResult.Exit(ExitCodes.NotARepository);
 
-        if (!await files.IsTrackedAsync(repository, relative, CancellationToken.None).ConfigureAwait(true))
+        if (target.IsFolder)
+            return await RemoveFolderAsync(output, title, repository, target.Relative).ConfigureAwait(true);
+
+        if (await files.TrackedCountAsync(repository, target.Relative, CancellationToken.None)
+                .ConfigureAwait(true) == 0)
         {
             //Git's own answer here is `fatal: pathspec … did not match any files`, which is accurate
             //about a question the user did not ask. The exit code is still Git's, so a script branches
             //on the same number either way.
-            output.Fail(title, Strings.Get("file.untracked", relative));
+            output.Fail(title, Strings.Get("file.untracked", target.Relative));
             return VerbResult.Exit(ExitCodes.GitError);
         }
 
         if (!ConfirmWindow.Ask(
                 null,
                 Strings.Get("file.remove.title"),
-                Strings.Get("file.remove.ask", relative),
+                Strings.Get("file.remove.ask", target.Relative),
                 Strings.Get("file.remove.yes"),
                 Strings.Get("common.cancel")))
         {
@@ -331,7 +395,7 @@ public sealed class RepositoryVerbs(
         }
 
         TrackingResult result = await files
-            .RemoveAsync(repository, relative, CancellationToken.None)
+            .RemoveAsync(repository, target.Relative, CancellationToken.None)
             .ConfigureAwait(true);
 
         if (!result.Succeeded)
@@ -340,24 +404,108 @@ public sealed class RepositoryVerbs(
             return VerbResult.Exit(ExitCodes.GitError);
         }
 
-        output.Say(title, Strings.Get("file.removed", relative));
+        output.Say(title, Strings.Get("file.removed", target.Relative));
         return VerbResult.Exit(ExitCodes.Success);
     }
 
     /// <summary>
-    /// The clicked file as the repository-relative, forward-slashed path Git speaks — or null after
-    /// saying why it is not one.
+    /// The folder half of Remove: <see cref="FolderRemovalFlow"/>, and the words for each way it can
+    /// end.
+    ///
+    /// <b>The sequence itself is in Core</b> — gate, ask, bin, record — because the order is the
+    /// safety rule and getting it wrong is a silent failure, which is the kind of bug only a test can
+    /// find. What is left here is the half that cannot be: a window to ask in, and a Recycle Bin that
+    /// <c>net9.0</c> cannot reach.
+    ///
+    /// The outcomes divide by what is true afterwards, which is what the messages have to say. Every
+    /// one before <c>BinFailed</c> left the working tree and the index exactly as they were.
+    /// <c>RecordFailed</c> is the only one that did not, and its message names the Recycle Bin,
+    /// because that sentence is the way back.
+    /// </summary>
+    private async Task<VerbResult> RemoveFolderAsync(
+        VerbOutput output,
+        string title,
+        RepositoryInfo repository,
+        string relative)
+    {
+        FolderRemoval removal = await folderRemovals.RunAsync(
+            repository,
+            relative,
+            plan => Task.FromResult(ConfirmWindow.Ask(
+                null,
+                Strings.Get("folder.remove.title"),
+                Strings.Get("folder.remove.ask", relative, plan.TrackedFiles, plan.UntrackedFiles),
+                Strings.Get("folder.remove.yes"),
+                Strings.Get("common.cancel"))),
+            () => Task.FromResult(Binned(deleter.DeleteFolder(repository.Root, relative))),
+            CancellationToken.None).ConfigureAwait(true);
+
+        switch (removal.Outcome)
+        {
+            case FolderRemovalOutcome.Removed:
+                output.Say(title, Strings.Get("folder.removed", relative, removal.TrackedFiles));
+                return VerbResult.Exit(ExitCodes.Success);
+
+            case FolderRemovalOutcome.NotTracked:
+                output.Fail(title, Strings.Get("folder.untracked", relative));
+                return VerbResult.Exit(ExitCodes.GitError);
+
+            case FolderRemovalOutcome.Declined:
+                return VerbResult.Exit(ExitCodes.UserCancelled);
+
+            case FolderRemovalOutcome.RecordFailed:
+                output.Fail(
+                    title,
+                    (removal.Error ?? string.Empty) + "\n\n" + Strings.Get("folder.remove.binned", relative));
+
+                return VerbResult.Exit(ExitCodes.GitError);
+
+            default:
+                //Refused, with Git naming the files that hold uncommitted work -- or BinFailed, whose
+                //message may be null because the shell has already put up its own and paraphrasing it
+                //would be worse than saying nothing. See DeleteOutcome.
+                if (removal.Error is { Length: > 0 } why)
+                    output.Fail(title, why);
+
+                return VerbResult.Exit(ExitCodes.GitError);
+        }
+    }
+
+    /// <summary>
+    /// The App's <see cref="DeleteOutcome"/> as the Core flow's <see cref="TrackingResult"/> — the
+    /// same two fields, and the null message means the same thing in both.
+    /// </summary>
+    private static TrackingResult Binned(DeleteOutcome outcome) =>
+        outcome.Succeeded ? TrackingResult.Ok : new TrackingResult(false, outcome.Message);
+
+    /// <param name="Relative">The repository-relative, forward-slashed path Git speaks.</param>
+    /// <param name="IsFolder">
+    /// Everything below it is in scope, so it is counted and confirmed before anything runs.
+    /// </param>
+    private sealed record TargetPath(string Relative, bool IsFolder);
+
+    /// <summary>
+    /// The clicked path, as Git speaks it — or null after saying why Add and Remove will not act
+    /// on it.
     ///
     /// Two refusals, and the first is the one a terminal reaches: <c>flick add</c> with no path
-    /// defaults to the working directory, and a whole directory handed to <c>git add</c> stages
-    /// everything under it. The menu cannot produce that — the entries are on files only — so this is
-    /// where the command line is told the same thing the surface already knows.
+    /// defaults to the working directory, so <c>flick add</c> typed at a repository root is one
+    /// keystroke away from staging the whole thing. <b>The root is refused by name</b> rather than
+    /// left to the second refusal, which would also fire — <c>Path.GetRelativePath</c> makes it
+    /// <c>"."</c>, and nothing resolves that inside the repository — but would say the wrong thing
+    /// about it. The menu cannot produce this click at all, because <c>ActionSurfaces.Folder</c> is
+    /// not drawn on a root; the surface for a whole repository is Commit, which is what the message
+    /// says. Compared as resolved full paths, because <c>repo\.</c> and <c>repo</c> are one folder
+    /// and only one of them looks like it.
     ///
     /// The second is <c>WorkingTreeWriter</c>'s own guard rather than a second answer to the same
     /// question: a path that resolves outside the root is either a bug or an attack, and this is not
     /// the layer that guesses which.
+    ///
+    /// A directory is no longer one of them. It sets <c>IsFolder</c>, and the caller does the
+    /// counting and the asking that earns it.
     /// </summary>
-    private static string? OneFileIn(
+    private static TargetPath? PathIn(
         VerbOutput output,
         string title,
         RepositoryInfo repository,
@@ -365,9 +513,12 @@ public sealed class RepositoryVerbs(
     {
         string full = Path.GetFullPath(path);
 
-        if (Directory.Exists(full))
+        if (string.Equals(
+                full.TrimEnd(Path.DirectorySeparatorChar),
+                Path.GetFullPath(repository.Root).TrimEnd(Path.DirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase))
         {
-            output.Fail(title, Strings.Get("file.notafile", full));
+            output.Fail(title, Strings.Get("folder.isroot", full));
             return null;
         }
 
@@ -379,7 +530,7 @@ public sealed class RepositoryVerbs(
             return null;
         }
 
-        return relative;
+        return new TargetPath(relative, Directory.Exists(full));
     }
 
     /// <summary>

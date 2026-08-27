@@ -109,12 +109,29 @@ file.removed = {0} eliminado — a eliminação está preparada, não confirmada
 file.untracked = O Git não segue {0}, por isso não há nada para remover. A eliminação do Explorador apaga o próprio ficheiro.
 # {0} o caminho tal como foi dado, {1} raiz do repositório
 file.outside = {0} está fora de {1} e não será tocado.
-# {0} o caminho tal como foi dado
-file.notafile = {0} é uma pasta. «Adicionar» e «Remover» atuam sobre um único ficheiro.
 file.remove.title = Remover ficheiro
 # {0} caminho relativo ao repositório
 file.remove.ask = Remover {0}?\n\nÉ apagado do disco e a eliminação fica preparada, não confirmada. O HEAD continua a tê-lo, por isso «Reverter ficheiro…» repõe-no.\n\nO Git recusa se o ficheiro tiver alterações que nunca foram confirmadas.
 file.remove.yes = Remover
+
+# ---- o menu de pasta do Explorador ----
+# {0} caminho relativo ao repositório
+folder.nothingtoadd = Não há nada para preparar em {0}.
+# {0} caminho relativo ao repositório, {1} quantos ficheiros seguidos foram removidos
+folder.removed = {0} está na Reciclagem — a eliminação de {1} ficheiros fica preparada, não confirmada.
+folder.untracked = O Git não segue nada em {0}, por isso não há nada para remover. A eliminação do Explorador apaga a própria pasta.
+# {0} o caminho tal como foi dado
+folder.isroot = {0} é a raiz do repositório. É «Confirmar» que prepara um repositório inteiro — «Adicionar» e «Remover» atuam sobre uma pasta lá dentro.
+folder.add.title = Adicionar pasta
+# {0} caminho, {1} ficheiros no total, {2} quantos são novos para o Git
+folder.add.ask = Adicionar {0}?\n\n{1} ficheiros lá dentro ficam preparados, {2} deles novos para o Git.\n\nNada é confirmado e nada é enviado.
+folder.add.yes = Adicionar
+folder.remove.title = Remover pasta
+# {0} caminho, {1} ficheiros seguidos, {2} ficheiros que o Git nunca viu
+folder.remove.ask = Remover {0}?\n\nA pasta vai para a Reciclagem e a eliminação dos seus {1} ficheiros seguidos fica preparada, não confirmada.\n\n{2} ficheiros lá dentro que o Git nunca viu vão também para a Reciclagem — para esses é a única forma de voltar atrás, tal como para tudo o que o .gitignore esconde.\n\nO Git recusa se um ficheiro seguido lá dentro tiver alterações que nunca foram confirmadas.
+folder.remove.yes = Remover
+# {0} caminho relativo ao repositório
+folder.remove.binned = {0} está na Reciclagem.
 
 # ---- visualizador de diferenças ----
 diff.mode.head = Cópia de trabalho ↔ HEAD

@@ -109,12 +109,29 @@ file.removed = {0} supprimé — la suppression est indexée, pas validée.
 file.untracked = Git ne suit pas {0} : il n'y a rien à retirer. La suppression d'Explorer efface le fichier lui-même.
 # {0} le chemin tel qu'il a été donné, {1} racine du dépôt
 file.outside = {0} est en dehors de {1} et ne sera pas touché.
-# {0} le chemin tel qu'il a été donné
-file.notafile = {0} est un dossier. « Ajouter » et « Supprimer » agissent sur un seul fichier.
 file.remove.title = Supprimer le fichier
 # {0} chemin relatif au dépôt
 file.remove.ask = Supprimer {0} ?\n\nLe fichier est effacé du disque et la suppression est indexée, pas validée. HEAD l'a toujours : « Rétablir le fichier… » le remet en place.\n\nGit refuse si le fichier contient des modifications jamais validées.
 file.remove.yes = Supprimer
+
+# ---- le menu de dossier d'Explorer ----
+# {0} chemin relatif au dépôt
+folder.nothingtoadd = Rien à indexer sous {0}.
+# {0} chemin relatif au dépôt, {1} nombre de fichiers suivis supprimés
+folder.removed = {0} est dans la Corbeille — la suppression de {1} fichiers est indexée, pas validée.
+folder.untracked = Git ne suit rien sous {0} : il n'y a rien à retirer. La suppression d'Explorer efface le dossier lui-même.
+# {0} le chemin tel qu'il a été donné
+folder.isroot = {0} est la racine du dépôt. C'est « Valider » qui indexe un dépôt entier — « Ajouter » et « Supprimer » agissent sur un dossier à l'intérieur.
+folder.add.title = Ajouter le dossier
+# {0} chemin, {1} fichiers au total, {2} dont Git n'a jamais vus
+folder.add.ask = Ajouter {0} ?\n\n{1} fichiers en dessous sont indexés, dont {2} nouveaux pour Git.\n\nRien n'est validé et rien n'est poussé.
+folder.add.yes = Ajouter
+folder.remove.title = Supprimer le dossier
+# {0} chemin, {1} fichiers suivis, {2} fichiers que Git n'a jamais vus
+folder.remove.ask = Supprimer {0} ?\n\nLe dossier part à la Corbeille, et la suppression de ses {1} fichiers suivis est indexée, pas validée.\n\n{2} fichiers à l'intérieur que Git n'a jamais vus partent aussi à la Corbeille — c'est le seul retour possible pour eux, comme pour tout ce que .gitignore masque.\n\nGit refuse si un fichier suivi à l'intérieur contient des modifications jamais validées.
+folder.remove.yes = Supprimer
+# {0} chemin relatif au dépôt
+folder.remove.binned = {0} est dans la Corbeille.
 
 # ---- visionneuse de diff ----
 diff.mode.head = Copie de travail ↔ HEAD

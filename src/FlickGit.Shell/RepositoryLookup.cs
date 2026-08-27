@@ -19,7 +19,12 @@ internal enum RepositoryVerdict
     Unknown,
 }
 
-internal readonly record struct RepositoryAnswer(RepositoryVerdict Verdict, string? Branch);
+/// <param name="Root">
+/// The repository root, when there is one. Kept rather than discarded because the walk that finds it
+/// has already happened: comparing the clicked folder against it is what tells the menu that this
+/// folder <i>is</i> the repository, where Add and Remove would act on everything.
+/// </param>
+internal readonly record struct RepositoryAnswer(RepositoryVerdict Verdict, string? Branch, string? Root);
 
 /// <summary>
 /// The repository question, answered once per right-click instead of four times.
@@ -48,13 +53,13 @@ internal static class RepositoryLookup
     public static RepositoryAnswer For(string? folder)
     {
         if (string.IsNullOrEmpty(folder))
-            return new RepositoryAnswer(RepositoryVerdict.Unknown, null);
+            return new RepositoryAnswer(RepositoryVerdict.Unknown, null, null);
 
         //A network path. Every probe below could block for as long as the redirector takes to give
         //up, which is orders of magnitude past the 50 ms hard limit -- and blocking here freezes the
         //menu, not just this entry. Unknown keeps the entry visible without asking the question.
         if (folder.StartsWith(@"\\", StringComparison.Ordinal))
-            return new RepositoryAnswer(RepositoryVerdict.Unknown, null);
+            return new RepositoryAnswer(RepositoryVerdict.Unknown, null, null);
 
         long now = Environment.TickCount64;
 
@@ -83,7 +88,7 @@ internal static class RepositoryLookup
         string? root = GitHead.FindRepositoryRoot(folder);
 
         return root is null
-            ? new RepositoryAnswer(RepositoryVerdict.NotARepository, null)
-            : new RepositoryAnswer(RepositoryVerdict.Repository, GitHead.ReadBranch(root));
+            ? new RepositoryAnswer(RepositoryVerdict.NotARepository, null, null)
+            : new RepositoryAnswer(RepositoryVerdict.Repository, GitHead.ReadBranch(root), root);
     }
 }

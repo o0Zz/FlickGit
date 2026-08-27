@@ -48,6 +48,16 @@ internal static unsafe partial class ContextMenuHandler
         /// </summary>
         public int IsFile;
 
+        /// <summary>
+        /// The right-click named nothing — it landed on the background of the folder being browsed,
+        /// which Explorer hands over as a PIDL rather than as a data object.
+        ///
+        /// The distinction exists for the two items that act on <i>everything below</i> the folder.
+        /// A background click means "this folder" only by default, and one click that stages or bins
+        /// a whole tree has to have been aimed at that tree.
+        /// </summary>
+        public int IsBackground;
+
         /// <summary>How many items were added, so <c>InvokeCommand</c> can bound-check the offset.</summary>
         public int ItemCount;
 
@@ -212,7 +222,12 @@ internal static unsafe partial class ContextMenuHandler
 
             //A selection wins over the containing folder: right-clicking a subdirectory means that
             //subdirectory, not the folder it happens to be sitting in.
-            string? path = Selection.FromDataObject(dataObject) ?? Selection.FromPidl(folder);
+            //
+            //Which of the two answered is itself the answer to "did this click name anything", so it
+            //is recorded rather than collapsed away -- the data object carries what was selected, the
+            //PIDL only what was being browsed.
+            string? clicked = Selection.FromDataObject(dataObject);
+            string? path = clicked ?? Selection.FromPidl(folder);
 
             if (instance->Folder is not null)
             {
@@ -221,6 +236,7 @@ internal static unsafe partial class ContextMenuHandler
             }
 
             instance->IsFile = 0;
+            instance->IsBackground = clicked is null ? 1 : 0;
 
             if (path is { Length: > 0 })
             {
@@ -281,9 +297,20 @@ internal static unsafe partial class ContextMenuHandler
 
             bool isFile = instance->IsFile != 0;
 
+            //A folder the click actually named, and not the repository itself.
+            //
+            //The root comparison is what keeps Add and Remove off the repository root, where they
+            //would act on the whole thing and Commit is already the entry that does that. It costs
+            //nothing: RepositoryLookup found that root on the way to the verdict. It also settles a
+            //clicked drive without a case of its own -- a drive that is a repository *is* its root,
+            //and one that is not is dropped by NeedsRepository below.
+            bool pointedAt = !isFile
+                             && instance->IsBackground == 0
+                             && !string.Equals(folder, answer.Root, StringComparison.OrdinalIgnoreCase);
+
             MenuItem[] shown =
             [
-                .. items.Where(i => (isFile ? i.OnFiles : i.OnFolders)
+                .. items.Where(i => (isFile ? i.OnFiles : i.OnFolders || (pointedAt && i.OnClickedFolders))
                                     && (insideRepository || !i.NeedsRepository)),
             ];
 

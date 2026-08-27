@@ -202,8 +202,9 @@ src/
 │   ├── Status/              porcelain v2, numstat, name-status parsing, StatusService
 │   ├── Diff/                DiffService, FileTextLoader, WorkingTreeWriter, DiffDocument,
 │   │                        Hunks + PatchService (patch generator, `git apply --cached`)
-│   ├── Files/               FileTrackingService -- `git add`/`git rm` on one file, never
-│   │                        forced, recursive, or a pathspec that can glob
+│   ├── Files/               TrackingService -- `git add`/`git rm` on one path, never forced
+│   │                        and never a pathspec that can glob; FolderRemovalFlow, whose
+│   │                        order is the safety rule (gate, ask, bin, record)
 │   ├── Commits/             CommitService, CommitFlow
 │   ├── Blame/               BlameService, BlamePorcelainParser
 │   ├── History/             HistoryService, CommitLogParser, CommitRange
@@ -331,8 +332,8 @@ flick submodule <path>               submodules: add, remove, initialise
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
 flick blame <file>                   who last touched each line, and what came before
-flick add <file>                     stage one file, tracking it if it is new
-flick rm <file>                      delete one file and stage the deletion; asks first
+flick add <path>                     stage one file or folder, tracking what is new
+flick rm <path>                      delete one file or folder and stage the deletion; asks first
 flick repo <path>                    identity, remotes and this repository's defaults
 flick run <id> [path]                run a catalog action by id
 flick palette                        global repository palette
@@ -902,8 +903,9 @@ FlickGit            ▸                                            Remove…
       ├── Branches…          ├── Repository settings…
       ├── Tags…              ├── Clone…
       ├── Submodules…        ├── Fetch (prune)
-      ├── Stashes…           └── Open terminal here
-      └── Push
+      ├── Stashes…           ├── Open terminal here
+      └── Push               ├── Add
+                             └── Remove…
 ```
 
 Two root entries, because those are the two the user *performs* all day. Everything else is one hover
@@ -911,13 +913,30 @@ away, and there is **no "More" entry**: the root entries *are* the menu and the 
 overflow. On a file the folder entries are absent rather than greyed, and `ActionSurfaces.File` is what
 puts an action there.
 
-**Add and Remove** are `FileTrackingService`, and both answer in text, so the CLI verbs are the same
-code path. Add stages the file (nothing to confirm — staging discards nothing). Remove deletes it and
-stages the deletion, behind one question, under four rules: **nothing is forced** (so `git rm` itself
-enforces "never discard uncommitted work"); **an untracked file is refused before the question**; **it
-asks on every surface**, with a dialog even from the command line; and **the pathspec cannot glob** —
-both commands pass `:(literal)<path>`, or `a[1].txt` would match `a1.txt`. **Neither is on the folder
-menu**, and there is no `-r` anywhere in the service.
+**Add and Remove** are `TrackingService`, and both answer in text, so the CLI verbs are the same code
+path. They are the only entries that act on something smaller than the repository, which is why they
+sit last in the submenu and `rm` last of the two. Add stages (nothing to confirm for a file — staging
+discards nothing). Remove deletes and stages the deletion, behind one question, under four rules:
+**nothing is forced** (so `git rm` itself enforces "never discard uncommitted work"); **an untracked
+path is refused before the question**; **it asks on every surface**, with a dialog even from the
+command line; and **the pathspec cannot glob** — every command passes `:(literal)<path>`, or
+`a[1].txt` would match `a1.txt`.
+
+**On a folder both act on everything below it, and three things pay for that.** First, the surface:
+`ActionSurfaces.Folder` is *not* `Menu`, so the entries are drawn on a folder the user pointed at and
+never on a folder background, a drive, or the repository root — where Commit is already the entry that
+stages everything, and where `flick add .` from a terminal is refused by name. Second, the question
+carries the count, read first with `ls-files -z` and `diff --name-only -z`: the number of files is the
+one part of the blast radius the user cannot see. Third, `-r` appears on exactly two argument vectors
+and never without a second flag disarming it — `--dry-run`, which changes nothing, and `--cached`,
+which cannot reach the working tree. A test asserts there is no third.
+
+**A folder removal goes to the Recycle Bin, not to `git rm -r`**, because a folder is exactly where the
+untracked files are and Git would refuse over them or leave them behind. That puts the destructive step
+outside Git, where Git can no longer refuse it, so `FolderRemovalFlow` collects the refusal in advance:
+**gate (`rm -r --dry-run`) → ask → bin → record (`rm -r --cached`)**. Run the gate after the bin and a
+folder holding uncommitted work is gone before anything objects, with every step still reporting
+success — which is why the sequence is in Core with tests rather than in the verb.
 
 ---
 

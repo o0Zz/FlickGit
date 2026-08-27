@@ -171,10 +171,11 @@ public sealed class VerbRunner(
             //`repository` was resolved from its directory.
             VerbKind.Blame => await windowVerbs.BlameAsync(output, repository!, verb.Path!).ConfigureAwait(true),
 
-            //The other two file verbs, and the same carried-through path. They answer in text rather than
-            //in a window, which is why they are the repository verbs' and not the window verbs'.
-            VerbKind.Add => await repositoryVerbs.AddFileAsync(output, repository!, verb.Path!).ConfigureAwait(true),
-            VerbKind.Remove => await repositoryVerbs.RemoveFileAsync(output, repository!, verb.Path!).ConfigureAwait(true),
+            //The other two path verbs, and the same carried-through path -- a file or a folder, which
+            //each of them tells apart for itself. They answer in text rather than in a window, which is
+            //why they are the repository verbs' and not the window verbs'.
+            VerbKind.Add => await repositoryVerbs.AddAsync(output, repository!, verb.Path!).ConfigureAwait(true),
+            VerbKind.Remove => await repositoryVerbs.RemoveAsync(output, repository!, verb.Path!).ConfigureAwait(true),
 
             //`status` is text, always. It used to open the commit window when there was no console to
             //print into, which is every click -- so the catalog's entry for it was the root Commit

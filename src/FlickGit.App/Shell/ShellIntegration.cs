@@ -56,8 +56,24 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
     /// <see cref="GitAction.RequiresRepository"/> is written out rather than resolved here, as
     /// <c>FlickGit.NeedsRepository</c>: the handler is asked on every right-click and drops those
     /// items outside a repository. Hidden entries never reach the registry at all.
+    ///
+    /// <b>One entry per action, whatever mixture of clicks it answers.</b> Which click an item is
+    /// drawn on is a set of flags <i>on the item</i> — see <see cref="WriteItem"/> — not the list it
+    /// was written from, so an action offered on both a file and a folder must be written once and
+    /// not once per surface, or the menu draws it twice.
+    ///
+    /// <c>MenuOrder</c>, because that is the order the handler draws in: it enumerates the numbered
+    /// <c>Items</c> subkeys, and those are numbered as they are written.
     /// </summary>
-    private IReadOnlyList<GitAction> MenuActions() => catalog.For(ActionSurfaces.Menu);
+    private IReadOnlyList<GitAction> MenuActions() =>
+    [
+        .. catalog
+            .For(ActionSurfaces.Menu)
+            .Concat(catalog.For(ActionSurfaces.File))
+            .Concat(catalog.For(ActionSurfaces.Folder))
+            .DistinctBy(a => a.Id)
+            .OrderBy(a => a.MenuOrder),
+    ];
 
     /// <summary>
     /// Writes the whole menu. Idempotent: the existing keys are removed first, so a re-apply after a
@@ -95,14 +111,7 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             using RegistryKey classes = Registry.CurrentUser.CreateSubKey(ClassesPath, writable: true)
                                         ?? throw new InvalidOperationException($@"Could not open HKCU\{ClassesPath}.");
 
-            IReadOnlyList<GitAction> actions = MenuActions();
-
-            //The catalog is already in MenuOrder, and that is the order the handler draws in: it enumerates
-            //the Items subkeys, which are numbered as they are written.
-            GitAction[] rootActions = [.. actions.Where(a => !a.InMoreSubmenu)];
-            GitAction[] submenuActions = [.. actions.Where(a => a.InMoreSubmenu)];
-
-            WriteContextMenuHandler(classes, cliPath, handlerDll, rootActions, submenuActions);
+            WriteContextMenuHandler(classes, cliPath, handlerDll, MenuActions());
 
             //Read back what was written. A registry write that silently did nothing -- group policy, a
             //locked hive -- must not be reported as success.
@@ -199,8 +208,7 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         RegistryKey classes,
         string cliPath,
         string dllPath,
-        IReadOnlyList<GitAction> rootActions,
-        IReadOnlyList<GitAction> submenuActions)
+        IReadOnlyList<GitAction> actions)
     {
         using RegistryKey clsid = classes.CreateSubKey($@"{ClsidPath}\{ShellCommandIds.MenuHandlerClsid}", writable: true)
                                   ?? throw new InvalidOperationException("Could not register the context-menu handler.");
@@ -234,16 +242,10 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
         int order = 0;
 
-        foreach (GitAction action in rootActions)
-            WriteItem(items, ref order, cliPath, action, inSubmenu: false);
-
-        foreach (GitAction action in submenuActions)
-            WriteItem(items, ref order, cliPath, action, inSubmenu: true);
-
-        //The file entries, which are always in the submenu: there is no everyday file action worth a
-        //root entry the way Commit is.
-        foreach (GitAction action in catalog.For(ActionSurfaces.File))
-            WriteItem(items, ref order, cliPath, action, inSubmenu: true);
+        //One pass, in MenuOrder, for every click an action answers -- see MenuActions. The root
+        //entries come first because their order values do; nothing here re-sorts them.
+        foreach (GitAction action in actions)
+            WriteItem(items, ref order, cliPath, action, inSubmenu: action.InMoreSubmenu);
 
         foreach (string owner in HandlerOwners)
         {
@@ -275,8 +277,8 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         item.SetValue(ShellCommandIds.ValueNeedsRepository, action.RequiresRepository ? "1" : "0", RegistryValueKind.String);
         item.SetValue(ShellCommandIds.ValueInSubmenu, inSubmenu ? "1" : "0", RegistryValueKind.String);
 
-        //Which click this item answers. The handler is registered on files and on folders alike, so
-        //without this every folder action would appear on a file -- and Blame on a directory.
+        //Which clicks this item answers. The handler is registered on files and on folders alike, so
+        //without these every folder action would appear on a file -- and Blame on a directory.
         item.SetValue(
             ShellCommandIds.ValueOnFiles,
             action.Surfaces.HasFlag(ActionSurfaces.File) ? "1" : "0",
@@ -285,6 +287,14 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
         item.SetValue(
             ShellCommandIds.ValueOnFolders,
             action.Surfaces.HasFlag(ActionSurfaces.Menu) ? "1" : "0",
+            RegistryValueKind.String);
+
+        //Narrower than OnFolders, and not implied by it: a folder the user pointed at. Add and Remove
+        //are the two that act on everything below it, so they are the two that must not be reachable
+        //from a background, a drive or the repository root.
+        item.SetValue(
+            ShellCommandIds.ValueOnClickedFolders,
+            action.Surfaces.HasFlag(ActionSurfaces.Folder) ? "1" : "0",
             RegistryValueKind.String);
 
         //Only the Commit entry. On Pull it would read as "pull *into* this branch" -- true, and saying

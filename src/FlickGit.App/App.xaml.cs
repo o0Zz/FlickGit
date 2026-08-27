@@ -182,7 +182,8 @@ public partial class App : Application
         services.AddSingleton<WorkingTreeWriter>();
         services.AddSingleton<WorkingTreeDeleter>();
         services.AddSingleton<RestoreService>();
-        services.AddSingleton<FileTrackingService>();
+        services.AddSingleton<TrackingService>();
+        services.AddSingleton<FolderRemovalFlow>();
         services.AddSingleton<UntrackedFileMeasurer>();
 
         services.AddSingleton<ShellIntegration>();

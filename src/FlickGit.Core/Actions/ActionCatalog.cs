@@ -253,6 +253,7 @@ public sealed class ActionCatalog
                 "menu" => ActionSurfaces.Menu,
                 "palette" => ActionSurfaces.Palette,
                 "file" => ActionSurfaces.File,
+                "folder" => ActionSurfaces.Folder,
                 _ => ActionSurfaces.None,
             };
         }
@@ -327,16 +328,9 @@ public sealed class ActionCatalog
         //the two root entries are the two the user *performs* all day.
         new("log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
 
-        //The file menu: read what is there, then the two operations that put a file under Git's control
-        //or take it out again. Three digits, in their own hundred, because ordering only ever compares
-        //them with each other -- the folder entries are a different click.
+        //Read what is there. File only: blaming a folder is not a thing, which is the example
+        //ActionSurfaces.File's own doc gives for why the two clicks are separate surfaces.
         new("blame", VerbKind.Blame, 100, ActionSurfaces.File, "blame.ico", InMore: true, NeedsRepository: true),
-
-        //`rm` deletes, so it is last: the destructive entry is the one furthest from the pointer's
-        //resting place. Neither is on the folder menu -- `git add` on a directory stages everything
-        //under it and `git rm -r` removes it, which is a blast radius a single click should not have.
-        new("add", VerbKind.Add, 101, ActionSurfaces.File, "add.ico", InMore: true, NeedsRepository: true),
-        new("rm", VerbKind.Remove, 102, ActionSurfaces.File, "remove.ico", InMore: true, NeedsRepository: true),
 
         new("switch", VerbKind.Switch, 110, ActionSurfaces.All, "branch.ico", InMore: true,
             NeedsRepository: true, Parameter: ActionParameter.Branch),
@@ -385,6 +379,25 @@ public sealed class ActionCatalog
 
         //No repository requirement: a terminal in a folder is useful whatever the folder is.
         new("terminal", VerbKind.Terminal, 160, ActionSurfaces.All, "terminal.ico", InMore: true),
+
+        //The two operations that put a path under Git's control or take it out again -- on a clicked
+        //file, and on a clicked folder. Last, and `rm` last of the two: the destructive entry is the
+        //one furthest from the pointer's resting place, and these are the only entries in the submenu
+        //that act on something smaller than the repository.
+        //
+        //`Folder` rather than `Menu` is the whole safety story of the folder half. `git add` on a
+        //directory stages everything under it and a folder removal takes the lot to the Recycle Bin,
+        //which is a blast radius that must not be one click away from the background of the folder
+        //being browsed, from a drive, or from the repository root -- and `Folder` is the surface that
+        //means none of those. What is left is a folder the user pointed at, with the count of what
+        //will happen in the question. See TrackingService for the rest of it.
+        //
+        //One entry each carrying both surfaces, not two entries: a built-in's id *is* its CLI verb,
+        //so `add` can only be spelled once.
+        new("add", VerbKind.Add, 170, ActionSurfaces.File | ActionSurfaces.Folder, "add.ico",
+            InMore: true, NeedsRepository: true),
+        new("rm", VerbKind.Remove, 180, ActionSurfaces.File | ActionSurfaces.Folder, "remove.ico",
+            InMore: true, NeedsRepository: true),
     ];
 
 }

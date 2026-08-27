@@ -23,9 +23,21 @@ public enum ActionSurfaces
     File = 4,
 
     /// <summary>
+    /// The Explorer context menu on a folder the user <b>pointed at</b> — and only there. Not the
+    /// background of the folder already being browsed, not a drive, and not the repository root,
+    /// where Commit is already the entry that stages everything.
+    ///
+    /// Its own surface rather than <see cref="Menu"/> for exactly that reason: <c>Menu</c> means
+    /// "any folder click", which is right for the repository entries and is the blast radius for
+    /// Add and Remove. The two actions carrying this also carry <see cref="File"/>, because a
+    /// built-in's id is its CLI verb and <c>add</c> can only be spelled once.
+    /// </summary>
+    Folder = 8,
+
+    /// <summary>
     /// Both the folder menu and the palette -- what an action gets when it does not say. Deliberately
-    /// <i>not</i> including <see cref="File"/>: that would turn every existing action, and every user
-    /// action in actions.json, into a file entry.
+    /// <i>not</i> including <see cref="File"/> or <see cref="Folder"/>: that would turn every existing
+    /// action, and every user action in actions.json, into a file entry.
     /// </summary>
     All = Menu | Palette,
 }
