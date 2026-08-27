@@ -468,6 +468,7 @@ assigned in `CommitViewModel.Reset`**. No state may leak between two uses.
 ⏎ commit & push       ⇧⏎ newline        Ctrl+⏎ commit & push from anywhere
 Ctrl+S save the edit  Ctrl+Z undo it    Ctrl+F find    F3/⇧F3 next/previous
 F5 re-read status     esc close the search bar if open, otherwise the window
+Del delete the selected files, in the file list only
 ```
 
 - The caret is in the message box from the moment the window is populated. Enter commits rather than
@@ -524,7 +525,10 @@ path per call so the first failure stops with a count of what went before.
 so `git restore` cannot bring it back — the Recycle Bin is what makes the operation recoverable, and
 what earns it one question. Rows whose file is already gone are filtered out of the selection. Two
 refusals: nothing outside the resolved root (`WorkingTreeWriter.ResolveInsideRepository`), and no
-symlinks or junctions.
+symlinks or junctions. **`Del` reaches it from the file list** — the same command, so the same
+question, and on the list rather than the window because Del is a character in the message box and in
+the diff pane's editor. Shift+Del is not it: that means "skip the Recycle Bin" everywhere in Explorer,
+and nothing here does that.
 
 **Revert file…** is `git restore --source=HEAD --staged --worktree -- "<file>"`. `--source=HEAD`
 because the default restores from the *index* and would leave a staged change standing. **This is the

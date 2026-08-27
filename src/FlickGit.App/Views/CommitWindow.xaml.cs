@@ -187,6 +187,36 @@ public partial class CommitWindow : Window
     }
 
     /// <summary>
+    /// <b>Del sends the highlighted files to the Recycle Bin</b>, through the very command the context
+    /// menu's <c>Delete file…</c> reaches — so it asks the same question, counts the untracked ones the
+    /// same way, and runs no Git command either.
+    ///
+    /// <b>On the list rather than on the window</b>, because everywhere else in this window Del belongs
+    /// to text: it is a character in the message box and a character in the diff pane's editor over the
+    /// user's file. <c>KeyDown</c> rather than a preview, so a row's tick box keeps its own keyboard and
+    /// the key still arrives here by bubbling.
+    ///
+    /// <b>Only the bare key.</b> Shift+Del means "skip the Recycle Bin" everywhere in Explorer, and
+    /// this window has nothing that does that — so it falls through to nothing rather than quietly
+    /// meaning the recoverable thing.
+    /// </summary>
+    private void OnFileListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Delete || Keyboard.Modifiers != ModifierKeys.None || _viewModel is null)
+            return;
+
+        //Asked rather than assumed, and asked of the command: the "not while busy" rule and the
+        //filtering of rows whose file is already gone live there, and a second copy of either here is
+        //how the key and the menu would come to disagree.
+        if (_viewModel.DeleteFileCommand.CanExecute(null))
+            _viewModel.DeleteFileCommand.Execute(null);
+
+        //Handled either way. Del over the file list means this and nothing else, including when there is
+        //nothing here it can act on.
+        e.Handled = true;
+    }
+
+    /// <summary>
     /// Puts the caret in the message box, at the end of whatever is already there. Called on open, and
     /// again whenever the view model says the caret belongs back here.
     /// </summary>

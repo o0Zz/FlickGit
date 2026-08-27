@@ -159,7 +159,8 @@
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling"
-                         ContextMenuOpening="OnFileListContextMenuOpening">
+                         ContextMenuOpening="OnFileListContextMenuOpening"
+                         KeyDown="OnFileListKeyDown">
                     <!-- On the ListBox rather than on each row, so PlacementTarget is the list and
                          its DataContext is the view model. A menu declared per row would be looking
                          at a FileChangeItem, which owns no commands. The rows it acts on are the
@@ -185,7 +186,12 @@
                                       Command="{Binding PlacementTarget.DataContext.RevertFileCommand,
                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                             <Separator />
+                            <!-- The gesture is spelt out here because the key is the list's own
+                                 handler rather than a RoutedCommand, so nothing fills this in. It is
+                                 also the only place the key is discoverable, and "Del" is the same
+                                 word in every language this ships in. -->
                             <MenuItem x:Name="DeleteFileMenuItem"
+                                      InputGestureText="Del"
                                       Command="{Binding PlacementTarget.DataContext.DeleteFileCommand,
                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                         </ContextMenu>

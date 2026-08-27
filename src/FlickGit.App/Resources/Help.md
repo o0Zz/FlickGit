@@ -71,6 +71,12 @@ The tick boxes decide the commit — nothing else does.
   existing branch to switch first, or type a new name to create it. The hint beside it says
   which, before you press anything.
 
+Right-click a row for **Add**, **Revert file…** and **Delete file…**, each acting on everything you
+have highlighted. **Del** is Delete file…: it sends the selected files to the Recycle Bin and runs no
+Git command at all, so a tracked file simply becomes a `D` row you can commit or put back, and an
+untracked one is gone from the tree but still in the bin. It asks first, and only from the file list —
+in the message box and in the diff pane Del is an ordinary character.
+
 ### The diff pane
 
 The right side is a real editor, not a preview.
