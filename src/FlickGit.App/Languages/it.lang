@@ -98,6 +98,8 @@ revert.menu = Ripristina il file…
 revert.title = Ripristina il file
 revert.question = Ripristinare {0}?
 revert.body = La versione sul disco finisce nel Cestino e quella di HEAD la sostituisce — nell'albero di lavoro e nell'indice. Non viene eseguito alcun commit né alcun push.
+revert.body.unstage = HEAD non ha alcuna copia di questo file, quindi ripristinarlo significa rimuoverlo dallo stage. Il file resta esattamente dov'è, come file non tracciato: non viene eliminato nulla e nulla finisce nel Cestino.
+revert.unstaged = {0} di essi sono aggiunte nello stage di cui HEAD non ha copia: quelle vengono rimosse dallo stage e restano su disco come file non tracciati, intatti.
 revert.dirty = Le modifiche non salvate nel pannello delle differenze non sono mai state scritte sul disco, quindi il Cestino non le avrà.
 revert.yes = Ripristina
 revert.no = Mantieni
@@ -106,7 +108,7 @@ revert.failed = Impossibile ripristinare {0}:
 revert.binned = La versione che era sul disco è nel Cestino.
 revert.menu.many = Ripristina {0} file…
 revert.question.many = Ripristinare {0} file?
-revert.skipped = {0} dei file selezionati non sono in HEAD — non tracciati, aggiunti, rinominati o in conflitto — e restano esattamente come sono.
+revert.skipped = {0} dei file selezionati non sono in HEAD né sono aggiunte nello stage — non tracciati, rinominati o in conflitto — e restano esattamente come sono.
 revert.done.many = {0} file ripristinati
 revert.partial = {0} file sono stati ripristinati prima di questo.
 

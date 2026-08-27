@@ -11,9 +11,11 @@ namespace FlickGit.Tests;
 ///
 /// In scope under "the safety rules": this is the only place in the product that asks Git to
 /// discard uncommitted work, so what may be handed to it and what its argument list contains are
-/// both worth pinning. <see cref="RestoreService.CanRevert"/> is the guard, and the case it exists
+/// both worth pinning. <see cref="RestoreService.KindFor"/> is the guard, and the case it exists
 /// for is not hypothetical — <c>git restore --source=HEAD --staged --worktree</c> on a path HEAD
-/// does not have deletes the file and exits 0.
+/// does not have deletes the file and exits 0. That is why it answers three states rather than two:
+/// a staged addition is reverted by unstaging it, and the bug this pins is that answer coming back
+/// as <see cref="RevertKind.Restore"/>.
 /// </summary>
 public class RestoreServiceTests
 {
@@ -98,59 +100,83 @@ public class RestoreServiceTests
     }
 
     [Fact]
-    public void AnOrdinaryModifiedFileMayBeReverted()
+    public void AnOrdinaryModifiedFileIsRestored()
     {
-        Assert.True(RestoreService.CanRevert(File()));
+        Assert.Equal(RevertKind.Restore, RestoreService.KindFor(File()));
     }
 
     [Fact]
-    public void ADeletedFileMayBeReverted()
+    public void ADeletedFileIsRestored()
     {
         //Both spellings of a D row: gone from the working tree, and removed with `git rm`. HEAD has
         //the path in either case, which is the only question, and the revert is what brings it back.
-        Assert.True(RestoreService.CanRevert(File(workTree: GitChangeType.Deleted)));
-        Assert.True(RestoreService.CanRevert(File(index: GitChangeType.Deleted, workTree: GitChangeType.None)));
+        Assert.Equal(RevertKind.Restore, RestoreService.KindFor(File(workTree: GitChangeType.Deleted)));
+        Assert.Equal(
+            RevertKind.Restore,
+            RestoreService.KindFor(File(index: GitChangeType.Deleted, workTree: GitChangeType.None)));
     }
 
     [Fact]
-    public void AStagedModificationMayBeReverted()
+    public void AStagedModificationIsRestored()
     {
-        Assert.True(RestoreService.CanRevert(File(index: GitChangeType.Modified, workTree: GitChangeType.Modified)));
+        Assert.Equal(
+            RevertKind.Restore,
+            RestoreService.KindFor(File(index: GitChangeType.Modified, workTree: GitChangeType.Modified)));
     }
 
     [Fact]
-    public void AnAddedFileMayNotBeReverted()
+    public void AnAddedFileIsUnstagedAndNeverRestored()
     {
         //THE case this guard exists for. The path is in the index and not in HEAD, and Git's answer
         //to `restore --source=HEAD --staged --worktree` on such a path is to delete the file, exit
-        //0, and say nothing -- uncommitted work destroyed by a command that reported success.
-        Assert.False(RestoreService.CanRevert(File(index: GitChangeType.Added, workTree: GitChangeType.None)));
+        //0, and say nothing -- uncommitted work destroyed by a command that reported success. So the
+        //answer here is Unstage, which reaches `git restore --staged` instead and leaves the file
+        //where it is. Asserted as the whole value rather than as "not Restore": the row still has to
+        //be actionable, because unstaging it is the only way back out of a mistaken Add.
+        Assert.Equal(
+            RevertKind.Unstage,
+            RestoreService.KindFor(File(index: GitChangeType.Added, workTree: GitChangeType.None)));
+
+        //And with the file edited after it was added, which is the same index state and the same
+        //answer -- the working-tree copy the user would lose to a restore is precisely what an
+        //unstage keeps.
+        Assert.Equal(
+            RevertKind.Unstage,
+            RestoreService.KindFor(File(index: GitChangeType.Added, workTree: GitChangeType.Modified)));
     }
 
     [Fact]
-    public void AnUntrackedFileMayNotBeReverted()
+    public void AnUntrackedFileIsLeftAlone()
     {
-        //HEAD has nothing to put back. Delete is the item for this row, and it goes to the Recycle
-        //Bin because Git could not bring the file back either.
-        Assert.False(RestoreService.CanRevert(File(workTree: GitChangeType.Untracked, untracked: true)));
+        //Neither HEAD nor the index has it, so there is no earlier state to go back to. Delete is
+        //the item for this row, and it goes to the Recycle Bin because Git could not bring the file
+        //back either.
+        Assert.Equal(
+            RevertKind.None,
+            RestoreService.KindFor(File(workTree: GitChangeType.Untracked, untracked: true)));
     }
 
     [Fact]
-    public void ARenameMayNotBeReverted()
+    public void ARenameIsLeftAlone()
     {
-        //HEAD has the *old* path. Restoring this one alone is the Added case again -- it would
-        //delete the renamed file -- and doing it correctly is two operations with two ways to fail
-        //half way.
-        Assert.False(RestoreService.CanRevert(File(index: GitChangeType.Renamed, workTree: GitChangeType.None)));
-        Assert.False(RestoreService.CanRevert(File(index: GitChangeType.Copied, workTree: GitChangeType.None)));
+        //HEAD has the *old* path. Restoring this one alone would delete the renamed file, and doing
+        //it correctly is two operations with two ways to fail half way.
+        Assert.Equal(
+            RevertKind.None,
+            RestoreService.KindFor(File(index: GitChangeType.Renamed, workTree: GitChangeType.None)));
+        Assert.Equal(
+            RevertKind.None,
+            RestoreService.KindFor(File(index: GitChangeType.Copied, workTree: GitChangeType.None)));
     }
 
     [Fact]
-    public void AConflictedFileMayNotBeReverted()
+    public void AConflictedFileIsLeftAlone()
     {
         //Resolving a merge by taking HEAD's side is a merge decision wearing a revert's label, and
-        //conflict resolution is out of scope.
-        Assert.False(RestoreService.CanRevert(
-            File(index: GitChangeType.Conflicted, workTree: GitChangeType.Conflicted)));
+        //conflict resolution is out of scope. Neither kind: `restore --staged` on an unmerged path
+        //collapses the three index stages to HEAD's, which is the same decision by another route.
+        Assert.Equal(
+            RevertKind.None,
+            RestoreService.KindFor(File(index: GitChangeType.Conflicted, workTree: GitChangeType.Conflicted)));
     }
 }

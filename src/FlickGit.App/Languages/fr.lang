@@ -98,6 +98,8 @@ revert.menu = Rétablir le fichier…
 revert.title = Rétablir le fichier
 revert.question = Rétablir {0} ?
 revert.body = La version sur le disque part à la corbeille et celle de HEAD la remplace — dans la copie de travail et dans l'index. Rien n'est validé ni poussé.
+revert.body.unstage = HEAD n'a aucune copie de ce fichier ; le rétablir consiste donc à le retirer de l'index. Le fichier reste exactement où il est, en fichier non suivi — rien n'est supprimé et rien ne part à la Corbeille.
+revert.unstaged = {0} d'entre eux sont des ajouts indexés dont HEAD n'a pas de copie : ceux-là sont retirés de l'index et restent sur le disque en fichiers non suivis, intacts.
 revert.dirty = Vos modifications non enregistrées dans le volet de comparaison n'ont jamais été écrites sur le disque : la corbeille ne les aura pas.
 revert.yes = Rétablir
 revert.no = Conserver
@@ -106,7 +108,7 @@ revert.failed = {0} n'a pas pu être rétabli :
 revert.binned = La version qui était sur le disque est dans la corbeille.
 revert.menu.many = Rétablir {0} fichiers…
 revert.question.many = Rétablir {0} fichiers ?
-revert.skipped = {0} des fichiers sélectionnés ne sont pas dans HEAD — non suivis, ajoutés, renommés ou en conflit — et restent exactement en l'état.
+revert.skipped = {0} des fichiers sélectionnés ne sont pas dans HEAD et ne sont pas non plus des ajouts indexés — non suivis, renommés ou en conflit — et restent exactement en l'état.
 revert.done.many = {0} fichiers rétablis
 revert.partial = {0} fichiers ont été rétablis avant celui-ci.
 

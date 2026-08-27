@@ -77,10 +77,26 @@ The tick boxes decide the commit — nothing else does.
   pressing Edit on a `build.bat` or a stray `setup.exe` in the list opens it rather than running it.
 
 Right-click a row for **Add**, **Revert file…** and **Delete file…**, each acting on everything you
-have highlighted. **Del** is Delete file…: it sends the selected files to the Recycle Bin and runs no
-Git command at all, so a tracked file simply becomes a `D` row you can commit or put back, and an
-untracked one is gone from the tree but still in the bin. It asks first, and only from the file list —
-in the message box and in the diff pane Del is an ordinary character.
+have highlighted.
+
+**Revert file…** puts the row back the way HEAD has it, and what that means depends on whether HEAD
+has the file at all:
+
+- For an ordinary changed file, HEAD's version replaces yours — in the working tree and in the index.
+  Your version goes to the Recycle Bin first, which is what lets one question be enough.
+- For a file you just **added** by mistake, HEAD has no copy, so the way HEAD has it is *untracked*.
+  Reverting takes it back out of the index and **leaves the file exactly where it is** — nothing is
+  deleted, nothing goes to the bin. The row unticks itself and drops to the bottom of the list as an
+  untracked file. **This is how you undo an Add**, and the dialog says which of the two it is about to
+  do before you press anything.
+
+Rows HEAD cannot help with are skipped rather than greyed out, and the dialog counts them: untracked
+files (Delete is the item for those), renames, and anything conflicted.
+
+**Del** is Delete file…: it sends the selected files to the Recycle Bin and runs no Git command at
+all, so a tracked file simply becomes a `D` row you can commit or put back, and an untracked one is
+gone from the tree but still in the bin. It asks first, and only from the file list — in the message
+box and in the diff pane Del is an ordinary character.
 
 ### The diff pane
 

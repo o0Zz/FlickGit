@@ -316,15 +316,15 @@ public sealed class CommitViewModel : ObservableObject
     private List<FileChangeItem> Deletable => [.. _selectedFiles.Where(f => f.IsOnDisk)];
 
     /// <summary>
-    /// The highlighted rows Revert can act on.
+    /// The highlighted rows Revert can act on -- of either kind.
     ///
-    /// The reasons a file is not revertable are <see cref="RestoreService.CanRevert"/>'s, and they are
-    /// all one reason: HEAD does not have this path. Filtered rather than refused, because Ctrl+A over
-    /// a list holding one untracked file is the ordinary way to reach a mass revert -- the question
-    /// says how many rows it will leave alone instead of the menu item going dead.
+    /// The reasons a file is not revertable are <see cref="RestoreService.KindFor"/>'s. Filtered rather
+    /// than refused, because Ctrl+A over a list holding one untracked file is the ordinary way to reach
+    /// a mass revert -- the question says how many rows it will leave alone instead of the menu item
+    /// going dead.
     /// </summary>
     private List<FileChangeItem> Revertable =>
-        [.. _selectedFiles.Where(f => RestoreService.CanRevert(f.Change))];
+        [.. _selectedFiles.Where(f => RestoreService.KindFor(f.Change) != RevertKind.None)];
 
     /// <summary>
     /// The highlighted rows Add can act on — the ones <c>git add</c> has a pathspec for.
@@ -1021,6 +1021,20 @@ public sealed class CommitViewModel : ObservableObject
     /// <b>A row HEAD does not have is skipped, not refused.</b> Ctrl+A over a list holding one
     /// untracked file is the ordinary way to reach this, so the question says how many rows it will
     /// leave alone instead of the menu item going dead.
+    ///
+    /// <b>A staged addition is reverted by unstaging it, and that is the same sentence rather than a
+    /// second feature.</b> HEAD has no copy of the path, so the way HEAD has it is: untracked. That is
+    /// also the only way back out of an <c>Add</c> pressed by mistake -- Delete answers a different
+    /// question by removing the file, and unticking the row alone leaves the index still holding it.
+    /// <see cref="RestoreService.KindFor"/> decides which of the two kinds a row is, in Core and under
+    /// test, because getting it wrong in the Added direction is a file deleted by a command that
+    /// exits 0.
+    ///
+    /// <b>Those rows go nowhere near the Recycle Bin</b>, and the branch below is on the kind rather
+    /// than on <see cref="FileChangeItem.IsOnDisk"/> for exactly that reason: an unstage discards
+    /// nothing, so binning a copy first would be this window destroying a file over an operation that
+    /// was never going to touch it. They are unticked instead, because in this window the tick box is
+    /// the commit -- left ticked, the next commit would stage them straight back.
     /// </summary>
     private async Task RevertSelectedFilesAsync()
     {
@@ -1029,15 +1043,27 @@ public sealed class CommitViewModel : ObservableObject
         if (files.Count == 0 || _isBusy)
             return;
 
-        string body = Strings.Get("revert.body");
+        //The two kinds read as one item and describe themselves as two, because what happens to the
+        //file on disk is opposite: a restore overwrites it from HEAD, an unstage does not touch it at
+        //all. One sentence covering both could only manage it by being vague about the destructive
+        //half.
+        int unstaging = files.Count(f => RestoreService.KindFor(f.Change) == RevertKind.Unstage);
+        int restoring = files.Count - unstaging;
+
+        string body =
+            unstaging == 0 ? Strings.Get("revert.body")
+            : restoring == 0 ? Strings.Get("revert.body.unstage")
+            : Strings.Get("revert.body") + "\n\n" + Strings.Get("revert.unstaged", unstaging);
+
         int skipped = _selectedFiles.Count - files.Count;
 
         if (skipped > 0)
             body += "\n\n" + Strings.Get("revert.skipped", skipped);
 
-        //An unsaved edit never reached the disk, so it is not in the copy about to be binned. The
-        //dialog says so rather than implying the bin covers it.
-        if (IsEditorDirty?.Invoke() == true)
+        //An unsaved edit never reached the disk, so it is not in the copy about to be binned. Only
+        //worth saying when something is being binned at all: an unstage-only revert overwrites
+        //nothing, so the edit is in no danger and the sentence would warn about nothing.
+        if (restoring > 0 && IsEditorDirty?.Invoke() == true)
             body += "\n\n" + Strings.Get("revert.dirty");
 
         string question = files.Count == 1
@@ -1049,7 +1075,8 @@ public sealed class CommitViewModel : ObservableObject
             question + "\n\n" + body,
             Strings.Get("revert.yes"),
             Strings.Get("revert.no"),
-            //Enter accepts: every version about to be overwritten goes to the Recycle Bin first.
+            //Enter accepts: every version about to be overwritten goes to the Recycle Bin first, and
+            //the unstage half overwrites nothing at all.
             true) ?? Task.FromResult(false)).ConfigureAwait(true);
 
         if (!confirmed)
@@ -1062,6 +1089,48 @@ public sealed class CommitViewModel : ObservableObject
         {
             foreach (FileChangeItem file in files)
             {
+                if (RestoreService.KindFor(file.Change) == RevertKind.Unstage)
+                {
+                    //The index only, through the call the commit sequence already makes for an unticked
+                    //file. No bin: nothing is being overwritten, and the copy on disk is precisely what
+                    //the user keeps.
+                    try
+                    {
+                        await _commits
+                            .UnstageAsync(_repository, [file.Path], CancellationToken.None)
+                            .ConfigureAwait(true);
+                    }
+                    catch (GitOperationException failure)
+                    {
+                        //Caught rather than let through, for the reason the restore path reports its own
+                        //failures: in a mixed selection the count of what already happened is half the
+                        //answer, and an exception escaping to ReportError carries Git's words without it.
+                        //No mention of the Recycle Bin -- this branch never used it, and nothing on disk
+                        //moved.
+                        RaiseError(
+                            Strings.Get("revert.title"),
+                            Reason(
+                                Strings.Get("revert.failed", file.Path) + "\n\n" + failure.GitError,
+                                reverted,
+                                "revert.partial")!);
+
+                        return;
+                    }
+
+                    //The index side is empty now, so leaving HasChosenHunks set would tell the commit
+                    //sequence to leave this file alone -- on a file whose index holds nothing.
+                    file.Change.HasChosenHunks = false;
+
+                    //Before the refresh, because Adopt carries tick state across by path. The row
+                    //becomes an untracked one, and a ticked untracked row is the single thing the
+                    //staging defaults exist to prevent.
+                    file.IsSelected = false;
+
+                    _diffs.Invalidate(file.Path);
+                    reverted++;
+                    continue;
+                }
+
                 //Nothing on disk to preserve when the change *is* a deletion -- the row's D means the
                 //file is already gone, and the revert is what brings it back.
                 bool binned = false;

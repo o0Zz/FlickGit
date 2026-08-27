@@ -530,13 +530,33 @@ question, and on the list rather than the window because Del is a character in t
 the diff pane's editor. Shift+Del is not it: that means "skip the Recycle Bin" everywhere in Explorer,
 and nothing here does that.
 
-**Revert file…** is `git restore --source=HEAD --staged --worktree -- "<file>"`. `--source=HEAD`
-because the default restores from the *index* and would leave a staged change standing. **This is the
-only place in the product that asks Git to discard uncommitted work**, which is why the bin comes first
-— a locked file fails the bin, and failing there means nothing has happened yet. Rows HEAD does not
-have are **skipped, not refused**: untracked (Delete is the item for those), added (the command would
-delete the file with exit 0 and no message), renamed and copied (HEAD has the old path), and
-conflicted (taking HEAD's side is a merge decision). `RestoreService` owns that predicate.
+**Revert file…** puts a row back the way HEAD has it, and **that is one sentence with two mechanics**
+because it turns on something the row's letter does not say: whether HEAD has the path.
+`RestoreService.KindFor` answers `Restore`, `Unstage` or `None` — an enum rather than a bool precisely
+because the Added case has a wrong answer that destroys a file.
+
+- **`Restore`** is `git restore --source=HEAD --staged --worktree -- "<file>"`, over a copy sent to the
+  Recycle Bin first. `--source=HEAD` because the default restores from the *index* and would leave a
+  staged change standing. **This is the only place in the product that asks Git to discard uncommitted
+  work**, which is why the bin comes first — a locked file fails the bin, and failing there means
+  nothing has happened yet.
+- **`Unstage`** is a staged addition: HEAD has no copy, so the way HEAD has that path is *not tracked*.
+  It is `CommitService.UnstageAsync` — `git restore --staged` — and **it must not go near the Recycle
+  Bin**, because nothing is being overwritten and the copy on disk is exactly what the user keeps. The
+  branch is on the kind, never on `IsOnDisk`. **This is the only way back out of an `Add` pressed by
+  mistake**: Delete removes the file, and unticking the row leaves the index holding it. The row is
+  unticked as well, because in this window the tick box is the commit — left ticked, the next commit
+  would stage it straight back.
+- **`None` rows are skipped, not refused**: untracked (Delete is the item for those), renamed and
+  copied (HEAD has the old path), and conflicted (taking HEAD's side is a merge decision).
+
+**What the enum prevents is not hypothetical.** `git restore --source=HEAD --staged --worktree` on a
+path HEAD does not have **deletes the file, exit code 0, no message** — uncommitted work destroyed by a
+command that reported success. A test asserts an added row comes back `Unstage`.
+
+**There is no separate Unstage menu item, and adding one would be the wrong shape.** "Take this out of
+the index" is not a third thing the user wants next to Revert; it is what Revert means for a row HEAD
+has never held.
 
 ## Diff viewer
 

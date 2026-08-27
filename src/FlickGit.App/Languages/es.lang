@@ -98,6 +98,8 @@ revert.menu = Revertir archivo…
 revert.title = Revertir archivo
 revert.question = ¿Revertir {0}?
 revert.body = La versión del disco va a la Papelera de reciclaje y la de HEAD la sustituye — en el árbol de trabajo y en el índice. No se confirma ni se envía nada.
+revert.body.unstage = HEAD no tiene ninguna copia de este archivo, así que revertirlo significa quitarlo del área de preparación. El archivo se queda exactamente donde está, como archivo sin rastrear: no se borra nada y nada va a la Papelera de reciclaje.
+revert.unstaged = {0} de ellos son adiciones preparadas de las que HEAD no tiene copia: esas se quitan del área de preparación y se quedan en el disco como archivos sin rastrear, intactos.
 revert.dirty = Los cambios sin guardar del panel de diferencias nunca se escribieron en el disco, así que la Papelera no los tendrá.
 revert.yes = Revertir
 revert.no = Conservar
@@ -106,7 +108,7 @@ revert.failed = No se pudo revertir {0}:
 revert.binned = La versión que estaba en el disco está en la Papelera de reciclaje.
 revert.menu.many = Revertir {0} archivos…
 revert.question.many = ¿Revertir {0} archivos?
-revert.skipped = {0} de los archivos seleccionados no están en HEAD — sin rastrear, añadidos, renombrados o en conflicto — y se quedan exactamente como están.
+revert.skipped = {0} de los archivos seleccionados no están en HEAD ni son adiciones preparadas — sin rastrear, renombrados o en conflicto — y se quedan exactamente como están.
 revert.done.many = {0} archivos revertidos
 revert.partial = Se revirtieron {0} archivos antes de este.
 

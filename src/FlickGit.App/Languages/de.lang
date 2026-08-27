@@ -98,6 +98,8 @@ revert.menu = Datei zurücksetzen…
 revert.title = Datei zurücksetzen
 revert.question = {0} zurücksetzen?
 revert.body = Die Version auf der Festplatte wandert in den Papierkorb, die Version aus HEAD ersetzt sie — im Arbeitsverzeichnis und im Index. Es wird nichts committet und nichts gepusht.
+revert.body.unstage = HEAD hat keine Kopie dieser Datei, das Zurücksetzen nimmt sie also wieder aus dem Index heraus. Die Datei selbst bleibt genau dort, wo sie ist, als unversionierte Datei — nichts wird gelöscht und nichts landet im Papierkorb.
+revert.unstaged = {0} davon sind vorgemerkte Neuzugänge, von denen HEAD keine Kopie hat: diese werden wieder aus dem Index genommen und bleiben unverändert als unversionierte Dateien liegen.
 revert.dirty = Ihre ungespeicherten Änderungen im Vergleichsbereich wurden nie auf die Festplatte geschrieben, der Papierkorb hat sie also nicht.
 revert.yes = Zurücksetzen
 revert.no = Behalten
@@ -106,7 +108,7 @@ revert.failed = {0} konnte nicht zurückgesetzt werden:
 revert.binned = Die Version, die auf der Festplatte lag, liegt im Papierkorb.
 revert.menu.many = {0} Dateien zurücksetzen…
 revert.question.many = {0} Dateien zurücksetzen?
-revert.skipped = {0} der ausgewählten Dateien sind nicht in HEAD — unversioniert, hinzugefügt, umbenannt oder in Konflikt — und bleiben genau so, wie sie sind.
+revert.skipped = {0} der ausgewählten Dateien sind nicht in HEAD und auch keine vorgemerkten Neuzugänge — unversioniert, umbenannt oder in Konflikt — und bleiben genau so, wie sie sind.
 revert.done.many = {0} Dateien zurückgesetzt
 revert.partial = {0} Dateien wurden vor dieser zurückgesetzt.
 

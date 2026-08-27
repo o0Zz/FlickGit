@@ -135,6 +135,11 @@ revert.title = Revert file
 # {0} repository-relative path
 revert.question = Revert {0}?
 revert.body = The version on disk goes to the Recycle Bin, and HEAD's version replaces it — in the working tree and in the index. Nothing is committed and nothing is pushed.
+# Used instead of revert.body when every selected row is a staged addition: HEAD has no copy of
+# the path, so reverting it means taking it out of the index, and nothing on disk is touched.
+revert.body.unstage = HEAD has no copy of this file, so reverting it means taking it back out of the index. The file itself stays exactly where it is, as an untracked file — nothing is deleted and nothing goes to the Recycle Bin.
+# Added to revert.body when the selection holds both kinds. {0} how many are staged additions.
+revert.unstaged = {0} of them are staged additions HEAD has no copy of: those are taken back out of the index and left on disk as untracked files, untouched.
 revert.dirty = Your unsaved edits in the diff pane were never written to disk, so the Recycle Bin will not have them.
 revert.yes = Revert
 revert.no = Keep
@@ -146,7 +151,7 @@ revert.menu.many = Revert {0} files…
 # {0} how many files
 revert.question.many = Revert {0} files?
 # {0} how many selected rows HEAD does not have, and so will not be touched
-revert.skipped = {0} of the selected files are not in HEAD — untracked, added, renamed or conflicted — and are left exactly as they are.
+revert.skipped = {0} of the selected files are not in HEAD and are not staged additions either — untracked, renamed or conflicted — and are left exactly as they are.
 # {0} how many files were reverted
 revert.done.many = Reverted {0} files
 # {0} how many were reverted before the failure reported above this line

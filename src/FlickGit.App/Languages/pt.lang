@@ -98,6 +98,8 @@ revert.menu = Reverter ficheiro…
 revert.title = Reverter ficheiro
 revert.question = Reverter {0}?
 revert.body = A versão em disco vai para a Reciclagem e a de HEAD substitui-a — na árvore de trabalho e no índice. Nada é submetido nem enviado.
+revert.body.unstage = O HEAD não tem qualquer cópia deste ficheiro, pelo que revertê-lo significa retirá-lo da preparação. O ficheiro fica exatamente onde está, como ficheiro não controlado — nada é eliminado e nada vai para a Reciclagem.
+revert.unstaged = {0} deles são adições preparadas de que o HEAD não tem cópia: essas são retiradas da preparação e ficam no disco como ficheiros não controlados, intactas.
 revert.dirty = As suas edições por guardar no painel de diferenças nunca foram escritas em disco, por isso a Reciclagem não as terá.
 revert.yes = Reverter
 revert.no = Manter
@@ -106,7 +108,7 @@ revert.failed = Não foi possível reverter {0}:
 revert.binned = A versão que estava em disco está na Reciclagem.
 revert.menu.many = Reverter {0} ficheiros…
 revert.question.many = Reverter {0} ficheiros?
-revert.skipped = {0} dos ficheiros selecionados não estão em HEAD — não controlados, adicionados, renomeados ou em conflito — e ficam exatamente como estão.
+revert.skipped = {0} dos ficheiros selecionados não estão em HEAD nem são adições preparadas — não controlados, renomeados ou em conflito — e ficam exatamente como estão.
 revert.done.many = {0} ficheiros revertidos
 revert.partial = {0} ficheiros foram revertidos antes deste.
 
