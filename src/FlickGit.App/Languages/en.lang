@@ -708,6 +708,15 @@ shell.installed = FlickGit context menu entries installed.
 shell.removed = FlickGit context menu entries removed.
 shell.menu.root = FlickGit
 
+overlay.installed = The repository overlay icon is registered. Restart Explorer to see it.
+overlay.removed = The repository overlay icon was removed. Restart Explorer to apply it.
+overlay.declined = The overlay needs administrator rights, and the prompt was declined. Nothing was changed.
+overlay.needsAdmin = The overlay's machine-wide half needs administrator rights.
+overlay.system.installed = The overlay was registered machine-wide. Restart Explorer to see it.
+overlay.system.removed = The overlay was removed machine-wide. Restart Explorer to apply it.
+overlay.system.failed = The overlay's machine-wide half could not be written.
+overlay.usage = Usage: flick install-overlay [system]
+
 # --- repository palette -------------------------------------------------------
 palette.hints = ⏎ run   ⇥ complete   ctrl+⏎ pull --rebase everything behind   esc dismiss
 palette.clean = clean
@@ -780,6 +789,8 @@ settings.contextmenu = Show FlickGit in the Explorer context menu
 settings.contextmenu.hint = Windows 11 keeps it under "Show more options" (Shift+F10).
 settings.autostart = Start FlickGit with Windows
 settings.autostart.hint = A logon task, 45 seconds after sign-in, so startup is not slowed down.
+settings.overlay = Badge repository folders in Explorer
+settings.overlay.hint = Needs administrator once, and takes effect after Explorer restarts.
 
 settings.section.commit = Commit
 settings.warnprimary = Warn when committing to the primary branch

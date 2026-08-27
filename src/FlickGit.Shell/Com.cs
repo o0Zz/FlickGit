@@ -15,7 +15,7 @@ namespace FlickGit.Shell;
 /// through it. That is all a COM call is, and it needs no marshalling because everything crossing
 /// the boundary here is a pointer, a <c>uint</c> or an <c>HRESULT</c>.
 /// </summary>
-internal static unsafe class Com
+internal static unsafe partial class Com
 {
     public const int S_OK = 0;
     public const int S_FALSE = 1;
@@ -58,6 +58,62 @@ internal static unsafe class Com
 
     /// <summary>`MIIM_BITMAP`, for the one field of MENUITEMINFO this needs.</summary>
     public const uint MiimBitmap = 0x00000080;
+
+    // ---- IShellIconOverlayIdentifier, the badge on a repository folder ---------------
+    //
+    // Three methods on top of IUnknown, so a six-slot vtable. Explorer creates one of these once,
+    // at startup, asks GetOverlayInfo and GetPriority once each, and then calls IsMemberOf for
+    // every item it draws for the rest of the session -- which is why that method may do no more
+    // than one syscall.
+
+    public static readonly Guid IShellIconOverlayIdentifier = new("0c6c4200-c589-11d0-999a-00c04fd655e1");
+
+    /// <summary>
+    /// `ISIOI_ICONFILE` and `ISIOI_ICONINDEX`: which of <c>GetOverlayInfo</c>'s out-parameters were
+    /// actually filled in. Both, here -- a path and an index into it.
+    /// </summary>
+    public const uint IsioiIconFile = 0x00000001;
+
+    public const uint IsioiIconIndex = 0x00000002;
+
+    /// <summary>
+    /// `FILE_ATTRIBUTE_DIRECTORY`. The one bit <c>IsMemberOf</c> tests before doing anything else:
+    /// the overlay is only ever drawn on a folder, and every file in every view goes no further
+    /// than this comparison.
+    /// </summary>
+    public const uint FileAttributeDirectory = 0x00000010;
+
+    /// <summary>
+    /// The three attributes that mean "touching this may fetch it from somewhere":
+    /// `FILE_ATTRIBUTE_OFFLINE`, `FILE_ATTRIBUTE_RECALL_ON_OPEN` and
+    /// `FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS`.
+    ///
+    /// A cloud placeholder answers a metadata probe by hydrating, which is a network round trip on
+    /// Explorer's drawing thread. A git badge is not worth downloading somebody's archived folder.
+    /// </summary>
+    public const uint FileAttributeOffline = 0x00001000;
+
+    public const uint FileAttributeRecallOnOpen = 0x00040000;
+
+    public const uint FileAttributeRecallOnDataAccess = 0x00400000;
+
+    /// <summary>`INVALID_FILE_ATTRIBUTES`, what <c>GetFileAttributesW</c> returns for "not there".</summary>
+    public const uint InvalidFileAttributes = 0xFFFFFFFF;
+
+    /// <summary>
+    /// The one file-system call the overlay makes, direct rather than through
+    /// <c>Directory.Exists</c> plus <c>File.Exists</c>.
+    ///
+    /// Those are two syscalls where this is one, and this one answers the question actually being
+    /// asked -- a <c>.git</c> exists, in either spelling -- rather than asking it twice with
+    /// different type filters.
+    ///
+    /// <b>A pointer rather than a <c>string</c></b>, so the caller can hand it a <c>stackalloc</c>
+    /// buffer. <c>IsMemberOf</c> runs once per item Explorer draws, and building a managed string
+    /// per item would put this DLL's GC on the desktop's scroll path for no reason.
+    /// </summary>
+    [LibraryImport("kernel32.dll", EntryPoint = "GetFileAttributesW", SetLastError = false)]
+    public static partial uint GetFileAttributes(char* path);
 
     public const int CfHdrop = 15;
     public const uint TymedHGlobal = 1;

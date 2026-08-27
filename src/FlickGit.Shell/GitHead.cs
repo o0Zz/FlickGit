@@ -20,7 +20,7 @@ namespace FlickGit.Shell;
 /// that can write. This reads two paths and one small file, and could not modify a repository if it
 /// tried.
 /// </summary>
-internal static class GitHead
+internal static unsafe class GitHead
 {
     /// <summary>
     /// How far up to look for a repository root.
@@ -54,9 +54,7 @@ internal static class GitHead
 
             for (int depth = 0; depth < MaxDepth && directory is not null; depth++)
             {
-                string candidate = Path.Combine(directory.FullName, ".git");
-
-                if (Directory.Exists(candidate) || File.Exists(candidate))
+                if (HasGitEntry(directory.FullName))
                     return directory.FullName;
 
                 directory = directory.Parent;
@@ -70,6 +68,63 @@ internal static class GitHead
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="folder"/> is a repository root: a <c>.git</c> directly inside it.
+    ///
+    /// Both spellings count, which is why this is one <c>GetFileAttributesW</c> and not
+    /// <c>Directory.Exists</c> followed by <c>File.Exists</c>. The question is whether the entry is
+    /// there at all, and asking it once is both cheaper and closer to what is meant.
+    ///
+    /// <b>Allocation-free.</b> <c>OverlayHandler.IsMemberOf</c> calls this once per item Explorer
+    /// draws, and <see cref="FindRepositoryRoot"/> calls it up to <see cref="MaxDepth"/> times per
+    /// right-click -- so the candidate path is built in a caller's stack buffer rather than by
+    /// <c>Path.Combine</c>, and this DLL's GC stays off the desktop's drawing path entirely.
+    ///
+    /// A path past <c>MAX_PATH</c> without a <c>\\?\</c> prefix answers false rather than true,
+    /// because that is what the API does. For a badge that is the right way to be wrong: nothing is
+    /// drawn, rather than something drawn on the wrong folder.
+    /// </summary>
+    public static bool HasGitEntry(ReadOnlySpan<char> folder)
+    {
+        //A trailing separator would build `C:\\.git`, which resolves but is worth not writing. `C:\`
+        //trimmed to `C:` still builds `C:\.git`, so a drive root is not a special case.
+        if (folder.Length > 0 && (folder[^1] == '\\' || folder[^1] == '/'))
+            folder = folder[..^1];
+
+        if (folder.IsEmpty)
+            return false;
+
+        //The folder, a separator, `.git`, and the NUL the API needs.
+        int needed = folder.Length + GitEntry.Length + 1;
+
+        //512 covers every path Explorer can actually display; the heap fallback is there so a longer
+        //one is answered rather than skipped, and never runs in practice.
+        if (needed > StackBuffer)
+            return Probe(folder, new char[needed]);
+
+        Span<char> buffer = stackalloc char[StackBuffer];
+        return Probe(folder, buffer);
+    }
+
+    /// <summary>The entry appended to a folder. A separate constant so the length above cannot drift from it.</summary>
+    private const string GitEntry = @"\.git";
+
+    private const int StackBuffer = 512;
+
+    private static bool Probe(ReadOnlySpan<char> folder, Span<char> buffer)
+    {
+        folder.CopyTo(buffer);
+        GitEntry.CopyTo(buffer[folder.Length..]);
+
+        int end = folder.Length + GitEntry.Length;
+
+        //Explicit: everything past `end` is whatever was on the stack, and the API reads to the NUL.
+        buffer[end] = '\0';
+
+        fixed (char* path = buffer)
+            return Com.GetFileAttributes(path) != Com.InvalidFileAttributes;
     }
 
     /// <summary>

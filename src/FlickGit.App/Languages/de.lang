@@ -467,6 +467,15 @@ shell.installed = Die FlickGit-Kontextmenüeinträge wurden installiert.
 shell.removed = Die FlickGit-Kontextmenüeinträge wurden entfernt.
 shell.menu.root = FlickGit
 
+overlay.installed = Das Repository-Overlay-Symbol ist registriert. Starten Sie den Explorer neu, um es zu sehen.
+overlay.removed = Das Repository-Overlay-Symbol wurde entfernt. Starten Sie den Explorer neu.
+overlay.declined = Das Overlay benötigt Administratorrechte, und die Abfrage wurde abgelehnt. Es wurde nichts geändert.
+overlay.needsAdmin = Der computerweite Teil des Overlays benötigt Administratorrechte.
+overlay.system.installed = Das Overlay wurde computerweit registriert. Starten Sie den Explorer neu, um es zu sehen.
+overlay.system.removed = Das Overlay wurde computerweit entfernt. Starten Sie den Explorer neu.
+overlay.system.failed = Der computerweite Teil des Overlays konnte nicht geschrieben werden.
+overlay.usage = Verwendung: flick install-overlay [system]
+
 # --- Repository-Palette -------------------------------------------------------
 palette.hints = ⏎ ausführen   ⇥ vervollständigen   Strg+⏎ pull --rebase für alles Zurückliegende   Esc schließen
 palette.clean = sauber
@@ -533,6 +542,8 @@ settings.contextmenu = FlickGit im Kontextmenü des Explorers anzeigen
 settings.contextmenu.hint = Windows 11 zeigt es unter „Weitere Optionen anzeigen“ (Umschalt+F10).
 settings.autostart = FlickGit mit Windows starten
 settings.autostart.hint = Eine Anmeldeaufgabe, 45 Sekunden nach der Anmeldung, damit der Start nicht ausgebremst wird.
+settings.overlay = Repository-Ordner im Explorer kennzeichnen
+settings.overlay.hint = Benötigt einmalig Administratorrechte und wirkt nach einem Explorer-Neustart.
 
 settings.section.commit = Commit
 settings.warnprimary = Warnen, wenn auf den Hauptbranch committet wird

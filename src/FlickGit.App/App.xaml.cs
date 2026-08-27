@@ -187,6 +187,7 @@ public partial class App : Application
         services.AddSingleton<UntrackedFileMeasurer>();
 
         services.AddSingleton<ShellIntegration>();
+        services.AddSingleton<OverlayIntegration>();
         services.AddSingleton<Autostart>();
         services.AddSingleton<TriggerService>();
         services.AddSingleton<ExplorerFolderResolver>();

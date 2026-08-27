@@ -32,16 +32,23 @@ public partial class SettingsWindow : Window
 {
     private readonly FlickSettings _settings;
     private readonly ShellIntegration _shell;
+    private readonly OverlayIntegration _overlay;
     private readonly Autostart _autostart;
     private readonly CredentialStore _keys;
 
     /// <summary>The language selected when the window opened, to tell a real change from a re-pick.</summary>
     private readonly string _languageOnOpen;
 
-    public SettingsWindow(FlickSettings settings, ShellIntegration shell, Autostart autostart, CredentialStore keys)
+    public SettingsWindow(
+        FlickSettings settings,
+        ShellIntegration shell,
+        OverlayIntegration overlay,
+        Autostart autostart,
+        CredentialStore keys)
     {
         _settings = settings;
         _shell = shell;
+        _overlay = overlay;
         _autostart = autostart;
         _keys = keys;
         _languageOnOpen = settings.Language;
@@ -73,6 +80,8 @@ public partial class SettingsWindow : Window
         ExplorerSection.Text = Strings.Get("settings.section.explorer");
         ContextMenuBox.Content = Strings.Get("settings.contextmenu");
         ContextMenuHint.Text = Strings.Get("settings.contextmenu.hint");
+        OverlayBox.Content = Strings.Get("settings.overlay");
+        OverlayHint.Text = Strings.Get("settings.overlay.hint");
         AutostartBox.Content = Strings.Get("settings.autostart");
         AutostartHint.Text = Strings.Get("settings.autostart.hint");
 
@@ -112,6 +121,7 @@ public partial class SettingsWindow : Window
     private void LoadValues()
     {
         ContextMenuBox.IsChecked = _shell.IsInstalled();
+        OverlayBox.IsChecked = _overlay.IsInstalled();
         AutostartBox.IsChecked = _autostart.IsEnabled();
 
         //One entry per provider, the enum as the item so nothing has to map a display string back.
@@ -213,7 +223,7 @@ public partial class SettingsWindow : Window
     /// failure -- the message is beside the buttons and would go with it -- and on a language change,
     /// where a restart is needed before it shows.
     /// </summary>
-    private void OnSave(object sender, RoutedEventArgs e)
+    private async void OnSave(object sender, RoutedEventArgs e)
     {
         _settings.WarnWhenCommittingToPrimaryBranch = WarnPrimaryBox.IsChecked == true;
         _settings.CloseCommitWindowAfterSuccess = CloseAfterBox.IsChecked == true;
@@ -246,9 +256,25 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (await ApplyOverlayAsync().ConfigureAwait(true) is { } overlayError)
+        {
+            Report(overlayError);
+            return;
+        }
+
         if (ApplyAutostart() is { } autostartError)
         {
             Report(autostartError);
+            return;
+        }
+
+        //Registering an overlay handler does nothing until Explorer is restarted -- they are
+        //enumerated once at its startup and no notification reloads them. Saying so and staying open
+        //is the same shape as a language change, and for the same reason: the setting took, and the
+        //user would otherwise go looking for a badge that cannot appear yet.
+        if (_overlayChanged)
+        {
+            Report(_overlayMessage);
             return;
         }
 
@@ -274,6 +300,41 @@ public partial class SettingsWindow : Window
         ContextMenuBox.IsChecked = _shell.IsInstalled();
 
         return result.Succeeded ? null : result.Message;
+    }
+
+    /// <summary>Whether Save changed the overlay, and what to tell the user about it.</summary>
+    private bool _overlayChanged;
+
+    private string _overlayMessage = string.Empty;
+
+    /// <summary>
+    /// The overlay, and the one place in the settings window that can raise a UAC prompt.
+    ///
+    /// Guarded by the same "only when the answer changed" test as everything else here, which matters
+    /// more in this case than in any other: without it, saving an unrelated checkbox would prompt for
+    /// administrator rights.
+    /// </summary>
+    private async Task<string?> ApplyOverlayAsync()
+    {
+        bool wanted = OverlayBox.IsChecked == true;
+
+        if (wanted == _overlay.IsInstalled())
+            return null;
+
+        InstallResult result = wanted
+            ? await _overlay.InstallAsync().ConfigureAwait(true)
+            : await _overlay.UninstallAsync().ConfigureAwait(true);
+
+        //Whatever happened -- including a declined prompt -- the box shows the truth afterwards.
+        OverlayBox.IsChecked = _overlay.IsInstalled();
+
+        if (!result.Succeeded)
+            return result.Message;
+
+        _overlayChanged = true;
+        _overlayMessage = result.Message;
+
+        return null;
     }
 
     private string? ApplyAutostart()

@@ -104,6 +104,16 @@ public enum VerbKind
     InstallShell,
     UninstallShell,
 
+    /// <summary>
+    /// Registers or removes the icon overlay Explorer draws on a repository folder.
+    ///
+    /// Separate from <see cref="InstallShell"/> and not folded into it, because this is the one
+    /// operation in the product that writes to <c>HKLM</c> and therefore the one that can prompt for
+    /// administrator rights. The installer never runs it: the overlay is something the user turns on.
+    /// </summary>
+    InstallOverlay,
+    UninstallOverlay,
+
     Autostart,
 
     Ai,
@@ -197,6 +207,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "settings" => VerbKind.Settings,
             "install-shell" => VerbKind.InstallShell,
             "uninstall-shell" => VerbKind.UninstallShell,
+            "install-overlay" => VerbKind.InstallOverlay,
+            "uninstall-overlay" => VerbKind.UninstallOverlay,
             "autostart" => VerbKind.Autostart,
             "ai" => VerbKind.Ai,
             "language" => VerbKind.Language,
@@ -229,6 +241,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             //like it applies to a repository.
             VerbKind.Tray or VerbKind.Palette or VerbKind.Settings or VerbKind.Help
                 or VerbKind.Version or VerbKind.InstallShell or VerbKind.UninstallShell
+                or VerbKind.InstallOverlay or VerbKind.UninstallOverlay
                 or VerbKind.Autostart or VerbKind.Ai or VerbKind.Language
                 or VerbKind.DiagTimings or VerbKind.DiagDoctor => null,
 
@@ -259,6 +272,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick settings                      settings, help and about
           flick install-shell                 register the Explorer context menu
           flick uninstall-shell
+          flick install-overlay [system]      badge repository folders in Explorer (asks for admin)
+          flick uninstall-overlay [system]
           flick autostart [on|off]            start the resident service at logon
           flick ai                            what the AI is configured to do
           flick ai key [set|clear]            store or remove the API key

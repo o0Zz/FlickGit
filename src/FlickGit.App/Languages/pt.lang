@@ -467,6 +467,15 @@ shell.installed = As entradas de menu de contexto do FlickGit foram instaladas.
 shell.removed = As entradas de menu de contexto do FlickGit foram removidas.
 shell.menu.root = FlickGit
 
+overlay.installed = O ícone sobreposto está registado. Reinicie o Explorador para o ver.
+overlay.removed = O ícone sobreposto foi removido. Reinicie o Explorador para aplicar.
+overlay.declined = O ícone sobreposto precisa de direitos de administrador e o pedido foi recusado. Nada foi alterado.
+overlay.needsAdmin = A parte para todo o computador precisa de direitos de administrador.
+overlay.system.installed = O ícone sobreposto foi registado para todo o computador. Reinicie o Explorador para o ver.
+overlay.system.removed = O ícone sobreposto foi removido para todo o computador. Reinicie o Explorador.
+overlay.system.failed = Não foi possível escrever a parte para todo o computador.
+overlay.usage = Utilização: flick install-overlay [system]
+
 # --- paleta de repositórios ---------------------------------------------------
 palette.hints = ⏎ executar   ⇥ completar   ctrl+⏎ pull --rebase em tudo o que está atrasado   esc fechar
 palette.clean = limpo
@@ -533,6 +542,8 @@ settings.contextmenu = Mostrar o FlickGit no menu de contexto do Explorador
 settings.contextmenu.hint = O Windows 11 mantém-no em «Mostrar mais opções» (Shift+F10).
 settings.autostart = Iniciar o FlickGit com o Windows
 settings.autostart.hint = Uma tarefa de início de sessão, 45 segundos depois de entrar, para não atrasar o arranque.
+settings.overlay = Marcar as pastas de repositório no Explorador
+settings.overlay.hint = Precisa de direitos de administrador uma vez e aplica-se depois de reiniciar o Explorador.
 
 settings.section.commit = Commit
 settings.warnprimary = Avisar ao fazer commit no ramo principal

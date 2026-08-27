@@ -30,6 +30,51 @@ internal static class ShellCommandIds
     public const string MenuHandlerClsid = "{F1C7A6D2-3B84-4E5A-9C61-7D2E8A4B5C20}";
 
     /// <summary>
+    /// The icon-overlay handler: a <b>second</b> COM object, in the same DLL.
+    ///
+    /// <b>Why a second CLSID and not another interface on the first.</b> Explorer asks about the two
+    /// through completely different mechanisms -- a <c>ContextMenuHandler</c> is created when a menu is
+    /// built, an overlay identifier is created once at Explorer startup and then asked about every
+    /// visible item forever. One identity serving both would hold the menu's per-click state for the
+    /// life of the desktop.
+    ///
+    /// <b>Permanent, for the same reason <see cref="MenuHandlerClsid"/> is.</b> It is written into the
+    /// user's registry, and into <c>HKLM</c> as well, so a renumbered one is two keys nothing can find
+    /// to delete.
+    /// </summary>
+    public const string OverlayHandlerClsid = "{82C3902A-734C-4E68-AC63-59AE1F70BF2D}";
+
+    /// <summary>
+    /// Where Windows enumerates icon-overlay handlers.
+    ///
+    /// <b>This is the only key in the product outside <c>HKCU</c></b>, and the only reason
+    /// <c>install-overlay</c> needs administrator rights at all. Everything else the overlay needs --
+    /// the CLSID, the <c>InprocServer32</c>, the icon path -- resolves through <c>CoCreateInstance</c>,
+    /// which reads <c>HKCU\Software\Classes\CLSID</c> before the machine hive.
+    /// </summary>
+    public const string OverlayIdentifiersPath =
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ShellIconOverlayIdentifiers";
+
+    /// <summary>
+    /// Our subkey name under <see cref="OverlayIdentifiersPath"/>.
+    ///
+    /// <b>The leading space is load-bearing.</b> Windows sorts these names and loads only the first
+    /// <see cref="OverlaySlotLimit"/>; a space sorts ahead of every letter. One space rather than the
+    /// four OneDrive uses: enough to beat a name that starts with a letter, and not a bid to outrank
+    /// whoever is already there.
+    /// </summary>
+    public const string OverlayKeyName = " FlickGit";
+
+    /// <summary>
+    /// How many overlay handlers Windows actually loads, out of however many are registered.
+    ///
+    /// Named because <c>flick diag doctor</c> reports our position against it: the limit is the whole
+    /// risk of this feature, and a registration that sorted past the fifteenth is indistinguishable
+    /// from a bug -- the key is there, and nothing is drawn.
+    /// </summary>
+    public const int OverlaySlotLimit = 15;
+
+    /// <summary>
     /// Where the handler is registered under each parent class, and the name of the key.
     ///
     /// <c>shellex\ContextMenuHandlers</c> rather than <c>shell</c>: that is the difference between
@@ -104,6 +149,14 @@ internal static class ShellCommandIds
     /// App for the reason every path here is — the DLL resolves nothing of its own.
     /// </summary>
     public const string ValueSubmenuIcon = "FlickGit.SubmenuIcon";
+
+    /// <summary>
+    /// The <c>.ico</c> the overlay draws, under the overlay handler's own CLSID key.
+    ///
+    /// Written by the App for the same reason every path here is: the DLL resolves nothing of its own,
+    /// and <c>GetOverlayInfo</c> hands Explorer a path rather than loading anything itself.
+    /// </summary>
+    public const string ValueOverlayIcon = "FlickGit.OverlayIcon";
 
     /// <summary>The subkey under the handler's CLSID holding one subkey per menu entry.</summary>
     public const string ItemsKeyName = "Items";

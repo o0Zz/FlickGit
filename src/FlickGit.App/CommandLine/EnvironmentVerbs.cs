@@ -4,6 +4,7 @@ using FlickGit.App.Settings;
 using FlickGit.Ai;
 using FlickGit.App.Ai;
 using FlickGit.App.Shell;
+using FlickGit.Shared;
 using FlickGit.Actions;
 using FlickGit.App.Trigger;
 using System.Windows;
@@ -24,6 +25,7 @@ namespace FlickGit.App.CommandLine;
 /// </summary>
 public sealed class EnvironmentVerbs(
     ShellIntegration shell,
+    OverlayIntegration overlay,
     Autostart autostart,
     ResidentService resident,
     TriggerService trigger,
@@ -60,6 +62,55 @@ public sealed class EnvironmentVerbs(
     {
         InstallResult result = install ? shell.Install() : shell.Uninstall();
         return output.Report(Strings.Get("app.name"), result.Succeeded, result.Message);
+    }
+
+    /// <summary>
+    /// `flick install-overlay [system]` / `flick uninstall-overlay [system]`.
+    ///
+    /// Bare, this is the whole operation: the user half, then the machine half behind a UAC prompt.
+    /// With <c>system</c> it is the machine half alone, already elevated -- which is both what the
+    /// prompt above starts, and how an administrator deploying to many machines writes that one key
+    /// from a script without a prompt at all.
+    ///
+    /// <b>The <c>system</c> half never opens a window.</b> It answers with a line and an exit code,
+    /// never through <see cref="VerbOutput.Report"/>, because <c>Report</c> falls through to a
+    /// <c>NoticeWindow</c> when there is no console -- and the elevated child is started with
+    /// <c>UseShellExecute</c>, so it has none. The half the user actually invoked is the half that
+    /// reports.
+    /// </summary>
+    public async Task<VerbResult> OverlayAsync(VerbOutput output, bool install, string? scope)
+    {
+        bool systemOnly = string.Equals(scope?.Trim(), "system", StringComparison.OrdinalIgnoreCase);
+
+        if (systemOnly)
+        {
+            InstallResult half = install ? overlay.InstallSystem() : overlay.UninstallSystem();
+
+            output.Line(half.Message);
+            return VerbResult.Exit(half.Succeeded ? ExitCodes.Success : ExitCodes.ConfigurationError);
+        }
+
+        //Anything else in that slot is a typo, and a typo that silently registered the overlay would
+        //be a UAC prompt the user did not ask for.
+        if (!string.IsNullOrWhiteSpace(scope))
+        {
+            output.Fail(Strings.Get("app.name"), Strings.Get("overlay.usage"));
+            return VerbResult.Exit(ExitCodes.ConfigurationError);
+        }
+
+        InstallResult result = install
+            ? await overlay.InstallAsync().ConfigureAwait(true)
+            : await overlay.UninstallAsync().ConfigureAwait(true);
+
+        if (result.Succeeded)
+            return output.Report(Strings.Get("app.name"), true, result.Message);
+
+        //Declining the UAC prompt is a decision, not a configuration error, and exit code 3 is what
+        //every other surface uses for it.
+        bool declined = result.Message == Strings.Get("overlay.declined");
+
+        output.Fail(Strings.Get("app.name"), result.Message);
+        return VerbResult.Exit(declined ? ExitCodes.UserCancelled : ExitCodes.ConfigurationError);
     }
 
     /// <summary>
@@ -319,6 +370,7 @@ public sealed class EnvironmentVerbs(
 
         output.Line($"git version      {version.StdOut.Trim()}");
         output.Line($"context menu     {(shell.IsInstalled() ? "installed" : "not installed")}");
+        output.Line($"folder overlay   {DescribeOverlay()}");
         output.Line($"start at logon   {(autostart.IsEnabled() ? "enabled" : "disabled")}");
         output.Line($"resident service {(resident.IsRunning() ? "running" : "not running")}");
         output.Line($"trigger          {trigger.Describe()}");
@@ -336,6 +388,39 @@ public sealed class EnvironmentVerbs(
         output.Line("For a large repository, consider:  git config core.fsmonitor true");
 
         return VerbResult.Exit(ExitCodes.Success);
+    }
+
+    /// <summary>
+    /// The overlay's state, and the slot arithmetic that decides whether it is drawn.
+    ///
+    /// <b>The position is the point.</b> Windows loads only the first
+    /// <see cref="ShellCommandIds.OverlaySlotLimit"/> handlers, sorted by key name, and a
+    /// registration past that is invisible in every other way -- the key is there, the DLL is fine,
+    /// and nothing is ever drawn. Whether Explorer actually loaded ours cannot be answered from
+    /// outside <c>explorer.exe</c>, so this reports the arithmetic instead of guessing.
+    ///
+    /// It also names the orphan case: a machine key with no user half behind it, which is what an
+    /// uninstall that could not elevate leaves behind.
+    /// </summary>
+    private string DescribeOverlay()
+    {
+        OverlaySlots slots = overlay.Slots();
+
+        if (slots.Position is not { } position)
+            return "not installed";
+
+        string where = $"slot {position} of {slots.Registered.Count} registered";
+
+        if (slots.WithinLimit is false)
+        {
+            return $"registered but NOT DRAWN -- {where}, and Windows loads only " +
+                   $"{slots.Limit}. Remove an overlay handler you do not use.";
+        }
+
+        return overlay.IsInstalled()
+            ? $"installed, {where}"
+            : $"ORPHANED -- {where}, but nothing is registered for it under HKCU. " +
+              "Run `flick uninstall-overlay` as administrator to remove it.";
     }
 
     /// <summary>
@@ -477,7 +562,7 @@ public sealed class EnvironmentVerbs(
         //screen, or the user ends up with two of them disagreeing about what the checkboxes say.
         if (_settingsWindow is null)
         {
-            _settingsWindow = new SettingsWindow(settings, shell, autostart, keys);
+            _settingsWindow = new SettingsWindow(settings, shell, overlay, autostart, keys);
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
             _settingsWindow.Show();
         }

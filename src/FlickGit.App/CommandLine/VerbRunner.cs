@@ -148,6 +148,8 @@ public sealed class VerbRunner(
             VerbKind.Version => environmentVerbs.Version(output),
             VerbKind.InstallShell => environmentVerbs.ContextMenu(output, install: true),
             VerbKind.UninstallShell => environmentVerbs.ContextMenu(output, install: false),
+            VerbKind.InstallOverlay => await environmentVerbs.OverlayAsync(output, install: true, verb.Path).ConfigureAwait(true),
+            VerbKind.UninstallOverlay => await environmentVerbs.OverlayAsync(output, install: false, verb.Path).ConfigureAwait(true),
             VerbKind.Autostart => environmentVerbs.Autostart(output, verb.Path),
             VerbKind.Ai => await environmentVerbs.AiAsync(output, verb.Path, verb.Argument).ConfigureAwait(true),
             VerbKind.DiagDoctor => await environmentVerbs.DoctorAsync(output).ConfigureAwait(true),

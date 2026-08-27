@@ -24,6 +24,13 @@ internal static unsafe class Exports
     {
         public void** Vtable;
         public int RefCount;
+
+        /// <summary>
+        /// Which class this factory makes. There are two now -- the menu and the overlay -- and a
+        /// factory that did not remember which one it was asked for would have to guess in
+        /// <see cref="CreateInstance"/>, where the only input is the <i>interface</i> wanted.
+        /// </summary>
+        public Guid Clsid;
     }
 
     private static void** _factoryVtable;
@@ -45,12 +52,16 @@ internal static unsafe class Exports
 
         try
         {
-            //The one class this build serves. An unrecognised CLSID is a stale registry entry from a
-            //version that registered per-verb IExplorerCommand handlers, and
-            //CLASS_E_CLASSNOTAVAILABLE is exactly what it means -- Explorer then draws no entry,
-            //rather than an entry that does nothing.
-            if (Guid.Parse(ShellCommandIds.MenuHandlerClsid) != *clsid)
+            //The two classes this build serves: the context menu, and the repository overlay. An
+            //unrecognised CLSID is a stale registry entry -- a version that registered per-verb
+            //IExplorerCommand handlers, or an overlay whose HKLM key outlived its HKCU half -- and
+            //CLASS_E_CLASSNOTAVAILABLE is exactly what it means. Explorer then draws no entry and
+            //loads no overlay, rather than either one that does nothing.
+            if (Guid.Parse(ShellCommandIds.MenuHandlerClsid) != *clsid
+                && Guid.Parse(ShellCommandIds.OverlayHandlerClsid) != *clsid)
+            {
                 return Com.CLASS_E_CLASSNOTAVAILABLE;
+            }
 
             //A class object is asked for as IClassFactory or IUnknown, and nothing else.
             if (*iid != Com.IClassFactory && *iid != Com.IUnknown)
@@ -65,6 +76,7 @@ internal static unsafe class Exports
 
             factory->Vtable = _factoryVtable;
             factory->RefCount = 1;
+            factory->Clsid = *clsid;
 
             *result = factory;
             return Com.S_OK;
@@ -186,8 +198,11 @@ internal static unsafe class Exports
 
         try
         {
-            _ = self;
-            return ContextMenuHandler.Create(*iid, result);
+            Guid clsid = ((Factory*)self)->Clsid;
+
+            return Guid.Parse(ShellCommandIds.OverlayHandlerClsid) == clsid
+                ? OverlayHandler.Create(*iid, result)
+                : ContextMenuHandler.Create(*iid, result);
         }
         catch
         {

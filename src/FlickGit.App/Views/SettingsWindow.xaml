@@ -43,6 +43,18 @@
                                    TextWrapping="Wrap"
                                    Margin="22,3,0,0" />
 
+                        <!-- The one control in the product that can raise a UAC prompt. It earns a
+                             checkbox for the same reason the one above it does: the overlay lives in a
+                             registry key nobody can guess, and unlike everything else here it also
+                             lives in HKLM, so the only other way to remove it is a verb the user has
+                             to know exists. -->
+                        <CheckBox x:Name="OverlayBox" Margin="0,12,0,0" />
+                        <TextBlock x:Name="OverlayHint"
+                                   Style="{StaticResource Muted}"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Margin="22,3,0,0" />
+
                         <CheckBox x:Name="AutostartBox" Margin="0,12,0,0" />
                         <TextBlock x:Name="AutostartHint"
                                    Style="{StaticResource Muted}"

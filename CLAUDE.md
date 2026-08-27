@@ -192,7 +192,8 @@ src/
 │   ├── Ai/                  AiTextService: failure counter and streaming state machine.
 │   │                        Here rather than Core because it reads settings and the
 │   │                        credential store.
-│   ├── Shell/               Registry projection of the Action Catalog.
+│   ├── Shell/               Registry projection of the Action Catalog, and
+│   │                        OverlayIntegration -- the only HKLM write in the product.
 │   └── Settings/ Tray/ Localization/ Infrastructure/ Languages/
 │
 ├── FlickGit.Core/           net9.0, no UI dependencies. The only tested assembly.
@@ -224,14 +225,16 @@ src/
 │   └── Pulls/ Clone/ Secrets/ Matching/ Logging/ Diagnostics/ Models/
 │
 └── FlickGit.Shell/          Native AOT COM DLL, loaded into explorer.exe. Draws the whole
-    │                        FlickGit block. Hand-rolled vtables, no
-    │                        [GeneratedComInterface]. No ProjectReference.
+    │                        FlickGit block and the repository badge. Hand-rolled
+    │                        vtables, no [GeneratedComInterface]. No ProjectReference.
     ├── Exports.cs              DllGetClassObject, DllCanUnloadNow, IClassFactory
-    ├── ContextMenuHandler.cs   The one COM object: IContextMenu + IShellExtInit
+    ├── ContextMenuHandler.cs   IContextMenu + IShellExtInit
+    ├── OverlayHandler.cs       IShellIconOverlayIdentifier. A second CLSID, no state
     ├── Selection.cs            The clicked folder or file, from a PIDL or CF_HDROP
     ├── MenuRegistry.cs         The menu, as the App wrote it into the CLSID key
     ├── MenuIcons.cs            An .ico as a 32bpp menu bitmap
-    ├── GitHead.cs              The branch, from .git/HEAD. No git.exe, no pipe.
+    ├── GitHead.cs              The branch, from .git/HEAD, and HasGitEntry -- the one
+    │                           syscall the overlay is allowed. No git.exe, no pipe.
     └── RepositoryLookup.cs     One answer per right-click instead of four
 
 src/FlickGit.Setup/          WiX -> FlickGit-<version>-x64.msi. Per-user, no elevation. Not
@@ -308,8 +311,44 @@ Rules for anything loaded into `explorer.exe`:
   MSIX package with package identity and a code-signing certificate, which is the one part still open.
 
 **Not available — do not attempt.** Explorer toolbar or ribbon buttons; deskbands; a branch column in
-Details view; and status overlay icons (`HKLM` and admin rights, ~15 handler slots already taken, and
-a synchronous call per visible item).
+Details view; and **status** overlay icons — per-file, or clean-versus-modified, which is the version
+that needs a status per drawn item and is what makes TortoiseGit's overlays slow.
+
+## The repository overlay
+
+One badge, on repository roots, saying **this folder is a Git repository** and nothing else. Not clean,
+not modified, not ahead of the remote, and not on the folders inside it. Every rule below follows from
+that: with no status to compute there is no `git.exe`, no pipe, no cache and nothing to invalidate.
+
+`OverlayHandler` is a **second CLSID in the same DLL**, implementing `IShellIconOverlayIdentifier` on a
+six-slot vtable and holding no per-instance state — Explorer creates one at startup and keeps it for
+the session, so anything remembered between calls would outlive its meaning.
+
+**`IsMemberOf` is the hottest callback in the product**: synchronous, on the thread painting the view,
+once per drawn item, forever. Its tests are in cost order and every one is an early exit — the
+directory bit in the attributes it was handed (so every *file* on the machine costs one bit test), then
+cloud-placeholder attributes (probing one hydrates it), then a `\\` prefix (the same refusal
+`RepositoryLookup` makes, for the same redirector timeout), and only then one `GetFileAttributesW` via
+`GitHead.HasGitEntry`. **No cache**: every call is a different path, so one would never hit.
+`GetPriority` answers **50, not 0** — an item gets one overlay, and a git badge must not displace a sync
+engine's "not uploaded yet".
+
+**Registration is two halves, and only one needs elevation.** `HKCU\Software\Classes\CLSID\{overlay}`
+carries the server and the icon path; `HKLM\...\ShellIconOverlayIdentifiers\ FlickGit` is **one string
+value** and the only thing FlickGit writes outside `HKCU`. `CoCreateInstance` reads the user hive
+first, which is why the elevated half knows nothing but a GUID.
+
+- **Opt-in, never on install.** `flick install-overlay` and a settings checkbox, self-elevating by
+  starting `FlickGit.exe` (not `flick.exe`, which would forward to an unelevated resident service)
+  with `runas`. The MSI stays per-user and no-elevation and never registers it.
+- **The leading space in the key name is load-bearing.** Windows loads the first **15** handlers sorted
+  by name; a space sorts ahead of letters. `flick diag doctor` reports the position, because a
+  registration past the fifteenth is invisible in every other way.
+- **It does not take effect until Explorer restarts** — handlers are enumerated once at its startup and
+  `SHChangeNotify` does not reload them. Every message says so.
+- **The MSI uninstall cannot remove the `HKLM` key**, being unelevated. The orphan is harmless — the
+  CLSID no longer resolves, so Explorer skips it — but it holds a slot, so `diag doctor` names it and
+  `flick uninstall-overlay` is the way out.
 
 ---
 
@@ -340,6 +379,8 @@ flick palette                        global repository palette
 flick settings
 flick install-shell                  register context menu entries
 flick uninstall-shell
+flick install-overlay [system]        badge repository folders; asks for admin once
+flick uninstall-overlay [system]      `system` is the elevated half, for scripted installs
 flick autostart [on|off]             logon task for the resident service
 flick ai                             what the AI is configured to do
 flick ai key [set|clear]             store or remove the API key
@@ -1089,8 +1130,8 @@ diff.
   only for one that actually stops something.
 
 The settings window (`flick settings`) is three tabs and deliberately small: the Explorer menu on/off,
-start with Windows, three commit switches, the pull switch, the AI provider and its key button, the
-language picker, and a pointer to `settings.json` / `actions.json`. **It is not a full settings app and
+the repository overlay on/off, start with Windows, three commit switches, the pull switch, the AI
+provider and its key button, the language picker, and a pointer to `settings.json` / `actions.json`. **It is not a full settings app and
 will not be** — a drag-and-drop action list with icon pickers would be more UI than the rest of the
 product, and a graphical front end for a documented, hand-editable file. What earns a window is the
 switches whose JSON key nobody can guess, plus the AI key, which lives in Credential Manager and is in
@@ -1245,10 +1286,16 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | Pull request plan settled → summary        | 200 ms | 500 ms     |
 | Commit + push, warm, excluding network     | 400 ms | 1 s        |
 | Shell handler state / title                | 20 ms  | 50 ms      |
+| Overlay `IsMemberOf`, per drawn item       | 0.2 ms | 1 ms *(see below)* |
 | Resident idle working set                  | 80 MB  | 150 MB     |
 | Input hook proc                            | < 1 ms | 5 ms *(see below)* |
 
-The **input hook proc** is the one exception to "surfaced by `flick diag timings`", and it has to be:
+**Overlay `IsMemberOf`** is the second exception to "surfaced by `flick diag timings`", and for a
+structural reason rather than a cost one: `OperationTimings` lives in `FlickGit.Core`, and this code
+runs inside `explorer.exe`, where that assembly may not go. It is verified by scrolling a large folder
+and a mapped network drive, which is where a regression would show first.
+
+The **input hook proc** is the other exception, and it has to be:
 `OperationTimings.Record` allocates, and an allocation inside the proc risks a GC pause inside the very
 300 ms budget whose overrun silently unhooks the feature. Two `static long` counters (last input tick,
 inputs seen) reported by `flick diag doctor` are the honest substitute.

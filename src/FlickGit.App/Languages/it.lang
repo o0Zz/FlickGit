@@ -467,6 +467,15 @@ shell.installed = Le voci di menu contestuale di FlickGit sono state installate.
 shell.removed = Le voci di menu contestuale di FlickGit sono state rimosse.
 shell.menu.root = FlickGit
 
+overlay.installed = L'icona sovrapposta è registrata. Riavvia Esplora file per vederla.
+overlay.removed = L'icona sovrapposta è stata rimossa. Riavvia Esplora file per applicare la modifica.
+overlay.declined = L'icona sovrapposta richiede i diritti di amministratore e la richiesta è stata rifiutata. Non è stato modificato nulla.
+overlay.needsAdmin = La parte valida per tutto il computer richiede i diritti di amministratore.
+overlay.system.installed = L'icona sovrapposta è stata registrata per tutto il computer. Riavvia Esplora file per vederla.
+overlay.system.removed = L'icona sovrapposta è stata rimossa per tutto il computer. Riavvia Esplora file.
+overlay.system.failed = Non è stato possibile scrivere la parte valida per tutto il computer.
+overlay.usage = Uso: flick install-overlay [system]
+
 # --- palette dei repository ---------------------------------------------------
 palette.hints = ⏎ esegui   ⇥ completa   ctrl+⏎ pull --rebase su tutto ciò che è indietro   esc chiudi
 palette.clean = pulito
@@ -533,6 +542,8 @@ settings.contextmenu = Mostra FlickGit nel menu contestuale di Esplora file
 settings.contextmenu.hint = Windows 11 lo tiene sotto «Mostra altre opzioni» (Maiusc+F10).
 settings.autostart = Avvia FlickGit con Windows
 settings.autostart.hint = Un'attività all'accesso, 45 secondi dopo il login, per non rallentare l'avvio.
+settings.overlay = Contrassegna le cartelle dei repository in Esplora file
+settings.overlay.hint = Richiede i diritti di amministratore una volta e ha effetto dopo il riavvio di Esplora file.
 
 settings.section.commit = Commit
 settings.warnprimary = Avvisa quando si esegue un commit sul branch principale

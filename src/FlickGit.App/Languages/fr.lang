@@ -467,6 +467,15 @@ shell.installed = Les entrées de menu contextuel FlickGit ont été installées
 shell.removed = Les entrées de menu contextuel FlickGit ont été supprimées.
 shell.menu.root = FlickGit
 
+overlay.installed = L'icône de superposition est enregistrée. Redémarrez l'Explorateur pour la voir.
+overlay.removed = L'icône de superposition a été supprimée. Redémarrez l'Explorateur pour l'appliquer.
+overlay.declined = La superposition demande des droits administrateur, et l'invite a été refusée. Rien n'a été modifié.
+overlay.needsAdmin = La partie applicable à tout l'ordinateur demande des droits administrateur.
+overlay.system.installed = La superposition a été enregistrée pour tout l'ordinateur. Redémarrez l'Explorateur pour la voir.
+overlay.system.removed = La superposition a été supprimée pour tout l'ordinateur. Redémarrez l'Explorateur.
+overlay.system.failed = La partie applicable à tout l'ordinateur n'a pas pu être écrite.
+overlay.usage = Utilisation : flick install-overlay [system]
+
 # --- palette de dépôts --------------------------------------------------------
 palette.hints = ⏎ exécuter   ⇥ compléter   ctrl+⏎ pull --rebase sur tout ce qui est en retard   échap fermer
 palette.clean = propre
@@ -533,6 +542,8 @@ settings.contextmenu = Afficher FlickGit dans le menu contextuel de l'Explorateu
 settings.contextmenu.hint = Windows 11 le place sous « Afficher plus d'options » (Maj+F10).
 settings.autostart = Lancer FlickGit avec Windows
 settings.autostart.hint = Une tâche d'ouverture de session, 45 secondes après la connexion, pour ne pas ralentir le démarrage.
+settings.overlay = Marquer les dossiers de dépôt dans l'Explorateur
+settings.overlay.hint = Demande une fois des droits administrateur, et s'applique après le redémarrage de l'Explorateur.
 
 settings.section.commit = Commit
 settings.warnprimary = Avertir lors d'un commit sur la branche principale
