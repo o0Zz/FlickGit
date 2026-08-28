@@ -17,7 +17,7 @@ namespace FlickGit.Tests;
 public class SubmoduleServiceTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\repo", "repo", HasSubmodules: true, IsBare: false);
+        new(@"C:\dev\repo", "repo", HasSubmodules: true, IsBare: false, GitDirectory: @"C:\dev\repo\.git");
 
     private static SubmoduleService Create(FakeGitRunner git) => new(git, new RepositoryService(git));
 

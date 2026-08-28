@@ -98,6 +98,37 @@ all, so a tracked file simply becomes a `D` row you can commit or put back, and 
 gone from the tree but still in the bin. It asks first, and only from the file list — in the message
 box and in the diff pane Del is an ordinary character.
 
+### Conflicts
+
+When a pull, a rebase, a merge, a cherry-pick or a revert stops on a conflict, a strip appears
+under the header saying which operation it is, how far through it got, and how many files are
+left. While it is there the Commit buttons are off: a bare commit in the middle of a rebase
+records the step without advancing the rebase, and **Continue** is the way forward instead.
+
+Right-click a conflicted row for the three ways to resolve it:
+
+- **Use ours** takes HEAD's version of the file.
+- **Use theirs** takes the incoming one.
+- **Mark resolved** takes whatever is in the file right now — which is how you finish after
+  editing the markers out in the diff pane and pressing **Ctrl+S**. The pane stays editable on a
+  conflicted file for exactly this reason.
+
+**"Ours" and "theirs" are reversed during a rebase**, and the strip says so every time rather
+than leaving you to remember: rebasing replays *your* commits onto someone else's branch, so Git
+calls that other branch "ours" and your own work "theirs". FlickGit keeps Git's words and
+explains them, because renaming them would mean guessing which half you meant.
+
+A conflict where one side **deleted** the file has no version to take on that side, so the item
+for it is simply absent. Those are the one case FlickGit does not finish for you: resolve them
+with `git rm -- <path>` or `git add -- <path>` in a terminal, then come back and press
+**Continue**.
+
+**Continue** is refused while any file is still conflicted — checked against the repository at
+the moment you press it, not against what the window last read, so a conflict created by your
+editor or a terminal while this window sat open cannot slip past. **Abort** throws the whole
+operation away and asks first: everything you resolved since it stopped goes with it, and Git
+keeps no record of a resolution, so Enter does not answer that question.
+
 ### The diff pane
 
 The right side is a real editor, not a preview.
@@ -483,6 +514,8 @@ By design, and not configurable:
   offered stash-switch-restore as an explicit choice — and only the stash it created is ever
   restored.
 - No `git add -A`. Only the paths you ticked.
+- No merge editor, and no `git mergetool`. Conflicts are resolved by taking a side or by
+  editing the file, and `rebase --skip` is not offered at all — skipping drops a commit.
 
 ## When something is wrong
 

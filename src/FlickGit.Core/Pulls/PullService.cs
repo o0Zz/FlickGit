@@ -1,4 +1,5 @@
 using FlickGit.Git;
+using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Repositories;
 
@@ -26,7 +27,7 @@ namespace FlickGit.Pulls;
 /// is why this is Git's flag rather than a stash/pull/pop sequence of ours.</description></item>
 /// </list>
 /// </summary>
-public sealed class PullService(IGitProcessRunner git, RepositoryService repositories)
+public sealed class PullService(IGitProcessRunner git, RepositoryService repositories, MergeStateService merges)
 {
     public async Task<PullOutcome> PullRebaseAsync(
         RepositoryInfo repository,
@@ -45,7 +46,7 @@ public sealed class PullService(IGitProcessRunner git, RepositoryService reposit
             //Distinguish "stopped on conflicts" from "could not start". The first is a
             //state the user is now in and has to be told how to leave; the second is a
             //failure with nothing changed.
-            bool conflicted = await IsRebaseInProgressAsync(repository, cancellationToken).ConfigureAwait(false);
+            bool conflicted = merges.Read(repository).Operation == MergeOperation.Rebase;
 
             return new PullOutcome(
                 Succeeded: false,
@@ -80,33 +81,6 @@ public sealed class PullService(IGitProcessRunner git, RepositoryService reposit
             SubmodulesUpdated: submodules.Succeeded,
             SubmoduleError: submodules.Succeeded ? null : submodules.ErrorText,
             Suggestion: null);
-    }
-
-    /// <summary>
-    /// True when the repository is sitting in an unfinished rebase.
-    ///
-    /// Asked by path rather than by running `git status` again: these two directories are
-    /// how Git itself records an in-progress rebase, and the answer is needed on a
-    /// failure path where another process start is the last thing wanted.
-    /// </summary>
-    private async Task<bool> IsRebaseInProgressAsync(
-        RepositoryInfo repository,
-        CancellationToken cancellationToken)
-    {
-        GitResult gitDir = await git.ReadAsync(
-            repository.Root,
-            ["rev-parse", "--git-dir"],
-            cancellationToken).ConfigureAwait(false);
-
-        if (!gitDir.Succeeded)
-            return false;
-
-        string dir = gitDir.StdOut.Trim().Replace('/', Path.DirectorySeparatorChar);
-        if (!Path.IsPathRooted(dir))
-            dir = Path.Combine(repository.Root, dir);
-
-        return Directory.Exists(Path.Combine(dir, "rebase-merge"))
-               || Directory.Exists(Path.Combine(dir, "rebase-apply"));
     }
 }
 

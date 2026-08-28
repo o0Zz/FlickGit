@@ -10,7 +10,7 @@ namespace FlickGit.Tests;
 public class BlameServiceTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\d360-portal", "d360-portal", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\d360-portal", "d360-portal", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\d360-portal\.git");
 
     private static string Stream(string sha, string text) => string.Join('\n',
         $"{sha} 1 1 1",

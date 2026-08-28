@@ -211,7 +211,14 @@ public static class PorcelainV2Parser
     ///
     /// Reported as Conflicted on both sides regardless of the XY letters. The letters do
     /// distinguish "both modified" from "deleted by them", but every one of those states
-    /// means the same thing to this tool: not safe to edit, stage or commit.
+    /// means the same thing to the file list: not safe to stage or commit as it stands.
+    ///
+    /// <b>Which sides exist is read from the modes, not from the letters.</b> The resolution bar
+    /// needs to know whether <c>checkout --ours</c> and <c>checkout --theirs</c> can work at all, and
+    /// the XY pairs answer that only through a seven-entry table — <c>UA</c> has no stage 2 and
+    /// <c>UD</c> has one, though both begin with U. <c>m2</c> and <c>m3</c> are the octal file modes
+    /// of stages 2 and 3, and Git writes <c>000000</c> for a stage that is not there. That is exact,
+    /// documented, and needs no table.
     /// </summary>
     private static GitFileChange? ParseUnmerged(string record)
     {
@@ -225,8 +232,17 @@ public static class PorcelainV2Parser
             IndexStatus = GitChangeType.Conflicted,
             WorkTreeStatus = GitChangeType.Conflicted,
             IsStaged = false,
+
+            //m2 -- "ours", HEAD's version. Absent in a conflict where our side deleted the path.
+            HasOurSide = parts[4] != MissingStage,
+
+            //m3 -- "theirs", the incoming version. Absent where their side deleted it.
+            HasTheirSide = parts[5] != MissingStage,
         };
     }
+
+    /// <summary>The mode porcelain v2 prints for a stage that does not exist.</summary>
+    private const string MissingStage = "000000";
 
     private static GitFileChange Untracked(string path, GitChangeType type) =>
         new()

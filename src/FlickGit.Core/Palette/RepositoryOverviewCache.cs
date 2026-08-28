@@ -97,13 +97,19 @@ public sealed class RepositoryOverviewCache(
     private async Task<RepositoryOverview> ReadAsync(string root, CancellationToken cancellationToken)
     {
         //Built rather than resolved. `rev-parse` would be a fourth process to re-establish what
-        //finding `.git` in this directory already proved, and the two fields it would add are a
+        //finding `.git` in this directory already proved, and the fields it would add are a
         //file-system probe and a flag no scanned working tree can have set.
+        //
+        //The Git directory is composed rather than read, which is the one place in the product that
+        //guesses it: it is right for an ordinary clone and wrong for a worktree, where `.git` is a
+        //file. The palette shows no merge state, so the cost of being wrong is a probe that finds
+        //nothing -- and paying a process per scanned repository to be right would defeat the scan.
         var repository = new RepositoryInfo(
             root,
             Path.GetFileName(root),
             HasSubmodules: File.Exists(Path.Combine(root, ".gitmodules")),
-            IsBare: false);
+            IsBare: false,
+            GitDirectory: Path.Combine(root, ".git"));
 
         try
         {

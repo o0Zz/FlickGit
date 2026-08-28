@@ -17,11 +17,24 @@ namespace FlickGit.Models;
 /// `git submodule status`: CLAUDE.md, "Submodules". Gates every submodule action.
 /// </param>
 /// <param name="IsBare">A bare repository has no working tree, so nothing here can commit into it.</param>
+/// <param name="GitDirectory">
+/// Absolute path to the Git directory -- <c>&lt;root&gt;\.git</c> for an ordinary clone, and somewhere
+/// else entirely for a worktree or a submodule, which is why it is read rather than composed.
+///
+/// It comes back from the same <c>rev-parse</c> that answers the other three, so it costs nothing.
+/// That is the whole point: <see cref="Merges.MergeStateService"/> is then pure file probes with no
+/// process at all, which is what lets the merge state ride along on the status path CLAUDE.md budgets
+/// at 60 ms.
+///
+/// Empty when the path is not a repository at all -- the placeholder <c>VerbRunner</c> builds so
+/// <c>clone</c> has somewhere to run. Every reader treats empty as "nothing in progress".
+/// </param>
 public sealed record RepositoryInfo(
     string Root,
     string Name,
     bool HasSubmodules,
-    bool IsBare)
+    bool IsBare,
+    string GitDirectory)
 {
     /// <summary>
     /// A repository that is not one, for a window built before anybody has asked about a folder.
@@ -31,7 +44,7 @@ public sealed record RepositoryInfo(
     /// nullable for a state that lasts until the first reset and is never displayed.
     /// </summary>
     public static RepositoryInfo None { get; } =
-        new(string.Empty, string.Empty, HasSubmodules: false, IsBare: false);
+        new(string.Empty, string.Empty, HasSubmodules: false, IsBare: false, GitDirectory: string.Empty);
 
     public override string ToString() => Root;
 }

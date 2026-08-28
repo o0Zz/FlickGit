@@ -29,6 +29,7 @@ using FlickGit.History;
 using FlickGit.Git;
 using FlickGit.Ipc;
 using FlickGit.Logging;
+using FlickGit.Merges;
 using FlickGit.Actions;
 using FlickGit.Palette;
 using FlickGit.Pulls;
@@ -144,6 +145,10 @@ public partial class App : Application
             provider.GetRequiredService<OperationTimings>()));
 
         services.AddSingleton<RepositoryService>();
+
+        //Before StatusService, which takes it: the merge state rides along on every status read.
+        services.AddSingleton<MergeStateService>();
+        services.AddSingleton<ConflictService>();
         services.AddSingleton<StatusService>();
         services.AddSingleton<PatchService>();
         services.AddSingleton<RepositoryScanner>();

@@ -1,5 +1,6 @@
 ﻿using FlickGit.Diagnostics;
 using FlickGit.Git;
+using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Secrets;
 
@@ -25,6 +26,7 @@ namespace FlickGit.Status;
 public sealed class StatusService(
     IGitProcessRunner git,
     UntrackedFileMeasurer untracked,
+    MergeStateService merges,
     OperationTimings? timings = null)
 {
     /// <summary>
@@ -107,6 +109,11 @@ public sealed class StatusService(
             IsDetachedHead = parsed.IsDetachedHead,
             IsUnborn = parsed.IsUnborn,
             Files = files,
+
+            //A handful of File.Exists calls over the Git directory the repository already knows --
+            //no fourth process, which is why this can sit on the path budgeted at 60 ms. It is read
+            //here rather than by the window so that every existing refresh carries it.
+            Merge = merges.Read(repository),
         };
     }
 
@@ -222,6 +229,12 @@ public sealed class StatusService(
             //list. A conflicted file is never ticked: committing a file with conflict
             //markers in it is the single worst thing this tool could do silently.
             IsSelected = !looksLikeSecret && !file.IsConflicted,
+
+            //Carried across, not recomputed -- there is nothing here to recompute them from. This
+            //record is rebuilt field by field, so a conflict's stages would silently become "neither
+            //side exists" and the resolution bar would offer nothing on every row.
+            HasOurSide = file.HasOurSide,
+            HasTheirSide = file.HasTheirSide,
         };
     }
 

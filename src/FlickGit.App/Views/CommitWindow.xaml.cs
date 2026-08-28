@@ -43,6 +43,10 @@ public partial class CommitWindow : Window
         //while an Enter is queued, which is the whole of that feedback.
         CommitButton.Content = Strings.Get("commit.button.commit");
         GenerateButton.Content = Strings.Get("commit.button.generate");
+
+        //AbortMergeButton's label is bound, not set: it names the operation it would throw away, so
+        //it reads "Abort rebase..." rather than a word that could mean any of the four.
+        ContinueMergeButton.Content = Strings.Get("conflict.continue");
         HintText.Text = Strings.Get("commit.hint");
         CloseButton.Content = Strings.Get("common.close");
 
@@ -180,6 +184,25 @@ public partial class CommitWindow : Window
         AddFileMenuItem.Header = Label("add", _viewModel.AddableCount);
         RevertFileMenuItem.Header = Label("revert", _viewModel.RevertableCount);
         DeleteFileMenuItem.Header = Label("delete", _viewModel.DeletableCount);
+
+        TakeOursMenuItem.Header = Label("conflict.ours", _viewModel.ResolvableOursCount);
+        TakeTheirsMenuItem.Header = Label("conflict.theirs", _viewModel.ResolvableTheirsCount);
+        MarkResolvedMenuItem.Header = Label("conflict.resolve", _viewModel.ConflictedCount);
+
+        //Hidden rather than disabled, which is the opposite of what the four items above do — and the
+        //difference is that those four are always meaningful and these three are meaningless most of
+        //the time. A permanent trio of dead items at the top of the menu every user sees every day is
+        //a worse trade than a menu that grows when there is a conflict to act on.
+        //
+        //Use ours and Use theirs go individually: a conflict where one side deleted the path has no
+        //version to take on that side, so the item would name a command Git refuses.
+        Show(TakeOursMenuItem, _viewModel.ResolvableOursCount > 0);
+        Show(TakeTheirsMenuItem, _viewModel.ResolvableTheirsCount > 0);
+        Show(MarkResolvedMenuItem, _viewModel.ConflictedCount > 0);
+        Show(ConflictSeparator, _viewModel.ConflictedCount > 0);
+
+        static void Show(UIElement item, bool visible) =>
+            item.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
         //Zero keeps the singular wording: the item is disabled, and "Revert 0 files..." says less than
         //the label the user already knows.

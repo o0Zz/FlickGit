@@ -16,7 +16,7 @@ namespace FlickGit.Tests;
 public class CommitRequestTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\repos\alpha", "alpha", HasSubmodules: false, IsBare: false);
+        new(@"C:\repos\alpha", "alpha", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\repos\alpha\.git");
 
     private static GitFileChange File(
         string path,

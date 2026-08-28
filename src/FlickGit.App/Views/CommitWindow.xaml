@@ -12,10 +12,11 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />                <!-- 0 header -->
             <RowDefinition Height="Auto" />                <!-- 1 warning strip -->
-            <RowDefinition Height="*" MinHeight="160" />   <!-- 2 files | diff -->
-            <RowDefinition Height="4" />                   <!-- 3 splitter -->
-            <RowDefinition Height="104" MinHeight="76" />  <!-- 4 commit message -->
-            <RowDefinition Height="Auto" />                <!-- 5 footer -->
+            <RowDefinition Height="Auto" />                <!-- 2 resolution bar -->
+            <RowDefinition Height="*" MinHeight="160" />   <!-- 3 files | diff -->
+            <RowDefinition Height="4" />                   <!-- 4 splitter -->
+            <RowDefinition Height="104" MinHeight="76" />  <!-- 5 commit message -->
+            <RowDefinition Height="Auto" />                <!-- 6 footer -->
         </Grid.RowDefinitions>
 
         <!-- Header: repository, branch, ahead/behind. The repository name is shown even
@@ -90,9 +91,11 @@
             </Grid>
         </Border>
 
-        <!-- The warning strip: committing to the primary branch, or unresolved conflicts.
-             Its own row rather than an overlay, so it pushes the layout down and cannot be
-             missed. -->
+        <!-- The warning strip: committing to the primary branch. Its own row rather than an
+             overlay, so it pushes the layout down and cannot be missed.
+
+             It no longer mentions conflicts — the resolution bar below says the same thing with
+             the buttons that act on it. -->
         <Border Grid.Row="1"
                 Background="{StaticResource WarnBackground}"
                 BorderBrush="{StaticResource WarnBorder}"
@@ -111,7 +114,65 @@
             <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" FontWeight="SemiBold" />
         </Border>
 
-        <Grid Grid.Row="2">
+        <!-- The resolution bar. Shown only while the repository is part-way through a merge,
+             rebase, cherry-pick or revert, which is the one state where the way forward is not
+             the Commit button at the bottom of this window.
+
+             Two lines rather than one, and the second is load-bearing: "ours" and "theirs" are
+             reversed during a rebase, so the buttons keep Git's words and this says what they
+             mean right now. -->
+        <Border Grid.Row="2"
+                Background="{StaticResource WarnBackground}"
+                BorderBrush="{StaticResource WarnBorder}"
+                BorderThickness="0,0,0,1"
+                Padding="14,8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMergeInProgress}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding MergeHeadline}"
+                               TextWrapping="Wrap"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding MergeSideExplanation}"
+                               TextWrapping="Wrap"
+                               Margin="0,3,0,0"
+                               FontSize="11"
+                               Style="{StaticResource Muted}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="12,0,0,0">
+                    <!-- Not IsDefault: Enter belongs to the message box, and a key that committed
+                         in one state and continued a rebase in another is the ambiguity this
+                         window cannot afford. -->
+                    <Button x:Name="ContinueMergeButton"
+                            Style="{StaticResource PrimaryButton}"
+                            Command="{Binding ContinueMergeCommand}" />
+                    <Button x:Name="AbortMergeButton"
+                            Margin="8,0,0,0"
+                            Content="{Binding AbortMergeText}"
+                            Command="{Binding AbortMergeCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="360" MinWidth="260" />
                 <ColumnDefinition Width="4" />
@@ -168,6 +229,24 @@
                          the menu is drawn — and labels each item with how many it would touch. -->
                     <ListBox.ContextMenu>
                         <ContextMenu>
+                            <!-- The three conflict items, above everything else because while a
+                                 conflict is on screen they are what the window is for. Collapsed
+                                 unless the selection holds a conflicted row, so the ordinary menu
+                                 is the menu it has always been.
+
+                                 Use ours and Use theirs hide individually as well: a conflict where
+                                 one side deleted the path has no version to take on that side, and
+                                 Git would answer a button press with "does not have our version". -->
+                            <MenuItem x:Name="TakeOursMenuItem"
+                                      Command="{Binding PlacementTarget.DataContext.TakeOursCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem x:Name="TakeTheirsMenuItem"
+                                      Command="{Binding PlacementTarget.DataContext.TakeTheirsCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem x:Name="MarkResolvedMenuItem"
+                                      Command="{Binding PlacementTarget.DataContext.MarkResolvedCommand,
+                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <Separator x:Name="ConflictSeparator" />
                             <!-- Edit and Add first, together above the separator, because they are the
                                  two items here that destroy nothing: one hands the file to an editor,
                                  the other stages it — which the working tree never feels and an
@@ -306,14 +385,14 @@
              list and the diff pane, which share the row above. Not persisted and not a
              setting: the resident service keeps one pre-warmed window, so the drag lasts
              the session. -->
-        <GridSplitter Grid.Row="3"
+        <GridSplitter Grid.Row="4"
                       Height="4"
                       HorizontalAlignment="Stretch"
                       Background="{StaticResource Border}"
                       ResizeBehavior="PreviousAndNext" />
 
         <!-- Commit message -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Padding="14,10">
             <Grid>
                 <Grid.RowDefinitions>
@@ -366,7 +445,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="5"
+        <Border Grid.Row="6"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"

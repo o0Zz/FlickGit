@@ -10,7 +10,7 @@ namespace FlickGit.Tests;
 public class HistoryServiceTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\d360-portal", "d360-portal", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\d360-portal", "d360-portal", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\d360-portal\.git");
 
     private static CommitRange Range() => new()
     {

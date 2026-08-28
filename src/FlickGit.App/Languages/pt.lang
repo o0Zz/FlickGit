@@ -164,6 +164,43 @@ diff.search.next = Resultado seguinte (Enter, F3)
 diff.search.previous = Resultado anterior (Shift+Enter, Shift+F3)
 diff.search.close = Fechar (Esc)
 
+# ---- conflitos ----
+conflict.name.merge = merge
+conflict.name.rebase = rebase
+conflict.name.cherrypick = cherry-pick
+conflict.name.revert = revert
+conflict.inprogress = Está em curso um {0}.
+conflict.progress = {0} Passo {1} de {2}.
+conflict.remaining = Faltam {0} por resolver.
+conflict.remaining.one = Falta 1 ficheiro por resolver.
+conflict.ready = Todos os conflitos estão resolvidos.
+conflict.sides = «Ours» é este ramo. «Theirs» é o que está a ser trazido.
+conflict.sides.rebase = Atenção: um rebase troca os dois. «Ours» é o ramo sobre o qual está a fazer rebase, e «theirs» é o seu próprio commit a ser reaplicado.
+conflict.continue = Continuar
+conflict.abort = Abandonar o {0}…
+conflict.continued = Continuado.
+conflict.finished = O {0} terminou.
+conflict.continue.blocked = Estes ficheiros continuam em conflito, por isso não foi executado nada:
+conflict.continue.failed = O {0} não continuou.
+conflict.abort.title = Abandonar a operação
+conflict.abort.question = Abandonar este {0}?
+conflict.abort.body = Cada conflito resolvido desde que parou é descartado, e o Git não guarda registo algum de uma resolução. O ramo volta ao ponto onde estava antes de a operação começar.
+conflict.abort.yes = Abandonar
+conflict.abort.no = Continuar
+conflict.abort.done = O {0} foi abandonado.
+conflict.abort.failed = O {0} não foi abandonado.
+conflict.ours.menu = Usar «ours»
+conflict.ours.menu.many = Usar «ours» em {0} ficheiros
+conflict.theirs.menu = Usar «theirs»
+conflict.theirs.menu.many = Usar «theirs» em {0} ficheiros
+conflict.resolve.menu = Marcar como resolvido
+conflict.resolve.menu.many = Marcar {0} ficheiros como resolvidos
+conflict.title = Resolver conflito
+conflict.done = {0} resolvido
+conflict.done.many = {0} ficheiros resolvidos
+conflict.partial = {0} ficheiros foram resolvidos antes deste.
+conflict.failed = Não foi possível resolver {0}.
+
 # ---- pull ----
 pull.title = Pull (rebase) — {0}
 pull.success = Pull concluído com sucesso.

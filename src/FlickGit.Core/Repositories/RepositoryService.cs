@@ -97,10 +97,15 @@ public sealed class RepositoryService(IGitProcessRunner git)
     {
         //--show-toplevel gives the working-tree root; --is-bare-repository comes back in
         //the same invocation because a bare repository has no working tree to commit
-        //into and every commit surface has to refuse it. One process, two answers.
+        //into and every commit surface has to refuse it. One process, three answers.
+        //
+        //--absolute-git-dir is last on purpose. rev-parse answers in the order it was
+        //asked, so appending rather than inserting leaves lines[0] and lines[1] meaning
+        //what they have always meant -- and --absolute-git-dir rather than --git-dir,
+        //which answers a bare ".git" when it happens to be run at the top level.
         GitResult result = await git.ReadAsync(
             directory,
-            ["rev-parse", "--show-toplevel", "--is-bare-repository"],
+            ["rev-parse", "--show-toplevel", "--is-bare-repository", "--absolute-git-dir"],
             cancellationToken).ConfigureAwait(false);
 
         if (!result.Succeeded)
@@ -123,7 +128,11 @@ public sealed class RepositoryService(IGitProcessRunner git)
         //gate is checked before every submodule action, so it has to cost microseconds.
         bool hasSubmodules = File.Exists(Path.Combine(root, ".gitmodules"));
 
-        return new RepositoryInfo(root, Path.GetFileName(root), hasSubmodules, isBare);
+        //Normalised the same way the root is, and for the same reason: this path is handed
+        //to File.Exists and Directory.Exists, which want the Windows spelling.
+        string gitDirectory = lines.Length > 2 ? NormaliseRoot(lines[2].Trim()) : string.Empty;
+
+        return new RepositoryInfo(root, Path.GetFileName(root), hasSubmodules, isBare, gitDirectory);
     }
 
     /// <summary>

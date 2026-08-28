@@ -17,7 +17,7 @@ namespace FlickGit.Tests;
 public class BranchDeleteTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\repo\.git");
 
     private static BranchService Create(FakeGitRunner git) => new(git, new RepositoryConfigService(git));
 

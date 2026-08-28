@@ -1,3 +1,4 @@
+using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Status;
 using Xunit;
@@ -25,7 +26,12 @@ public class StatusServiceTests : IDisposable
         _root = Path.Combine(Path.GetTempPath(), $"flickgit-status-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
 
-        _repository = new RepositoryInfo(_root, Path.GetFileName(_root), HasSubmodules: false, IsBare: false);
+        _repository = new RepositoryInfo(
+            _root,
+            Path.GetFileName(_root),
+            HasSubmodules: false,
+            IsBare: false,
+            GitDirectory: Path.Combine(_root, ".git"));
     }
 
     public void Dispose()
@@ -38,7 +44,7 @@ public class StatusServiceTests : IDisposable
         string.Concat(records.Select(r => r + '\0'));
 
     private Task<RepositoryStatus> Run(FakeGitRunner git) =>
-        new StatusService(git, new UntrackedFileMeasurer())
+        new StatusService(git, new UntrackedFileMeasurer(), new MergeStateService())
             .GetStatusAsync(_repository, CancellationToken.None);
 
     [Fact]

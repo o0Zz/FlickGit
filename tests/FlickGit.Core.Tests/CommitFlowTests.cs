@@ -2,6 +2,7 @@ using FlickGit.Branches;
 using FlickGit.Commits;
 using FlickGit.Config;
 using FlickGit.Logging;
+using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
@@ -39,7 +40,12 @@ public sealed class CommitFlowTests : IDisposable
         _root = Path.Combine(Path.GetTempPath(), $"flickgit-flow-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(_root, ".git"));
 
-        _repository = new RepositoryInfo(_root, Path.GetFileName(_root), HasSubmodules: false, IsBare: false);
+        _repository = new RepositoryInfo(
+            _root,
+            Path.GetFileName(_root),
+            HasSubmodules: false,
+            IsBare: false,
+            GitDirectory: Path.Combine(_root, ".git"));
     }
 
     public void Dispose()
@@ -57,14 +63,15 @@ public sealed class CommitFlowTests : IDisposable
     private CommitFlow Create(FakeGitRunner git)
     {
         var repositories = new RepositoryService(git);
+        var merges = new MergeStateService();
 
         return new CommitFlow(
-            new StatusService(git, new UntrackedFileMeasurer()),
+            new StatusService(git, new UntrackedFileMeasurer(), merges),
             new CommitService(git, repositories, NullLog.Instance),
             new BranchService(git, new RepositoryConfigService(git)),
             new SwitchService(git, repositories, NullLog.Instance),
             new PushService(git, repositories),
-            new PullService(git, repositories),
+            new PullService(git, repositories, merges),
             NullLog.Instance);
     }
 

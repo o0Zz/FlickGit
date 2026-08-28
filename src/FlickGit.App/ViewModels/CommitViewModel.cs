@@ -9,6 +9,7 @@ using FlickGit.Commits;
 using FlickGit.Diff;
 using FlickGit.Git;
 using FlickGit.Logging;
+using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Status;
 
@@ -35,6 +36,7 @@ public sealed class CommitViewModel : ObservableObject
     private readonly WorkingTreeDeleter _deleter;
     private readonly EditorLauncher _editors;
     private readonly RestoreService _restore;
+    private readonly ConflictService _conflicts;
     private readonly AiTextService _messages;
     private readonly FlickSettings _settings;
     private readonly ILog _log;
@@ -76,6 +78,7 @@ public sealed class CommitViewModel : ObservableObject
         WorkingTreeDeleter deleter,
         EditorLauncher editors,
         RestoreService restore,
+        ConflictService conflicts,
         AiTextService messages,
         FlickSettings settings,
         ILog log)
@@ -92,6 +95,7 @@ public sealed class CommitViewModel : ObservableObject
         _deleter = deleter;
         _editors = editors;
         _restore = restore;
+        _conflicts = conflicts;
         _messages = messages;
         _settings = settings;
         _log = log;
@@ -104,6 +108,26 @@ public sealed class CommitViewModel : ObservableObject
         AddFileCommand = new AsyncCommand(AddSelectedFilesAsync, () => CanAddFile, ReportError);
         DeleteFileCommand = new AsyncCommand(DeleteSelectedFilesAsync, () => CanDeleteFile, ReportError);
         RevertFileCommand = new AsyncCommand(RevertSelectedFilesAsync, () => CanRevertFile, ReportError);
+
+        //The three conflict items. Each is the same shape as Add: a filtered list, a busy guard, one
+        //path per call, and a refresh at the end whatever happened.
+        TakeOursCommand = new AsyncCommand(
+            () => ResolveSelectedFilesAsync(ConflictSide.Ours),
+            () => CanTakeOurs,
+            ReportError);
+
+        TakeTheirsCommand = new AsyncCommand(
+            () => ResolveSelectedFilesAsync(ConflictSide.Theirs),
+            () => CanTakeTheirs,
+            ReportError);
+
+        MarkResolvedCommand = new AsyncCommand(
+            () => ResolveSelectedFilesAsync(side: null),
+            () => CanMarkResolved,
+            ReportError);
+
+        ContinueMergeCommand = new AsyncCommand(ContinueMergeAsync, () => CanContinueMerge, ReportError);
+        AbortMergeCommand = new AsyncCommand(AbortMergeAsync, () => CanAbortMerge, ReportError);
 
         //A RelayCommand rather than an AsyncCommand, unlike the three above it: no Git process runs and
         //Process.Start is synchronous. Every failure comes back as an EditOutcome, so there is nothing
@@ -129,6 +153,16 @@ public sealed class CommitViewModel : ObservableObject
     public AsyncCommand RevertFileCommand { get; }
 
     public RelayCommand EditFileCommand { get; }
+
+    public AsyncCommand TakeOursCommand { get; }
+
+    public AsyncCommand TakeTheirsCommand { get; }
+
+    public AsyncCommand MarkResolvedCommand { get; }
+
+    public AsyncCommand ContinueMergeCommand { get; }
+
+    public AsyncCommand AbortMergeCommand { get; }
 
     public ObservableCollection<FileChangeItem> Files { get; } = [];
 
@@ -303,7 +337,13 @@ public sealed class CommitViewModel : ObservableObject
         && _currentStatus.Files.Any(f => f.IsSelected)
         && !string.IsNullOrWhiteSpace(_message)
         && _branchResolution.IsCommittable
-        && !_currentStatus.HasConflicts;
+        && !_currentStatus.HasConflicts
+
+        //An operation in progress has its own way forward, and it is not this button. A bare
+        //`git commit` mid-rebase records the step without advancing the rebase, which leaves the
+        //repository in a state whose only exit is a terminal -- the very thing the resolution bar
+        //exists to remove.
+        && !_currentStatus.Merge.InProgress;
 
     public bool CanGenerate =>
         _messages.IsUsable
@@ -356,6 +396,92 @@ public sealed class CommitViewModel : ObservableObject
     /// </summary>
     private List<FileChangeItem> Editable => [.. _selectedFiles.Where(f => f.IsOnDisk)];
 
+    /// <summary>
+    /// The merge, rebase, cherry-pick or revert this repository is part-way through.
+    ///
+    /// Read off the status rather than asked for separately, so it can never disagree with the file
+    /// list drawn beside it -- the two would otherwise be two reads a click apart.
+    /// </summary>
+    public MergeState Merge => _currentStatus?.Merge ?? MergeState.None;
+
+    public bool IsMergeInProgress => Merge.InProgress;
+
+    /// <summary>
+    /// The strip's first line: what is running, how far through, and how much is left.
+    ///
+    /// Assembled here rather than in the XAML because the progress clause is conditional -- only a
+    /// rebase counts steps -- and a binding cannot leave a sentence out.
+    /// </summary>
+    public string MergeHeadline
+    {
+        get
+        {
+            if (!Merge.InProgress)
+                return string.Empty;
+
+            string what = Strings.Get("conflict.inprogress", OperationName);
+
+            if (Merge.HasProgress)
+                what = Strings.Get("conflict.progress", what, Merge.Step!.Value, Merge.Total!.Value);
+
+            int remaining = Files.Count(f => f.IsConflicted);
+
+            return what + "  " + (
+                remaining == 0 ? Strings.Get("conflict.ready")
+                : remaining == 1 ? Strings.Get("conflict.remaining.one")
+                : Strings.Get("conflict.remaining", remaining));
+        }
+    }
+
+    /// <summary>
+    /// Which way round "ours" and "theirs" are, in words.
+    ///
+    /// <b>A rebase reverses them</b> -- <c>--ours</c> is the branch being rebased onto and
+    /// <c>--theirs</c> is the user's own commit being replayed -- and that is the whole reason this
+    /// sentence is on screen rather than left to be guessed. The buttons keep Git's words; this says
+    /// what they mean right now.
+    /// </summary>
+    public string MergeSideExplanation =>
+        !Merge.InProgress ? string.Empty
+        : Strings.Get(Merge.Operation == MergeOperation.Rebase ? "conflict.sides.rebase" : "conflict.sides");
+
+    /// <summary>"Abort rebase…" — the operation named, so the button says what it throws away.</summary>
+    public string AbortMergeText =>
+        Merge.InProgress ? Strings.Get("conflict.abort", OperationName) : string.Empty;
+
+    /// <summary>The operation's name as a noun, for the sentences and the abort question.</summary>
+    private string OperationName => Merge.Operation switch
+    {
+        MergeOperation.Merge => Strings.Get("conflict.name.merge"),
+        MergeOperation.Rebase => Strings.Get("conflict.name.rebase"),
+        MergeOperation.CherryPick => Strings.Get("conflict.name.cherrypick"),
+        MergeOperation.Revert => Strings.Get("conflict.name.revert"),
+        _ => string.Empty,
+    };
+
+    /// <summary>
+    /// The highlighted conflicted rows — what <i>Mark resolved</i> acts on.
+    ///
+    /// Filtered rather than refused, like every other item in this menu: Ctrl+A over a list holding
+    /// two conflicts and thirty ordinary rows is the ordinary way to reach a mass resolution.
+    /// </summary>
+    private List<FileChangeItem> Conflicted => [.. _selectedFiles.Where(f => f.IsConflicted)];
+
+    /// <summary>
+    /// The conflicted rows HEAD's side of which exists.
+    ///
+    /// <b>A row without it is left out, not offered and then failed.</b> On a conflict where our side
+    /// deleted the path there is no stage 2, and <c>checkout --ours</c> answers
+    /// <c>does not have our version</c> — an accurate sentence that reads as a bug next to a button
+    /// the user just pressed.
+    /// </summary>
+    private List<FileChangeItem> ResolvableOurs =>
+        [.. _selectedFiles.Where(f => f.IsConflicted && f.Change.HasOurSide)];
+
+    /// <summary>The mirror: the conflicted rows the incoming side of which exists.</summary>
+    private List<FileChangeItem> ResolvableTheirs =>
+        [.. _selectedFiles.Where(f => f.IsConflicted && f.Change.HasTheirSide)];
+
     /// <summary>What the context menu's labels count, so they name what the click would touch.</summary>
     public int DeletableCount => Deletable.Count;
 
@@ -372,6 +498,31 @@ public sealed class CommitViewModel : ObservableObject
     public bool CanAddFile => !_isBusy && Addable.Count > 0;
 
     public bool CanEditFile => !_isBusy && Editable.Count > 0;
+
+    public int ConflictedCount => Conflicted.Count;
+
+    public int ResolvableOursCount => ResolvableOurs.Count;
+
+    public int ResolvableTheirsCount => ResolvableTheirs.Count;
+
+    public bool CanTakeOurs => !_isBusy && ResolvableOurs.Count > 0;
+
+    public bool CanTakeTheirs => !_isBusy && ResolvableTheirs.Count > 0;
+
+    public bool CanMarkResolved => !_isBusy && Conflicted.Count > 0;
+
+    /// <summary>
+    /// Continue is offered only when nothing is left to resolve.
+    ///
+    /// <b>This is the button agreeing with the gate, not the gate itself.</b>
+    /// <see cref="ConflictService.ContinueAsync"/> re-reads the repository and refuses on its own —
+    /// which is what covers the case of a terminal creating a conflict while this window sat open.
+    /// </summary>
+    public bool CanContinueMerge =>
+        !_isBusy && _currentStatus is { Merge.InProgress: true, HasConflicts: false };
+
+    /// <summary>Abort stays available while conflicts remain — abandoning is the point of it.</summary>
+    public bool CanAbortMerge => !_isBusy && Merge.InProgress;
 
     /// <summary>
     /// False hides the button rather than showing a permanently dead one -- with no key stored there
@@ -491,6 +642,7 @@ public sealed class CommitViewModel : ObservableObject
         Raise(nameof(SelectedFile));
         Raise(nameof(AheadBehindText));
         Raise(nameof(SelectionText));
+        RaiseMergeState();
         RaiseCommandStates();
     }
 
@@ -563,6 +715,7 @@ public sealed class CommitViewModel : ObservableObject
         Raise(nameof(SummaryText));
         Raise(nameof(AheadBehindText));
         Raise(nameof(SelectionText));
+        RaiseMergeState();
         UpdateNotice();
         RaiseCommandStates();
 
@@ -1199,6 +1352,207 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Resolves every selected conflicted row: by taking a whole side of it, or by recording what is
+    /// on disk as the answer.
+    ///
+    /// <b>It asks nothing, and that is the rule rather than an omission.</b> Neither shape discards
+    /// anything the user cannot get back: the file is still unmerged in the index until the operation
+    /// continues, so both sides remain reachable through the very menu that was just used, and the
+    /// resolution can simply be made again the other way.
+    ///
+    /// <b>One path per call, stopping at the first failure with a count of what went before it</b> —
+    /// the loop Delete and Revert both run, for the same reason: three files half-resolved and one
+    /// error naming none of them is not a report.
+    ///
+    /// The rows are not ticked afterwards, unlike <see cref="AddSelectedFilesAsync"/>. A resolved
+    /// conflict belongs to the operation being continued, not to a commit this window is composing —
+    /// and while one is in progress this window cannot commit at all.
+    /// </summary>
+    /// <param name="side">
+    /// Which stage to take, or null for <i>Mark resolved</i> — the hand-edit path, where the file on
+    /// disk already is the answer.
+    /// </param>
+    private async Task ResolveSelectedFilesAsync(ConflictSide? side)
+    {
+        List<FileChangeItem> files = side switch
+        {
+            ConflictSide.Ours => ResolvableOurs,
+            ConflictSide.Theirs => ResolvableTheirs,
+            _ => Conflicted,
+        };
+
+        if (files.Count == 0 || _isBusy)
+            return;
+
+        int resolved = 0;
+        IsBusy = true;
+
+        try
+        {
+            foreach (FileChangeItem file in files)
+            {
+                ConflictResult result = side is { } take
+                    ? await _conflicts
+                        .TakeSideAsync(_repository, file.Path, take, CancellationToken.None)
+                        .ConfigureAwait(true)
+                    : await _conflicts
+                        .MarkResolvedAsync(_repository, file.Path, CancellationToken.None)
+                        .ConfigureAwait(true);
+
+                if (!result.Succeeded)
+                {
+                    RaiseError(
+                        Strings.Get("conflict.title"),
+                        Reason(
+                            Strings.Get("conflict.failed", file.Path)
+                                + "\n\n"
+                                + (result.Error ?? string.Empty),
+                            resolved,
+                            "conflict.partial")!);
+
+                    return;
+                }
+
+                //Keyed by path alone, and taking a side rewrites the file on disk — so the cached
+                //diff would render the version with the markers still in it.
+                _diffs.Invalidate(file.Path);
+                resolved++;
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+
+            //Always, including on the failure above: the index has moved for every file that got
+            //through, and the list is what says which.
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        StatusText = resolved == 1
+            ? Strings.Get("conflict.done", files[0].Path)
+            : Strings.Get("conflict.done.many", resolved);
+    }
+
+    /// <summary>
+    /// Carries the operation on. The order that matters is Core's, in
+    /// <see cref="ConflictService.ContinueAsync"/>: the gate, then the command.
+    ///
+    /// A refusal is shown rather than swallowed, and it is the one failure here with a specific
+    /// shape — Git ran nothing, and the message is the list of paths still in the way.
+    /// </summary>
+    private async Task ContinueMergeAsync()
+    {
+        if (_isBusy || !Merge.InProgress)
+            return;
+
+        MergeOperation operation = Merge.Operation;
+        string name = OperationName;
+
+        IsBusy = true;
+
+        try
+        {
+            ConflictResult result = await _conflicts
+                .ContinueAsync(_repository, operation, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (!result.Succeeded)
+            {
+                //Two failures, two sentences. The gate ran nothing and hands back the paths in the way;
+                //Git ran and objected in its own words, which are never paraphrased.
+                RaiseError(
+                    Strings.Get("conflict.continue.failed", name),
+                    result.Blocked
+                        ? Strings.Get("conflict.continue.blocked") + "\n\n" + result.Error
+                        : result.Error ?? string.Empty);
+
+                return;
+            }
+
+            //The operation moved HEAD, so every cached diff was computed against the wrong base.
+            _diffs.Clear();
+        }
+        finally
+        {
+            IsBusy = false;
+
+            //Always. A continue that failed part-way still leaves a repository the list must redraw,
+            //and a successful one has either advanced a step or finished outright.
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        //After the refresh, so the answer is read off the state the user is now looking at rather
+        //than the one before the command: a rebase that finished says so, one that stopped again
+        //has a new set of conflicts and the strip above already counts them.
+        StatusText = Merge.InProgress
+            ? Strings.Get("conflict.continued")
+            : Strings.Get("conflict.finished", name);
+    }
+
+    /// <summary>
+    /// Abandons the whole operation, behind one question.
+    ///
+    /// <b>Enter does not answer it.</b> Every conflict resolved since the operation stopped goes,
+    /// and Git keeps no reflog of a resolution — so unlike Delete and Revert there is no Recycle Bin
+    /// underneath this and nothing that makes the answer undoable.
+    /// </summary>
+    private async Task AbortMergeAsync()
+    {
+        if (_isBusy || !Merge.InProgress)
+            return;
+
+        MergeOperation operation = Merge.Operation;
+        string name = OperationName;
+
+        bool confirmed = await (ConfirmAsync?.Invoke(
+            Strings.Get("conflict.abort.title"),
+            Strings.Get("conflict.abort.question", name) + "\n\n" + Strings.Get("conflict.abort.body"),
+            Strings.Get("conflict.abort.yes"),
+            Strings.Get("conflict.abort.no"),
+            //False: there is no way back from this one, so Enter must not be what agrees to it.
+            false) ?? Task.FromResult(false)).ConfigureAwait(true);
+
+        if (!confirmed)
+            return;
+
+        IsBusy = true;
+
+        try
+        {
+            ConflictResult result = await _conflicts
+                .AbortAsync(_repository, operation, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (!result.Succeeded)
+            {
+                RaiseError(Strings.Get("conflict.abort.failed", name), result.Error ?? string.Empty);
+                return;
+            }
+
+            //HEAD is back where it started, so every cached diff was computed against a commit that
+            //is no longer checked out.
+            _diffs.Clear();
+        }
+        finally
+        {
+            IsBusy = false;
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        StatusText = Strings.Get("conflict.abort.done", name);
+    }
+
+    /// <summary>Everything the resolution bar reads. One call, so a new field cannot be half-wired.</summary>
+    private void RaiseMergeState()
+    {
+        Raise(nameof(Merge));
+        Raise(nameof(IsMergeInProgress));
+        Raise(nameof(MergeHeadline));
+        Raise(nameof(MergeSideExplanation));
+        Raise(nameof(AbortMergeText));
+    }
+
+    /// <summary>
     /// Every guard lives in <see cref="WorkingTreeWriter"/>; this only decides what to do with a
     /// refusal. An externally-modified file comes back as one the user has to answer.
     /// </summary>
@@ -1454,14 +1808,16 @@ public sealed class CommitViewModel : ObservableObject
             await RefreshAsync().ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// The warning strip.
+    ///
+    /// <b>It no longer mentions conflicts.</b> The resolution bar below it says the same thing with
+    /// the buttons that act on it, and two strips saying "there are conflicts" one above the other is
+    /// one more than the window needs. Losing the branch to it is what this removal fixes: a rebase
+    /// onto main used to hide the primary-branch warning behind a conflict notice.
+    /// </summary>
     private void UpdateNotice()
     {
-        if (_currentStatus?.HasConflicts == true)
-        {
-            Notice = Strings.Get("commit.warn.conflict");
-            return;
-        }
-
         //The warning is about the branch being committed *to*, which with the ComboBox is not
         //necessarily the one checked out.
         string? target = _branchResolution.Intent switch
@@ -1491,6 +1847,19 @@ public sealed class CommitViewModel : ObservableObject
         AddFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(CanEditFile));
         EditFileCommand.RaiseCanExecuteChanged();
+        Raise(nameof(ConflictedCount));
+        Raise(nameof(ResolvableOursCount));
+        Raise(nameof(ResolvableTheirsCount));
+        Raise(nameof(CanTakeOurs));
+        TakeOursCommand.RaiseCanExecuteChanged();
+        Raise(nameof(CanTakeTheirs));
+        TakeTheirsCommand.RaiseCanExecuteChanged();
+        Raise(nameof(CanMarkResolved));
+        MarkResolvedCommand.RaiseCanExecuteChanged();
+        Raise(nameof(CanContinueMerge));
+        ContinueMergeCommand.RaiseCanExecuteChanged();
+        Raise(nameof(CanAbortMerge));
+        AbortMergeCommand.RaiseCanExecuteChanged();
         Raise(nameof(IsAiConfigured));
         CommitCommand.RaiseCanExecuteChanged();
         CommitAndPushCommand.RaiseCanExecuteChanged();

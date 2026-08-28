@@ -16,7 +16,7 @@ namespace FlickGit.Tests;
 public class TagServiceTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\repo\.git");
 
     /// <summary>
     /// A deletion that cannot reach the remote deletes nothing at all.

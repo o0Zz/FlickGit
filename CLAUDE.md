@@ -207,6 +207,8 @@ src/
 │   │                        and never a pathspec that can glob; FolderRemovalFlow, whose
 │   │                        order is the safety rule (gate, ask, bin, record)
 │   ├── Commits/             CommitService, CommitFlow
+│   ├── Merges/              MergeStateService (file probes, no git.exe) and ConflictService --
+│   │                        checkout-then-add, and the gate that refuses --continue
 │   ├── Blame/               BlameService, BlamePorcelainParser
 │   ├── History/             HistoryService, CommitLogParser, CommitRange
 │   ├── Actions/             ActionCatalog, GitAction, ActionRun, ActionSafety,
@@ -608,8 +610,10 @@ change into a whole-file diff.
 - **Detect external modification before writing** — size, last-write time and hash stored at load. If
   any changed, do not overwrite: offer reload, overwrite, or save-as.
 - After a save, refresh that file's counts and re-run its diff. Not the whole list.
-- Read-only for binary files, oversized files and unresolved conflicts; never edit outside the resolved
-  repository root; refuse to save into a path that has become a symlink or junction since load.
+- Read-only for binary files and oversized files; never edit outside the resolved repository root;
+  refuse to save into a path that has become a symlink or junction since load. **A conflicted file is
+  deliberately editable** — see **Conflicts**, where taking the markers out here is one of the two
+  resolutions.
 
 **Reverting lines** replaces the selection with the left side's version (a caret inside a hunk takes the
 whole hunk). It is an **edit, not a Git operation**: nothing is staged, no process runs, nothing reaches
@@ -673,6 +677,53 @@ typed value is new              → check-ref-format, switch -c, commit, push -u
 **If it fails, stop** — do not stash, do not force; report which files block it. After a successful
 switch the reviewed diff was computed against the old HEAD, so refresh and recompute before committing,
 and abort if any selected file changed as a result.
+
+## Conflicts
+
+The one state where the way forward is not the Commit button, so the commit window grows a
+**resolution bar** for it: what is running, how far through, and the two ways out. `MergeStateService`
+answers "is an operation in progress" from **file probes over the Git directory alone** — `rebase-merge`
+and `rebase-apply` (with `msgnum`/`end` for the counter), `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`
+— which is why `RepositoryInfo` carries the Git directory: it arrives on the `rev-parse` that already
+resolves the repository, so the state is free and `StatusService` folds it into **every** status read
+without a fourth process on the 60 ms path. Rebase is tested first, Git's own `wt-status.c` order — a
+rebase drives the sequencer internally, so if a sequencer file ever appears beside `rebase-merge` the
+rebase is still the operation the user started and the one whose `--continue` spelling works.
+
+**`ConflictService` owns all four rules, and each is a way this could destroy work.** *The checkout comes
+before the add* — reversed, the add records the markers as the resolution and the checkout then overwrites
+the working tree under an index already saying "resolved". *Continue is gated on a fresh
+`diff --name-only --diff-filter=U -z`* and runs nothing while a path is unmerged, because the window's
+status was read before the user started clicking and a terminal can conflict a file while it sits open; a
+failed read counts as unmerged. *Nothing is forced* — no `--force`, no `-f`, on any vector the class can
+issue, which a test asserts. *Abort is reachable only by being called*: no failure path falls through to
+it, which is how "do not automatically abort a rebase" survives the button existing. Continue also carries
+`-c core.editor=true`, or all four `--continue` spellings open an editor this process has no console for
+and hang.
+
+**Which sides exist is read from the porcelain stage modes, not the XY letters.** `m2` and `m3` are
+`000000` for a stage that is not there, so `HasOurSide`/`HasTheirSide` are exact; the letters would need a
+seven-entry table in which `UA` has no stage 2 and `UD` has one. *Use ours* and *Use theirs* are hidden per
+row on that answer rather than offered and then failed by
+`error: path 'x' does not have our version`.
+
+**The rebase inversion is stated, never renamed.** During a rebase `--ours` is the branch being rebased
+onto and `--theirs` is the user's own commit being replayed. The buttons keep Git's words and the bar
+carries the sentence that flips — renaming them to "mine" would bake the wrong half into the code.
+
+**While an operation is in progress the commit buttons are off.** A bare `git commit` mid-rebase records
+the step without advancing the rebase. Abort asks in its own words with **Enter not accepting**: unlike
+Delete and Revert there is no Recycle Bin underneath it, and a stash has more of a reflog than a
+resolution does.
+
+**The diff pane stays editable on a conflicted file** — taking the markers out and pressing *Mark
+resolved* is one of the two ways out, so it is a resolution surface rather than something to lock.
+
+**A delete/modify conflict is the stated limit.** Recording "take the deletion" needs `git rm --force` on
+an unmerged path, so those rows are offered only what can honestly work and the user is pointed at the
+command, the way a stopped rebase is already pointed at `git rebase --continue`. **No merge editor, no
+`mergetool`, no `rebase --skip`** (it drops a commit), and no CLI verb — `flick status` reports the state
+and Git's own commands are the terminal's way through.
 
 ## Pull --rebase
 

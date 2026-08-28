@@ -36,6 +36,16 @@ public sealed record RepositoryStatus
     public IReadOnlyList<GitFileChange> Files { get; init; } = [];
 
     /// <summary>
+    /// The merge, rebase, cherry-pick or revert this repository is part-way through, or
+    /// <see cref="Merges.MergeState.None"/>.
+    ///
+    /// Here rather than asked for separately because it costs nothing -- a few file probes over a
+    /// path the repository already carries -- and because every surface that refreshes the status
+    /// then learns about it without a second call to remember.
+    /// </summary>
+    public Merges.MergeState Merge { get; init; } = Merges.MergeState.None;
+
+    /// <summary>
     /// Diverged: local and remote each hold commits the other does not. CLAUDE.md,
     /// "Commit &amp; Push" — this is the case where the tool stops rather than
     /// offering a force-push.

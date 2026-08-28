@@ -164,6 +164,43 @@ diff.search.next = Résultat suivant (Entrée, F3)
 diff.search.previous = Résultat précédent (Maj+Entrée, Maj+F3)
 diff.search.close = Fermer (Échap)
 
+# ---- conflits ----
+conflict.name.merge = fusion
+conflict.name.rebase = rebase
+conflict.name.cherrypick = cherry-pick
+conflict.name.revert = revert
+conflict.inprogress = Un {0} est en cours.
+conflict.progress = {0} Étape {1} sur {2}.
+conflict.remaining = {0} restent à résoudre.
+conflict.remaining.one = 1 fichier reste à résoudre.
+conflict.ready = Tous les conflits sont résolus.
+conflict.sides = « Ours » est cette branche. « Theirs » est ce qui est en train d'être intégré.
+conflict.sides.rebase = Attention : un rebase inverse ces deux mots. « Ours » est la branche sur laquelle vous rebasez, et « theirs » est votre propre commit rejoué.
+conflict.continue = Continuer
+conflict.abort = Abandonner le {0}…
+conflict.continued = Continué.
+conflict.finished = Le {0} est terminé.
+conflict.continue.blocked = Ces fichiers sont encore en conflit, rien n'a été exécuté :
+conflict.continue.failed = Le {0} n'a pas continué.
+conflict.abort.title = Abandonner l'opération
+conflict.abort.question = Abandonner ce {0} ?
+conflict.abort.body = Chaque conflit résolu depuis l'arrêt est perdu, et Git ne garde aucune trace d'une résolution. La branche revient là où elle était avant le début de l'opération.
+conflict.abort.yes = Abandonner
+conflict.abort.no = Continuer
+conflict.abort.done = Le {0} a été abandonné.
+conflict.abort.failed = Le {0} n'a pas été abandonné.
+conflict.ours.menu = Prendre « ours »
+conflict.ours.menu.many = Prendre « ours » sur {0} fichiers
+conflict.theirs.menu = Prendre « theirs »
+conflict.theirs.menu.many = Prendre « theirs » sur {0} fichiers
+conflict.resolve.menu = Marquer comme résolu
+conflict.resolve.menu.many = Marquer {0} fichiers comme résolus
+conflict.title = Résoudre le conflit
+conflict.done = {0} résolu
+conflict.done.many = {0} fichiers résolus
+conflict.partial = {0} fichiers ont été résolus avant celui-ci.
+conflict.failed = {0} n'a pas pu être résolu.
+
 # ---- pull ----
 pull.title = Pull (rebase) — {0}
 pull.success = Pull terminé.

@@ -96,9 +96,28 @@ public sealed class GitFileChange
     public bool IsDeletionStaged =>
         IndexStatus == GitChangeType.Deleted && WorkTreeStatus == GitChangeType.None;
 
-    /// <summary>Unmerged on either side. Not safe to edit, stage or commit.</summary>
+    /// <summary>Unmerged on either side. Not safe to stage or commit as it stands.</summary>
     public bool IsConflicted =>
         IndexStatus == GitChangeType.Conflicted || WorkTreeStatus == GitChangeType.Conflicted;
+
+    /// <summary>
+    /// Stage 2 exists for this unmerged path — HEAD's version, which <c>checkout --ours</c> takes.
+    ///
+    /// <b>False is not a detail: it is a command that cannot run.</b> On a conflict where our side
+    /// deleted the path there is no stage 2, and <c>git checkout --ours</c> answers
+    /// <c>error: path 'x' does not have our version</c>. The commit window hides the item rather than
+    /// offering a button whose only outcome is that sentence.
+    ///
+    /// Read from the porcelain record's stage modes — see <c>PorcelainV2Parser.ParseUnmerged</c>.
+    /// False on every row that is not conflicted, where it means nothing.
+    /// </summary>
+    public bool HasOurSide { get; init; }
+
+    /// <summary>
+    /// Stage 3 exists — the incoming version, which <c>checkout --theirs</c> takes. The mirror of
+    /// <see cref="HasOurSide"/>, false where their side deleted the path.
+    /// </summary>
+    public bool HasTheirSide { get; init; }
 
     /// <summary>
     /// The letter the row shows. The working tree wins when both sides changed,

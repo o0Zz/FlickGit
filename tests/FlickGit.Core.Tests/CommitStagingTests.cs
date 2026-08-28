@@ -20,7 +20,7 @@ namespace FlickGit.Tests;
 public class CommitStagingTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\repos\alpha", "alpha", HasSubmodules: false, IsBare: false);
+        new(@"C:\repos\alpha", "alpha", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\repos\alpha\.git");
 
     private static CommitService Create(FakeGitRunner git) =>
         new(git, new RepositoryService(git), NullLog.Instance);

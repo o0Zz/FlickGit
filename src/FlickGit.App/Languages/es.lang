@@ -164,6 +164,43 @@ diff.search.next = Resultado siguiente (Intro, F3)
 diff.search.previous = Resultado anterior (Mayús+Intro, Mayús+F3)
 diff.search.close = Cerrar (Esc)
 
+# ---- conflictos ----
+conflict.name.merge = fusión
+conflict.name.rebase = rebase
+conflict.name.cherrypick = cherry-pick
+conflict.name.revert = revert
+conflict.inprogress = Hay un {0} en curso.
+conflict.progress = {0} Paso {1} de {2}.
+conflict.remaining = Quedan {0} por resolver.
+conflict.remaining.one = Queda 1 archivo por resolver.
+conflict.ready = Todos los conflictos están resueltos.
+conflict.sides = «Ours» es esta rama. «Theirs» es lo que se está incorporando.
+conflict.sides.rebase = Cuidado: un rebase invierte esto. «Ours» es la rama sobre la que está rebasando, y «theirs» es su propio commit que se está reaplicando.
+conflict.continue = Continuar
+conflict.abort = Abandonar {0}…
+conflict.continued = Continuado.
+conflict.finished = El {0} ha terminado.
+conflict.continue.blocked = Estos archivos siguen en conflicto, así que no se ejecutó nada:
+conflict.continue.failed = El {0} no continuó.
+conflict.abort.title = Abandonar la operación
+conflict.abort.question = ¿Abandonar este {0}?
+conflict.abort.body = Se descarta cada conflicto resuelto desde que se detuvo, y Git no guarda registro alguno de una resolución. La rama vuelve a donde estaba antes de empezar la operación.
+conflict.abort.yes = Abandonar
+conflict.abort.no = Seguir
+conflict.abort.done = El {0} se abandonó.
+conflict.abort.failed = El {0} no se abandonó.
+conflict.ours.menu = Usar «ours»
+conflict.ours.menu.many = Usar «ours» en {0} archivos
+conflict.theirs.menu = Usar «theirs»
+conflict.theirs.menu.many = Usar «theirs» en {0} archivos
+conflict.resolve.menu = Marcar como resuelto
+conflict.resolve.menu.many = Marcar {0} archivos como resueltos
+conflict.title = Resolver conflicto
+conflict.done = {0} resuelto
+conflict.done.many = {0} archivos resueltos
+conflict.partial = Se resolvieron {0} archivos antes de este.
+conflict.failed = No se pudo resolver {0}.
+
 # ---- pull ----
 pull.title = Pull (rebase) — {0}
 pull.success = El pull se completó correctamente.

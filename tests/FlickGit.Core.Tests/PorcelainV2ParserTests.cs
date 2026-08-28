@@ -138,6 +138,48 @@ public class PorcelainV2ParserTests
         //Staging a file with conflict markers in it is the one thing this window must never
         //do by accident.
         Assert.False(file.IsStaged);
+
+        //Both sides of a "both modified" conflict exist, so both `checkout --ours` and
+        //`checkout --theirs` have something to take.
+        Assert.True(file.HasOurSide);
+        Assert.True(file.HasTheirSide);
+    }
+
+    [Fact]
+    public void AMissingConflictStageIsReadFromItsModeRatherThanTheLetters()
+    {
+        //`UD` is "deleted by them": stages 1 and 2 exist, stage 3 does not, and Git prints 000000
+        //for the mode of the one that is missing. That is the whole source of the answer -- the XY
+        //letters give it only through a seven-entry table, in which `UA` has no stage 2 and `UD` has
+        //one though both begin with U.
+        //
+        //Getting this wrong is not cosmetic. The commit window offers `Use theirs` on the strength of
+        //it, and a button that can only ever produce
+        //`error: path 'x' does not have their version` reads as a broken feature.
+        string deletedByThem = Stream("u UD N... 100644 100644 000000 100644 aaaa bbbb 0000 src/Gone.cs");
+
+        GitFileChange theirs = Assert.Single(PorcelainV2Parser.Parse(deletedByThem).Files);
+
+        Assert.True(theirs.IsConflicted);
+        Assert.True(theirs.HasOurSide);
+        Assert.False(theirs.HasTheirSide);
+
+        //`DU` is the mirror -- deleted by us, so it is stage 2 that is absent.
+        string deletedByUs = Stream("u DU N... 100644 000000 100644 100644 aaaa 0000 cccc src/Gone.cs");
+
+        GitFileChange ours = Assert.Single(PorcelainV2Parser.Parse(deletedByUs).Files);
+
+        Assert.False(ours.HasOurSide);
+        Assert.True(ours.HasTheirSide);
+
+        //And `DD` -- both deleted -- has neither, which is the row the window can offer nothing for
+        //but `Mark resolved`.
+        string bothDeleted = Stream("u DD N... 100644 000000 000000 100644 aaaa 0000 0000 src/Gone.cs");
+
+        GitFileChange neither = Assert.Single(PorcelainV2Parser.Parse(bothDeleted).Files);
+
+        Assert.False(neither.HasOurSide);
+        Assert.False(neither.HasTheirSide);
     }
 
     [Fact]

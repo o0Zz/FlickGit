@@ -88,7 +88,14 @@ public sealed class VerbRunner(
         //The folder itself when it is not a repository, so `clone` and `terminal` still have somewhere
         //to run. Root carries it either way, which is all an action needs.
         RepositoryInfo repository = resolved
-            ?? new RepositoryInfo(path ?? string.Empty, string.Empty, HasSubmodules: false, IsBare: false);
+            ?? new RepositoryInfo(
+                path ?? string.Empty,
+                string.Empty,
+                HasSubmodules: false,
+                IsBare: false,
+                //There is no Git directory, because there is no repository. Empty is the honest
+                //answer and every reader takes it as "nothing in progress".
+                GitDirectory: string.Empty);
 
         await actions.RunAsync(action, repository, output).ConfigureAwait(true);
 

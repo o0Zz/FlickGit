@@ -23,7 +23,7 @@ namespace FlickGit.Tests;
 public class TrackingServiceTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\repo\.git");
 
     private static TrackingService Create(FakeGitRunner git) =>
         new(git, new RepositoryService(git), NullLog.Instance);

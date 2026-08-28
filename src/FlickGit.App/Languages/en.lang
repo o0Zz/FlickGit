@@ -214,6 +214,56 @@ diff.search.next = Next match (Enter, F3)
 diff.search.previous = Previous match (Shift+Enter, Shift+F3)
 diff.search.close = Close (Esc)
 
+# ---- conflicts ----
+# The resolution bar in the commit window. {0} is one of the four names below.
+conflict.name.merge = merge
+conflict.name.rebase = rebase
+conflict.name.cherrypick = cherry-pick
+conflict.name.revert = revert
+# {0} the operation name
+conflict.inprogress = A {0} is in progress.
+# {0} the sentence above, {1} which step is being applied, {2} how many there are
+conflict.progress = {0} Step {1} of {2}.
+# {0} how many files are still conflicted
+conflict.remaining = {0} still to resolve.
+conflict.remaining.one = 1 file still to resolve.
+conflict.ready = Every conflict is resolved.
+# Which way round "ours" and "theirs" are. The rebase wording is the trap: Git reverses them there.
+conflict.sides = "Ours" is this branch. "Theirs" is what is being brought in.
+conflict.sides.rebase = Careful: a rebase reverses these. "Ours" is the branch you are rebasing onto, and "theirs" is your own commit being replayed.
+conflict.continue = Continue
+# {0} the operation name
+conflict.abort = Abort {0}…
+conflict.continued = Continued.
+conflict.finished = The {0} is finished.
+conflict.continue.blocked = These files are still conflicted, so nothing was run:
+conflict.continue.failed = The {0} did not continue.
+conflict.abort.title = Abandon the operation
+# {0} the operation name
+conflict.abort.question = Abandon this {0}?
+conflict.abort.body = Every conflict resolved since it stopped is discarded, and Git keeps no record of a resolution to find them again. The branch goes back to where it was before the operation started.
+conflict.abort.yes = Abandon
+conflict.abort.no = Keep going
+conflict.abort.done = The {0} was abandoned.
+conflict.abort.failed = The {0} was not abandoned.
+# The file list's three conflict items. Only shown when a conflicted row is selected.
+conflict.ours.menu = Use ours
+# {0} how many files
+conflict.ours.menu.many = Use ours on {0} files
+conflict.theirs.menu = Use theirs
+conflict.theirs.menu.many = Use theirs on {0} files
+conflict.resolve.menu = Mark resolved
+conflict.resolve.menu.many = Mark {0} files resolved
+conflict.title = Resolve conflict
+# {0} the path
+conflict.done = Resolved {0}
+# {0} how many files
+conflict.done.many = Resolved {0} files
+# {0} how many were resolved before the failure reported above this line
+conflict.partial = {0} files were resolved before this one.
+# {0} the path
+conflict.failed = {0} could not be resolved.
+
 # ---- pull ----
 pull.title = Pull (rebase) — {0}
 pull.success = Pull completed successfully.

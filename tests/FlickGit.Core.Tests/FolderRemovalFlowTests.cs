@@ -18,7 +18,7 @@ namespace FlickGit.Tests;
 public class FolderRemovalFlowTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\repo\.git");
 
     /// <summary>A runner where the folder holds two tracked files and one Git has never seen.</summary>
     private static FakeGitRunner Populated() =>

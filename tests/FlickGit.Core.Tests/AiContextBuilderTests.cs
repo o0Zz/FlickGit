@@ -16,7 +16,7 @@ namespace FlickGit.Tests;
 public class AiContextBuilderTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\repos\alpha", "alpha", HasSubmodules: false, IsBare: false);
+        new(@"C:\repos\alpha", "alpha", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\repos\alpha\.git");
 
     private static GitFileChange File(string path, bool selected = true, bool untracked = false) =>
         new()

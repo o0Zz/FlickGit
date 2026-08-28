@@ -19,7 +19,7 @@ namespace FlickGit.Tests;
 public class RepositoryConfigTests
 {
     private static readonly RepositoryInfo Repo =
-        new(@"C:\dev\my repo", "my repo", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\my repo", "my repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\my repo\.git");
 
     /// <summary>Records are NUL-terminated; the key ends at the first newline.</summary>
     private static string Stream(params string[] records) =>

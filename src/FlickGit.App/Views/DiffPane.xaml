@@ -241,8 +241,12 @@
                           Background="{StaticResource Border}"
                           ResizeBehavior="PreviousAndNext" />
 
-            <!-- Editable. IsReadOnly is set in code per file: binary files, oversized
-                 files and unresolved conflicts stay read-only. -->
+            <!-- Editable. IsReadOnly is set in code per file: binary files and oversized
+                 files stay read-only.
+
+                 A conflicted file is deliberately NOT among them. Taking the markers out here
+                 and pressing Mark resolved is one of the two ways out of a conflict, so this
+                 pane is a resolution surface rather than something to lock. -->
             <avalon:TextEditor x:Name="RightEditor"
                                Grid.Column="2"
                                IsReadOnly="True"

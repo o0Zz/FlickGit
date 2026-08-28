@@ -18,7 +18,7 @@ namespace FlickGit.Tests;
 public class StashServiceTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false);
+        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\repo\.git");
 
     /// <summary>The row every pop and drop test below claims to have clicked.</summary>
     private static readonly GitStash First =

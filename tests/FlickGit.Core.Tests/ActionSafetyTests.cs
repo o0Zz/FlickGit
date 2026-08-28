@@ -133,7 +133,7 @@ public class ActionSafetyTests
     public void A_file_list_expands_to_one_argument_each()
     {
         var context = new ActionContext(
-            new RepositoryInfo(@"C:\dev\my repo", "my repo", HasSubmodules: false, IsBare: false),
+            new(@"C:\dev\my repo", "my repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\my repo\.git"),
             Files: ["a b.txt", "c.txt"]);
 
         IReadOnlyList<string> expanded = ActionPlaceholders.Expand(["add", "--", "{files}"], context);
@@ -148,7 +148,7 @@ public class ActionSafetyTests
     public void A_path_with_a_space_remains_one_argument()
     {
         var context = new ActionContext(
-            new RepositoryInfo(@"C:\dev\my repo", "my repo", HasSubmodules: false, IsBare: false),
+            new(@"C:\dev\my repo", "my repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\my repo\.git"),
             Branch: "feature/a b");
 
         IReadOnlyList<string> expanded = ActionPlaceholders.Expand(["log", "{repo}", "{branch}"], context);
@@ -166,7 +166,7 @@ public class ActionSafetyTests
     [Fact]
     public void No_files_expands_to_no_arguments()
     {
-        var context = new ActionContext(new RepositoryInfo(@"C:\dev\r", "r", false, false));
+        var context = new ActionContext(new RepositoryInfo(@"C:\dev\r", "r", false, false, @"C:\dev\r\.git"));
 
         Assert.Equal(["add", "--"], ActionPlaceholders.Expand(["add", "--", "{files}"], context));
     }
@@ -180,7 +180,7 @@ public class ActionSafetyTests
     [Fact]
     public void An_unknown_placeholder_is_left_as_written()
     {
-        var context = new ActionContext(new RepositoryInfo(@"C:\dev\r", "r", false, false));
+        var context = new ActionContext(new RepositoryInfo(@"C:\dev\r", "r", false, false, @"C:\dev\r\.git"));
 
         Assert.Equal(["push", "{remoat}"], ActionPlaceholders.Expand(["push", "{remoat}"], context));
     }

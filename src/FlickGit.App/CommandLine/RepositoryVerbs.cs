@@ -7,6 +7,7 @@ using FlickGit.Cli;
 using FlickGit.Commits;
 using FlickGit.Diff;
 using FlickGit.Files;
+using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Remotes;
 using FlickGit.Stashes;
@@ -53,6 +54,27 @@ public sealed class RepositoryVerbs(
             state.IsDetachedHead ? Strings.Get("status.detached")
             : state.Branch is null ? Strings.Get("status.nobranch")
             : $"{state.Branch}{(state.Upstream is null ? "  " + Strings.Get("status.noupstream") : $"  ↑{state.Ahead} ↓{state.Behind}")}");
+
+        //An operation in progress goes above the file list, because it changes what every letter
+        //below it means: a U row is not something to commit, it is something to resolve. Said here
+        //as well as in the window so a terminal is not the one surface that has to infer it from
+        //`git status` -- and it costs nothing, having arrived with the status.
+        if (state.Merge.InProgress)
+        {
+            string name = Strings.Get(state.Merge.Operation switch
+            {
+                MergeOperation.Merge => "conflict.name.merge",
+                MergeOperation.Rebase => "conflict.name.rebase",
+                MergeOperation.CherryPick => "conflict.name.cherrypick",
+                _ => "conflict.name.revert",
+            });
+
+            string sentence = Strings.Get("conflict.inprogress", name);
+
+            output.Line(state.Merge.HasProgress
+                ? Strings.Get("conflict.progress", sentence, state.Merge.Step!.Value, state.Merge.Total!.Value)
+                : sentence);
+        }
 
         if (state.Files.Count == 0)
         {

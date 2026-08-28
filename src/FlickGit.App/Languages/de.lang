@@ -164,6 +164,43 @@ diff.search.next = Nächster Treffer (Eingabe, F3)
 diff.search.previous = Vorheriger Treffer (Umschalt+Eingabe, Umschalt+F3)
 diff.search.close = Schließen (Esc)
 
+# ---- Konflikte ----
+conflict.name.merge = Merge
+conflict.name.rebase = Rebase
+conflict.name.cherrypick = Cherry-Pick
+conflict.name.revert = Revert
+conflict.inprogress = Ein {0} läuft.
+conflict.progress = {0} Schritt {1} von {2}.
+conflict.remaining = {0} noch zu lösen.
+conflict.remaining.one = 1 Datei noch zu lösen.
+conflict.ready = Alle Konflikte sind gelöst.
+conflict.sides = „Ours“ ist dieser Branch. „Theirs“ ist das, was hereingeholt wird.
+conflict.sides.rebase = Achtung: Ein Rebase dreht das um. „Ours“ ist der Branch, auf den Sie rebasen, und „theirs“ ist Ihr eigener Commit, der neu angewendet wird.
+conflict.continue = Fortsetzen
+conflict.abort = {0} abbrechen…
+conflict.continued = Fortgesetzt.
+conflict.finished = Das {0} ist abgeschlossen.
+conflict.continue.blocked = Diese Dateien sind noch in Konflikt, es wurde nichts ausgeführt:
+conflict.continue.failed = Das {0} wurde nicht fortgesetzt.
+conflict.abort.title = Vorgang abbrechen
+conflict.abort.question = Dieses {0} abbrechen?
+conflict.abort.body = Jeder seit dem Anhalten gelöste Konflikt geht verloren, und Git führt kein Protokoll über Auflösungen. Der Branch geht auf den Stand vor dem Vorgang zurück.
+conflict.abort.yes = Abbrechen
+conflict.abort.no = Weitermachen
+conflict.abort.done = Das {0} wurde abgebrochen.
+conflict.abort.failed = Das {0} wurde nicht abgebrochen.
+conflict.ours.menu = „Ours“ übernehmen
+conflict.ours.menu.many = „Ours“ für {0} Dateien übernehmen
+conflict.theirs.menu = „Theirs“ übernehmen
+conflict.theirs.menu.many = „Theirs“ für {0} Dateien übernehmen
+conflict.resolve.menu = Als gelöst markieren
+conflict.resolve.menu.many = {0} Dateien als gelöst markieren
+conflict.title = Konflikt lösen
+conflict.done = {0} gelöst
+conflict.done.many = {0} Dateien gelöst
+conflict.partial = {0} Dateien wurden vor dieser gelöst.
+conflict.failed = {0} konnte nicht gelöst werden.
+
 # ---- Pull ----
 pull.title = Pull (Rebase) — {0}
 pull.success = Pull erfolgreich abgeschlossen.
