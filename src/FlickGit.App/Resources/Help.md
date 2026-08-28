@@ -446,7 +446,15 @@ deletes. Two things are worth knowing before you press it:
   removes the file and runs no Git command at all.
 
 An untracked file has nothing for Git to remove, and says so: Explorer's own Delete is what removes
-the file itself. Both entries act on the one file you clicked, and neither appears on a folder.
+the file itself.
+
+**Both entries act on everything you selected.** Select five files and Add stages all five; select a
+mixture of files and folders and Remove asks **one** question carrying the totals, then takes the
+folders to the Recycle Bin and stages every deletion. If any one of them is refused — because Git
+will not discard uncommitted work, or because something in the selection is not inside this
+repository — **none of them is touched**, so you never end up with half a removal you cannot reason
+about. A selection too large to fit on one command line is refused by name rather than trimmed: use
+the commit window's file list for those.
 
 ## Command line
 
@@ -461,8 +469,8 @@ flick submodule <path>           add, remove, initialise submodules
 flick pr <path>                  open a pull request for this branch
 flick log <path>                 commit history + combined diffs
 flick blame <file>               who wrote each line
-flick add <file>                 stage one file
-flick rm <file>                  delete one file, staged; asks first
+flick add <file>...              stage the files or folders named
+flick rm <file>...               delete them, staged; asks first
 flick repo <path>                identity, remotes and this repository's defaults
 flick palette                    flick clone <path> [url]
 flick settings                   flick terminal <path>

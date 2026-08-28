@@ -146,6 +146,19 @@ folder.remove.yes = Eliminar
 # {0} ruta relativa al repositorio
 folder.remove.binned = {0} está en la Papelera de reciclaje.
 
+# ---- el menú del Explorador con varios elementos seleccionados ----
+selection.added = {0} elementos preparados.
+selection.removed = {0} elementos eliminados — la eliminación de {1} archivos rastreados está preparada, no confirmada.
+selection.nothingtoadd = No hay nada que preparar en los {0} elementos seleccionados.
+selection.add.title = Añadir estos elementos
+selection.add.ask = ¿Añadir {0} elementos seleccionados?\n\nSe preparan {1} archivos, {2} de ellos nuevos para Git.\n\nNo se confirma ni se envía nada.
+selection.add.yes = Añadir
+selection.remove.title = Eliminar estos elementos
+selection.remove.ask = ¿Eliminar {0} elementos seleccionados?\n\n{1} de ellos son carpetas y van a la Papelera de reciclaje con todo su contenido.\n\nLa eliminación de {2} archivos rastreados se prepara, no se confirma. {3} archivos que Git nunca ha visto van también a la papelera — esa es la única vuelta atrás para ellos, igual que para lo que oculta .gitignore.\n\nGit se niega si alguno contiene cambios que nunca se confirmaron.
+selection.remove.yes = Eliminar
+selection.remove.partial = {0} elementos se eliminaron antes que este.
+selection.toomany = Hay {0} elementos seleccionados — más de los que puede llevar una línea de comandos. Abre la ventana de commit y tratálos desde la lista de archivos.
+
 # ---- visor de diferencias ----
 diff.mode.head = Copia de trabajo ↔ HEAD
 diff.left.readonly = ← solo lectura
@@ -498,7 +511,6 @@ pr.step.checking = Buscando una pull request existente…
 pr.step.creating = Creando la pull request…
 pr.token.title = Token para {0}
 pr.token.prompt.github = FlickGit necesita un token que pueda abrir pull requests en {0}.\nCree un personal access token con el ámbito «repo» (clásico), o «Pull requests: read and write» (fine-grained).
-pr.token.prompt.gitlab = FlickGit necesita un token que pueda abrir merge requests en {0}.\nCree un personal access token con el ámbito «api», en su perfil de GitLab en Access Tokens.
 pr.token.prompt.azure = FlickGit necesita un token que pueda abrir pull requests en {0}.\nCree un personal access token con el ámbito «Code (read and write)», desde Configuración de usuario → Personal access tokens.
 
 # ---- clonar ----

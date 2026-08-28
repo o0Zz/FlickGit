@@ -14,7 +14,10 @@ namespace FlickGit.Tests;
 /// refusal to destroy uncommitted work. <c>-r</c> is what turns one click into a tree, and it is
 /// allowed here on exactly two vectors — <c>--dry-run</c>, which changes nothing, and
 /// <c>--cached</c>, which cannot reach the working tree — so the tests are what say there is no
-/// third. The pathspec is the last of the three: an ordinary Windows name like <c>a[1].txt</c> is a
+/// third. The file gate added for selections carries <c>--dry-run</c> and <b>no</b> <c>-r</c>, which
+/// is that same rule seen from the other side.
+///
+/// The pathspec is the last of the three: an ordinary Windows name like <c>a[1].txt</c> is a
 /// glob after <c>--</c>, and a glob is how a deletion reaches something nobody clicked.
 ///
 /// The counts are in scope under "parsers and the pure functions beside them": they split
@@ -29,16 +32,20 @@ public class TrackingServiceTests
         new(git, new RepositoryService(git), NullLog.Instance);
 
     [Fact]
-    public async Task AddStagesExactlyOneLiteralPath()
+    public async Task AddStagesEveryLiteralPathInOneCommand()
     {
+        //One process for the whole selection, each path its own non-globbing pathspec. Explorer hands
+        //over everything that was selected, and staging the first and dropping the rest is what this
+        //used to do.
         var git = new FakeGitRunner().Returns(["add"]);
 
-        TrackingResult result = await Create(git).AddAsync(Repository, "src/Thing.cs", default);
+        TrackingResult result = await Create(git)
+            .AddAsync(Repository, ["src/Thing.cs", "docs/notes with a space.md"], default);
 
         Assert.True(result.Succeeded);
 
         Assert.Equal(
-            ["add", "--", ":(literal)src/Thing.cs"],
+            ["add", "--", ":(literal)src/Thing.cs", ":(literal)docs/notes with a space.md"],
             Assert.Single(git.Invocations).Args);
     }
 
@@ -50,28 +57,29 @@ public class TrackingServiceTests
         //outright, and both would reach past the folder that was clicked.
         var git = new FakeGitRunner().Returns(["add"]);
 
-        await Create(git).AddAsync(Repository, "src/Legacy", default);
+        await Create(git).AddAsync(Repository, ["src/Thing.cs", "src/Legacy"], default);
 
         string[] args = Assert.Single(git.Invocations).Args;
 
-        Assert.Equal(["add", "--", ":(literal)src/Legacy"], args);
+        Assert.Equal(["add", "--", ":(literal)src/Thing.cs", ":(literal)src/Legacy"], args);
         Assert.DoesNotContain("-r", args);
         Assert.DoesNotContain("-A", args);
         Assert.DoesNotContain(".", args);
     }
 
     [Fact]
-    public async Task RemoveDeletesExactlyOneLiteralPathAndIsNeverForcedOrRecursive()
+    public async Task RemoveDeletesExactlyTheLiteralPathsAndIsNeverForcedOrRecursive()
     {
         var git = new FakeGitRunner().Returns(["rm"]);
 
-        TrackingResult result = await Create(git).RemoveAsync(Repository, "src/Thing.cs", default);
+        TrackingResult result = await Create(git)
+            .RemoveAsync(Repository, ["src/Thing.cs", "src/Other.cs"], default);
 
         Assert.True(result.Succeeded);
 
         string[] args = Assert.Single(git.Invocations).Args;
 
-        Assert.Equal(["rm", "--", ":(literal)src/Thing.cs"], args);
+        Assert.Equal(["rm", "--", ":(literal)src/Thing.cs", ":(literal)src/Other.cs"], args);
 
         //-f would take away the one guard that is Git's own: without it, a file whose content
         //differs from both HEAD and the index is refused rather than destroyed. -r would turn a
@@ -82,8 +90,12 @@ public class TrackingServiceTests
         Assert.DoesNotContain(".", args);
         Assert.DoesNotContain("-A", args);
 
-        //After the separator, so a file named like an option cannot become one.
-        Assert.Equal(args.Length - 2, Array.IndexOf(args, "--"));
+        //The separator sits immediately before the *first* pathspec, so a file named like an option
+        //cannot become one -- whatever the count. This used to read `args.Length - 2`, which said the
+        //same thing only while there could never be more than one path after it.
+        Assert.Equal(
+            Array.FindIndex(args, a => a.StartsWith(":(literal)", StringComparison.Ordinal)) - 1,
+            Array.IndexOf(args, "--"));
     }
 
     [Fact]
@@ -148,7 +160,8 @@ public class TrackingServiceTests
 
         TrackingService tracking = Create(git);
 
-        await tracking.RemoveAsync(Repository, "src/Thing.cs", default);
+        await tracking.RemoveAsync(Repository, ["src/Thing.cs"], default);
+        await tracking.CanRemoveAsync(Repository, ["src/Thing.cs"], default);
         await tracking.CanRemoveFolderAsync(Repository, "src/Legacy", default);
         await tracking.RemoveFolderAsync(Repository, "src/Legacy", default);
 
@@ -173,7 +186,7 @@ public class TrackingServiceTests
 
         TrackingService tracking = Create(git);
 
-        await tracking.RemoveAsync(Repository, "dumps/a[1].txt", default);
+        await tracking.RemoveAsync(Repository, ["dumps/a[1].txt"], default);
         await tracking.RemoveFolderAsync(Repository, "dumps/a[1]", default);
 
         Assert.Equal(["rm", "--", ":(literal)dumps/a[1].txt"], git.Invocations[0].Args);
@@ -188,8 +201,8 @@ public class TrackingServiceTests
 
         TrackingService files = Create(git);
 
-        await files.AddAsync(Repository, "src/Thing.cs", default);
-        await files.RemoveAsync(Repository, "src/Thing.cs", default);
+        await files.AddAsync(Repository, ["src/Thing.cs"], default);
+        await files.RemoveAsync(Repository, ["src/Thing.cs"], default);
 
         Assert.All(git.Invocations, invocation => Assert.False(invocation.ReadOnly));
     }
@@ -202,10 +215,55 @@ public class TrackingServiceTests
             exitCode: 1,
             stderr: "error: the following file has local modifications:\n    src/Thing.cs");
 
-        TrackingResult result = await Create(git).RemoveAsync(Repository, "src/Thing.cs", default);
+        TrackingResult result = await Create(git)
+            .RemoveAsync(Repository, ["src/Thing.cs"], default);
 
         Assert.False(result.Succeeded);
         Assert.Contains("local modifications", result.Error);
+    }
+
+    [Fact]
+    public async Task TheFileGateIsADryRunOverEveryPathAndCarriesNoRecursion()
+    {
+        //In scope under "the safety rules": this vector is what makes gate-before-ask hold for the
+        //file half of a selection. A single file used to be gated by `git rm` itself refusing as it
+        //ran, which is safe only while that call is the whole operation -- in a batch, a folder binned
+        //first and a file refused second is half a removal the user cannot reason about.
+        var git = new FakeGitRunner().Returns(["rm"]);
+
+        await Create(git).CanRemoveAsync(Repository, ["src/Thing.cs", "src/Other.cs"], default);
+
+        FakeGitRunner.Invocation call = Assert.Single(git.Invocations);
+
+        Assert.Equal(
+            ["rm", "--dry-run", "--", ":(literal)src/Thing.cs", ":(literal)src/Other.cs"],
+            call.Args);
+
+        //A gate changes nothing, so it must not take the index lock.
+        Assert.True(call.ReadOnly);
+
+        //These are files. -r here would answer about a tree nobody clicked.
+        Assert.DoesNotContain("-r", call.Args);
+        Assert.DoesNotContain("-f", call.Args);
+        Assert.DoesNotContain("--force", call.Args);
+    }
+
+    [Fact]
+    public async Task AnEmptyListRunsNoCommandAtAll()
+    {
+        //In scope under "the safety rules": `add -A` never appears in an argument list, and neither
+        //may anything that comes to mean the same thing. `git add --` with no pathspec after it is
+        //exactly that shape -- the one a plural signature could produce that means something other
+        //than what was asked -- so an empty list has to stop before the process starts.
+        var git = new FakeGitRunner().Returns(["add"]).Returns(["rm"]);
+
+        TrackingService tracking = Create(git);
+
+        Assert.True((await tracking.AddAsync(Repository, [], default)).Succeeded);
+        Assert.True((await tracking.RemoveAsync(Repository, [], default)).Succeeded);
+        Assert.True((await tracking.CanRemoveAsync(Repository, [], default)).Succeeded);
+
+        Assert.Empty(git.Invocations);
     }
 
     [Fact]

@@ -14,6 +14,10 @@ namespace FlickGit.Shell;
 /// <param name="InSubmenu">Goes under the <c>FlickGit</c> popup rather than at the top level.</param>
 /// <param name="OnFiles">Drawn when a file was clicked.</param>
 /// <param name="OnFolders">Drawn when a folder, a drive or a folder background was clicked.</param>
+/// <param name="OnSelection">
+/// The item is handed every selected path rather than only the first. Add and Remove; see
+/// <see cref="ShellCommandIds.ValueOnSelection"/>.
+/// </param>
 /// <param name="OnClickedFolders">
 /// Drawn when a folder was pointed at -- not its own background, not a drive, and not the repository
 /// root. Narrower than <paramref name="OnFolders"/> and not implied by it: an item carrying only this
@@ -28,7 +32,8 @@ internal sealed record MenuItem(
     bool InSubmenu,
     bool OnFiles,
     bool OnFolders,
-    bool OnClickedFolders);
+    bool OnClickedFolders,
+    bool OnSelection);
 
 /// <summary>
 /// The menu, as the App wrote it into the handler's own CLSID key: what to run, what to call the
@@ -189,7 +194,8 @@ internal static class MenuRegistry
                 IsSet(item, ShellCommandIds.ValueInSubmenu),
                 IsSet(item, ShellCommandIds.ValueOnFiles),
                 IsSet(item, ShellCommandIds.ValueOnFolders),
-                IsSet(item, ShellCommandIds.ValueOnClickedFolders)));
+                IsSet(item, ShellCommandIds.ValueOnClickedFolders),
+                IsSet(item, ShellCommandIds.ValueOnSelection)));
         }
 
         return [.. loaded];

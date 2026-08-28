@@ -19,9 +19,20 @@ public sealed record TrackingResult(bool Succeeded, string? Error)
 /// offers on a right-clicked file beside Blame, and on a right-clicked folder at the foot of the
 /// submenu.
 ///
-/// <b>One path per call.</b> Both are reached from a right-click on a single item, so there is
-/// deliberately no overload taking a list: a method that could take every path is a method that
-/// could be handed all of them.
+/// <b>The paths are a resolved selection, and the guard is that resolution rather than the arity.</b>
+/// Explorer hands over every item the user selected, so both take a list. What keeps a list from
+/// quietly meaning "everything" is not that it is short: it is that <c>RepositoryVerbs.PathIn</c> has
+/// already refused the repository root by name, and anything resolving outside it, <i>per path</i>,
+/// before one of them reaches here. An empty list is therefore a command that stages nothing rather
+/// than one that widens. <b>An empty list runs no command at all</b>, because <c>git add --</c> with
+/// no pathspec after it is the one shape a plural signature could produce that means something other
+/// than what was asked — the same rule <c>ActionPlaceholders</c> keeps for <c>{files}</c>, where
+/// "expanding it to <c>.</c> would be the single worst thing this class could do".
+///
+/// <b>One process for the whole selection</b>, which is also what <c>CommitService.StageAsync</c>
+/// does with a commit's ticked paths. Git is all-or-nothing over the pathspecs after <c>--</c>, so a
+/// path it will not take stops the batch with nothing done rather than leaving half of it applied and
+/// no way for the user to tell which half.
 ///
 /// <b>Recursion exists here, and every place it does is named.</b> <c>git add</c> walks into a
 /// directory pathspec on its own, so <see cref="AddAsync"/> is the same argument vector for a file
@@ -97,25 +108,80 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
             cancellationToken);
 
     /// <summary>
-    /// Stages <paramref name="path"/>, which for a file Git has never seen is what starts tracking it.
+    /// Stages <paramref name="paths"/>, which for anything Git has never seen is what starts tracking
+    /// it.
     ///
     /// <b>The same argument vector for a file and for a folder.</b> A directory pathspec matches
-    /// everything below it, so Git supplies the recursion and no flag of ours has to.
+    /// everything below it, so Git supplies the recursion and no flag of ours has to — which is why
+    /// a mixed selection needs no sorting into two calls here.
     /// </summary>
     public Task<TrackingResult> AddAsync(
         RepositoryInfo repository,
-        string path,
+        IReadOnlyList<string> paths,
         CancellationToken cancellationToken) =>
-        RunAsync(repository, ["add", "--", Literal(path)], $"Staged {path}", cancellationToken);
+        paths.Count == 0
+            ? Task.FromResult(TrackingResult.Ok)
+            : RunAsync(
+                repository,
+                ["add", "--", .. paths.Select(Literal)],
+                Staged(paths),
+                cancellationToken);
 
     /// <summary>
-    /// Deletes <paramref name="path"/> from the working tree and stages the deletion.
+    /// Deletes <paramref name="paths"/> from the working tree and stages the deletions.
+    ///
+    /// <b>Every path here is a file, and that is why there is no <c>-r</c> on this vector.</b> A
+    /// folder does not come this way: it goes to the Recycle Bin through <see cref="RemovalFlow"/>,
+    /// because a folder is exactly where the untracked files are and <c>git rm</c> would either refuse
+    /// over them or leave them behind.
     /// </summary>
     public Task<TrackingResult> RemoveAsync(
         RepositoryInfo repository,
-        string path,
+        IReadOnlyList<string> paths,
         CancellationToken cancellationToken) =>
-        RunAsync(repository, ["rm", "--", Literal(path)], $"Removed {path}", cancellationToken);
+        paths.Count == 0
+            ? Task.FromResult(TrackingResult.Ok)
+            : RunAsync(
+                repository,
+                ["rm", "--", .. paths.Select(Literal)],
+                Removed(paths),
+                cancellationToken);
+
+    /// <summary>
+    /// Whether every file in <paramref name="paths"/> could be removed — with nothing done about it
+    /// either way.
+    ///
+    /// <b>This is a gate, not a preview</b>, and it is the file half of the one <see cref="RemovalFlow"/>
+    /// runs before it asks anything. Today a single file was gated by <c>git rm</c> itself refusing when
+    /// it ran, which is safe only because that call was the whole operation. In a selection it is not:
+    /// a folder binned first and a file refused second is half a removal, so the refusal has to be
+    /// collected before the question rather than discovered after it.
+    ///
+    /// One call for the list, because <c>git rm</c> is all-or-nothing over the pathspecs after
+    /// <c>--</c> and its refusal already names the offending files — <b>reported, never parsed</b>.
+    ///
+    /// <b>No <c>-r</c> here.</b> These are files, and the flag is the difference between answering
+    /// about what was clicked and answering about a tree.
+    /// </summary>
+    public async Task<TrackingResult> CanRemoveAsync(
+        RepositoryInfo repository,
+        IReadOnlyList<string> paths,
+        CancellationToken cancellationToken)
+    {
+        if (paths.Count == 0)
+            return TrackingResult.Ok;
+
+        GitResult result = await git.ReadAsync(
+            repository.Root,
+            ["rm", "--dry-run", "--", .. paths.Select(Literal)],
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Succeeded)
+            return TrackingResult.Ok;
+
+        log.Warn($"git rm --dry-run refused {paths.Count} path(s) ({result.ExitCode}).");
+        return TrackingResult.Failed(Words(result));
+    }
 
     /// <summary>
     /// Whether every tracked file under the folder <paramref name="path"/> could be removed — with
@@ -167,6 +233,18 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
             ["rm", "-r", "--cached", "--", Literal(path)],
             $"Removed {path}",
             cancellationToken);
+
+    /// <summary>
+    /// What the log says a batch did. The one path is named when there is one, because that is the
+    /// line worth reading back; past that the count is the honest summary and a hundred paths on one
+    /// line is not.
+    /// </summary>
+    private static string Staged(IReadOnlyList<string> paths) =>
+        paths.Count == 1 ? $"Staged {paths[0]}" : $"Staged {paths.Count} paths";
+
+    /// <inheritdoc cref="Staged"/>
+    private static string Removed(IReadOnlyList<string> paths) =>
+        paths.Count == 1 ? $"Removed {paths[0]}" : $"Removed {paths.Count} paths";
 
     /// <summary>
     /// The path as a <b>pathspec that cannot glob</b>.

@@ -119,6 +119,24 @@ public sealed class VerbRunner(
                 return VerbResult.Exit(ExitCodes.ConfigurationError);
             }
 
+            //A selection the command line could not carry. Answered here, before the repository is
+            //resolved, because there is deliberately nothing to resolve one *from*: the shell handler
+            //sent the count instead of a shortened list, and a path defaulted in from the working
+            //directory would turn "too many files" into an operation on whatever directory this
+            //process happens to have started in.
+            //
+            //Exit 5 rather than 4. Nothing was acted on, and refusing rather than truncating is the
+            //safety property itself -- a removal carrying the first four hundred of five hundred
+            //selected files is a removal the user never asked for.
+            if (verb.Kind is VerbKind.Add or VerbKind.Remove && verb.Paths.Count == 0)
+            {
+                output.Fail(
+                    Strings.Get(verb.Kind is VerbKind.Add ? "action.add" : "action.rm"),
+                    Strings.Get("selection.toomany", verb.Argument ?? "?"));
+
+                return VerbResult.Exit(ExitCodes.RefusedForSafety);
+            }
+
             //Resolved once, here, rather than at the top of every verb. A path that is not in a
             //repository is reported the same way whatever was asked of it.
             RepositoryInfo? repository = null;
@@ -180,11 +198,11 @@ public sealed class VerbRunner(
             //`repository` was resolved from its directory.
             VerbKind.Blame => await windowVerbs.BlameAsync(output, repository!, verb.Path!).ConfigureAwait(true),
 
-            //The other two path verbs, and the same carried-through path -- a file or a folder, which
-            //each of them tells apart for itself. They answer in text rather than in a window, which is
-            //why they are the repository verbs' and not the window verbs'.
-            VerbKind.Add => await repositoryVerbs.AddAsync(output, repository!, verb.Path!).ConfigureAwait(true),
-            VerbKind.Remove => await repositoryVerbs.RemoveAsync(output, repository!, verb.Path!).ConfigureAwait(true),
+            //The other two path verbs, and the only two carrying a *selection* -- files or folders,
+            //which each of them tells apart for itself. They answer in text rather than in a window,
+            //which is why they are the repository verbs' and not the window verbs'.
+            VerbKind.Add => await repositoryVerbs.AddAsync(output, repository!, verb.Paths).ConfigureAwait(true),
+            VerbKind.Remove => await repositoryVerbs.RemoveAsync(output, repository!, verb.Paths).ConfigureAwait(true),
 
             //`status` is text, always. It used to open the commit window when there was no console to
             //print into, which is every click -- so the catalog's entry for it was the root Commit

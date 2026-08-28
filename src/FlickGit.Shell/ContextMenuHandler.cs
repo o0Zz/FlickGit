@@ -36,15 +36,38 @@ internal static unsafe partial class ContextMenuHandler
         public int RefCount;
 
         /// <summary>
-        /// The folder the menu is for, as a <c>CoTaskMemAlloc</c>'d string, or zero. Held rather than
-        /// re-resolved: <c>Initialize</c> is the only call that is given it.
+        /// Every selected path, as one <c>CoTaskMemAlloc</c>'d block: NUL-separated and NUL-terminated,
+        /// or zero. Held rather than re-resolved, because <c>Initialize</c> is the only call given the
+        /// data object and that object does not outlive it.
+        ///
+        /// <b>One allocation rather than a <c>char**</c>.</b> A Windows file name cannot contain any
+        /// character from 0 to 31, so a NUL can never occur inside a path and is free to separate
+        /// them — and one pointer is one thing for <c>ReleaseCore</c> to free, which is the property
+        /// worth having in a DLL that lives as long as the desktop.
         /// </summary>
-        public char* Folder;
+        public char* Paths;
+
+        /// <summary>How many paths the block holds.</summary>
+        public int PathCount;
 
         /// <summary>
-        /// The clicked item is a file rather than a folder. The handler is registered on <c>*</c> as well
-        /// as on Directory, so without this every folder action would be offered on a file, and Blame on
-        /// a directory.
+        /// How many items Explorer actually had selected. Greater than <see cref="PathCount"/> only
+        /// when the selection was longer than one command line could carry — and then <b>nothing acts
+        /// on the difference</b>: <c>Launcher</c> sends this count instead of a shortened command, and
+        /// the App turns it into a message.
+        /// </summary>
+        public int Selected;
+
+        /// <summary>
+        /// The <b>first</b> selected item is a file rather than a folder. The handler is registered on
+        /// <c>*</c> as well as on Directory, so without this every folder action would be offered on a
+        /// file, and Blame on a directory.
+        ///
+        /// The first item and not the whole selection, deliberately. Every entry except Add and Remove
+        /// is handed item 0 and acts on it, so item 0's own type is the right question for each of
+        /// them; Add and Remove are drawn on either kind, so the answer does not gate them at all.
+        /// Asking of every selected item would buy nothing and cost a syscall each on the thread
+        /// painting the menu.
         /// </summary>
         public int IsFile;
 
@@ -196,8 +219,8 @@ internal static unsafe partial class ContextMenuHandler
         if (remaining > 0)
             return (uint)remaining;
 
-        if (instance->Folder is not null)
-            Marshal.FreeCoTaskMem((nint)instance->Folder);
+        if (instance->Paths is not null)
+            Marshal.FreeCoTaskMem((nint)instance->Paths);
 
         if (instance->ItemMap is not null)
             NativeMemory.Free(instance->ItemMap);
@@ -226,33 +249,36 @@ internal static unsafe partial class ContextMenuHandler
             //Which of the two answered is itself the answer to "did this click name anything", so it
             //is recorded rather than collapsed away -- the data object carries what was selected, the
             //PIDL only what was being browsed.
-            string? clicked = Selection.FromDataObject(dataObject);
-            string? path = clicked ?? Selection.FromPidl(folder);
+            SelectedItems? clicked = Selection.FromDataObject(dataObject, Launcher.CommandLineBudget);
 
-            if (instance->Folder is not null)
+            string[] paths = clicked is { } items
+                ? items.Paths
+                : Selection.FromPidl(folder) is { Length: > 0 } browsed ? [browsed] : [];
+
+            if (instance->Paths is not null)
             {
-                Marshal.FreeCoTaskMem((nint)instance->Folder);
-                instance->Folder = null;
+                Marshal.FreeCoTaskMem((nint)instance->Paths);
+                instance->Paths = null;
             }
 
             instance->IsFile = 0;
             instance->IsBackground = clicked is null ? 1 : 0;
+            instance->PathCount = 0;
+            instance->Selected = 0;
 
-            if (path is { Length: > 0 })
+            if (paths.Length > 0)
             {
-                instance->Folder = (char*)Marshal.StringToCoTaskMemUni(path);
+                //StringToCoTaskMemUni copies by length and appends its own terminator, so the embedded
+                //NULs survive the trip: the block is `p1\0p2\0...pN\0`, which is what PathsOf walks
+                //back. A managed PtrToStringUni would stop at the first one and see only path zero.
+                instance->Paths = (char*)Marshal.StringToCoTaskMemUni(string.Join('\0', paths));
+                instance->PathCount = paths.Length;
+                instance->Selected = clicked?.Selected ?? paths.Length;
 
-                //Directory.Exists rather than File.Exists: the question is "is this a container", and a path
-                //that is neither -- a deleted item, something on a disconnected share -- is treated as a file,
-                //which offers the smaller menu rather than the wrong one.
-                try
-                {
-                    instance->IsFile = Directory.Exists(path) ? 0 : 1;
-                }
-                catch
-                {
-                    instance->IsFile = 1;
-                }
+                //The attribute rather than File.Exists: the question is "is this a container", and a path
+                //that is neither -- a deleted item, something on a disconnected share -- is treated as a
+                //file, which offers the smaller menu rather than the wrong one.
+                instance->IsFile = Selection.IsDirectory(paths[0]) ? 0 : 1;
             }
 
             //S_OK even with nothing resolved. QueryContextMenu then adds no items, which is correct for This
@@ -282,12 +308,18 @@ internal static unsafe partial class ContextMenuHandler
                 return Com.ItemsAdded(0);
 
             Instance* instance = Self(self);
-            string? folder = instance->Folder is null ? null : Marshal.PtrToStringUni((nint)instance->Folder);
+            string[] paths = PathsOf(instance);
 
             MenuItem[] items = MenuRegistry.All();
 
-            if (items.Length == 0 || folder is null)
+            if (items.Length == 0 || paths.Length == 0)
                 return Com.ItemsAdded(0);
+
+            //The first selected item, and one repository lookup, exactly as before a selection could
+            //arrive here. What each entry is drawn on is a question about the item it will be handed,
+            //and that is item zero for everything except Add and Remove -- which carry both surfaces
+            //and are therefore drawn either way. See Instance.IsFile.
+            string folder = paths[0];
 
             RepositoryAnswer answer = RepositoryLookup.For(folder);
 
@@ -324,6 +356,29 @@ internal static unsafe partial class ContextMenuHandler
             //No block rather than a broken one, and above all not an exception into Explorer.
             return Com.ItemsAdded(0);
         }
+    }
+
+    /// <summary>
+    /// The NUL-separated block back as strings.
+    ///
+    /// Walked by length rather than scanned for a terminator count, because <c>PathCount</c> is
+    /// already known and a miscount here would read past the allocation.
+    /// </summary>
+    private static string[] PathsOf(Instance* instance)
+    {
+        if (instance->Paths is null || instance->PathCount <= 0)
+            return [];
+
+        var paths = new string[instance->PathCount];
+        char* cursor = instance->Paths;
+
+        for (int i = 0; i < paths.Length; i++)
+        {
+            paths[i] = new string(cursor);
+            cursor += paths[i].Length + 1;
+        }
+
+        return paths;
     }
 
     private static int Compose(
@@ -491,9 +546,26 @@ internal static unsafe partial class ContextMenuHandler
             if (which < 0 || which >= items.Length)
                 return Com.E_INVALIDARG;
 
-            string? folder = instance->Folder is null ? null : Marshal.PtrToStringUni((nint)instance->Folder);
+            string[] paths = PathsOf(instance);
+            MenuItem item = items[which];
 
-            return Launcher.Start(MenuRegistry.ExePath(), items[which].Verb, folder) ? Com.S_OK : Com.E_FAIL;
+            //The two selection entries are handed everything that was selected. Every other entry gets
+            //the first item, which is what it has always been given -- and what its verb still expects,
+            //because for those the token after the path is a branch, a tag name or a URL rather than a
+            //second path.
+            bool whole = item.OnSelection && paths.Length > 0;
+
+            ReadOnlySpan<string> send = whole
+                ? paths
+                : paths.AsSpan(0, Math.Min(1, paths.Length));
+
+            return Launcher.Start(
+                MenuRegistry.ExePath(),
+                item.Verb,
+                send,
+                whole ? instance->Selected : send.Length)
+                ? Com.S_OK
+                : Com.E_FAIL;
         }
         catch
         {

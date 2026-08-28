@@ -209,9 +209,10 @@ src/
 │   ├── Status/              porcelain v2, numstat, name-status parsing, StatusService
 │   ├── Diff/                DiffService, FileTextLoader, WorkingTreeWriter, DiffDocument,
 │   │                        Hunks + PatchService (patch generator, `git apply --cached`)
-│   ├── Files/               TrackingService -- `git add`/`git rm` on one path, never forced
-│   │                        and never a pathspec that can glob; FolderRemovalFlow, whose
-│   │                        order is the safety rule (gate, ask, bin, record)
+│   ├── Files/               TrackingService -- `git add`/`git rm` over a resolved path list,
+│   │                        never forced and never a pathspec that can glob; RemovalFlow,
+│   │                        whose order is the safety rule (gate every target, ask once,
+│   │                        bin, record)
 │   ├── Commits/             CommitService, CommitFlow
 │   ├── Merges/              MergeStateService (file probes, no git.exe) and ConflictService --
 │   │                        checkout-then-add, and the gate that refuses --continue
@@ -382,8 +383,8 @@ flick submodule <path>               submodules: add, remove, initialise
 flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
 flick blame <file>                   who last touched each line, and what came before
-flick add <path>                     stage one file or folder, tracking what is new
-flick rm <path>                      delete one file or folder and stage the deletion; asks first
+flick add <path>...                  stage files or folders, tracking what is new
+flick rm <path>...                   delete files or folders and stage the deletions; asks first
 flick repo <path>                    identity, remotes and this repository's defaults
 flick terminal <path>                open a terminal there
 flick run <id> [path]                run a catalog action by id
@@ -1056,7 +1057,17 @@ puts an action there.
 
 **Add and Remove** are `TrackingService`, and both answer in text, so the CLI verbs are the same code
 path. They are the only entries that act on something smaller than the repository, which is why they
-sit last in the submenu and `rm` last of the two. Add stages (nothing to confirm for a file — staging
+sit last in the submenu and `rm` last of the two.
+
+**They are also the only two that act on the whole selection**, and the only two whose verb reads more
+than one positional path — `ShellCommandIds.ValueOnSelection` is what says so, and every other entry
+is still handed the item under the pointer, because the token after its path means a branch or a tag
+name rather than a second path. One `git add`/`git rm` carries the batch, `RemovalFlow` asks **one**
+question with the totals, and **every** target is gated before that question is put: asking per item
+would run the gate for the fifth only after the first four had already gone. A selection longer than
+one command line can carry is **refused with its count, never truncated** — `Launcher` measures the
+line and sends `--too-many <n>` instead, because a removal carrying the first four hundred of five
+hundred selected files is a removal nobody asked for. Add stages (nothing to confirm for a file — staging
 discards nothing). Remove deletes and stages the deletion, behind one question, under four rules:
 **nothing is forced** (so `git rm` itself enforces "never discard uncommitted work"); **an untracked
 path is refused before the question**; **it asks on every surface**, with a dialog even from the

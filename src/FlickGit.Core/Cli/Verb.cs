@@ -21,16 +21,22 @@ public enum VerbKind
     Blame,
 
     /// <summary>
-    /// <c>git add</c> on one path, which for something Git has never seen is what starts tracking it.
-    /// A file or a folder, unlike <see cref="Blame"/>; a folder counts what it would stage and asks
+    /// <c>git add</c> on the selection, which for anything Git has never seen is what starts tracking
+    /// it. Files or folders, unlike <see cref="Blame"/>; a folder counts what it would stage and asks
     /// before it does.
+    ///
+    /// <b>The two verbs that take a path list.</b> Explorer hands over every item that was selected,
+    /// and acting on the first one and silently dropping the rest is what this used to do.
     /// </summary>
     Add,
 
     /// <summary>
-    /// <c>git rm</c> on one path: gone from the working tree, and the deletion staged. A file or a
-    /// folder — and a folder goes to the Recycle Bin rather than to <c>git rm -r</c>, because that is
+    /// <c>git rm</c> on the selection: gone from the working tree, and the deletions staged. Files or
+    /// folders — and a folder goes to the Recycle Bin rather than to <c>git rm -r</c>, because that is
     /// where the untracked files are.
+    ///
+    /// <b>One question for the whole selection</b>, asked after every path has been gated and before
+    /// anything is destroyed. See <c>RemovalFlow</c>, where that order is the safety rule.
     ///
     /// Spelled <c>rm</c> rather than <c>remove</c> or <c>delete</c>, because it is <i>exactly</i>
     /// <c>git rm</c> and a second word for it would be a second thing to remember. It asks before it
@@ -119,15 +125,41 @@ public enum VerbKind
     Version,
 }
 
-/// <param name="Path">The repository or folder it applies to. Defaults to the working directory.</param>
+/// <param name="Path">
+/// The repository or folder it applies to. Defaults to the working directory. For the two verbs that
+/// take a selection this is its first entry, so repository resolution has one path to work from
+/// whatever the verb.
+/// </param>
 /// <param name="Argument">The optional second token: a branch for `switch`, a URL for `clone`.</param>
 /// <param name="Error">Set when the command line could not be understood. Nothing else is valid then.</param>
 public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string? Error = null)
 {
+    private readonly IReadOnlyList<string>? _paths;
+
     /// <summary>
-    /// Parses <c>flick &lt;verb&gt; [path] [argument]</c>. Hand-rolled: a command-line library would be
-    /// another assembly to load before the first window appears, and the grammar is one verb plus at
-    /// most two positional arguments.
+    /// Every path the verb applies to.
+    ///
+    /// <b>For all but two verbs that is exactly <see cref="Path"/></b>, which is why the default is
+    /// derived rather than written out at a dozen construction sites: <c>commit</c> and <c>blame</c>
+    /// and the rest apply to one thing, and a list there would be a second spelling of the same fact.
+    /// <c>add</c> and <c>rm</c> set it, because Explorer hands them a selection.
+    ///
+    /// Empty means the selection was <i>refused</i> rather than absent — see the <c>--too-many</c>
+    /// spelling in <c>Parse</c>. It never means "so use the working directory": that default is
+    /// applied while parsing, where the difference between "no path given" and "too many to carry" is
+    /// still known.
+    /// </summary>
+    public IReadOnlyList<string> Paths
+    {
+        get => _paths ?? (Path is null ? [] : [Path]);
+        init => _paths = value;
+    }
+
+    /// <summary>
+    /// Parses <c>flick &lt;verb&gt; [path] [argument]</c>, or <c>flick &lt;verb&gt; &lt;path&gt;...</c>
+    /// for the two that take a selection. Hand-rolled: a command-line library would be another assembly
+    /// to load before the first window appears, and the grammar is one verb plus its positional
+    /// arguments.
     /// </summary>
     /// <param name="workingDirectory">
     /// What <c>&lt;path&gt;</c> defaults to. Passed in rather than read from the environment, because a
@@ -208,6 +240,13 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
         if (kind is null)
             return new Verb(VerbKind.Help, null, null, $"Unknown command '{head}'.");
 
+        //`add` and `rm` act on a selection, so every trailing token is a path. Every other verb keeps
+        //`args[2]` for its own second token -- a branch for `switch`, a name for `tag`, a message for
+        //`stash` -- which is why this is a switch on the kind and not a rule about trailing arguments.
+        //Made general, `flick tag . v1.0` would read the tag name as a second path.
+        if (kind.Value is VerbKind.Add or VerbKind.Remove)
+            return Selection(kind.Value, args, fallbackPath);
+
         string? path = args.Count > 1 ? args[1] : null;
         string? argument = args.Count > 2 ? args[2] : null;
 
@@ -219,6 +258,40 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             path = null;
 
         return new Verb(kind.Value, path ?? DefaultPathFor(kind.Value, fallbackPath), argument);
+    }
+
+    /// <summary>
+    /// <c>flick add &lt;path&gt;...</c> and <c>flick rm &lt;path&gt;...</c>, whose whole tail is a path
+    /// list.
+    ///
+    /// <b><c>--too-many</c> is the shell handler saying the selection would not fit on a command
+    /// line</b>, and it arrives carrying the count and no paths at all. A truncated list is the one
+    /// answer that must never reach a removal, so the handler sends none rather than some — see
+    /// <c>Launcher</c> for the budget, and <c>VerbRunner</c>, which refuses this by name before it
+    /// resolves a repository.
+    /// </summary>
+    private static Verb Selection(VerbKind kind, IReadOnlyList<string> args, string fallbackPath)
+    {
+        if (args.Count > 1 && args[1].Trim().Equals("--too-many", StringComparison.OrdinalIgnoreCase))
+            return new Verb(kind, null, args.Count > 2 ? args[2].Trim() : null) { Paths = [] };
+
+        List<string> paths = [];
+
+        for (int i = 1; i < args.Count; i++)
+        {
+            //The same unquoting the single path has always had, per entry.
+            string one = args[i].Trim().Trim('"');
+
+            if (one.Length > 0)
+                paths.Add(one);
+        }
+
+        //No path given at all is the working directory, exactly as for every other verb. Applied here
+        //rather than left to an empty list, because empty now means something else entirely.
+        if (paths.Count == 0)
+            paths.Add(fallbackPath);
+
+        return new Verb(kind, paths[0], null) { Paths = paths };
     }
 
     private static string? DefaultPathFor(VerbKind kind, string fallbackPath) =>
@@ -248,8 +321,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick status <path>
           flick log <path>                    commit history; multi-select for a combined diff
           flick blame <file>                  who last touched each line, and what was there before
-          flick add <path>                    stage one file or folder, tracking what is new
-          flick rm <path>                     delete one file or folder and stage the deletion; asks first
+          flick add <path>...                 stage files or folders, tracking what is new
+          flick rm <path>...                  delete files or folders and stage the deletions; asks first
           flick repo <path>                   the identity it commits as, its remotes, its defaults
           flick submodule <path>              submodules: add, remove, initialise
           flick terminal <path>               open a terminal there

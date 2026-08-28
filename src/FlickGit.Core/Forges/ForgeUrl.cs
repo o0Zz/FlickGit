@@ -34,7 +34,7 @@ public static partial class ForgeUrl
         name?.Trim().ToLowerInvariant() switch
         {
             "github" or "gh" or "github-enterprise" => ForgeKind.GitHub,
-            "gitlab" or "gl" => ForgeKind.GitLab,
+
             "azure" or "azuredevops" or "azure-devops" or "ado" or "vsts" or "tfs" => ForgeKind.AzureDevOps,
             _ => ForgeKind.Unknown,
         };
@@ -62,7 +62,7 @@ public static partial class ForgeUrl
         {
             ForgeKind.AzureDevOps => Azure(host, segments),
             ForgeKind.GitHub => GitHub(host, segments),
-            ForgeKind.GitLab => GitLab(host, segments),
+
             _ => null,
         };
     }
@@ -114,8 +114,6 @@ public static partial class ForgeUrl
         if (host == "github.com" || host.EndsWith(".github.com", StringComparison.Ordinal))
             return ForgeKind.GitHub;
 
-        if (host == "gitlab.com" || host.EndsWith(".gitlab.com", StringComparison.Ordinal))
-            return ForgeKind.GitLab;
 
         if (host == "dev.azure.com"
             || host.EndsWith(".dev.azure.com", StringComparison.Ordinal)
@@ -134,8 +132,6 @@ public static partial class ForgeUrl
         if (firstLabel.StartsWith("github", StringComparison.Ordinal))
             return ForgeKind.GitHub;
 
-        if (firstLabel.StartsWith("gitlab", StringComparison.Ordinal))
-            return ForgeKind.GitLab;
 
         return ForgeKind.Unknown;
     }
@@ -160,28 +156,6 @@ public static partial class ForgeUrl
         return new ForgeRepository(ForgeKind.GitHub, host, api, owner, string.Empty, name);
     }
 
-    /// <summary><c>https://host/api/v4/</c>, cloud and self-managed alike.</summary>
-    private static ForgeRepository? GitLab(string host, string[] segments)
-    {
-        if (segments.Length < 2)
-            return null;
-
-        //Every segment but the last is the namespace, which GitLab allows to nest. Joined rather than
-        //taking segments[^2], or a subgroup would silently address the wrong project.
-        string owner = string.Join('/', segments[..^1]);
-        string name = Strip(segments[^1]);
-
-        if (owner.Length == 0 || name.Length == 0)
-            return null;
-
-        return new ForgeRepository(
-            ForgeKind.GitLab,
-            host,
-            new Uri($"https://{host}/api/v4/"),
-            owner,
-            string.Empty,
-            name);
-    }
 
     /// <summary>
     /// The three-level one, and the only one whose API base is not a fixed string.

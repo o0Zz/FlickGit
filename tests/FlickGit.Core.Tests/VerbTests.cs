@@ -311,4 +311,94 @@ epo");
         Assert.Equal(VerbKind.Help, verb.Kind);
         Assert.NotNull(verb.Error);
     }
+
+    /// <summary>
+    /// `add` and `rm` take every trailing token as a path, because Explorer hands them a selection.
+    ///
+    /// In scope under "the command-line grammar". Acting on the first token and silently dropping the
+    /// rest is the bug this exists to pin: it reported success, so nothing anywhere said that six of
+    /// the seven files the user selected had been left alone.
+    /// </summary>
+    [Theory]
+    [InlineData("add")]
+    [InlineData("rm")]
+    public void Add_and_rm_take_every_trailing_token_as_a_path(string spelling)
+    {
+        Verb verb = Verb.Parse(
+            [spelling, @"C:\dev\repo\a.cs", @"C:\dev\repo\notes with a space.md", @"C:\dev\repo\naïve"],
+            @"C:\dev\repo");
+
+        Assert.Null(verb.Error);
+        Assert.Equal(3, verb.Paths.Count);
+
+        Assert.Equal(
+            [@"C:\dev\repo\a.cs", @"C:\dev\repo\notes with a space.md", @"C:\dev\repo\naïve"],
+            verb.Paths);
+
+        //The first entry is still what repository resolution works from, and nothing landed in the
+        //slot a second token would occupy for another verb.
+        Assert.Equal(@"C:\dev\repo\a.cs", verb.Path);
+        Assert.Null(verb.Argument);
+    }
+
+    /// <summary>
+    /// Only those two read more than one positional path.
+    ///
+    /// In scope under "the command-line grammar", and the assertion that pins the reason the path list
+    /// is a switch on the kind rather than a rule about trailing arguments: `tag`, `stash`, `switch`
+    /// and `clone` all use the second slot for something that is <i>not</i> a path, so a general rule
+    /// would read `flick tag . v1.0` as two paths and create no tag at all.
+    /// </summary>
+    [Theory]
+    [InlineData("tag", "v1.0")]
+    [InlineData("stash", "wip: pooling")]
+    [InlineData("switch", "feature/storage-gw")]
+    [InlineData("clone", "https://example.com/x.git")]
+    public void Only_add_and_rm_read_more_than_one_positional_path(string spelling, string second)
+    {
+        Verb verb = Verb.Parse([spelling, @"C:\dev\repo", second], @"C:\dev");
+
+        Assert.Null(verb.Error);
+        Assert.Equal(@"C:\dev\repo", verb.Path);
+        Assert.Equal(second, verb.Argument);
+        Assert.Equal([@"C:\dev\repo"], verb.Paths);
+    }
+
+    /// <summary>
+    /// A selection too large for one command line arrives as a count and <b>no path at all</b>.
+    ///
+    /// In scope under "the command-line grammar". The empty list is the safety property: the shell
+    /// handler sends this instead of a shortened list, because a removal carrying the first four
+    /// hundred of five hundred selected files is a removal nobody asked for. `Path` staying null is
+    /// the other half — defaulting it to the working directory here would turn "too many files" into
+    /// an operation on a whole directory.
+    /// </summary>
+    [Fact]
+    public void A_selection_too_large_for_one_command_line_carries_no_path_at_all()
+    {
+        Verb verb = Verb.Parse(["add", "--too-many", "742"], @"C:\dev\repo");
+
+        Assert.Equal(VerbKind.Add, verb.Kind);
+        Assert.Null(verb.Error);
+        Assert.Empty(verb.Paths);
+        Assert.Null(verb.Path);
+        Assert.Equal("742", verb.Argument);
+    }
+
+    /// <summary>
+    /// With no path given at all, the two selection verbs still default to the working directory.
+    ///
+    /// In scope under "the command-line grammar": CLAUDE.md says `&lt;path&gt;` defaults to the current
+    /// directory for every verb, and the path list must not have quietly taken that away. It is also
+    /// what keeps the empty list meaning only one thing — a refused selection, never an absent one.
+    /// </summary>
+    [Fact]
+    public void A_selection_verb_with_no_path_still_defaults_to_the_working_directory()
+    {
+        Verb verb = Verb.Parse(["rm"], @"C:\dev\repo");
+
+        Assert.Equal(VerbKind.Remove, verb.Kind);
+        Assert.Equal(@"C:\dev\repo", verb.Path);
+        Assert.Equal([@"C:\dev\repo"], verb.Paths);
+    }
 }

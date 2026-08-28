@@ -106,10 +106,10 @@ public sealed class PullRequestService(
             //Named rather than guessed, and the message carries the fix. A self-hosted instance is the
             //ordinary case for this, not an exotic one.
             return PullRequestPlan.Refuse(
-                $"FlickGit does not recognise {remote.Name} as GitHub, GitLab or Azure DevOps:\n\n"
+                $"FlickGit does not recognise {remote.Name} as GitHub or Azure DevOps:\n\n"
                 + $"{url}\n\n"
                 + "If it is a self-hosted instance of one of them, say so once:\n\n"
-                + $"git config --local {RepositoryConfigService.ForgeKindKey} gitlab");
+                + $"git config --local {RepositoryConfigService.ForgeKindKey} github");
         }
 
         string target = await ResolveTargetAsync(repository, configuredPrimaryBranch, cancellationToken)

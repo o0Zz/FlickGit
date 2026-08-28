@@ -138,6 +138,20 @@ internal static class ShellCommandIds
     /// </summary>
     public const string ValueOnClickedFolders = "FlickGit.OnClickedFolders";
 
+    /// <summary>
+    /// The item acts on the <b>whole selection</b> rather than on the item under the pointer.
+    ///
+    /// Add and Remove, and only those two: they are the entries whose operand is a set, and the CLI
+    /// verbs behind them are the only two that read more than one positional path. Everything else —
+    /// Commit, Blame, Log — keeps being handed the first item, which is what it has always been given
+    /// and what its verb still expects in the slot after the path.
+    ///
+    /// It travels as a registry value rather than as a verb name the handler knows, for the reason
+    /// every other flag here does: the DLL holds no interface text and no verb spellings of its own,
+    /// so what it draws and what it launches are both the App's to decide.
+    /// </summary>
+    public const string ValueOnSelection = "FlickGit.OnSelection";
+
     /// <summary>The popup's own label, already localised.</summary>
     public const string ValueSubmenuLabel = "FlickGit.SubmenuLabel";
 

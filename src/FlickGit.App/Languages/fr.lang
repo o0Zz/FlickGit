@@ -146,6 +146,19 @@ folder.remove.yes = Supprimer
 # {0} chemin relatif au dépôt
 folder.remove.binned = {0} est dans la Corbeille.
 
+# ---- le menu de l'Explorateur sur plusieurs éléments sélectionnés ----
+selection.added = {0} éléments indexés.
+selection.removed = {0} éléments supprimés — la suppression de {1} fichiers suivis est indexée, pas validée.
+selection.nothingtoadd = Rien à indexer dans les {0} éléments sélectionnés.
+selection.add.title = Ajouter ces éléments
+selection.add.ask = Ajouter {0} éléments sélectionnés ?\n\n{1} fichiers sont indexés, dont {2} nouveaux pour Git.\n\nRien n'est validé et rien n'est poussé.
+selection.add.yes = Ajouter
+selection.remove.title = Supprimer ces éléments
+selection.remove.ask = Supprimer {0} éléments sélectionnés ?\n\n{1} d'entre eux sont des dossiers et partent à la Corbeille avec tout ce qu'ils contiennent.\n\nLa suppression de {2} fichiers suivis est indexée, pas validée. {3} fichiers que Git n'a jamais vus partent aussi à la Corbeille — c'est le seul retour possible pour eux, comme pour ce que .gitignore masque.\n\nGit refuse si l'un d'eux contient des modifications jamais validées.
+selection.remove.yes = Supprimer
+selection.remove.partial = {0} éléments ont été supprimés avant celui-ci.
+selection.toomany = {0} éléments sont sélectionnés — plus qu'une ligne de commande ne peut en porter. Ouvrez la fenêtre de commit et traitez-les depuis la liste des fichiers.
+
 # ---- visionneuse de diff ----
 diff.mode.head = Copie de travail ↔ HEAD
 diff.left.readonly = ← lecture seule
@@ -498,7 +511,6 @@ pr.step.checking = Recherche d'une pull request existante…
 pr.step.creating = Création de la pull request…
 pr.token.title = Jeton pour {0}
 pr.token.prompt.github = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.\nCréez un personal access token avec la portée « repo » (classique), ou « Pull requests : lecture et écriture » (fine-grained).
-pr.token.prompt.gitlab = FlickGit a besoin d'un jeton pouvant ouvrir des merge requests sur {0}.\nCréez un personal access token avec la portée « api », dans votre profil GitLab sous Access Tokens.
 pr.token.prompt.azure = FlickGit a besoin d'un jeton pouvant ouvrir des pull requests sur {0}.\nCréez un personal access token avec la portée « Code (lecture et écriture) », depuis Paramètres utilisateur → Personal access tokens.
 
 # ---- clone ----

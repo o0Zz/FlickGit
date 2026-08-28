@@ -20,7 +20,7 @@ using FlickGit.Status;
 namespace FlickGit.App.Views;
 
 /// <summary>
-/// Propose the current branch, on GitHub, GitLab or Azure DevOps.
+/// Propose the current branch, on GitHub or Azure DevOps.
 ///
 /// Thin on purpose. Which forge, which target and what is in the branch come from
 /// <see cref="PullRequestService"/>; the order the network is spoken to in is
@@ -300,9 +300,8 @@ public partial class PullRequestWindow : Window
         CreateButton.IsEnabled = false;
     }
 
-    /// <summary>GitLab says <c>!42</c>; the other two say <c>#42</c>.</summary>
-    private static string Number(ForgeRepository forge, int number) =>
-        forge.Kind == ForgeKind.GitLab ? $"!{number}" : $"#{number}";
+    /// <summary>Both remaining services say <c>#42</c>.</summary>
+    private static string Number(int number) => $"#{number}";
 
     private async void OnGenerate(object sender, RoutedEventArgs e)
     {

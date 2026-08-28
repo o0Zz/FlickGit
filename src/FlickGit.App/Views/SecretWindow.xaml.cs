@@ -72,7 +72,6 @@ public partial class SecretWindow : Window
             Strings.Get(kind switch
             {
                 ForgeKind.GitHub => "pr.token.prompt.github",
-                ForgeKind.GitLab => "pr.token.prompt.gitlab",
                 _ => "pr.token.prompt.azure",
             }, host),
             CredentialStore.ForgeTarget(host));

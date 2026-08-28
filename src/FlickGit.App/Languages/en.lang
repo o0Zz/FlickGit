@@ -196,6 +196,32 @@ folder.remove.yes = Remove
 # {0} repository-relative path
 folder.remove.binned = {0} is in the Recycle Bin.
 
+# ---- the Explorer menu on more than one selected item ----
+# Add and Remove act on the whole selection. One question for the batch, not one per item, and every
+# Git gate has already run by the time it is asked -- see RemovalFlow, where that order is the safety
+# rule. A selection of one keeps the file.* and folder.* wording above: it is the same operation, and
+# "1 items" would be a regression in the common case.
+# {0} how many items were staged
+selection.added = Staged {0} items.
+# {0} how many items were removed, {1} how many tracked files that came to
+selection.removed = Removed {0} items — the deletion of {1} tracked files is staged, not committed.
+# {0} how many items were selected
+selection.nothingtoadd = Nothing in the {0} selected items needs staging.
+selection.add.title = Add these items
+# {0} how many items, {1} how many files would be staged, {2} how many of those are new to Git
+selection.add.ask = Add {0} selected items?\n\n{1} files are staged, {2} of them new to Git.\n\nNothing is committed and nothing is pushed.
+selection.add.yes = Add
+selection.remove.title = Remove these items
+# {0} how many items, {1} how many of them are folders, {2} tracked files in total, {3} files Git has
+# never seen inside those folders
+selection.remove.ask = Remove {0} selected items?\n\n{1} of them are folders and go to the Recycle Bin with everything inside them.\n\nThe deletion of {2} tracked files is staged, not committed. {3} files Git has never seen go to the bin as well — that is the only way back for those, along with anything .gitignore hides.\n\nGit refuses if any of them holds changes that were never committed.
+selection.remove.yes = Remove
+# Said when a failure came after part of the selection had already gone. {0} how many went first
+selection.remove.partial = {0} items were removed before this one.
+# The selection was longer than one command line can carry, so the handler sent the count instead of
+# a shortened list -- nothing was staged and nothing was removed. {0} how many were selected
+selection.toomany = {0} items are selected — more than one command line can carry. Open the commit window and stage or delete them from the file list.
+
 # ---- diff viewer ----
 diff.mode.head = Working tree ↔ HEAD
 diff.left.readonly = ← read-only
@@ -714,7 +740,6 @@ pr.step.creating = Creating the pull request…
 # {0} the host
 pr.token.title = Token for {0}
 pr.token.prompt.github = FlickGit needs a token that can open pull requests on {0}.\nCreate a personal access token with the "repo" scope (classic), or "Pull requests: read and write" (fine-grained).
-pr.token.prompt.gitlab = FlickGit needs a token that can open merge requests on {0}.\nCreate a personal access token with the "api" scope, in your GitLab profile under Access Tokens.
 pr.token.prompt.azure = FlickGit needs a token that can open pull requests on {0}.\nCreate a personal access token with the "Code (read and write)" scope, from User settings → Personal access tokens.
 
 # ---- clone ----

@@ -189,7 +189,7 @@ public partial class App : Application
         services.AddSingleton<EditorLauncher>();
         services.AddSingleton<RestoreService>();
         services.AddSingleton<TrackingService>();
-        services.AddSingleton<FolderRemovalFlow>();
+        services.AddSingleton<RemovalFlow>();
         services.AddSingleton<UntrackedFileMeasurer>();
 
         services.AddSingleton<ShellIntegration>();
@@ -199,11 +199,11 @@ public partial class App : Application
         services.AddSingleton<ExplorerFolderResolver>();
         services.AddSingleton<CredentialStore>();
 
-        //Three clients registered whichever forge this machine happens to use: they are three small
+        //Both clients registered whichever forge this machine happens to use: they are two small
         //objects over the shared HttpClient, and a registration that depended on a repository's remote
         //could not be a singleton at all.
         services.AddSingleton<IPullRequestClient, GitHubClient>();
-        services.AddSingleton<IPullRequestClient, GitLabClient>();
+
         services.AddSingleton<IPullRequestClient, AzureDevOpsClient>();
         services.AddSingleton<PullRequestClients>();
         services.AddSingleton<PullRequestService>();
