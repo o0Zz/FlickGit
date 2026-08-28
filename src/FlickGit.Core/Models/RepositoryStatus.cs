@@ -46,9 +46,10 @@ public sealed record RepositoryStatus
     public Merges.MergeState Merge { get; init; } = Merges.MergeState.None;
 
     /// <summary>
-    /// A commit message left in <c>MERGE_MSG</c> for this commit, or null. Rides along for the same
-    /// reason <see cref="Merge"/> does: one more file probe over a path already in hand, so a
-    /// message written while the window is open is picked up by the refresh that is already there.
+    /// A commit message left in <c>SQUASH_MSG</c> or <c>MERGE_MSG</c> for this commit, or null. Rides
+    /// along for the same reason <see cref="Merge"/> does: file probes over a path already in hand,
+    /// so a message written while the window is open is picked up by the refresh that is already
+    /// there.
     /// </summary>
     public string? PreparedMessage { get; init; }
 

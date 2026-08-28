@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Infrastructure;
@@ -743,7 +743,7 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Puts a message prepared in <c>MERGE_MSG</c> into the box.
+    /// Puts a message Git prepared in <c>SQUASH_MSG</c> or <c>MERGE_MSG</c> into the box.
     ///
     /// <b>Nothing here turns the AI off.</b> The window's open sequence is refresh, focus, then
     /// <see cref="BeginGeneration"/> with <c>force: false</c> -- and that already returns early when

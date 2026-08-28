@@ -1,4 +1,4 @@
-﻿using FlickGit.Commits;
+using FlickGit.Commits;
 using FlickGit.Diagnostics;
 using FlickGit.Git;
 using FlickGit.Merges;
@@ -117,9 +117,9 @@ public sealed class StatusService(
             //here rather than by the window so that every existing refresh carries it.
             Merge = merges.Read(repository),
 
-            //And one more File.Exists over the same directory, for the same reason: read here, a
-            //message prepared in MERGE_MSG reaches the commit window on the refresh it already does
-            //rather than needing a call of its own.
+            //And two more File.Exists over the same directory, for the same reason: read here, a
+            //message prepared by Git reaches the commit window on the refresh it already does rather
+            //than needing a call of its own.
             PreparedMessage = prepared.Read(repository),
         };
     }
