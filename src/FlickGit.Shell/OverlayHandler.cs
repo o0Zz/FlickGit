@@ -81,17 +81,32 @@ internal static unsafe class OverlayHandler
             if (_vtable is not null)
                 return;
 
-            //Six slots: IUnknown's three, then IShellIconOverlayIdentifier's three. The count is
-            //written here rather than inferred, because a slot number that is wrong by one calls the
-            //wrong function with the wrong arguments inside explorer.exe.
+            //Six slots: IUnknown's three, then IShellIconOverlayIdentifier's three.
+            //
+            //The order below is the DECLARATION order in shlobj.h, which is the only thing that
+            //decides a slot number -- not the order the methods are written in this file, and not
+            //the order they are called in. It is IsMemberOf, GetOverlayInfo, GetPriority:
+            //
+            //    STDMETHOD(IsMemberOf)(PCWSTR pwszPath, DWORD dwAttrib);              slot 3
+            //    STDMETHOD(GetOverlayInfo)(PWSTR, int cchMax, int*, DWORD*);          slot 4
+            //    STDMETHOD(GetPriority)(int *pIPriority);                             slot 5
+            //
+            //Getting this wrong does not crash and does not log: every call still lands on a real
+            //function with the wrong arguments and returns a plausible HRESULT. Explorer had been
+            //calling IsMemberOf and reaching GetOverlayInfo, so dwAttrib arrived as cchMax -- always
+            //0x10, 0x11 or 0x20 -- and a 70-character icon path never fit, so every item on the
+            //machine was refused with E_FAIL and no badge was ever drawn.
+            //
+            //A signature mismatch is what makes it silent, so the delegate types are spelled out per
+            //slot: they are the only local record of what Explorer actually pushes.
             void** table = Com.AllocateVtable(6);
 
             table[0] = (delegate* unmanaged<void*, Guid*, void**, int>)&QueryInterface;
             table[1] = (delegate* unmanaged<void*, uint>)&AddRef;
             table[2] = (delegate* unmanaged<void*, uint>)&Release;
-            table[3] = (delegate* unmanaged<void*, char*, int, int*, uint*, int>)&GetOverlayInfo;
-            table[4] = (delegate* unmanaged<void*, int*, int>)&GetPriority;
-            table[5] = (delegate* unmanaged<void*, char*, uint, int>)&IsMemberOf;
+            table[3] = (delegate* unmanaged<void*, char*, uint, int>)&IsMemberOf;
+            table[4] = (delegate* unmanaged<void*, char*, int, int*, uint*, int>)&GetOverlayInfo;
+            table[5] = (delegate* unmanaged<void*, int*, int>)&GetPriority;
 
             _vtable = table;
         }

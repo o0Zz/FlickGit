@@ -36,35 +36,6 @@ public class ForgeUrlTests
     }
 
     /// <summary>
-    /// A GitLab namespace nests, and the whole of it is the project path.
-    ///
-    /// Taking only the last-but-one segment would address <c>sub/project</c>, which on gitlab.com is
-    /// either a 404 or — worse — somebody else's project.
-    /// </summary>
-    [Theory]
-    [InlineData("https://gitlab.com/group/project.git", "group", "project")]
-    [InlineData("git@gitlab.com:group/sub/project.git", "group/sub", "project")]
-    [InlineData("https://gitlab.acme.io/team/sub/deep/project", "team/sub/deep", "project")]
-    public void GitLab_namespaces_keep_every_segment(string url, string owner, string name)
-    {
-        ForgeRepository forge = Assert.IsType<ForgeRepository>(ForgeUrl.TryParse(url));
-
-        Assert.Equal(ForgeKind.GitLab, forge.Kind);
-        Assert.Equal(owner, forge.Owner);
-        Assert.Equal(name, forge.Name);
-    }
-
-    /// <summary>The project path is one URL-encoded parameter, slashes included.</summary>
-    [Fact]
-    public void A_GitLab_subgroup_is_encoded_as_one_path_parameter()
-    {
-        ForgeRepository forge = Assert.IsType<ForgeRepository>(ForgeUrl.TryParse("git@gitlab.com:group/sub/project.git"));
-
-        Assert.Equal("group%2Fsub%2Fproject", forge.EncodedPath);
-        Assert.Equal("https://gitlab.com/api/v4/", forge.ApiBase.ToString());
-    }
-
-    /// <summary>
     /// Azure DevOps' four shapes, and the collection URL each of them implies.
     ///
     /// The collection is what the REST API hangs off, so getting it wrong is not a cosmetic error —
@@ -131,20 +102,33 @@ public class ForgeUrlTests
     [Fact]
     public void The_configured_kind_beats_the_hostname()
     {
-        ForgeRepository forge = Assert.IsType<ForgeRepository>(
-            ForgeUrl.TryParse("https://github.acme.io/team/tools.git", ForgeKind.GitLab));
+        //An Azure DevOps Server whose hostname begins `github`, reached by the collection form that
+        //carries no `_git` to anchor on. Detection has nothing to go on but the host, and the host
+        //lies.
+        const string Url = "https://github.acme.io/DefaultCollection/portal/gateway";
 
-        Assert.Equal(ForgeKind.GitLab, forge.Kind);
-        Assert.Equal("https://github.acme.io/api/v4/", forge.ApiBase.ToString());
+        ForgeRepository configured = Assert.IsType<ForgeRepository>(
+            ForgeUrl.TryParse(Url, ForgeKind.AzureDevOps));
+
+        Assert.Equal(ForgeKind.AzureDevOps, configured.Kind);
+        Assert.Equal("https://github.acme.io/DefaultCollection/", configured.ApiBase.ToString());
+
+        //Without the setting the hostname wins, and the answer is the wrong service entirely -- which
+        //is what makes this an override rather than a tie-break.
+        Assert.Equal(
+            ForgeKind.GitHub,
+            Assert.IsType<ForgeRepository>(ForgeUrl.TryParse(Url)).Kind);
     }
 
     /// <summary>Several spellings, because this is typed into a config file by hand.</summary>
     [Theory]
     [InlineData("github", ForgeKind.GitHub)]
-    [InlineData("GitLab", ForgeKind.GitLab)]
     [InlineData(" azure ", ForgeKind.AzureDevOps)]
     [InlineData("tfs", ForgeKind.AzureDevOps)]
     [InlineData("bitbucket", ForgeKind.Unknown)]
+    //A forge this build does not speak, named outright. Unknown rather than a near-miss is what makes
+    //PullRequestService refuse by name instead of posting a request shaped for one API at another.
+    [InlineData("gitlab", ForgeKind.Unknown)]
     [InlineData(null, ForgeKind.Unknown)]
     public void The_configured_kind_is_read_leniently(string? configured, ForgeKind expected) =>
         Assert.Equal(expected, ForgeUrl.ParseKind(configured));

@@ -280,7 +280,7 @@ public partial class PullRequestWindow : Window
                 return;
 
             _existing = open;
-            ShowExisting(forge, open);
+            ShowExisting(open);
         }
         catch (Exception ex)
         {
@@ -289,9 +289,9 @@ public partial class PullRequestWindow : Window
         }
     }
 
-    private void ShowExisting(ForgeRepository forge, PullRequestRef open)
+    private void ShowExisting(PullRequestRef open)
     {
-        NoticeText.Text = Strings.Get("pr.alreadyopen", Number(forge, open.Number), open.Title);
+        NoticeText.Text = Strings.Get("pr.alreadyopen", Number(open.Number), open.Title);
         OpenButton.Visibility = Visibility.Visible;
         NoticeStrip.Visibility = Visibility.Visible;
 
@@ -471,7 +471,7 @@ public partial class PullRequestWindow : Window
                 new Progress<PullRequestStep>(Report),
                 CancellationToken.None).ConfigureAwait(true);
 
-            Finish(forge, outcome);
+            Finish(outcome);
         }
         finally
         {
@@ -500,7 +500,7 @@ public partial class PullRequestWindow : Window
             _ => "pr.step.creating",
         });
 
-    private void Finish(ForgeRepository forge, PullRequestFlowOutcome outcome)
+    private void Finish(PullRequestFlowOutcome outcome)
     {
         switch (outcome.Result)
         {
@@ -508,7 +508,7 @@ public partial class PullRequestWindow : Window
                 //The notification is the only trace left once this closes, which is why it carries the number.
                 _notifier.Success(
                     Strings.Get("app.name"),
-                    Strings.Get("pr.created", Number(forge, created.Number), created.Title));
+                    Strings.Get("pr.created", Number(created.Number), created.Title));
 
                 Open(created.WebUrl);
                 Close();
@@ -516,7 +516,7 @@ public partial class PullRequestWindow : Window
 
             case PullRequestFlowResult.AlreadyOpen when outcome.Request is { } open:
                 _existing = open;
-                ShowExisting(forge, open);
+                ShowExisting(open);
                 StatusText.Text = Strings.Get("pr.hint");
                 break;
 
