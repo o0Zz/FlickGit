@@ -167,8 +167,13 @@ FlickGit.sln
 
 src/
 ├── Shared/                  Compiled into *both* executables by <Compile Include>.
-│   └── IpcMessages.cs       The pipe's wire format. Shared as source, not as a third
-│                            assembly, because the AOT stub must not carry a reference.
+│   │                        Shared as source, not as a third assembly, because the AOT
+│   │                        stub must not carry a reference. Two hand-maintained copies
+│   │                        of any of these would drift silently.
+│   ├── IpcMessages.cs       The pipe's wire format.
+│   ├── ShellCommandIds.cs   The handler CLSIDs and the registry value names.
+│   └── ExitCodes.cs         The documented exit codes. Both executables exit with them --
+│                            the stub when it cannot start the app at all.
 │
 ├── FlickGit.Cli/            Native AOT -> flick.exe. No WPF, no WinForms.
 │   └── Parses args, connects to the named pipe, exits. Falls back to launching
@@ -197,7 +202,8 @@ src/
 │   └── Settings/ Tray/ Localization/ Infrastructure/ Languages/
 │
 ├── FlickGit.Core/           net9.0, no UI dependencies. The only tested assembly.
-│   ├── Cli/                 Verb, VerbKind, ExitCodes -- the command-line grammar.
+│   ├── Cli/                 Verb and VerbKind -- the command-line grammar. ExitCodes is
+│   │                        in src/Shared, because the stub exits with them too.
 │   ├── Git/                 GitProcessRunner, GitExecutable, errors
 │   ├── Repositories/        RepositoryService
 │   ├── Status/              porcelain v2, numstat, name-status parsing, StatusService
@@ -225,7 +231,8 @@ src/
 │   ├── Stashes/             StashService + GitStash. The list is positional, so every pop
 │   │                        and drop re-reads it and checks the sha first
 │   ├── Config/              RepositoryConfigService, GitConfigList
-│   ├── Remotes/             PushService, RemoteService
+│   ├── Remotes/             PushService, RemoteService -- whose SaveAsync owns the
+│   │                        rename-before-set-url order
 │   └── Pulls/ Clone/ Secrets/ Matching/ Logging/ Diagnostics/ Models/
 │
 └── FlickGit.Shell/          Native AOT COM DLL, loaded into explorer.exe. Draws the whole
@@ -378,6 +385,7 @@ flick blame <file>                   who last touched each line, and what came b
 flick add <path>                     stage one file or folder, tracking what is new
 flick rm <path>                      delete one file or folder and stage the deletion; asks first
 flick repo <path>                    identity, remotes and this repository's defaults
+flick terminal <path>                open a terminal there
 flick run <id> [path]                run a catalog action by id
 flick palette                        global repository palette
 flick settings

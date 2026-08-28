@@ -1,11 +1,11 @@
-﻿using System.Diagnostics;
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using Microsoft.Win32;
 using FlickGit.Ai;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.Rendering;
 using FlickGit.App.Resident;
@@ -523,33 +523,22 @@ public partial class SettingsWindow : Window
             //The folder rather than either file: a .json with no registered handler would fail, and
             //explorer.exe opening a directory always works.
             Directory.CreateDirectory(FlickSettings.DirectoryPath);
-
-            using Process? opened = Process.Start(new ProcessStartInfo
-            {
-                FileName = FlickSettings.DirectoryPath,
-                UseShellExecute = true,
-            });
-
-            _ = opened;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             //The paths are on screen already, which is the part that answers the question.
             Report(Strings.Get("settings.openfailed", ex.Message));
+            return;
         }
+
+        if (ShellOpen.Folder(FlickSettings.DirectoryPath) is { } error)
+            Report(Strings.Get("settings.openfailed", error));
     }
 
     private void OnNavigate(object sender, RequestNavigateEventArgs e)
     {
-        try
-        {
-            using Process? started = Process.Start(new ProcessStartInfo(e.Uri.ToString()) { UseShellExecute = true });
-            _ = started;
-        }
-        catch (Exception ex)
-        {
-            Report(Strings.Get("settings.openfailed", ex.Message));
-        }
+        if (ShellOpen.Uri(e.Uri.ToString()) is { } error)
+            Report(Strings.Get("settings.openfailed", error));
 
         e.Handled = true;
     }

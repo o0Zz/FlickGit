@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Navigation;
+using FlickGit.App.Infrastructure;
 
 namespace FlickGit.App.Rendering;
 
@@ -370,20 +370,12 @@ public static class MarkdownFlow
     /// <summary>
     /// Opens the link in whatever the user browses with.
     ///
-    /// <c>UseShellExecute</c> is the whole mechanism. The failure is swallowed on purpose: a machine
-    /// with no handler for http is a real configuration, and a help page is not where to report it.
+    /// The failure is discarded on purpose: a machine with no handler for http is a real
+    /// configuration, and a help page is not where to report it.
     /// </summary>
     private static void OnNavigate(object sender, RequestNavigateEventArgs e)
     {
-        try
-        {
-            using Process? started = Process.Start(new ProcessStartInfo(e.Uri.ToString()) { UseShellExecute = true });
-            _ = started;
-        }
-        catch (Exception)
-        {
-            //Nothing to do, and nowhere useful to say it.
-        }
+        _ = ShellOpen.Uri(e.Uri.ToString());
 
         e.Handled = true;
     }

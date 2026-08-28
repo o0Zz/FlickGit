@@ -18,8 +18,6 @@ internal static partial class Program
 {
     private const int AttachParentProcess = -1;
 
-    private const int ExitConfigurationError = 4;
-
     /// <summary>
     /// The verbs that open a window -- the only ones the stub does <b>not</b> wait for. Waiting would
     /// block the terminal until the user closed the commit window, and leave Explorer holding a
@@ -92,7 +90,7 @@ internal static partial class Program
             //Named explicitly rather than "something went wrong": the only way this happens is a broken
             //install, and the fix is knowing which file is missing.
             WriteError("FlickGit.exe was not found beside flick.exe. The installation is incomplete.");
-            return ExitConfigurationError;
+            return ExitCodes.ConfigurationError;
         }
 
         //The fast path: hand the whole command line to the resident service, print whatever it says, and
@@ -166,7 +164,7 @@ internal static partial class Program
             if (process is null)
             {
                 WriteError($"Could not start:\n{appPath}");
-                return ExitConfigurationError;
+                return ExitCodes.ConfigurationError;
             }
 
             if (!waitForExit)
@@ -192,7 +190,7 @@ internal static partial class Program
         catch (Exception ex)
         {
             WriteError($"Could not start FlickGit:\n{ex.Message}");
-            return ExitConfigurationError;
+            return ExitCodes.ConfigurationError;
         }
     }
 

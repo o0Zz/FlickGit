@@ -60,6 +60,10 @@
          format and the stub is not allowed a project reference, so the source is shared and each
          assembly compiles its own copy. Two hand-maintained copies would drift. -->
     <Compile Include="..\Shared\IpcMessages.cs" Link="Ipc\IpcMessages.cs" />
+
+    <!-- The exit codes, for the same reason: both executables exit with these numbers, and this one
+         may not reference FlickGit.Core where they used to live. -->
+    <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -242,17 +241,11 @@ public partial class SubmodulesWindow : Window
     {
         string absolute = System.IO.Path.Combine(_repository.Root, path.Replace('/', System.IO.Path.DirectorySeparatorChar));
 
-        try
-        {
-            //UseShellExecute is required to hand a directory to the shell; without it this would be an
-            //attempt to execute the folder.
-            Process.Start(new ProcessStartInfo(absolute) { UseShellExecute = true });
-            SetStatus(Strings.Get("submodule.opened", path));
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException or IOException)
-        {
-            SetStatus(Strings.Get("submodule.openfailed", path));
-        }
+        //The shell's own words are dropped for a localised sentence naming the row: a submodule is
+        //identified by its path here, and "The system cannot find the file specified" does not say which.
+        SetStatus(ShellOpen.Folder(absolute) is null
+            ? Strings.Get("submodule.opened", path)
+            : Strings.Get("submodule.openfailed", path));
     }
 
     /// <summary>

@@ -382,7 +382,7 @@ public sealed class EnvironmentVerbs(
         output.Line($"prompts          {DescribePrompts()}");
         output.Line($"language         {DescribeLanguage()}");
         output.Line($"settings         {FlickSettings.FilePath}");
-        output.Line($"logs             {FileLog.DefaultDirectory}");
+        output.Line($"logs             {FlickSettings.LogsDirectoryPath}");
         output.Line();
 
         //core.fsmonitor takes `git status` from ~300 ms to a few milliseconds on Windows.

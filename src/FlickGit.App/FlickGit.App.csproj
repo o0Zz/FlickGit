@@ -57,6 +57,7 @@
          assembly compiles its own copy. Two hand-maintained copies would drift. -->
     <Compile Include="..\Shared\IpcMessages.cs" Link="Ipc\IpcMessages.cs" />
     <Compile Include="..\Shared\ShellCommandIds.cs" Link="Shared\ShellCommandIds.cs" />
+    <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
   </ItemGroup>
 
 

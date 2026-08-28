@@ -132,7 +132,7 @@ public partial class App : Application
         var services = new ServiceCollection();
 
         services.AddSingleton(settings);
-        services.AddSingleton<ILog>(_ => new FileLog(FileLog.DefaultDirectory, settings.VerboseLogging));
+        services.AddSingleton<ILog>(_ => new FileLog(FlickSettings.LogsDirectoryPath, settings.VerboseLogging));
         services.AddSingleton<OperationTimings>();
 
         services.AddSingleton(provider => new GitExecutable(
@@ -470,7 +470,7 @@ public partial class App : Application
 
         VerbOutput.Direct().Notice(
             Strings.Get("error.title"),
-            $"{e.Exception.Message}\n\nThe log may hold more:\n{FileLog.DefaultDirectory}",
+            $"{e.Exception.Message}\n\nThe log may hold more:\n{FlickSettings.LogsDirectoryPath}",
             compact: false);
 
         //Handled, so the process survives. A resident service that dies on one bad window takes the tray

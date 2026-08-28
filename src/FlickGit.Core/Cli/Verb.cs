@@ -1,20 +1,7 @@
 ﻿namespace FlickGit.Cli;
 
-/// <summary>
-/// Process exit codes. A contract, not an implementation detail: scripts and launchers drive the
-/// same actions Explorer does, and they can only branch on the number.
-/// </summary>
-public static class ExitCodes
-{
-    public const int Success = 0;
-    public const int GitError = 1;
-    public const int NotARepository = 2;
-    public const int UserCancelled = 3;
-    public const int ConfigurationError = 4;
-
-    /// <summary>Refused for safety: a blocked switch, a diverged push.</summary>
-    public const int RefusedForSafety = 5;
-}
+//ExitCodes lives in src/Shared/ExitCodes.cs, not here: the AOT stub exits with the same numbers and
+//may not reference this assembly. See that file.
 
 /// <summary>The actions reachable from every surface.</summary>
 public enum VerbKind

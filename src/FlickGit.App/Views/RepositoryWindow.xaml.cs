@@ -287,11 +287,12 @@ public partial class RepositoryWindow : Window
     }
 
     /// <summary>
-    /// Renames, re-points, or both — in that order.
+    /// Renames, re-points, or both.
     ///
-    /// The rename goes first because <c>set-url</c> takes the name: doing it the other way round
-    /// would point the old name at the new URL and then rename it, which works, and then does not
-    /// when the rename fails and leaves a remote nobody asked for pointing somewhere new.
+    /// <b>The order lives in <see cref="RemoteService.SaveAsync"/></b>, not here: it is a sequence
+    /// whose correctness is entirely which step goes first, and a view model can only be exercised by
+    /// clicking. What is left in this method is the half that is genuinely presentation — which
+    /// sentence the status line ends up with.
     /// </summary>
     private async void OnSaveRemote(object sender, RoutedEventArgs e)
     {
@@ -305,35 +306,28 @@ public partial class RepositoryWindow : Window
 
         try
         {
-            if (!string.Equals(name, selected.Name, StringComparison.Ordinal))
+            RemoteSave saved = await _remotes
+                .SaveAsync(_repository, selected.Name, name, selected.FetchUrl, url, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (!saved.Succeeded)
             {
-                ConfigOutcome renamed = await _remotes
-                    .RenameAsync(_repository, selected.Name, name, CancellationToken.None)
-                    .ConfigureAwait(true);
+                Notice.GitFailure(
+                    this,
+                    Strings.Get("repo.remote.save"),
+                    Strings.Get("repo.failed"),
+                    saved.GitError,
+                    _repository.Root);
 
-                if (!renamed.Succeeded)
-                {
-                    Report(Strings.Get("repo.remote.save"), renamed);
-                    return;
-                }
-
-                StatusText.Text = Strings.Get("repo.remote.renamed", selected.Name, name);
+                return;
             }
 
-            if (!string.Equals(url, selected.FetchUrl, StringComparison.Ordinal))
-            {
-                ConfigOutcome pointed = await _remotes
-                    .SetUrlAsync(_repository, name, url, CancellationToken.None)
-                    .ConfigureAwait(true);
-
-                if (!pointed.Succeeded)
-                {
-                    Report(Strings.Get("repo.remote.save"), pointed);
-                    return;
-                }
-
+            //The re-point last, so that an edit doing both says where the remote now points -- which is
+            //the half the user is more likely to be checking.
+            if (saved.Repointed)
                 StatusText.Text = Strings.Get("repo.remote.urlset", name, url);
-            }
+            else if (saved.Renamed)
+                StatusText.Text = Strings.Get("repo.remote.renamed", selected.Name, name);
 
             string said = StatusText.Text;
             await LoadAsync().ConfigureAwait(true);

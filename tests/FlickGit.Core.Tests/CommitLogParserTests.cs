@@ -104,4 +104,34 @@ public class CommitLogParserTests
         Assert.Equal(["first", "second"], commit.Parents);
         Assert.True(commit.IsMerge);
     }
+
+    /// <summary>
+    /// Non-ASCII bytes in the author, the subject and the body, with the body still splitting at the
+    /// first blank line.
+    ///
+    /// In scope under Hard Requirement 4's parser bullet, which asks for non-ASCII bytes in every
+    /// parser. This format is the one where they are least avoidable -- an author name and a commit
+    /// subject are free text in whatever language the repository is written in -- and the field
+    /// grammar is positional, so a split that counted bytes would put part of a name into the date
+    /// and fail to parse it with no error anywhere near the cause.
+    /// </summary>
+    [Fact]
+    public void NonAsciiAuthorSubjectAndBodySurvive()
+    {
+        IReadOnlyList<LogCommit> commits = CommitLogParser.Parse(Record(
+            "5f3a9c21b7e04d6f8a1c2b3d4e5f60718293a4b5",
+            "5f3a9c2",
+            "9d8c7b6a5f4e3d2c1b0a99887766554433221100",
+            "Thomas Quémerais",
+            "2026-08-21T14:03:07+02:00",
+            "HEAD -> fonctionnalité/passerelle",
+            "feat: gère les accents dans les chemins\n\nAjoute un test pour «café» et 日本語.\n"));
+
+        LogCommit commit = Assert.Single(commits);
+
+        Assert.Equal("Thomas Quémerais", commit.Author);
+        Assert.Equal("HEAD -> fonctionnalité/passerelle", commit.Refs);
+        Assert.Equal("feat: gère les accents dans les chemins", commit.Subject);
+        Assert.Equal("Ajoute un test pour «café» et 日本語.", commit.Body);
+    }
 }

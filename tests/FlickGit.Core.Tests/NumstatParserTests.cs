@@ -128,6 +128,37 @@ public class NumstatParserTests
         Assert.Empty(entries);
     }
 
+    /// <summary>
+    /// A path of non-ASCII bytes, and a rename between two of them.
+    ///
+    /// In scope under Hard Requirement 4's parser bullet, which asks for spaces <i>and non-ASCII
+    /// bytes</i> in every parser. Here the two interact: the rename form puts the paths in separate
+    /// NUL fields, so a parser measuring a field in bytes rather than characters loses the tail of a
+    /// multi-byte path and the dictionary key stops matching the porcelain one it is merged onto --
+    /// which shows the user a file with no line counts at all.
+    /// </summary>
+    [Fact]
+    public void NonAsciiPathsSurviveIncludingAcrossARename()
+    {
+        var entries = NumstatParser.Parse(Stream(
+            "3\t1\tsrc/Ünïcödé/Ω/файл.cs",
+            "7\t4\t",
+            "src/日本語/古い ファイル.cs",
+            "src/日本語/新しい ファイル.cs"));
+
+        Assert.Equal(2, entries.Count);
+
+        NumstatEntry plain = entries["src/Ünïcödé/Ω/файл.cs"];
+        Assert.Equal(3, plain.Added);
+        Assert.Equal(1, plain.Removed);
+        Assert.Null(plain.OldPath);
+
+        NumstatEntry renamed = entries["src/日本語/新しい ファイル.cs"];
+        Assert.Equal("src/日本語/古い ファイル.cs", renamed.OldPath);
+        Assert.Equal(7, renamed.Added);
+        Assert.Equal(4, renamed.Removed);
+    }
+
     [Fact]
     public void EmptyOutputYieldsNoEntries() =>
         Assert.Empty(NumstatParser.Parse(string.Empty));

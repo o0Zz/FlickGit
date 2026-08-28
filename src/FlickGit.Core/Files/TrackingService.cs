@@ -82,12 +82,19 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
     ///
     /// <c>--name-only -z</c> rather than <c>--numstat</c>: the question is how many, not how much,
     /// and this one counts a file deleted from the working tree, which <c>git add</c> also stages.
+    ///
+    /// The three read-safe flags, like every other diff read in the product: this is a count the
+    /// folder-removal question puts in front of the user, and a <c>diff.external</c> driver in their
+    /// own gitconfig would answer with something no parser here reads as a NUL-separated name list.
     /// </summary>
     public Task<int> ChangedCountAsync(
         RepositoryInfo repository,
         string path,
         CancellationToken cancellationToken) =>
-        CountAsync(repository, ["diff", "--name-only", "-z", "--", Literal(path)], cancellationToken);
+        CountAsync(
+            repository,
+            ["diff", "--name-only", "-z", .. GitDiffFlags.ReadSafe, "--", Literal(path)],
+            cancellationToken);
 
     /// <summary>
     /// Stages <paramref name="path"/>, which for a file Git has never seen is what starts tracking it.

@@ -151,7 +151,6 @@
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="SwitchButton"
-                            Content="Switch"
                             Style="{StaticResource PrimaryButton}"
                             IsDefault="True"
                             Click="OnAccept" />

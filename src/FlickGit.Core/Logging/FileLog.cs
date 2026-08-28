@@ -10,6 +10,12 @@ namespace FlickGit.Logging;
 /// and it is the point: the interesting log is the one written just before the tool
 /// crashed or the user killed it, and a buffered line that never reached the disk is
 /// worth nothing when an issue is reported.
+///
+/// <b>The directory arrives as a parameter and is never computed here.</b> Where
+/// <c>%LOCALAPPDATA%</c> is is a fact about Windows, and <c>FlickGit.Core</c> is <c>net9.0</c>
+/// precisely so it does not get to know one -- the same reason <c>PromptStore</c> and
+/// <c>ActionCatalog</c> are handed <c>FlickSettings.DirectoryPath</c> rather than deriving it.
+/// <c>FlickSettings.LogsDirectoryPath</c> is the one answer.
 /// </summary>
 public sealed class FileLog : ILog, IDisposable
 {
@@ -39,12 +45,6 @@ public sealed class FileLog : ILog, IDisposable
         }
     }
 
-    /// <summary>The standard location: <c>%LOCALAPPDATA%\FlickGit\Logs</c>.</summary>
-    public static string DefaultDirectory =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "FlickGit",
-            "Logs");
 
     public void Debug(string message)
     {

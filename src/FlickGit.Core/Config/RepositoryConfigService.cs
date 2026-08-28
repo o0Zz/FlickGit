@@ -56,26 +56,31 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     /// </summary>
     public async Task<RepositoryConfig> ReadAsync(RepositoryInfo repository, CancellationToken cancellationToken)
     {
-        Task<GitResult> local = git.ReadAsync(repository.Root, ["config", "--local", "--list", "-z"], cancellationToken);
-        Task<GitResult> name = git.ReadAsync(repository.Root, ["config", "--get", UserNameKey], cancellationToken);
-        Task<GitResult> email = git.ReadAsync(repository.Root, ["config", "--get", UserEmailKey], cancellationToken);
+        Task<GitResult> localTask = git.ReadAsync(repository.Root, ["config", "--local", "--list", "-z"], cancellationToken);
+        Task<GitResult> nameTask = git.ReadAsync(repository.Root, ["config", "--get", UserNameKey], cancellationToken);
+        Task<GitResult> emailTask = git.ReadAsync(repository.Root, ["config", "--get", UserEmailKey], cancellationToken);
 
         //--quiet so a detached HEAD is an empty answer rather than an error line in the log.
-        Task<GitResult> head = git.ReadAsync(repository.Root, ["symbolic-ref", "--short", "--quiet", "HEAD"], cancellationToken);
+        Task<GitResult> headTask = git.ReadAsync(repository.Root, ["symbolic-ref", "--short", "--quiet", "HEAD"], cancellationToken);
 
-        await Task.WhenAll(local, name, email, head).ConfigureAwait(false);
+        //Started together, then awaited one at a time. The four are already in flight, so this costs
+        //nothing over Task.WhenAll and keeps the no-.Result rule in Coding Guidelines literal.
+        GitResult local = await localTask.ConfigureAwait(false);
+        GitResult name = await nameTask.ConfigureAwait(false);
+        GitResult email = await emailTask.ConfigureAwait(false);
+        GitResult head = await headTask.ConfigureAwait(false);
 
-        IReadOnlyList<ConfigEntry> entries = local.Result.Succeeded
-            ? GitConfigList.ParseList(local.Result.StdOut)
+        IReadOnlyList<ConfigEntry> entries = local.Succeeded
+            ? GitConfigList.ParseList(local.StdOut)
             : [];
 
-        string? branch = head.Result.Succeeded ? NullIfEmpty(head.Result.StdOut) : null;
+        string? branch = head.Succeeded ? NullIfEmpty(head.StdOut) : null;
 
         return new RepositoryConfig(
             LocalName: Value(entries, UserNameKey),
             LocalEmail: Value(entries, UserEmailKey),
-            EffectiveName: name.Result.Succeeded ? NullIfEmpty(name.Result.StdOut) : null,
-            EffectiveEmail: email.Result.Succeeded ? NullIfEmpty(email.Result.StdOut) : null,
+            EffectiveName: name.Succeeded ? NullIfEmpty(name.StdOut) : null,
+            EffectiveEmail: email.Succeeded ? NullIfEmpty(email.StdOut) : null,
             Remotes: RemotesFrom(entries),
             PrimaryBranch: Value(entries, PrimaryBranchKey),
             AllowUpstreamCreation: ParseBool(Entry(entries, UpstreamAnswerKey)),

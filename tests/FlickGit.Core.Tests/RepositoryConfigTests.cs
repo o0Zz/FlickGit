@@ -228,6 +228,126 @@ public class RepositoryConfigTests
     }
 
     /// <summary>
+    /// Non-ASCII bytes in a value, and a remote whose name contains a space.
+    ///
+    /// In scope under Hard Requirement 4's parser bullet, which asks for spaces and non-ASCII bytes in
+    /// every parser. Both are ordinary here rather than exotic: <c>user.name</c> is whatever the user
+    /// typed, and <c>config --list</c> lower-cases the section and the final component while leaving
+    /// the <i>subsection</i> alone -- so a remote called "mon dépôt" is a key with a space, a capital
+    /// and a multi-byte character in the one part of it that must survive untouched.
+    /// </summary>
+    [Fact]
+    public void NonAsciiValuesAndASubsectionWithASpaceSurvive()
+    {
+        IReadOnlyList<ConfigEntry> entries = GitConfigList.ParseList(Stream(
+            "user.name\nThomas Quémerais",
+            "user.email\nthomas@dépôt.example",
+            "remote.mon dépôt.url\nhttps://example.com/dépôt.git"));
+
+        Assert.Equal(3, entries.Count);
+        Assert.Equal("Thomas Quémerais", entries[0].Value);
+        Assert.Equal("thomas@dépôt.example", entries[1].Value);
+
+        //The subsection keeps its space, its capital and its accent; only the section and the final
+        //component are lower-cased by Git itself.
+        Assert.Equal("remote.mon dépôt.url", entries[2].Key);
+        Assert.Equal("https://example.com/dépôt.git", entries[2].Value);
+    }
+
+    /// <summary>
+    /// A rename and a re-point in one press run <b>rename first</b>.
+    ///
+    /// In scope under Hard Requirement 4 as <b>a sequence</b>: <c>set-url</c> takes the remote's
+    /// name, so the other order points the old name at the new URL and only then renames it. Both
+    /// orders look identical on every attempt that succeeds, which is why clicking cannot find this
+    /// and a test has to.
+    /// </summary>
+    [Fact]
+    public async Task A_rename_and_a_repoint_run_the_rename_first()
+    {
+        var git = new FakeGitRunner().Returns(["remote"]);
+        var remotes = new RemoteService(git, new RepositoryService(git));
+
+        RemoteSave saved = await remotes.SaveAsync(
+            Repo,
+            from: "origin",
+            name: "upstream",
+            currentUrl: "https://example.com/old.git",
+            url: "https://example.com/new.git",
+            CancellationToken.None);
+
+        Assert.True(saved.Succeeded);
+        Assert.True(saved.Renamed);
+        Assert.True(saved.Repointed);
+
+        Assert.Equal(2, git.Invocations.Count);
+        Assert.Equal(["remote", "rename", "origin", "upstream"], git.Invocations[0].Args);
+
+        //The new name, because the rename has already happened by now.
+        Assert.Equal(
+            ["remote", "set-url", "upstream", "https://example.com/new.git"],
+            git.Invocations[1].Args);
+    }
+
+    /// <summary>
+    /// A failed rename stops the sequence, so the re-point is never attempted.
+    ///
+    /// In scope as <b>a sequence</b>, and it is the failure that makes the order matter at all: the
+    /// wrong order leaves a remote nobody asked for pointing somewhere new while the window reports
+    /// that nothing worked.
+    /// </summary>
+    [Fact]
+    public async Task A_failed_rename_does_not_repoint()
+    {
+        var git = new FakeGitRunner()
+            .Returns(["remote"])
+            .Returns(["remote", "rename"], exitCode: 128, stderr: "error: remote upstream already exists.");
+
+        var remotes = new RemoteService(git, new RepositoryService(git));
+
+        RemoteSave saved = await remotes.SaveAsync(
+            Repo,
+            from: "origin",
+            name: "upstream",
+            currentUrl: "https://example.com/old.git",
+            url: "https://example.com/new.git",
+            CancellationToken.None);
+
+        Assert.False(saved.Succeeded);
+        Assert.Contains("already exists", saved.GitError);
+
+        //The rename, and nothing after it.
+        Assert.Single(git.Invocations);
+        Assert.True(git.NeverCalledWith("set-url"));
+    }
+
+    /// <summary>
+    /// Neither box changed, so nothing runs at all.
+    ///
+    /// In scope as <b>a sequence</b>: an unchanged Save that still issued a `remote rename` to the
+    /// same name would fail in Git's words for no reason the user could act on.
+    /// </summary>
+    [Fact]
+    public async Task An_unchanged_remote_runs_nothing()
+    {
+        var git = new FakeGitRunner().Returns(["remote"]);
+        var remotes = new RemoteService(git, new RepositoryService(git));
+
+        RemoteSave saved = await remotes.SaveAsync(
+            Repo,
+            from: "origin",
+            name: "origin",
+            currentUrl: "https://example.com/old.git",
+            url: "https://example.com/old.git",
+            CancellationToken.None);
+
+        Assert.True(saved.Succeeded);
+        Assert.False(saved.Renamed);
+        Assert.False(saved.Repointed);
+        Assert.Empty(git.Invocations);
+    }
+
+    /// <summary>
     /// The repository's own primary branch beats the global setting, and settles it without asking
     /// Git anything else.
     ///

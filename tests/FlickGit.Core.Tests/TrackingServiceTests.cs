@@ -264,7 +264,7 @@ public class TrackingServiceTests
             git.Invocations[0].Args);
 
         Assert.Equal(
-            ["diff", "--name-only", "-z", "--", ":(literal)src/Legacy"],
+            ["diff", "--name-only", "-z", "--no-color", "--no-ext-diff", "--no-textconv", "--", ":(literal)src/Legacy"],
             git.Invocations[1].Args);
 
         Assert.All(git.Invocations, invocation => Assert.True(invocation.ReadOnly));

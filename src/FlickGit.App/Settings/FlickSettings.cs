@@ -147,6 +147,9 @@ public sealed class FlickSettings
     /// </summary>
     public static string ActionsFilePath => Path.Combine(DirectoryPath, "actions.json");
 
+    /// <summary><c>%LOCALAPPDATA%\FlickGit\Logs</c>, which is what <c>FileLog</c> is constructed with.</summary>
+    public static string LogsDirectoryPath => Path.Combine(DirectoryPath, "Logs");
+
     /// <summary>
     /// Loads the file, or returns defaults when it does not exist or cannot be read. A corrupt
     /// settings file must not stop the tool from starting. The failure is reported through

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -370,19 +369,11 @@ public partial class SwitchBranchWindow : Window
     /// </summary>
     private void OpenFolder(string path)
     {
-        try
-        {
-            //UseShellExecute is required to hand a directory to the shell; without it this would be an
-            //attempt to execute the folder.
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            StatusText.Text = Strings.Get("worktree.opened", path);
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException or IOException)
-        {
-            //A path that has gone away since the list was read, or one the shell refuses. Reported rather
-            //than thrown: nothing has changed, and the row is still there to try again.
-            StatusText.Text = Strings.Get("worktree.openfailed", path);
-        }
+        //A failure here is a path that has gone away since the list was read, or one the shell refuses.
+        //Reported rather than thrown: nothing has changed, and the row is still there to try again.
+        StatusText.Text = ShellOpen.Folder(path) is null
+            ? Strings.Get("worktree.opened", path)
+            : Strings.Get("worktree.openfailed", path);
     }
 
     /// <summary>

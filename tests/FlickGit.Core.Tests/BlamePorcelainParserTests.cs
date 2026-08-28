@@ -169,4 +169,39 @@ public class BlamePorcelainParserTests
         Assert.Equal(TimeSpan.FromHours(-5), line.Commit.When.Offset);
         Assert.Equal(1787430202, line.Commit.When.ToUnixTimeSeconds());
     }
+
+    /// <summary>
+    /// Non-ASCII bytes in the author, the summary, the filename and the line content, with a space in
+    /// the path and in the <c>previous</c> record.
+    ///
+    /// In scope under Hard Requirement 4's parser bullet, which asks for spaces and non-ASCII bytes in
+    /// every parser. Both matter more here than anywhere else: this is the one line-oriented format in
+    /// the product, so a key matched by prefix rather than to the end of the word would read
+    /// <c>filename</c> out of a path, and the content line is found by its leading TAB -- which is the
+    /// only thing separating a line of source that happens to begin with the word "author" from a
+    /// header.
+    /// </summary>
+    [Fact]
+    public void NonAsciiAuthorSummaryAndPathWithSpacesSurvive()
+    {
+        string stream = string.Join('\n',
+            $"{Sha} 1 1 1",
+            "author Thomas Quémerais",
+            "author-time 1787430202",
+            "author-tz +0200",
+            "summary feat: gère «café» et 日本語",
+            $"previous {Other} src/Ünïcödé/ancien fichier.cs",
+            "filename src/Ünïcödé/nouveau fichier.cs",
+            "\tvar café = \"日本語\";");
+
+        BlameLine line = Assert.Single(BlamePorcelainParser.Parse(stream));
+
+        Assert.Equal("Thomas Quémerais", line.Commit.Author);
+        Assert.Equal("feat: gère «café» et 日本語", line.Commit.Summary);
+        Assert.Equal("var café = \"日本語\";", line.Text);
+
+        //The path Git reported, spaces and all: the walk back follows this rather than appending a ^.
+        Assert.Equal(Other, line.Commit.PreviousSha);
+        Assert.Equal("src/Ünïcödé/ancien fichier.cs", line.Commit.PreviousPath);
+    }
 }
