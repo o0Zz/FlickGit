@@ -1,3 +1,4 @@
+using FlickGit.Commits;
 using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Status;
@@ -44,7 +45,7 @@ public class StatusServiceTests : IDisposable
         string.Concat(records.Select(r => r + '\0'));
 
     private Task<RepositoryStatus> Run(FakeGitRunner git) =>
-        new StatusService(git, new UntrackedFileMeasurer(), new MergeStateService())
+        new StatusService(git, new UntrackedFileMeasurer(), new MergeStateService(), new PreparedMessageService())
             .GetStatusAsync(_repository, CancellationToken.None);
 
     [Fact]

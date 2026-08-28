@@ -66,7 +66,7 @@ public sealed class CommitFlowTests : IDisposable
         var merges = new MergeStateService();
 
         return new CommitFlow(
-            new StatusService(git, new UntrackedFileMeasurer(), merges),
+            new StatusService(git, new UntrackedFileMeasurer(), merges, new PreparedMessageService()),
             new CommitService(git, repositories, NullLog.Instance),
             new BranchService(git, new RepositoryConfigService(git)),
             new SwitchService(git, repositories, NullLog.Instance),

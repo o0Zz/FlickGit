@@ -1,4 +1,5 @@
-﻿using FlickGit.Diagnostics;
+﻿using FlickGit.Commits;
+using FlickGit.Diagnostics;
 using FlickGit.Git;
 using FlickGit.Merges;
 using FlickGit.Models;
@@ -27,6 +28,7 @@ public sealed class StatusService(
     IGitProcessRunner git,
     UntrackedFileMeasurer untracked,
     MergeStateService merges,
+    PreparedMessageService prepared,
     OperationTimings? timings = null)
 {
     /// <summary>
@@ -114,6 +116,11 @@ public sealed class StatusService(
             //no fourth process, which is why this can sit on the path budgeted at 60 ms. It is read
             //here rather than by the window so that every existing refresh carries it.
             Merge = merges.Read(repository),
+
+            //And one more File.Exists over the same directory, for the same reason: read here, a
+            //message prepared in MERGE_MSG reaches the commit window on the refresh it already does
+            //rather than needing a call of its own.
+            PreparedMessage = prepared.Read(repository),
         };
     }
 

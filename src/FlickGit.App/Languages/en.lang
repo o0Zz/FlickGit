@@ -27,6 +27,7 @@ tray.tooltip = FlickGit
 commit.title = {0} — FlickGit
 commit.files.header = Changed files
 commit.message.header = Commit message
+commit.message.prepared = Message loaded from MERGE_MSG
 commit.button.commit = Commit
 commit.button.commitpush = Commit & Push
 commit.button.refresh = Refresh

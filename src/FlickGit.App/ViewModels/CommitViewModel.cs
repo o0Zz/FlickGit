@@ -704,6 +704,8 @@ public sealed class CommitViewModel : ObservableObject
 
         _currentStatus = status;
 
+        AdoptPreparedMessage(status);
+
         //The ComboBox opens on the current branch, so committing without touching it involves no switch.
         if (_branchInput.Length == 0 && status.Branch is { Length: > 0 } branch)
             BranchInput = branch;
@@ -738,6 +740,34 @@ public sealed class CommitViewModel : ObservableObject
 
         //Started, not awaited: a click on one of the top five files is then a cache hit.
         _ = _diffs.PrefetchAsync(Files.Take(5).Select(f => f.Change).ToArray());
+    }
+
+    /// <summary>
+    /// Puts a message prepared in <c>MERGE_MSG</c> into the box.
+    ///
+    /// <b>Nothing here turns the AI off.</b> The window's open sequence is refresh, focus, then
+    /// <see cref="BeginGeneration"/> with <c>force: false</c> -- and that already returns early when
+    /// the box is not empty. So filling the box during the refresh is the whole mechanism, and the
+    /// Generate button still overrides it by passing <c>force: true</c>.
+    ///
+    /// Three conditions, and each is a way this could take something away from the user:
+    /// an empty box is what makes the F5 re-read safe, because a refresh must never overwrite typing;
+    /// <see cref="CommitStage.Queued"/> and <see cref="CommitStage.Committing"/> are excluded because
+    /// the <see cref="Message"/> setter cancels a running generation on any write that is not the
+    /// stream, and cancelling a generation is right where quietly dropping a commit the user already
+    /// asked for with Enter is not; and <see cref="StatusText"/> is assigned after the message
+    /// because that same setter clears it.
+    /// </summary>
+    private void AdoptPreparedMessage(RepositoryStatus status)
+    {
+        if (Message.Length > 0 || _stage is CommitStage.Queued or CommitStage.Committing)
+            return;
+
+        if (status.PreparedMessage is not { Length: > 0 } prepared)
+            return;
+
+        Message = prepared;
+        StatusText = Strings.Get("commit.message.prepared");
     }
 
     public void Cancel()

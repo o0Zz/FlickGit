@@ -46,6 +46,13 @@ public sealed record RepositoryStatus
     public Merges.MergeState Merge { get; init; } = Merges.MergeState.None;
 
     /// <summary>
+    /// A commit message left in <c>MERGE_MSG</c> for this commit, or null. Rides along for the same
+    /// reason <see cref="Merge"/> does: one more file probe over a path already in hand, so a
+    /// message written while the window is open is picked up by the refresh that is already there.
+    /// </summary>
+    public string? PreparedMessage { get; init; }
+
+    /// <summary>
     /// Diverged: local and remote each hold commits the other does not. CLAUDE.md,
     /// "Commit &amp; Push" — this is the case where the tool stops rather than
     /// offering a force-push.

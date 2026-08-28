@@ -146,8 +146,10 @@ public partial class App : Application
 
         services.AddSingleton<RepositoryService>();
 
-        //Before StatusService, which takes it: the merge state rides along on every status read.
+        //Before StatusService, which takes them: the merge state and any prepared commit message
+        //both ride along on every status read.
         services.AddSingleton<MergeStateService>();
+        services.AddSingleton<PreparedMessageService>();
         services.AddSingleton<ConflictService>();
         services.AddSingleton<StatusService>();
         services.AddSingleton<PatchService>();
