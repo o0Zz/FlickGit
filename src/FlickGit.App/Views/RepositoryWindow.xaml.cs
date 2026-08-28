@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Input;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.Config;
@@ -27,7 +26,7 @@ namespace FlickGit.App.Views;
 /// for every repository on the machine is <c>git config --global</c>'s business, not a repository
 /// window's.
 /// </summary>
-public partial class RepositoryWindow : Window
+public partial class RepositoryWindow : ReloadableWindow
 {
     private readonly RepositoryInfo _repository;
     private readonly RepositoryConfigService _config;
@@ -35,15 +34,6 @@ public partial class RepositoryWindow : Window
 
     private readonly List<GitRemote> _configured = [];
 
-    /// <summary>
-    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
-    ///
-    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
-    /// the repository in a state nobody reported, which is worse than waiting for it.
-    /// </summary>
-    private readonly CancellationTokenSource _closing = new();
-
-    private bool _busy;
 
     /// <summary>What the last read said. Null until <see cref="LoadAsync"/> has run once.</summary>
     private RepositoryConfig? _current;
@@ -90,21 +80,6 @@ public partial class RepositoryWindow : Window
         SaveButton.Content = Strings.Get("repo.save");
         CloseButton.Content = Strings.Get("common.close");
 
-        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
-        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
-        //
-        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
-        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
-        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
-        //it would take the resident process and every pre-warmed window with it.
-        InputBindings.Add(new KeyBinding
-        {
-            Key = Key.F5,
-            Command = new AsyncCommand(
-                LoadAsync,
-                canExecute: () => !_busy,
-                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
-        });
 
         //Loaded rather than in LoadAsync, which also runs after every remote edit: refocusing there
         //would pull the caret out of whatever the user was typing in next.
@@ -128,32 +103,10 @@ public partial class RepositoryWindow : Window
             RemoteList.Focus();
     }
 
-    /// <summary>
-    /// The window's read, with the one exception a closing window can now raise turned back into
-    /// "stop". Without this the token added for _closing would surface as an unhandled
-    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
-    /// outcome than the leak it was added to fix.
-    /// </summary>
-    private async Task LoadAsync()
-    {
-        //A write that finished after the window closed still asks for a reload. There is nothing left
-        //to populate, and the read would only be cancelled a moment later anyway.
-        if (_closing.IsCancellationRequested)
-            return;
 
-        try
-        {
-            await ReadStateAsync().ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            //Closed while the read was in flight. There is no longer anything to populate.
-        }
-    }
-
-    private async Task ReadStateAsync()
+    protected override async Task ReadStateAsync()
     {
-        RepositoryConfig config = await _config.ReadAsync(_repository, _closing.Token).ConfigureAwait(true);
+        RepositoryConfig config = await _config.ReadAsync(_repository, ClosingToken).ConfigureAwait(true);
         _current = config;
         _loading = true;
 
@@ -263,9 +216,7 @@ public partial class RepositoryWindow : Window
         string name = RemoteNameBox.Text.Trim();
         string url = RemoteUrlBox.Text.Trim();
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             ConfigOutcome outcome = await _remotes
                 .AddAsync(_repository, name, url, CancellationToken.None)
@@ -279,11 +230,7 @@ public partial class RepositoryWindow : Window
 
             await LoadAsync().ConfigureAwait(true);
             StatusText.Text = Strings.Get("repo.remote.added", name);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -302,9 +249,7 @@ public partial class RepositoryWindow : Window
         string name = RemoteNameBox.Text.Trim();
         string url = RemoteUrlBox.Text.Trim();
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             RemoteSave saved = await _remotes
                 .SaveAsync(_repository, selected.Name, name, selected.FetchUrl, url, CancellationToken.None)
@@ -332,11 +277,7 @@ public partial class RepositoryWindow : Window
             string said = StatusText.Text;
             await LoadAsync().ConfigureAwait(true);
             StatusText.Text = said;
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     private async void OnRemoveRemote(object sender, RoutedEventArgs e)
@@ -358,9 +299,7 @@ public partial class RepositoryWindow : Window
         if (!confirmed)
             return;
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             ConfigOutcome outcome = await _remotes
                 .RemoveAsync(_repository, selected.Name, CancellationToken.None)
@@ -374,19 +313,13 @@ public partial class RepositoryWindow : Window
 
             await LoadAsync().ConfigureAwait(true);
             StatusText.Text = Strings.Get("repo.remote.removed", selected.Name);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>Forgets the remembered upstream answer. Immediate: it is a reset, not an edit.</summary>
     private async void OnAskAgain(object sender, RoutedEventArgs e)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             ConfigOutcome outcome = await _config
                 .UnsetAsync(_repository, RepositoryConfigService.UpstreamAnswerKey, CancellationToken.None)
@@ -400,11 +333,7 @@ public partial class RepositoryWindow : Window
 
             await LoadAsync().ConfigureAwait(true);
             StatusText.Text = Strings.Get("repo.upstream.reset");
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -429,9 +358,9 @@ public partial class RepositoryWindow : Window
             return;
         }
 
-        SetBusy(true);
-
-        try
+        //This one closes the window on success, so RunBusyAsync re-enables controls on a window that
+        //is already gone. Harmless, and cheaper than a second exit path that skips it.
+        await RunBusyAsync(async () =>
         {
             ConfigOutcome identity = local
                 ? await WritePairAsync(name, email).ConfigureAwait(true)
@@ -460,12 +389,7 @@ public partial class RepositoryWindow : Window
             }
 
             Close();
-        }
-        finally
-        {
-            //Reached when a failure returned early; harmless after Close.
-            SetBusy(false);
-        }
+        });
     }
 
     private async Task<ConfigOutcome> WritePairAsync(string name, string email)
@@ -506,9 +430,9 @@ public partial class RepositoryWindow : Window
     private void Report(string title, ConfigOutcome outcome) =>
         Notice.GitFailure(this, title, Strings.Get("repo.failed"), outcome.GitError, _repository.Root);
 
-    private void SetBusy(bool busy)
+    protected override void SetBusy(bool busy)
     {
-        _busy = busy;
+        IsBusy = busy;
 
         RemoteList.IsEnabled = !busy;
         RemoteNameBox.IsEnabled = !busy;
@@ -535,19 +459,7 @@ public partial class RepositoryWindow : Window
         UpdateRemoteButtons();
     }
 
-    protected override void OnClosed(EventArgs e)
-    {
-        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
-        //CancellationToken.None and then reloads, so a token read can still happen after the window is
-        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
-        //in an async continuation means the resident process dies. Cancelling is what this needs; the
-        //source is collected with the window.
-        _closing.Cancel();
 
-        base.OnClosed(e);
-    }
-
-    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     private static string Describe(string? name, string? email) =>
         (name, email) switch

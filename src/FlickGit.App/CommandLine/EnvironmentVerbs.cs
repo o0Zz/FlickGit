@@ -12,7 +12,6 @@ using FlickGit.App.Views;
 using FlickGit.Cli;
 using FlickGit.Diagnostics;
 using FlickGit.Git;
-using FlickGit.Logging;
 using FlickGit.Models;
 
 namespace FlickGit.App.CommandLine;

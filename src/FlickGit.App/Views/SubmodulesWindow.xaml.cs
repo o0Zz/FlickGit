@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -24,21 +23,12 @@ namespace FlickGit.App.Views;
 /// here would be a second place for the primary-branch warning, the staging defaults and the push
 /// guardrails to live.
 /// </summary>
-public partial class SubmodulesWindow : Window
+public partial class SubmodulesWindow : ReloadableWindow
 {
     private readonly RepositoryInfo _repository;
     private readonly SubmoduleService _submodules;
     private readonly List<GitSubmodule> _all = [];
 
-    /// <summary>
-    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
-    ///
-    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
-    /// the repository in a state nobody reported, which is worse than waiting for it.
-    /// </summary>
-    private readonly CancellationTokenSource _closing = new();
-
-    private bool _busy;
 
     /// <summary>
     /// Raised when the user asks to commit what this window staged. The window opens nothing itself,
@@ -72,59 +62,22 @@ public partial class SubmodulesWindow : Window
         CommitButton.Content = Strings.Get("submodule.commit");
         CloseButton.Content = Strings.Get("common.close");
 
-        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
-        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
-        //
-        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
-        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
-        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
-        //it would take the resident process and every pre-warmed window with it.
-        InputBindings.Add(new KeyBinding
-        {
-            Key = Key.F5,
-            Command = new AsyncCommand(
-                LoadAsync,
-                canExecute: () => !_busy,
-                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
-        });
 
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
 
     private SubmoduleRow? Selected => ModuleList.SelectedItem as SubmoduleRow;
 
-    /// <summary>
-    /// The window's read, with the one exception a closing window can now raise turned back into
-    /// "stop". Without this the token added for _closing would surface as an unhandled
-    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
-    /// outcome than the leak it was added to fix.
-    /// </summary>
-    private async Task LoadAsync()
-    {
-        //A write that finished after the window closed still asks for a reload. There is nothing left
-        //to populate, and the read would only be cancelled a moment later anyway.
-        if (_closing.IsCancellationRequested)
-            return;
-
-        try
-        {
-            await ReadStateAsync().ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            //Closed while the read was in flight. There is no longer anything to populate.
-        }
-    }
 
     /// <summary>
     /// Re-reads everything. Called after every mutation rather than patching the row that changed:
     /// <c>submodule add</c> touches <c>.gitmodules</c> as well as the row, and a removal takes a row
     /// away.
     /// </summary>
-    private async Task ReadStateAsync()
+    protected override async Task ReadStateAsync()
     {
         IReadOnlyList<GitSubmodule> modules = await _submodules
-            .ListAsync(_repository, _closing.Token)
+            .ListAsync(_repository, ClosingToken)
             .ConfigureAwait(true);
 
         //Cleared after the await, not before: see the note in TagsWindow.ReadStateAsync. Clearing
@@ -255,9 +208,7 @@ public partial class SubmodulesWindow : Window
     /// </summary>
     private async Task UpdateAsync(string path, bool initialising)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             SetStatus(Strings.Get(initialising ? "submodule.initialising" : "submodule.updating", path));
 
@@ -273,11 +224,7 @@ public partial class SubmodulesWindow : Window
 
             await LoadAsync().ConfigureAwait(true);
             SetStatus(Strings.Get(initialising ? "submodule.initialised" : "submodule.updated", path));
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -476,9 +423,7 @@ public partial class SubmodulesWindow : Window
         string url = UrlBox.Text.Trim();
         string into = IntoBox.Text.Trim();
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             SetStatus(Strings.Get("submodule.adding", into));
 
@@ -504,11 +449,7 @@ public partial class SubmodulesWindow : Window
 
             await LoadAsync().ConfigureAwait(true);
             SetStatus(Strings.Get("submodule.added", into));
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     private void OnCommit(object sender, RoutedEventArgs e)
@@ -517,19 +458,7 @@ public partial class SubmodulesWindow : Window
         Close();
     }
 
-    protected override void OnClosed(EventArgs e)
-    {
-        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
-        //CancellationToken.None and then reloads, so a token read can still happen after the window is
-        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
-        //in an async continuation means the resident process dies. Cancelling is what this needs; the
-        //source is collected with the window.
-        _closing.Cancel();
 
-        base.OnClosed(e);
-    }
-
-    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
     /// The footer says one of two things: what just happened, or -- once something is in the index --
@@ -550,9 +479,9 @@ public partial class SubmodulesWindow : Window
     private void Report(string title, SubmoduleOutcome outcome) =>
         Notice.GitFailure(this, title, Strings.Get("submodule.failed"), outcome.GitError, _repository.Root);
 
-    private void SetBusy(bool busy)
+    protected override void SetBusy(bool busy)
     {
-        _busy = busy;
+        IsBusy = busy;
 
         FilterBox.IsEnabled = !busy;
         ModuleList.IsEnabled = !busy;

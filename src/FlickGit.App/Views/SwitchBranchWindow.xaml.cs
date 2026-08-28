@@ -32,7 +32,7 @@ namespace FlickGit.App.Views;
 /// error: the row now says where it is, and Enter opens that folder instead of attempting a switch
 /// Git is certain to refuse.
 /// </summary>
-public partial class SwitchBranchWindow : Window
+public partial class SwitchBranchWindow : ReloadableWindow
 {
     private readonly RepositoryInfo _repository;
     private readonly SwitchService _switches;
@@ -40,15 +40,6 @@ public partial class SwitchBranchWindow : Window
     private readonly WorktreeService _worktrees;
     private readonly List<Candidate> _candidates = [];
 
-    /// <summary>
-    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
-    ///
-    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
-    /// the repository in a state nobody reported, which is worse than waiting for it.
-    /// </summary>
-    private readonly CancellationTokenSource _closing = new();
-
-    private bool _busy;
 
     private string? _pendingBranch;
 
@@ -81,56 +72,19 @@ public partial class SwitchBranchWindow : Window
         //round.
         BlockedCloseButton.Content = Strings.Get("common.close");
 
-        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
-        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
-        //
-        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
-        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
-        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
-        //it would take the resident process and every pre-warmed window with it.
-        InputBindings.Add(new KeyBinding
-        {
-            Key = Key.F5,
-            Command = new AsyncCommand(
-                LoadAsync,
-                canExecute: () => !_busy,
-                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
-        });
 
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
 
     public string? CurrentBranch { get; private set; }
 
-    /// <summary>
-    /// The window's read, with the one exception a closing window can now raise turned back into
-    /// "stop". Without this the token added for _closing would surface as an unhandled
-    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
-    /// outcome than the leak it was added to fix.
-    /// </summary>
-    private async Task LoadAsync()
-    {
-        //A write that finished after the window closed still asks for a reload. There is nothing left
-        //to populate, and the read would only be cancelled a moment later anyway.
-        if (_closing.IsCancellationRequested)
-            return;
 
-        try
-        {
-            await ReadStateAsync().ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            //Closed while the read was in flight. There is no longer anything to populate.
-        }
-    }
-
-    private async Task ReadStateAsync()
+    protected override async Task ReadStateAsync()
     {
         //Both reads at once. The worktree list is one more process on a window with no latency target,
         //and running it in parallel keeps it off the wall-clock entirely.
-        Task<SwitchCandidates> candidateTask = _switches.ListCandidatesAsync(_repository, _closing.Token);
-        Task<IReadOnlyList<GitWorktree>> worktreeTask = _worktrees.ListAsync(_repository, _closing.Token);
+        Task<SwitchCandidates> candidateTask = _switches.ListCandidatesAsync(_repository, ClosingToken);
+        Task<IReadOnlyList<GitWorktree>> worktreeTask = _worktrees.ListAsync(_repository, ClosingToken);
 
         SwitchCandidates candidates = await candidateTask.ConfigureAwait(true);
         IReadOnlyList<GitWorktree> worktrees = await worktreeTask.ConfigureAwait(true);
@@ -385,9 +339,7 @@ public partial class SwitchBranchWindow : Window
     /// </summary>
     private async Task CreateAsync(string name)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             //Git's own answer before anything is created, not just the offline regex the row was offered on:
             //check-ref-format knows the rules this build enforces.
@@ -412,18 +364,12 @@ public partial class SwitchBranchWindow : Window
             }
 
             Report(Strings.Get("switch.create", name), outcome.GitError ?? string.Empty);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     private async Task AttemptAsync(Candidate candidate)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             //The plain switch first, always.
             SwitchOutcome outcome = candidate.IsRemote
@@ -450,11 +396,7 @@ public partial class SwitchBranchWindow : Window
 
             //A failure a stash cannot fix. Reported with Git's own words, and no stash button.
             Report(Strings.Get("switch.button"), outcome.GitError ?? string.Empty);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -477,9 +419,7 @@ public partial class SwitchBranchWindow : Window
             return;
         }
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             BranchDeleteOutcome outcome = await _branches
                 .DeleteLocalAsync(_repository, name, CurrentBranch, force, CancellationToken.None)
@@ -523,11 +463,7 @@ public partial class SwitchBranchWindow : Window
             }
 
             Report(Strings.Get("branch.delete.title"), outcome.GitError ?? string.Empty);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -540,9 +476,7 @@ public partial class SwitchBranchWindow : Window
     /// </summary>
     private async Task DeleteRemoteAsync(string remoteTrackingName)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             RemoteBranch? target = await _branches
                 .ResolveRemoteBranchAsync(_repository, remoteTrackingName, CancellationToken.None)
@@ -579,11 +513,7 @@ public partial class SwitchBranchWindow : Window
             //disappear. Nothing here prunes anything by hand.
             await LoadAsync().ConfigureAwait(true);
             StatusText.Text = Strings.Get("branch.deleted.remote", target.Branch, target.Remote);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -649,9 +579,7 @@ public partial class SwitchBranchWindow : Window
 
         string path = Path.Combine(dialog.FolderName, WorktreeService.SuggestFolderName(_repository.Name, branch));
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             WorktreeOutcome outcome = await _worktrees
                 .AddAsync(_repository, path, start, CancellationToken.None)
@@ -673,11 +601,7 @@ public partial class SwitchBranchWindow : Window
             }
 
             Report(Strings.Get("worktree.menu.add"), outcome.GitError ?? string.Empty);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -702,9 +626,7 @@ public partial class SwitchBranchWindow : Window
             return;
         }
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             WorktreeOutcome outcome = await _worktrees
                 .RemoveAsync(_repository, worktree, CancellationToken.None)
@@ -730,11 +652,7 @@ public partial class SwitchBranchWindow : Window
                 outcome.HasLocalChanges
                     ? Strings.Get("worktree.remove.dirty", worktree.Path)
                     : outcome.GitError ?? string.Empty);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -760,9 +678,7 @@ public partial class SwitchBranchWindow : Window
             return;
         }
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             WorktreeOutcome outcome = await _worktrees
                 .PruneAsync(_repository, CancellationToken.None)
@@ -776,11 +692,7 @@ public partial class SwitchBranchWindow : Window
 
             await LoadAsync().ConfigureAwait(true);
             StatusText.Text = Strings.Get("worktree.pruned", branch);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -805,9 +717,7 @@ public partial class SwitchBranchWindow : Window
         if (_pendingBranch is null)
             return;
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             SwitchOutcome outcome = await _switches
                 .StashSwitchRestoreAsync(_repository, _pendingBranch, CancellationToken.None)
@@ -831,18 +741,14 @@ public partial class SwitchBranchWindow : Window
             {
                 Close();
             }
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     private void Report(string title, string message) => Notice.Show(this, title, message);
 
-    private void SetBusy(bool busy)
+    protected override void SetBusy(bool busy)
     {
-        _busy = busy;
+        IsBusy = busy;
 
         SwitchButton.IsEnabled = !busy;
         StashButton.IsEnabled = !busy;
@@ -850,19 +756,7 @@ public partial class SwitchBranchWindow : Window
         BranchList.IsEnabled = !busy;
     }
 
-    protected override void OnClosed(EventArgs e)
-    {
-        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
-        //CancellationToken.None and then reloads, so a token read can still happen after the window is
-        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
-        //in an async continuation means the resident process dies. Cancelling is what this needs; the
-        //source is collected with the window.
-        _closing.Cancel();
 
-        base.OnClosed(e);
-    }
-
-    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     private enum CandidateKind
     {

@@ -38,20 +38,11 @@ namespace FlickGit.App.Views;
 /// There is no <c>clear</c>, no <c>apply</c> and no way to force anything, because
 /// <c>StashService</c> has none of them.
 /// </summary>
-public partial class StashesWindow : Window
+public partial class StashesWindow : ReloadableWindow
 {
     private readonly RepositoryInfo _repository;
     private readonly StashService _stashes;
 
-    /// <summary>
-    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
-    ///
-    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
-    /// the repository in a state nobody reported, which is worse than waiting for it.
-    /// </summary>
-    private readonly CancellationTokenSource _closing = new();
-
-    private bool _busy;
 
     public StashesWindow(RepositoryInfo repository, StashService stashes)
     {
@@ -69,47 +60,10 @@ public partial class StashesWindow : Window
 
         UntrackedBox.ToolTip = Strings.Get("stash.untracked.hint");
 
-        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
-        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
-        //
-        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
-        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
-        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
-        //it would take the resident process and every pre-warmed window with it.
-        InputBindings.Add(new KeyBinding
-        {
-            Key = Key.F5,
-            Command = new AsyncCommand(
-                LoadAsync,
-                canExecute: () => !_busy,
-                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
-        });
 
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
 
-    /// <summary>
-    /// The window's read, with the one exception a closing window can now raise turned back into
-    /// "stop". Without this the token added for _closing would surface as an unhandled
-    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
-    /// outcome than the leak it was added to fix.
-    /// </summary>
-    private async Task LoadAsync()
-    {
-        //A write that finished after the window closed still asks for a reload. There is nothing left
-        //to populate, and the read would only be cancelled a moment later anyway.
-        if (_closing.IsCancellationRequested)
-            return;
-
-        try
-        {
-            await ReadStateAsync().ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            //Closed while the read was in flight. There is no longer anything to populate.
-        }
-    }
 
     /// <summary>
     /// Reads the list and puts the count in the footer.
@@ -118,10 +72,10 @@ public partial class StashesWindow : Window
     /// its own sentence -- the same order the tag window uses, so the count is what is showing
     /// whenever there is nothing more specific to say.
     /// </summary>
-    private async Task ReadStateAsync()
+    protected override async Task ReadStateAsync()
     {
         IReadOnlyList<GitStash> stashes = await _stashes
-            .ListAsync(_repository, _closing.Token)
+            .ListAsync(_repository, ClosingToken)
             .ConfigureAwait(true);
 
         StashList.ItemsSource = stashes.Select(Row).ToList();
@@ -181,9 +135,7 @@ public partial class StashesWindow : Window
 
     private async Task PopAsync(GitStash stash)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             StashOutcome outcome = await _stashes
                 .PopAsync(_repository, stash, CancellationToken.None)
@@ -213,11 +165,7 @@ public partial class StashesWindow : Window
             await LoadAsync().ConfigureAwait(true);
 
             StatusText.Text = Strings.Get("stash.popped", stash.Reference);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -244,9 +192,7 @@ public partial class StashesWindow : Window
 
     private async Task DropAsync(GitStash stash)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             StashOutcome outcome = await _stashes
                 .DropAsync(_repository, stash, CancellationToken.None)
@@ -272,11 +218,7 @@ public partial class StashesWindow : Window
             await LoadAsync().ConfigureAwait(true);
 
             StatusText.Text = Strings.Get("stash.dropped", stash.Reference);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>Enter in the message box stashes. See the box's own comment in the XAML.</summary>
@@ -294,9 +236,7 @@ public partial class StashesWindow : Window
 
     private async Task PushAsync()
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             StashOutcome outcome = await _stashes
                 .PushAsync(_repository, NoteBox.Text, UntrackedBox.IsChecked == true, CancellationToken.None)
@@ -329,11 +269,7 @@ public partial class StashesWindow : Window
             //label for something the user can already see. The wording says only what is true on the
             //command line too, which is the other surface reading this key.
             StatusText.Text = Strings.Get("stash.pushed");
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>
@@ -350,9 +286,9 @@ public partial class StashesWindow : Window
         Notice.Show(this, Strings.Get("stash.moved.title"), Strings.Get("stash.moved"));
     }
 
-    private void SetBusy(bool busy)
+    protected override void SetBusy(bool busy)
     {
-        _busy = busy;
+        IsBusy = busy;
 
         StashList.IsEnabled = !busy;
         NoteBox.IsEnabled = !busy;
@@ -360,19 +296,7 @@ public partial class StashesWindow : Window
         StashButton.IsEnabled = !busy;
     }
 
-    protected override void OnClosed(EventArgs e)
-    {
-        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
-        //CancellationToken.None and then reloads, so a token read can still happen after the window is
-        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
-        //in an async continuation means the resident process dies. Cancelling is what this needs; the
-        //source is collected with the window.
-        _closing.Cancel();
 
-        base.OnClosed(e);
-    }
-
-    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     private static StashRow Row(GitStash stash) =>
         new(stash,

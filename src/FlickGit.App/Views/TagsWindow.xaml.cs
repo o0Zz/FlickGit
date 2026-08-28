@@ -41,22 +41,13 @@ namespace FlickGit.App.Views;
 /// thing in FlickGit that leaves HEAD detached, which is why it is the one thing here that asks a
 /// question naming a Git state rather than a consequence. See <see cref="CheckOutAsync"/>.
 /// </summary>
-public partial class TagsWindow : Window
+public partial class TagsWindow : ReloadableWindow
 {
     private readonly RepositoryInfo _repository;
     private readonly TagService _tags;
     private readonly SwitchService _switches;
     private readonly List<GitTag> _all = [];
 
-    /// <summary>
-    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
-    ///
-    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
-    /// the repository in a state nobody reported, which is worse than waiting for it.
-    /// </summary>
-    private readonly CancellationTokenSource _closing = new();
-
-    private bool _busy;
 
     /// <summary>
     /// The remote to publish to and delete from, resolved once on open. Null when there is none, or
@@ -82,54 +73,17 @@ public partial class TagsWindow : Window
 
         NoteBox.ToolTip = Strings.Get("tag.message.hint");
 
-        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
-        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
-        //
-        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
-        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
-        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
-        //it would take the resident process and every pre-warmed window with it.
-        InputBindings.Add(new KeyBinding
-        {
-            Key = Key.F5,
-            Command = new AsyncCommand(
-                LoadAsync,
-                canExecute: () => !_busy,
-                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
-        });
 
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
 
-    /// <summary>
-    /// The window's read, with the one exception a closing window can now raise turned back into
-    /// "stop". Without this the token added for _closing would surface as an unhandled
-    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
-    /// outcome than the leak it was added to fix.
-    /// </summary>
-    private async Task LoadAsync()
-    {
-        //A write that finished after the window closed still asks for a reload. There is nothing left
-        //to populate, and the read would only be cancelled a moment later anyway.
-        if (_closing.IsCancellationRequested)
-            return;
 
-        try
-        {
-            await ReadStateAsync().ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-            //Closed while the read was in flight. There is no longer anything to populate.
-        }
-    }
-
-    private async Task ReadStateAsync()
+    protected override async Task ReadStateAsync()
     {
         //Both reads at once: neither needs the other's answer, and the window is not painted until
         //the list arrives anyway.
-        Task<IReadOnlyList<GitTag>> listing = _tags.ListAsync(_repository, _closing.Token);
-        Task<string?> remote = _tags.ResolveRemoteAsync(_repository, _closing.Token);
+        Task<IReadOnlyList<GitTag>> listing = _tags.ListAsync(_repository, ClosingToken);
+        Task<string?> remote = _tags.ResolveRemoteAsync(_repository, ClosingToken);
 
         IReadOnlyList<GitTag> tags = await listing.ConfigureAwait(true);
         _remote = await remote.ConfigureAwait(true);
@@ -244,9 +198,7 @@ public partial class TagsWindow : Window
         if (!confirmed)
             return;
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             SwitchOutcome outcome = await _switches
                 .DetachAsync(_repository, name, CancellationToken.None)
@@ -283,11 +235,7 @@ public partial class TagsWindow : Window
                 Strings.Get("tag.checkout.failed"),
                 outcome.GitError,
                 _repository.Root);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     private void OnNewNameChanged(object sender, RoutedEventArgs e) => UpdateNewHint();
@@ -369,9 +317,7 @@ public partial class TagsWindow : Window
         //remote the push actually went to.
         string? remote = _remote;
 
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             //Null commit: the tag lands on HEAD. There is a log viewer now, and it deliberately
             //offers no action on a commit -- no checkout, reset, revert, cherry-pick or tag. So
@@ -406,11 +352,7 @@ public partial class TagsWindow : Window
             //here and it is not there, which is the one outcome the footer line cannot say on its own.
             if (!published.Succeeded)
                 Report(Strings.Get("tag.push"), published, Strings.Get("tag.push.failed", name, remote!));
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     private Task ConfirmAndDeleteAsync(string name)
@@ -435,9 +377,7 @@ public partial class TagsWindow : Window
 
     private async Task DeleteAsync(string name, string? remote)
     {
-        SetBusy(true);
-
-        try
+        await RunBusyAsync(async () =>
         {
             TagOutcome outcome = await _tags
                 .DeleteAsync(_repository, name, remote, CancellationToken.None)
@@ -456,11 +396,7 @@ public partial class TagsWindow : Window
             StatusText.Text = remote is null
                 ? Strings.Get("tag.deleted", name)
                 : Strings.Get("tag.deleted.remote", name, remote);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
+        });
     }
 
     /// <summary>Git's own words, never paraphrased — CLAUDE.md, "Error Handling".</summary>
@@ -473,9 +409,9 @@ public partial class TagsWindow : Window
         Notice.Show(this, title, body);
     }
 
-    private void SetBusy(bool busy)
+    protected override void SetBusy(bool busy)
     {
-        _busy = busy;
+        IsBusy = busy;
 
         FilterBox.IsEnabled = !busy;
         TagList.IsEnabled = !busy;
@@ -495,19 +431,7 @@ public partial class TagsWindow : Window
         UpdateNewHint();
     }
 
-    protected override void OnClosed(EventArgs e)
-    {
-        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
-        //CancellationToken.None and then reloads, so a token read can still happen after the window is
-        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
-        //in an async continuation means the resident process dies. Cancelling is what this needs; the
-        //source is collected with the window.
-        _closing.Cancel();
 
-        base.OnClosed(e);
-    }
-
-    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     private static TagRow Row(GitTag tag) =>
         new(tag.Name,
