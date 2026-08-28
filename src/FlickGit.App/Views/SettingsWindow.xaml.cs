@@ -122,6 +122,49 @@ public partial class SettingsWindow : Window
         //setting out of a dozen and make the tabs unreachable without the mouse. Loaded rather than
         //here, because focus cannot be given to an element that has not been arranged yet.
         Loaded += (_, _) => Tabs.Focus();
+
+        //The window is reused for as long as it stays open, so what LoadValues read in the constructor
+        //goes stale the moment anything changes it from outside this process.
+        Activated += (_, _) => RefreshExternalState();
+    }
+
+    /// <summary>What the three external values read as last time, so a box the user has since changed
+    /// can be told apart from one that is merely showing an old answer.</summary>
+    private bool? _loadedContextMenu;
+
+    private bool? _loadedOverlay;
+
+    private bool? _loadedAutostart;
+
+    /// <summary>
+    /// Re-reads the three values that live outside this process, every time the window comes back to
+    /// the front.
+    ///
+    /// <b>Save compares each box against the live state and acts on the difference</b>, so a stale box
+    /// is not a cosmetic problem: leave Settings open, run <c>flick install-overlay</c> in a terminal,
+    /// come back and change the AI provider, and Save reads an unticked box against an installed
+    /// overlay and <i>uninstalls it</i>, with a UAC prompt, during a save about something else. The
+    /// method's own contract already says these are never read from a remembered flag; this is what
+    /// makes that true for a window that outlives its constructor.
+    ///
+    /// A box the user has already changed is left alone -- refreshing that would throw away the very
+    /// intent Save is about to act on.
+    /// </summary>
+    private void RefreshExternalState()
+    {
+        Reread(ContextMenuBox, ref _loadedContextMenu, _shell.IsInstalled());
+        Reread(OverlayBox, ref _loadedOverlay, _overlay.IsInstalled());
+        Reread(AutostartBox, ref _loadedAutostart, _autostart.IsEnabled());
+
+        static void Reread(System.Windows.Controls.CheckBox box, ref bool? loaded, bool live)
+        {
+            //Different from what was read means the user set it, and their request stands until Save.
+            if (box.IsChecked != loaded)
+                return;
+
+            box.IsChecked = live;
+            loaded = live;
+        }
     }
 
     /// <summary>
@@ -134,6 +177,11 @@ public partial class SettingsWindow : Window
         ContextMenuBox.IsChecked = _shell.IsInstalled();
         OverlayBox.IsChecked = _overlay.IsInstalled();
         AutostartBox.IsChecked = _autostart.IsEnabled();
+
+        //Recorded so a later activation can tell an untouched box from one the user has set.
+        _loadedContextMenu = ContextMenuBox.IsChecked;
+        _loadedOverlay = OverlayBox.IsChecked;
+        _loadedAutostart = AutostartBox.IsChecked;
 
         //One entry per provider, the enum as the item so nothing has to map a display string back.
         AiProviderBox.Items.Clear();
@@ -308,12 +356,16 @@ public partial class SettingsWindow : Window
         bool wanted = ContextMenuBox.IsChecked == true;
 
         if (wanted == _shell.IsInstalled())
+        {
+            _loadedContextMenu = ContextMenuBox.IsChecked;
             return null;
+        }
 
         InstallResult result = wanted ? _shell.Install() : _shell.Uninstall();
 
         //Whatever happened, the box must show the truth afterwards rather than the request.
         ContextMenuBox.IsChecked = _shell.IsInstalled();
+        _loadedContextMenu = ContextMenuBox.IsChecked;
 
         return result.Succeeded ? null : result.Message;
     }
@@ -335,7 +387,10 @@ public partial class SettingsWindow : Window
         bool wanted = OverlayBox.IsChecked == true;
 
         if (wanted == _overlay.IsInstalled())
+        {
+            _loadedOverlay = OverlayBox.IsChecked;
             return null;
+        }
 
         InstallResult result = wanted
             ? await _overlay.InstallAsync().ConfigureAwait(true)
@@ -343,6 +398,7 @@ public partial class SettingsWindow : Window
 
         //Whatever happened -- including a declined prompt -- the box shows the truth afterwards.
         OverlayBox.IsChecked = _overlay.IsInstalled();
+        _loadedOverlay = OverlayBox.IsChecked;
 
         if (!result.Succeeded)
             return result.Message;
@@ -358,11 +414,15 @@ public partial class SettingsWindow : Window
         bool wanted = AutostartBox.IsChecked == true;
 
         if (wanted == _autostart.IsEnabled())
+        {
+            _loadedAutostart = AutostartBox.IsChecked;
             return null;
+        }
 
         (bool succeeded, string message) = wanted ? _autostart.Enable() : _autostart.Disable();
 
         AutostartBox.IsChecked = _autostart.IsEnabled();
+        _loadedAutostart = AutostartBox.IsChecked;
 
         return succeeded ? null : message;
     }

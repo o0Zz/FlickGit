@@ -37,7 +37,12 @@ public class CommitStagingTests
 
         string[] args = Assert.Single(git.Invocations).Args;
 
-        Assert.Equal(["add", "--", "src/Kept.cs", "docs/notes with a space.md"], args);
+        //Every path carries `:(literal)`. `--` alone still leaves the argument a pathspec, so a
+        //ticked `report[final].xlsx` would stage `reportf.xlsx` instead -- a commit that is not the
+        //one the user reviewed.
+        Assert.Equal(
+            ["add", "--", ":(literal)src/Kept.cs", ":(literal)docs/notes with a space.md"],
+            args);
 
         //-A and . stage whatever appeared in the working tree since the status refresh, which is
         //not what the user ticked. CLAUDE.md forbids both outright, anywhere in the product.
@@ -65,7 +70,7 @@ public class CommitStagingTests
         string[] args = Assert.Single(git.Invocations).Args;
 
         //`restore --staged`, never `reset`: it is unambiguous about leaving the working tree alone.
-        Assert.Equal(["restore", "--staged", "--", "src/Unticked.cs"], args);
+        Assert.Equal(["restore", "--staged", "--", ":(literal)src/Unticked.cs"], args);
         Assert.DoesNotContain("--worktree", args);
         Assert.DoesNotContain("reset", args);
     }
@@ -84,5 +89,46 @@ public class CommitStagingTests
         await Create(git).UnstageAsync(Repository, [], CancellationToken.None);
 
         Assert.Empty(git.Invocations);
+    }
+
+    /// <summary>
+    /// The message file is written into the repository's <i>real</i> Git directory.
+    ///
+    /// In scope as one of the sequences: in a submodule and in a linked worktree <c>.git</c> is a
+    /// <b>file</b>, so composing <c>&lt;root&gt;\.git\...</c> throws DirectoryNotFoundException --
+    /// after StageAsync has already mutated the index, and with no commit possible from FlickGit in
+    /// either kind of repository. RepositoryInfo carries the answer, read from the same rev-parse
+    /// that resolved the root.
+    /// </summary>
+    [Fact]
+    public async Task TheCommitMessageFileGoesWhereTheGitDirectoryActuallyIs()
+    {
+        string gitDirectory = Path.Combine(Path.GetTempPath(), $"flickgit-gitdir-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(gitDirectory);
+
+        try
+        {
+            var repository = new RepositoryInfo(
+                @"C:\repos\alpha\sub", "sub", HasSubmodules: false, IsBare: false, GitDirectory: gitDirectory);
+
+            //The commit itself is what reads the file, so the fake captures the path it was given.
+            var git = new FakeGitRunner()
+                .Returns(["commit"])
+                .Returns(["rev-parse", "--short"], "abc1234\n");
+
+            await Create(git).CommitAsync(repository, "a message", CancellationToken.None);
+
+            string? messageFile = git.ArgumentAfter("-F");
+
+            Assert.NotNull(messageFile);
+            Assert.Equal(gitDirectory, Path.GetDirectoryName(messageFile));
+
+            //Deleted afterwards, including on the path that succeeded.
+            Assert.False(File.Exists(messageFile));
+        }
+        finally
+        {
+            Directory.Delete(gitDirectory, recursive: true);
+        }
     }
 }

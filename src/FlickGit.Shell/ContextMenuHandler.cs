@@ -425,9 +425,15 @@ internal static unsafe partial class ContextMenuHandler
                     if (submenu == 0)
                         continue;
 
-                    //Remembered rather than inserted now: the parent has to be added after its children so the shell
-                    //sees a populated popup.
-                    submenuPosition = position++;
+                    //Remembered rather than inserted now: the parent has to be added after its children so
+                    //the shell sees a populated popup.
+                    //
+                    //`position` deliberately does *not* advance for it. Advancing here counts an item the
+                    //menu does not yet contain, so every root entry after this one is inserted one slot
+                    //past the end -- and the trailing separator then lands in the middle of the block
+                    //rather than under it. The parent's own insert, after the loop, shifts those entries
+                    //right by exactly one, which is what puts them back where this numbering says.
+                    submenuPosition = position;
                 }
 
                 InsertItem(submenu, uint.MaxValue, idFirst + offset, label, item.Icon);
@@ -442,7 +448,12 @@ internal static unsafe partial class ContextMenuHandler
         }
 
         if (submenu != 0)
+        {
             InsertSubmenu(menu, submenuPosition, submenu, MenuRegistry.SubmenuLabel(), MenuRegistry.SubmenuIcon());
+
+            //Now it is in the menu, so the trailing separator's slot has to count it.
+            position++;
+        }
 
         InsertSeparator(menu, position);
 

@@ -46,22 +46,20 @@ public static partial class ForgeUrl
     /// </param>
     public static ForgeRepository? TryParse(string? remoteUrl, ForgeKind hint = ForgeKind.Unknown)
     {
-        if (Split(remoteUrl) is not { } parts)
+        if (Split(remoteUrl) is not { } remote)
             return null;
 
-        (string host, string path) = parts;
-
-        string[] segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string[] segments = remote.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
         if (segments.Length == 0)
             return null;
 
-        ForgeKind kind = hint != ForgeKind.Unknown ? hint : Detect(host, segments);
+        ForgeKind kind = hint != ForgeKind.Unknown ? hint : Detect(remote.Host, segments);
 
         return kind switch
         {
-            ForgeKind.AzureDevOps => Azure(host, segments),
-            ForgeKind.GitHub => GitHub(host, segments),
+            ForgeKind.AzureDevOps => Azure(remote, segments),
+            ForgeKind.GitHub => GitHub(remote, segments),
 
             _ => null,
         };
@@ -74,7 +72,7 @@ public static partial class ForgeUrl
     /// also in the path, so reading it would be a second source for one value -- and for GitHub over
     /// SSH it is the literal word "git".
     /// </summary>
-    private static (string Host, string Path)? Split(string? remoteUrl)
+    private static RemoteParts? Split(string? remoteUrl)
     {
         if (string.IsNullOrWhiteSpace(remoteUrl))
             return null;
@@ -91,15 +89,45 @@ public static partial class ForgeUrl
             if (uri.Scheme is not ("https" or "http" or "ssh" or "git"))
                 return null;
 
-            return (uri.Host.ToLowerInvariant(), uri.AbsolutePath);
+            string host = uri.Host.ToLowerInvariant();
+            bool web = uri.Scheme is "https" or "http";
+
+            //The port belongs to the API base and only Uri.Authority carries it -- Uri.Host does not.
+            //Dropped, an on-prem `http://tfs.acme.local:8080/...` was asked for on 443 instead, which
+            //is not a server that exists. Taken only from a web URL: an ssh remote's port is the ssh
+            //port, and putting 7999 on an https API base would be the same bug the other way round.
+            string authority = web && !uri.IsDefaultPort ? $"{host}:{uri.Port}" : host;
+
+            //The scheme too, for the same on-prem case: a server reachable only over plain http is not
+            //made reachable by asking it over https, and the remote is where the user already said
+            //which one it speaks. ssh and git have no API, so those become https.
+            string scheme = web ? uri.Scheme : "https";
+
+            //Unescaped, because every client escapes what it puts in a URL. Left as AbsolutePath gives
+            //it, an Azure project named `My Project` arrives here as `My%20Project` and is escaped a
+            //second time into `My%2520Project`, which 404s every call -- while the same repository over
+            //SSH works, because that branch never escaped it in the first place.
+            return new RemoteParts(scheme, host, authority, Uri.UnescapeDataString(uri.AbsolutePath));
         }
 
         Match scp = ScpStyle().Match(candidate);
 
-        return scp.Success
-            ? (scp.Groups["host"].Value.ToLowerInvariant(), scp.Groups["path"].Value)
-            : null;
+        if (!scp.Success)
+            return null;
+
+        string scpHost = scp.Groups["host"].Value.ToLowerInvariant();
+
+        return new RemoteParts("https", scpHost, scpHost, scp.Groups["path"].Value);
     }
+
+    /// <summary>
+    /// A remote URL, split into the four things building an API base needs.
+    ///
+    /// <paramref name="Host"/> and <paramref name="Authority"/> are separate on purpose: the host is
+    /// what detection matches and what a stored token is keyed by, and it must not carry a port; the
+    /// authority is what goes into a URL, and it must.
+    /// </summary>
+    private readonly record struct RemoteParts(string Scheme, string Host, string Authority, string Path);
 
     /// <summary>
     /// Which service a host and path belong to, when the repository has not said.
@@ -136,8 +164,10 @@ public static partial class ForgeUrl
         return ForgeKind.Unknown;
     }
 
-    private static ForgeRepository? GitHub(string host, string[] segments)
+    private static ForgeRepository? GitHub(RemoteParts remote, string[] segments)
     {
+        string host = remote.Host;
+
         if (segments.Length < 2)
             return null;
 
@@ -151,7 +181,7 @@ public static partial class ForgeUrl
 
         Uri api = host is "github.com" or "www.github.com"
             ? new Uri("https://api.github.com/")
-            : new Uri($"https://{host}/api/v3/");
+            : new Uri($"{remote.Scheme}://{remote.Authority}/api/v3/");
 
         return new ForgeRepository(ForgeKind.GitHub, host, api, owner, string.Empty, name);
     }
@@ -169,15 +199,16 @@ public static partial class ForgeUrl
     /// label; <c>ssh.dev.azure.com:v3/org/project/repo</c>, with no <c>_git</c> and a leading
     /// <c>v3</c> that is the SSH protocol version; and Server, with a collection of any depth.
     /// </summary>
-    private static ForgeRepository? Azure(string host, string[] segments)
+    private static ForgeRepository? Azure(RemoteParts remote, string[] segments)
     {
+        string host = remote.Host;
         bool visualStudio = host.EndsWith(".visualstudio.com", StringComparison.Ordinal);
 
         //ssh.dev.azure.com and vs-ssh.visualstudio.com are the SSH endpoints of the same service. The
-        //API lives on the web host, so the name is normalised before anything is built from it.
-        string webHost = host.StartsWith("ssh.", StringComparison.Ordinal) ? host[4..]
-            : host.StartsWith("vs-ssh.", StringComparison.Ordinal) ? host[7..]
-            : host;
+        //API lives on the web host, so the name is normalised before anything is built from it. The
+        //authority gets the same treatment and keeps its port, which an on-prem collection needs.
+        string webHost = StripSshPrefix(host);
+        string webAuthority = StripSshPrefix(remote.Authority);
 
         int gitIndex = Array.IndexOf(segments, "_git");
 
@@ -224,11 +255,16 @@ public static partial class ForgeUrl
         return new ForgeRepository(
             ForgeKind.AzureDevOps,
             webHost,
-            new Uri($"https://{webHost}/{collection}"),
+            new Uri($"{remote.Scheme}://{webAuthority}/{collection}"),
             organisation,
             project,
             name);
     }
+
+    private static string StripSshPrefix(string value) =>
+        value.StartsWith("ssh.", StringComparison.Ordinal) ? value[4..]
+        : value.StartsWith("vs-ssh.", StringComparison.Ordinal) ? value[7..]
+        : value;
 
     private static string Strip(string segment) =>
         segment.EndsWith(".git", StringComparison.OrdinalIgnoreCase) ? segment[..^4] : segment;

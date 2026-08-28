@@ -20,8 +20,10 @@ public static class ActionSafety
 {
     /// <param name="Command">The Git subcommand, matched as a whole argument.</param>
     /// <param name="Flag">
-    /// The argument that makes it destructive, or null when the subcommand always is. Also matched
-    /// whole: <c>--grep=clean</c> is not <c>clean</c>, and <c>-m "reset --hard"</c> is not a reset.
+    /// The argument that makes it destructive, or null when the subcommand always is. Matched whole --
+    /// <c>--grep=clean</c> is not <c>clean</c>, and <c>-m "reset --hard"</c> is not a reset -- except
+    /// that a long option also matches its <c>=value</c> spelling, so <c>--force-with-lease=main</c>
+    /// is the same rule as <c>--force-with-lease</c>.
     /// </param>
     /// <param name="Exemption">An argument that makes it safe again.</param>
     private sealed record Rule(string Command, string? Flag = null, string? Exemption = null);
@@ -48,10 +50,29 @@ public static class ActionSafety
 
         new("reset", "--hard"),
 
-        //`checkout -- .` and `restore .` discard the working tree. `restore --staged .` only unstages,
-        //which loses no work.
+        //Discarding the working tree, in all the spellings that reach it.
+        //
+        //`restore` needs both rules and neither is redundant. A bare `git restore <path>` defaults to
+        //--worktree, so restore is destructive *unless* --staged narrows it to the index -- which is
+        //the first rule. And `--staged --worktree` together are back to discarding, which the
+        //exemption would wave through, so the second rule catches --worktree wherever it appears. The
+        //old pair matched only a literal ".", so `restore --worktree src/` was silent.
+        new("restore", Exemption: "--staged"),
+        new("restore", "--worktree"),
+
+        //`checkout -- <path>` is "discard the changes in this path", whatever the path is; the `--` is
+        //what separates it from `checkout <branch>`, which discards nothing and is refused by Git when
+        //it would.
         new("checkout", "."),
-        new("restore", ".", Exemption: "--staged"),
+        new("checkout", "--"),
+        new("checkout", "-f"),
+        new("checkout", "--force"),
+
+        //The same two, for the verb that replaced checkout. --discard-changes is the spelling `switch`
+        //uses for what `checkout -f` does, and it is the one a saved action is most likely to carry.
+        new("switch", "-f"),
+        new("switch", "--force"),
+        new("switch", "--discard-changes"),
 
         new("branch", "-D"),
         new("branch", "--delete"),
@@ -98,7 +119,7 @@ public static class ActionSafety
     public static bool IsDestructive(ActionRun run) =>
         run switch
         {
-            GitRun git => Destructive.Any(rule => Matches(git.Args, rule)),
+            GitRun git => Destructive.Any(rule => Matches(git.Args, rule)) || IsForcedRefspec(git.Args),
             ProcessRun => true,
             CompositeRun composite => composite.Steps.Any(IsDestructive),
 
@@ -112,11 +133,40 @@ public static class ActionSafety
         && (rule.Flag is null || Contains(args, rule.Flag))
         && (rule.Exemption is null || !Contains(args, rule.Exemption));
 
+    /// <summary>
+    /// A force push written as a refspec rather than as a flag: <c>git push origin +HEAD:main</c>.
+    ///
+    /// The leading <c>+</c> is Git's own force marker and it overwrites the remote branch exactly as
+    /// <c>--force</c> does, so leaving it to the flag rules is leaving the hole they exist to close.
+    /// Nothing else a push carries begins with a <c>+</c>: options begin with <c>-</c>, and remote and
+    /// branch names cannot.
+    /// </summary>
+    private static bool IsForcedRefspec(IReadOnlyList<string> args)
+    {
+        if (!Contains(args, "push"))
+            return false;
+
+        foreach (string argument in args)
+        {
+            if (argument.StartsWith('+') && argument.Length > 1)
+                return true;
+        }
+
+        return false;
+    }
+
     private static bool Contains(IReadOnlyList<string> args, string token)
     {
+        //A long option's `=value` form is the same option. Only for `--` options: `-f=x` is not a
+        //spelling Git accepts, and matching a prefix on a short flag would read `-m=reset` as one.
+        bool longOption = token.StartsWith("--", StringComparison.Ordinal);
+
         foreach (string argument in args)
         {
             if (argument.Equals(token, StringComparison.Ordinal))
+                return true;
+
+            if (longOption && argument.StartsWith(token + "=", StringComparison.Ordinal))
                 return true;
         }
 

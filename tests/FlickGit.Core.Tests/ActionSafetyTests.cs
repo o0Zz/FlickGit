@@ -184,4 +184,48 @@ public class ActionSafetyTests
 
         Assert.Equal(["push", "{remoat}"], ActionPlaceholders.Expand(["push", "{remoat}"], context));
     }
+
+    [Theory]
+
+    //A force push written as a refspec. The leading + is Git's own force marker and no flag rule
+    //can see it.
+    [InlineData("push", "origin", "+HEAD:main")]
+    [InlineData("push", "origin", "+main")]
+
+    //The =value spelling of a long option, which whole-argument equality missed.
+    [InlineData("push", "--force-with-lease=main", "origin")]
+
+    //Discarding the working tree, in the spellings that are not a literal ".".
+    [InlineData("restore", "--worktree", "src/")]
+    [InlineData("restore", "src/Thing.cs")]
+    [InlineData("restore", "--staged", "--worktree", "src/Thing.cs")]
+    [InlineData("checkout", "-f")]
+    [InlineData("checkout", "--", "src/Thing.cs")]
+    [InlineData("switch", "--discard-changes", "main")]
+    [InlineData("switch", "-f", "main")]
+    public void EveryDestructiveSpellingIsConfirmed(params string[] args)
+    {
+        //"The safety rules." CLAUDE.md: an action file may only ever turn RequiresConfirmation *on*,
+        //and ActionRunner's check is the only gate between a palette keystroke and the command. Each
+        //of these ran with no confirmation at all.
+        Assert.True(ActionSafety.IsDestructive(new GitRun(args)));
+    }
+
+    [Theory]
+
+    //Unstaging loses no work, which is the exemption the restore rules turn on.
+    [InlineData("restore", "--staged", "src/Thing.cs")]
+
+    //An ordinary switch. Git refuses it rather than discarding anything.
+    [InlineData("switch", "main")]
+    [InlineData("checkout", "main")]
+
+    //Not a refspec: an option, and a remote name.
+    [InlineData("push", "origin", "main")]
+    public void TheSpellingsThatLoseNothingAreNotConfirmed(params string[] args)
+    {
+        //The other half of the same rule. Over-matching costs one confirmation, but confirming every
+        //ordinary switch would train the user to click through the ones that matter.
+        Assert.False(ActionSafety.IsDestructive(new GitRun(args)));
+    }
 }

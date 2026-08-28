@@ -57,12 +57,15 @@ public class AiContextBuilderTests
 
         FakeGitRunner.Invocation diff = git.Invocations.Single(i => i.Args.Contains("diff"));
 
-        Assert.Contains("src/A.cs", diff.Args);
+        //Literal, so no path in the list can widen the diff back over one of the exclusions below --
+        //which is what would put a secret-matching file into the payload after the detector had
+        //removed it.
+        Assert.Contains(":(literal)src/A.cs", diff.Args);
 
         //The two excluded files, and the one the user unticked.
-        Assert.DoesNotContain("package-lock.json", diff.Args);
-        Assert.DoesNotContain(".env", diff.Args);
-        Assert.DoesNotContain("src/Skipped.cs", diff.Args);
+        Assert.DoesNotContain(":(literal)package-lock.json", diff.Args);
+        Assert.DoesNotContain(":(literal).env", diff.Args);
+        Assert.DoesNotContain(":(literal)src/Skipped.cs", diff.Args);
 
         //A read, so `--no-optional-locks` is added and the index is never refreshed underneath an
         //IDE doing the same thing.

@@ -2,6 +2,7 @@ using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Repositories;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Files;
 
@@ -245,18 +246,6 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
     /// <inheritdoc cref="Staged"/>
     private static string Removed(IReadOnlyList<string> paths) =>
         paths.Count == 1 ? $"Removed {paths[0]}" : $"Removed {paths.Count} paths";
-
-    /// <summary>
-    /// The path as a <b>pathspec that cannot glob</b>.
-    ///
-    /// Everything after <c>--</c> is still a pathspec, so <c>a[1].txt</c> — an ordinary Windows file
-    /// name — is read as a character class: it matches <c>a1.txt</c> instead, and <c>git rm</c> would
-    /// then delete a file nobody clicked. <c>:(literal)</c> is Git's own way of saying "these are
-    /// bytes, not a pattern", and it is what makes one click act on exactly the path that was
-    /// clicked. It is no less load-bearing on a folder: <c>dumps/a[1]</c> and <c>dumps/a1</c> are two
-    /// directories, and only one of them was pointed at.
-    /// </summary>
-    private static string Literal(string path) => $":(literal){path}";
 
     /// <summary>
     /// How many entries a <c>-z</c> listing came back with.

@@ -218,7 +218,13 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         string path,
         CancellationToken cancellationToken)
     {
-        GitResult result = await git.ReadAsync(
+        //ReadBytesAsync, not ReadAsync. Decoding the blob as UTF-8 and re-encoding it -- which is what
+        //this used to do -- is a lossy round trip for every file that is not UTF-8, and it happened
+        //before FileTextLoader's detection ever ran. A committed UTF-16 file came back as U+FFFD and
+        //rendered as "binary"; a Latin-1 one showed every accented line as modified against an
+        //identical working copy, and reverting such a line copied the replacement character into the
+        //editor, where the next save wrote it to disk as `?`.
+        GitResult.Bytes result = await git.ReadBytesAsync(
             repository.Root,
             ["show", $"{spec}:{path}"],
             cancellationToken).ConfigureAwait(false);
@@ -226,11 +232,8 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         if (!result.Succeeded)
             return FileText.Empty;
 
-        //Re-encoded to bytes so one detection path serves both sides: `git show` hands back the blob's
-        //bytes, already decoded as UTF-8 by the process runner, and round-tripping keeps the size and
-        //hash fields meaningful for the left pane too.
-        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(result.StdOut);
-        return files.FromBytes(bytes);
+        //The same detector the working copy goes through, on the same kind of input: bytes.
+        return files.FromBytes(result.StdOut);
     }
 
     private async Task<FileText> LoadWorkingCopyAsync(

@@ -18,6 +18,21 @@ public sealed record GitResult(
     string StdErr,
     TimeSpan Duration)
 {
+    /// <summary>
+    /// The same outcome with stdout left as the bytes Git wrote, for the one read where decoding it
+    /// would destroy the answer: a blob out of the object store.
+    ///
+    /// <c>git show HEAD:&lt;path&gt;</c> hands back the file exactly as it was committed, and that file
+    /// may be UTF-16, or Latin-1, or carry a BOM. Decoded as UTF-8 it comes back full of U+FFFD, and
+    /// no amount of detection afterwards can undo that -- so this read never decodes at all and hands
+    /// the bytes straight to the same detector the working copy goes through.
+    /// </summary>
+    /// <param name="StdOut">Git's stdout, undecoded.</param>
+    public sealed record Bytes(int ExitCode, byte[] StdOut, string StdErr, TimeSpan Duration)
+    {
+        public bool Succeeded => ExitCode == 0;
+    }
+
     public bool Succeeded => ExitCode == 0;
 
     /// <summary>

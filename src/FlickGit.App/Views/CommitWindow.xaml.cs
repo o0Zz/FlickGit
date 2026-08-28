@@ -24,6 +24,12 @@ public partial class CommitWindow : Window
     private CommitViewModel? _viewModel;
 
     /// <summary>
+    /// Set while the file list's selection is being put back after a refused change, so the
+    /// SelectionChanged that causes does not ask the same question again.
+    /// </summary>
+    private bool _restoringSelection;
+
+    /// <summary>
     /// True when the resident service owns this window: closing hides it so the next right-click
     /// reuses it. False for a one-shot launch, where closing must really close so the process can exit.
     /// </summary>
@@ -86,6 +92,7 @@ public partial class CommitWindow : Window
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             _viewModel.ConfirmAsync = null;
             _viewModel.IsEditorDirty = null;
+            _viewModel.ConfirmDiscardEdit = null;
         }
 
         _viewModel = e.NewValue as CommitViewModel;
@@ -105,6 +112,15 @@ public partial class CommitWindow : Window
         //Asked only by the revert confirmation, so it can say that an unsaved edit is not what goes to
         //the Recycle Bin.
         _viewModel.IsEditorDirty = () => Diff.IsDirty;
+
+        //Enter does not accept: the affirmative answer here is the one that destroys the edit.
+        _viewModel.ConfirmDiscardEdit = () => ConfirmWindow.Ask(
+            this,
+            Strings.Get("edit.discard.title"),
+            Strings.Get("edit.discard.body", _viewModel.CurrentDiff?.Path ?? string.Empty),
+            Strings.Get("edit.discard.yes"),
+            Strings.Get("edit.keepediting"),
+            defaultIsAffirmative: false);
 
         Diff.SetTypography(_viewModel.DiffFontFamily, _viewModel.DiffFontSize);
 
@@ -149,8 +165,35 @@ public partial class CommitWindow : Window
     /// Hands the whole selection to the view model. <c>ListBox.SelectedItems</c> is not bindable, so
     /// this is the only way it can be known -- the log window's list does the same.
     /// </summary>
-    private void OnFileListSelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        _viewModel?.SetSelectedFiles([.. FileList.SelectedItems.OfType<FileChangeItem>()]);
+    private void OnFileListSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_restoringSelection || _viewModel is null)
+            return;
+
+        if (_viewModel.SetSelectedFiles([.. FileList.SelectedItems.OfType<FileChangeItem>()]))
+            return;
+
+        //Refused: the pane is keeping an unsaved edit, so the list goes back to the file it is showing.
+        //Re-entrant by construction -- setting the selection raises this handler again -- which the flag
+        //is for.
+        _restoringSelection = true;
+
+        try
+        {
+            FileList.SelectedItems.Clear();
+
+            if (_viewModel.CurrentDiff?.Path is { } path
+                && _viewModel.Files.FirstOrDefault(f => string.Equals(f.Path, path, StringComparison.Ordinal))
+                    is { } showing)
+            {
+                FileList.SelectedItem = showing;
+            }
+        }
+        finally
+        {
+            _restoringSelection = false;
+        }
+    }
 
     /// <summary>
     /// Settles which rows the menu is about, then labels it with how many.
@@ -479,6 +522,13 @@ public partial class CommitWindow : Window
         {
             //Kept for the next request. Hiding rather than closing is what makes the second window open in
             //tens of milliseconds instead of hundreds.
+            //
+            //Cancelled on the way out, because this branch returns before base.OnClosing and OnClosed --
+            //the only other caller of Cancel -- therefore never runs on the resident window, which is
+            //every window the hotkey and the context menu open. Without it Esc during generation leaves
+            //the HTTP request and any in-flight `git show` running into a window nobody can see.
+            _viewModel?.Cancel();
+
             e.Cancel = true;
             Hide();
             return;

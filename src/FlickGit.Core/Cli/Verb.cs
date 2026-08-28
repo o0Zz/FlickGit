@@ -250,9 +250,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
         string? path = args.Count > 1 ? args[1] : null;
         string? argument = args.Count > 2 ? args[2] : null;
 
-        //Explorer hands over "%V", which for a drive root arrives as `C:\` -- and a trailing backslash
-        //before a closing quote is why that would otherwise reach here as `C:"`.
-        path = path?.Trim().Trim('"');
+        path = path is null ? null : NormalisePath(path);
 
         if (string.IsNullOrWhiteSpace(path))
             path = null;
@@ -279,8 +277,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
 
         for (int i = 1; i < args.Count; i++)
         {
-            //The same unquoting the single path has always had, per entry.
-            string one = args[i].Trim().Trim('"');
+            //The same normalisation the single path has, per entry.
+            string one = NormalisePath(args[i]);
 
             if (one.Length > 0)
                 paths.Add(one);
@@ -292,6 +290,30 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             paths.Add(fallbackPath);
 
         return new Verb(kind, paths[0], null) { Paths = paths };
+    }
+
+    /// <summary>
+    /// One path as it arrives from Explorer or a shell.
+    ///
+    /// <b>Both halves are about the drive root, and neither is cosmetic.</b> Explorer hands over
+    /// <c>%V</c>, which for a drive root is <c>C:\</c>, and the trailing backslash before the closing
+    /// quote escapes it -- so the token would reach here as <c>C:"</c>. The shell handler strips that
+    /// backslash to avoid it, which leaves <c>C:</c>, and <b><c>C:</c> is not the root of the
+    /// drive</b>: it is the drive-<i>relative</i> path, meaning whichever directory happens to be
+    /// current on C: for the process that resolves it. <c>Path.GetFullPath("C:")</c> in the resident
+    /// service therefore answers with the service's own directory, and a right-click on a drive root
+    /// commits, logs, pushes or pulls somewhere else entirely.
+    ///
+    /// Here rather than in a verb, because every verb takes a path and only one of them used to put
+    /// the separator back.
+    /// </summary>
+    private static string NormalisePath(string path)
+    {
+        string trimmed = path.Trim().Trim('"').Trim();
+
+        return trimmed.Length == 2 && trimmed[1] == ':' && char.IsLetter(trimmed[0])
+            ? trimmed + System.IO.Path.DirectorySeparatorChar
+            : trimmed;
     }
 
     private static string? DefaultPathFor(VerbKind kind, string fallbackPath) =>

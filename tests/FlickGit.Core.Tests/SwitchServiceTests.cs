@@ -314,4 +314,54 @@ public class SwitchServiceTests
         Assert.Contains("main", candidates.Local);
         Assert.Equal(["origin/main"], candidates.Remote);
     }
+
+    [Fact]
+    public async Task AFailedPutBackAfterARefusedSwitchStillNamesTheStash()
+    {
+        //"A stash restores only the one it created" -- and says where it is when it cannot.
+        //
+        //Two failures at once: the switch is refused for a second reason, and the pop that would put
+        //the user back conflicts. The outcome the switch produced carries a null StashRef, so
+        //returning it unchanged showed the switch error over an emptied working tree and said nothing
+        //at all about the stash holding the work.
+        var git = new FakeGitRunner()
+            .Returns(["stash", "push"])
+            .ReturnsFrom(["stash", "list"], f => $"stash@{{0}}\tOn main: {f.ArgumentAfter("-m")}\n")
+            .Returns(["switch"], exitCode: 128, stderr: "fatal: invalid reference: main")
+            .Returns(["stash", "pop"], exitCode: 1, stderr: "CONFLICT (content): Merge conflict in src/A.cs");
+
+        SwitchOutcome outcome = await Create(git)
+            .StashSwitchRestoreAsync(Repository, "main", CancellationToken.None);
+
+        Assert.False(outcome.Succeeded);
+        Assert.True(outcome.RestoreConflicted);
+        Assert.Equal("stash@{0}", outcome.StashRef);
+        Assert.Equal(SwitchStep.Restore, outcome.FailedStep);
+
+        //Both halves, because recovering needs to know the switch did not happen either.
+        Assert.Contains("invalid reference", outcome.GitError);
+        Assert.Contains("CONFLICT", outcome.GitError);
+    }
+
+    [Fact]
+    public async Task AStashListThatCannotBeReadStopsBeforeTheSwitch()
+    {
+        //The same rule, from the other end. `stash push` succeeded and `stash list` did not, so
+        //nothing knows where the stash is -- and switching then would leave no way to put it back.
+        //Read as "nothing was stashed", this reported plain success while the user's work sat in a
+        //stash nobody had named.
+        var git = new FakeGitRunner()
+            .Returns(["stash", "push"])
+            .Returns(["stash", "list"], exitCode: 128, stderr: "fatal: not a git repository")
+            .Returns(["switch"]);
+
+        SwitchOutcome outcome = await Create(git)
+            .StashSwitchRestoreAsync(Repository, "main", CancellationToken.None);
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(SwitchStep.Stash, outcome.FailedStep);
+
+        //The switch never ran, which is the whole point: it is what would have made this unrecoverable.
+        Assert.DoesNotContain(git.Invocations, i => i.Args.Contains("switch"));
+    }
 }

@@ -135,7 +135,7 @@ public sealed class CommitFlowTests : IDisposable
         await Create(git).RunAsync(request, CancellationToken.None);
 
         FakeGitRunner.Invocation restore = Assert.Single(git.Invocations, i => i.Args.Contains("restore"));
-        Assert.Contains("src/excluded.cs", restore.Args);
+        Assert.Contains(":(literal)src/excluded.cs", restore.Args);
     }
 
     [Fact]

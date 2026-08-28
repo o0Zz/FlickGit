@@ -159,7 +159,30 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
         //"No local changes to save" is a success with nothing stashed. Looking the reference up rather
         //than assuming stash@{0} is what makes that case safe: there is nothing of ours to restore, and
         //popping stash@{0} would take somebody else's.
-        string? stashRef = await FindStashAsync(repository, message, cancellationToken).ConfigureAwait(false);
+        StashLookup found = await FindStashAsync(repository, message, cancellationToken).ConfigureAwait(false);
+
+        if (!found.Read)
+        {
+            //`stash push` worked and `stash list` did not, so nothing here can name what was just put
+            //away -- and switching now would leave no way to put it back. Stop before the switch, and
+            //say what to look for: the message is the only handle left on the stash.
+            log.Warn($"stash list failed after stashing for a switch to {branch}; the stash message contains {message}.");
+
+            return new SwitchOutcome(
+                Succeeded: false,
+                BlockingFiles: [],
+                GitError:
+                    $"{found.Error}\n\n" +
+                    $"Your changes were stashed and this could not read the stash list, so the switch " +
+                    $"was not attempted. The stash is still there, with a message containing:\n{message}",
+                StashRef: null,
+                RestoreConflicted: false)
+            {
+                FailedStep = SwitchStep.Stash,
+            };
+        }
+
+        string? stashRef = found.Reference;
 
         SwitchOutcome switched = await SwitchAsync(repository, branch, cancellationToken).ConfigureAwait(false);
 
@@ -168,7 +191,28 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
             //The switch still failed, for some reason other than local changes. Put the work back before
             //reporting, so the user is where they started.
             if (stashRef is not null)
-                await RestoreAsync(repository, stashRef, cancellationToken).ConfigureAwait(false);
+            {
+                GitResult putBack = await RestoreAsync(repository, stashRef, cancellationToken).ConfigureAwait(false);
+                repositories.Invalidate(repository.Root);
+
+                if (!putBack.Succeeded)
+                {
+                    //Two failures, and this is the one that has to lead. A refused switch leaves the user
+                    //where they were; a stash nobody named leaves them looking at an emptied working tree
+                    //with no idea where their work went. The reference is the actionable part, and the
+                    //outcome the switch produced carries a null one -- so it is set here, or the window
+                    //shows the switch error over an empty tree and says nothing about the stash.
+                    log.Warn($"Stash restore failed after a refused switch to {branch}; stash kept at {stashRef}.");
+
+                    return switched with
+                    {
+                        GitError = $"{switched.GitError}\n\n{putBack.ErrorText}",
+                        StashRef = stashRef,
+                        RestoreConflicted = true,
+                        FailedStep = SwitchStep.Restore,
+                    };
+                }
+            }
 
             return switched with { FailedStep = SwitchStep.Switch };
         }
@@ -249,7 +293,7 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
     /// necessarily ours -- and restoring the wrong stash is indistinguishable from losing the user's
     /// work.
     /// </summary>
-    private async Task<string?> FindStashAsync(
+    private async Task<StashLookup> FindStashAsync(
         RepositoryInfo repository,
         string message,
         CancellationToken cancellationToken)
@@ -259,18 +303,28 @@ public sealed class SwitchService(IGitProcessRunner git, RepositoryService repos
             ["stash", "list", "--format=%gd%x09%gs"],
             cancellationToken).ConfigureAwait(false);
 
+        //A failed read is not "nothing was stashed". Collapsing the two into one null is how a stash
+        //that exists gets reported as plain success, so the caller is told which it was.
         if (!list.Succeeded)
-            return null;
+            return new StashLookup(Read: false, Reference: null, Error: list.ErrorText);
 
         foreach (string line in list.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
             string[] parts = line.Split('\t', 2);
             if (parts.Length == 2 && parts[1].Contains(message, StringComparison.Ordinal))
-                return parts[0].Trim();
+                return new StashLookup(Read: true, Reference: parts[0].Trim(), Error: string.Empty);
         }
 
-        return null;
+        //Read, and ours is not in it: `stash push` answered "No local changes to save".
+        return new StashLookup(Read: true, Reference: null, Error: string.Empty);
     }
+
+    /// <summary>
+    /// The answer to "where is the stash this service just made", with <b>"the list could not be
+    /// read" kept separate from "there is no stash"</b> -- the two states a bare <c>string?</c>
+    /// cannot tell apart, and whose consequences are opposite.
+    /// </summary>
+    private readonly record struct StashLookup(bool Read, string? Reference, string Error);
 
     /// <summary>
     /// The files Git named as blocking the switch. Git lists them one per line, tab-indented. The tab

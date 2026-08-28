@@ -58,13 +58,15 @@ public sealed class WorkingTreeWriter
                 $"{relativePath} no longer exists on disk.\n\nIt may have been deleted or moved since it was opened.");
         }
 
-        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) || CrossesReparsePoint(repositoryRoot, absolute))
         {
             //Checked at save time, not load time: the interesting case is the one where it became a link
-            //while the file was open.
+            //while the file was open. Every directory between the root and the file is checked too, not
+            //just the file itself -- ResolveInsideRepository compares strings, so `repo\link\f.cs` is
+            //lexically inside the repository however far out of it `link` points.
             return SaveOutcome.Refused(
                 SaveRefusal.ReparsePoint,
-                $"{relativePath} is now a symlink or junction. FlickGit will not write through one.");
+                $"{relativePath} is reached through a symlink or junction. FlickGit will not write through one.");
         }
 
         if (!force)
@@ -98,7 +100,21 @@ public sealed class WorkingTreeWriter
                 SizeInBytes = saved.Length,
                 LastWriteTimeUtc = saved.LastWriteTimeUtc,
                 ContentHash = Convert.ToHexStringLower(SHA256.HashData(bytes)),
-                EndsWithNewline = newText.EndsWith('\n') || original.EndsWithNewline,
+
+                //Re-read off the text just written, because the caller feeds this straight back in as
+                //the baseline for the next save. Carrying the load-time list forward would index it by
+                //line numbers that have moved under an insertion or a deletion, and hand half the file
+                //the other kind's terminator -- the whole-file diff this class exists to prevent. The
+                //same stale list also reaches Hunks.ToPatch, where a mis-terminated context line makes
+                //`git apply --cached` refuse the hunk.
+                PerLineEndings = original.PerLineEndings is { Count: > 0 }
+                    ? PerLineEndingsOf(Body(original, newText))
+                    : original.PerLineEndings,
+
+                //Not `newText.EndsWith(LF) || original.EndsWithNewline`: Encode forces the trailing
+                //state back to the original's, so that OR would record a newline the write had just
+                //stripped, and the next save would then add one for real.
+                EndsWithNewline = original.EndsWithNewline,
             },
         };
     }
@@ -108,6 +124,31 @@ public sealed class WorkingTreeWriter
     /// can assert on bytes directly: the whole guarantee of this class is byte-level.
     /// </summary>
     internal static byte[] Encode(FileText original, string newText)
+    {
+        byte[] content = original.Encoding.GetBytes(Body(original, newText));
+
+        if (!original.HasByteOrderMark)
+            return content;
+
+        //The encoding instance carries the right preamble for its own flavour -- three bytes for UTF-8,
+        //two for UTF-16 -- so the BOM is never assembled by hand.
+        byte[] preamble = original.Encoding.GetPreamble();
+
+        if (preamble.Length == 0)
+            return content;
+
+        byte[] withBom = new byte[preamble.Length + content.Length];
+        preamble.CopyTo(withBom, 0);
+        content.CopyTo(withBom, preamble.Length);
+        return withBom;
+    }
+
+    /// <summary>
+    /// The file's text with its own line endings and trailing-newline state put back, before any
+    /// encoding. Split out of <see cref="Encode"/> so the saved stamp can be read off exactly the
+    /// text that was written rather than off the text that was loaded.
+    /// </summary>
+    private static string Body(FileText original, string newText)
     {
         //The editor holds LF. Everything here puts the file's own convention back.
         string body = newText.Replace("\r\n", "\n").Replace('\r', '\n');
@@ -125,32 +166,24 @@ public sealed class WorkingTreeWriter
         }
 
         //Trailing newline: matched to the original. A file that did not end with one must not acquire
-        //one, and a file that did must not lose it. The terminator compared against is the file's last
-        //one, which for a mixed file is not necessarily the dominant style.
-        string trailing = LastTerminator(original);
-        bool hasTrailing = trailing.Length > 0 && body.EndsWith(trailing, StringComparison.Ordinal);
+        //one, and a file that did must not lose it.
+        //
+        //Both halves are asked of the *rebuilt* body, never of the original's last terminator.
+        //Comparing against the original's is wrong in both directions. On a mixed file
+        //ReapplyMixedEndings has already terminated the last line, and possibly with a different
+        //terminator than the file used to end with -- so the comparison fails and a second terminator
+        //goes on, adding a blank line at EOF on every save. And on a file that ended with no newline
+        //the original's terminator is the empty string, so the strip branch could never run and the
+        //file quietly acquired one.
+        bool hasTrailing = body.EndsWith('\n') || body.EndsWith('\r');
 
         if (original.EndsWithNewline && !hasTrailing && body.Length > 0)
-            body += trailing.Length > 0 ? trailing : original.NewLine;
-        else if (!original.EndsWithNewline && hasTrailing)
-            body = body[..^trailing.Length];
+            return body + LastTerminator(original);
 
-        byte[] content = original.Encoding.GetBytes(body);
+        if (!original.EndsWithNewline && hasTrailing)
+            return StripLastTerminator(body);
 
-        if (!original.HasByteOrderMark)
-            return content;
-
-        //The encoding instance carries the right preamble for its own flavour -- three bytes for UTF-8,
-        //two for UTF-16 -- so the BOM is never assembled by hand.
-        byte[] preamble = original.Encoding.GetPreamble();
-
-        if (preamble.Length == 0)
-            return content;
-
-        byte[] withBom = new byte[preamble.Length + content.Length];
-        preamble.CopyTo(withBom, 0);
-        content.CopyTo(withBom, preamble.Length);
-        return withBom;
+        return body;
     }
 
     /// <summary>
@@ -204,17 +237,53 @@ public sealed class WorkingTreeWriter
         return builder.ToString();
     }
 
-    /// <summary>The terminator the file actually ended with, which for a mixed file may not be the dominant one.</summary>
-    private static string LastTerminator(FileText original)
+    /// <summary>
+    /// The terminator to end the file with, which for a mixed file may not be the dominant one. Never
+    /// empty -- it is only ever asked for when a terminator is about to be appended.
+    /// </summary>
+    private static string LastTerminator(FileText original) =>
+        original.PerLineEndings is { Count: > 0 } perLine && perLine[^1].Length > 0
+            ? perLine[^1]
+            : original.NewLine;
+
+    /// <summary>Drops one trailing terminator, whichever of the three kinds it is.</summary>
+    private static string StripLastTerminator(string body) =>
+        body.EndsWith("\r\n", StringComparison.Ordinal) ? body[..^2] : body[..^1];
+
+    /// <summary>
+    /// The terminator of every line of <paramref name="body"/>, in order, in the shape
+    /// <c>FileText.PerLineEndings</c> holds. A final line with no terminator still gets an entry --
+    /// an empty one, which is what tells the next save the file does not end with a newline.
+    /// </summary>
+    private static IReadOnlyList<string> PerLineEndingsOf(string body)
     {
-        if (original.PerLineEndings is { Count: > 0 } perLine)
+        var endings = new List<string>();
+        int lineStart = 0;
+
+        for (int i = 0; i < body.Length; i++)
         {
-            string last = perLine[^1];
-            if (last.Length > 0)
-                return last;
+            char c = body[i];
+
+            if (c is not ('\n' or '\r'))
+                continue;
+
+            if (c == '\r' && i + 1 < body.Length && body[i + 1] == '\n')
+            {
+                endings.Add("\r\n");
+                i++;
+            }
+            else
+            {
+                endings.Add(c == '\n' ? "\n" : "\r");
+            }
+
+            lineStart = i + 1;
         }
 
-        return original.EndsWithNewline ? original.NewLine : string.Empty;
+        if (lineStart < body.Length)
+            endings.Add(string.Empty);
+
+        return endings;
     }
 
     /// <summary>
@@ -308,6 +377,45 @@ public sealed class WorkingTreeWriter
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Whether any directory between the repository root and <paramref name="absolute"/> is a symlink
+    /// or a junction.
+    ///
+    /// <see cref="ResolveInsideRepository"/> deliberately stays a pure string comparison -- it is
+    /// asked about paths that do not exist yet, and answering it should not cost a syscall. The cost
+    /// of that is this: <c>repo\link\file.cs</c> is lexically inside the repository no matter where
+    /// <c>link</c> points, and checking only the leaf catches the file that <i>is</i> a link while
+    /// missing the far commoner one that merely <i>sits behind</i> one. So the two guards are asked
+    /// together, at the two places that actually write: a save and a delete.
+    /// </summary>
+    public static bool CrossesReparsePoint(string repositoryRoot, string absolute)
+    {
+        string root = Path.GetFullPath(repositoryRoot).TrimEnd(Path.DirectorySeparatorChar);
+
+        for (DirectoryInfo? directory = Directory.GetParent(absolute);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            if (string.Equals(
+                    directory.FullName.TrimEnd(Path.DirectorySeparatorChar),
+                    root,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                //Reached the root with nothing in between. The root's own attributes are not this
+                //method's business: the user pointed Git at it, and a repository that is itself
+                //behind a junction is an ordinary arrangement.
+                return false;
+            }
+
+            if (directory.Exists && directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                return true;
+        }
+
+        //Walked past the volume root without meeting the repository root, so the path is not under it
+        //at all. Refusing is the only safe answer to a question that should never have got here.
+        return true;
     }
 
     private static void TryDelete(string path)

@@ -72,11 +72,15 @@ public sealed class WorkingTreeDeleter(ILog log)
         if (!info.Exists)
             return DeleteOutcome.Refused(Strings.Get("delete.missing", relativePath));
 
-        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint)
+            || WorkingTreeWriter.CrossesReparsePoint(repositoryRoot, absolute))
         {
             //The same refusal WorkingTreeWriter makes, for a sharper reason: deleting through a
             //junction is how one click removes a tree that lives somewhere else entirely. Sharper
             //again for a folder, where the tree on the other side is what would go.
+            //
+            //The whole chain, not just the leaf: an intermediate junction is the version of this that
+            //ResolveInsideRepository's string comparison cannot see.
             return DeleteOutcome.Refused(Strings.Get("delete.reparsepoint", relativePath));
         }
 

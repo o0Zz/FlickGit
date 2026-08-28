@@ -4,6 +4,7 @@ using FlickGit.Diagnostics;
 using FlickGit.Git;
 using FlickGit.History;
 using FlickGit.Models;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Ai;
 
@@ -283,9 +284,11 @@ public sealed class AiContextBuilder(IGitProcessRunner git, OperationTimings? ti
         args.AddRange(GitDiffFlags.ReadSafe);
 
         //Excluding at the pathspec rather than filtering afterwards, so excluded content never
-        //enters this process in the first place.
+        //enters this process in the first place -- which is why each path is literal. A glob
+        //character in an included path would widen the diff back over a file the secret detector had
+        //just excluded, and it would then leave the machine.
         args.Add("--");
-        args.AddRange(included.Select(f => f.Path));
+        args.AddRange(included.Select(f => Literal(f.Path)));
 
         GitResult result = await git.ReadAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
 

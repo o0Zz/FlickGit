@@ -113,8 +113,15 @@ public sealed class Autostart(ILog log)
     /// logon type and the current user as principal: the service must run in the user's session with
     /// their desktop, or the tray icon has nowhere to appear.
     /// </summary>
-    private static string BuildXml(string exePath) =>
-        $"""
+    private static string BuildXml(string exePath)
+    {
+        //Escaped, not interpolated raw. Both values come from outside this file -- the install path and
+        //the Windows account name -- and an `&` in either produces XML that schtasks /XML refuses,
+        //which reads to the user as autostart simply not working.
+        string command = Escape(exePath);
+        string user = Escape(System.Security.Principal.WindowsIdentity.GetCurrent().Name);
+
+        return $"""
         <?xml version="1.0" encoding="UTF-16"?>
         <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
           <RegistrationInfo>
@@ -124,13 +131,13 @@ public sealed class Autostart(ILog log)
           <Triggers>
             <LogonTrigger>
               <Enabled>true</Enabled>
-              <UserId>{System.Security.Principal.WindowsIdentity.GetCurrent().Name}</UserId>
+              <UserId>{user}</UserId>
               <Delay>{LogonDelay}</Delay>
             </LogonTrigger>
           </Triggers>
           <Principals>
             <Principal id="Author">
-              <UserId>{System.Security.Principal.WindowsIdentity.GetCurrent().Name}</UserId>
+              <UserId>{user}</UserId>
               <LogonType>InteractiveToken</LogonType>
               <RunLevel>LeastPrivilege</RunLevel>
             </Principal>
@@ -158,12 +165,15 @@ public sealed class Autostart(ILog log)
           </Settings>
           <Actions Context="Author">
             <Exec>
-              <Command>{exePath}</Command>
+              <Command>{command}</Command>
               <Arguments>tray</Arguments>
             </Exec>
           </Actions>
         </Task>
         """;
+    }
+
+    private static string Escape(string value) => System.Security.SecurityElement.Escape(value) ?? value;
 
     private (int ExitCode, string Output, string Error) RunSchtasks(string[] args)
     {

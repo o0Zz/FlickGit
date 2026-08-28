@@ -2,6 +2,7 @@ using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Repositories;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Commits;
 
@@ -27,7 +28,10 @@ public sealed class CommitService(IGitProcessRunner git, RepositoryService repos
     /// Stages exactly <paramref name="paths"/>.
     ///
     /// <c>--</c> before the path list is not decoration: without it a file named
-    /// <c>-f</c> or <c>--cached</c> is read as an option.
+    /// <c>-f</c> or <c>--cached</c> is read as an option. <c>--</c> alone is not enough either:
+    /// everything after it is still a pathspec, so every path goes through
+    /// <see cref="GitPathspec.Literal"/> -- a ticked <c>report[final].xlsx</c> would otherwise stage
+    /// <c>reportf.xlsx</c> instead, and the commit would not be the one the user reviewed.
     /// </summary>
     public async Task StageAsync(
         RepositoryInfo repository,
@@ -45,7 +49,7 @@ public sealed class CommitService(IGitProcessRunner git, RepositoryService repos
         //keeping .env, appsettings.Development.json, bin/ and obj/ out of a hurried commit is "the
         //single most valuable safety default in the product", and gitignore is half of it.
         var args = new List<string>(paths.Count + 2) { "add", "--" };
-        args.AddRange(paths);
+        args.AddRange(paths.Select(Literal));
 
         GitResult result = await git.RunAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
         repositories.Invalidate(repository.Root);
@@ -70,7 +74,7 @@ public sealed class CommitService(IGitProcessRunner git, RepositoryService repos
             return;
 
         var args = new List<string>(paths.Count + 3) { "restore", "--staged", "--" };
-        args.AddRange(paths);
+        args.AddRange(paths.Select(Literal));
 
         GitResult result = await git.RunAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
         repositories.Invalidate(repository.Root);
@@ -98,9 +102,13 @@ public sealed class CommitService(IGitProcessRunner git, RepositoryService repos
         //Written into the Git directory rather than %TEMP%: same volume as the
         //repository, so no cross-device copy, and it is inside the trust boundary Git
         //already owns. Named per-process so two commits in two windows cannot collide.
+        //
+        //RepositoryInfo.GitDirectory, never <root>\.git composed by hand: in a submodule and in a
+        //linked worktree that name is a *file*, so composing it throws DirectoryNotFoundException
+        //here -- after StageAsync has already mutated the index, and with no commit possible from
+        //FlickGit in either kind of repository.
         string messageFile = Path.Combine(
-            repository.Root,
-            ".git",
+            repository.GitDirectory,
             $"FLICKGIT_COMMITMSG_{Environment.ProcessId}_{Environment.CurrentManagedThreadId}");
 
         try

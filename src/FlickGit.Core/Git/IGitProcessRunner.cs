@@ -67,4 +67,17 @@ public interface IGitProcessRunner
         IReadOnlyList<string> args,
         Action<string> onStandardErrorLine,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A read whose stdout is <b>not decoded</b>. Same flags and same guarantees as
+    /// <see cref="ReadAsync"/> in every other respect.
+    ///
+    /// For reading a blob, and only that. Everything else Git writes to stdout is a machine format
+    /// this product chose and is UTF-8 by construction; a blob is the user's own file, in whatever
+    /// encoding they committed it, and decoding it as UTF-8 is a one-way loss.
+    /// </summary>
+    Task<GitResult.Bytes> ReadBytesAsync(
+        string? repositoryPath,
+        IReadOnlyList<string> args,
+        CancellationToken cancellationToken);
 }

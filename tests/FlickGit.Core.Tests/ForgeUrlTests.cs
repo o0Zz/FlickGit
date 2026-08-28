@@ -145,4 +145,42 @@ public class ForgeUrlTests
 
         Assert.Equal(ForgeKind.AzureDevOps, forge.Kind);
     }
+
+    /// <summary>
+    /// An on-prem remote keeps its port and its scheme.
+    ///
+    /// <c>ForgeUrl</c> is named in Hard Requirement 4 outright, and this is the failure it is named
+    /// for: <c>Uri.Host</c> excludes the port -- only <c>Authority</c> carries it -- so a collection
+    /// rebuilt as <c>https://{host}/</c> was asked for on 443, over TLS, on a server that speaks
+    /// plain HTTP on 8080. Every call fails, and the URL in the error names a host that looks right.
+    /// </summary>
+    [Fact]
+    public void An_on_premises_remote_keeps_its_port_and_scheme()
+    {
+        ForgeRepository forge = Assert.IsType<ForgeRepository>(
+            ForgeUrl.TryParse("http://tfs.acme.local:8080/tfs/DefaultCollection/portal/_git/gateway"));
+
+        Assert.Equal(ForgeKind.AzureDevOps, forge.Kind);
+        Assert.Equal("http://tfs.acme.local:8080/tfs/DefaultCollection/", forge.ApiBase.ToString());
+
+        //The host stays portless: it is what detection matches on and what a stored token is keyed by.
+        Assert.Equal("tfs.acme.local", forge.Host);
+    }
+
+    /// <summary>
+    /// A path segment reaches the clients unescaped.
+    ///
+    /// <c>Uri.AbsolutePath</c> keeps percent-encoding, and every client escapes what it puts in a
+    /// URL -- so an Azure project named <c>My Project</c> arrived as <c>My%20Project</c> and went out
+    /// as <c>My%2520Project</c>, 404ing every call. The same repository cloned over SSH worked, which
+    /// is what made it look like an auth problem.
+    /// </summary>
+    [Fact]
+    public void A_percent_encoded_path_segment_is_decoded_once_and_only_once()
+    {
+        ForgeRepository forge = Assert.IsType<ForgeRepository>(
+            ForgeUrl.TryParse("https://dev.azure.com/acme/My%20Project/_git/gateway"));
+
+        Assert.Equal("My Project", forge.Project);
+    }
 }

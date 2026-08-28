@@ -327,7 +327,7 @@ public sealed class WindowVerbs(
 
     public VerbResult Terminal(VerbOutput output, string? path)
     {
-        string directory = TerminalDirectory(path ?? Environment.CurrentDirectory);
+        string directory = (path ?? Environment.CurrentDirectory).Trim().Trim('"');
 
         //Windows Terminal when present, the shell's own default otherwise. UseShellExecute is required
         //here and only here: it is what lets Windows resolve wt.exe through the app-execution alias,
@@ -371,20 +371,6 @@ public sealed class WindowVerbs(
 
         output.Fail(Strings.Get("app.name"), $"No terminal could be started in:\n\n{directory}");
         return VerbResult.Exit(ExitCodes.ConfigurationError);
-    }
-
-    /// <summary>
-    /// The folder a terminal should start in. <c>C:</c> is not the root of the drive: it is the
-    /// drive-<i>relative</i> path, meaning whichever directory happens to be current on C:, which is
-    /// how a right-click on a drive root opened a terminal somewhere else entirely.
-    /// </summary>
-    private static string TerminalDirectory(string path)
-    {
-        string directory = path.Trim().Trim('"');
-
-        return directory.Length == 2 && directory[1] == ':'
-            ? directory + Path.DirectorySeparatorChar
-            : directory;
     }
 
     /// <summary>

@@ -98,7 +98,20 @@ internal static class AiEndpoint
         using (response)
         {
             if (!response.IsSuccessStatusCode)
-                throw new AiUnavailableException(await DescribeAsync(provider, response, deadline.Token).ConfigureAwait(false));
+            {
+                //The user's token, not the silence deadline. The response has arrived, so there is no
+                //silence left to guard -- and a deadline that fired while the error body was being read
+                //would throw OperationCanceledException out of here, which is indistinguishable from the
+                //user pressing Esc: no notice, and nothing added to the failure counter. A rate-limited
+                //provider is the case, because 429 is exactly what arrives late.
+                throw new AiUnavailableException(
+                    await DescribeAsync(provider, response, cancellationToken).ConfigureAwait(false));
+            }
+
+            //The headers arrived, so the budget starts again for the body -- the same restart every
+            //frame does below. It measures silence, not total duration, and a provider that spent most
+            //of it on time-to-first-byte would otherwise have almost none left for its first frame.
+            deadline.CancelAfter(silence);
 
             Stream body = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
 

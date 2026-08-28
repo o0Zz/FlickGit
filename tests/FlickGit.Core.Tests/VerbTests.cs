@@ -401,4 +401,36 @@ epo");
         Assert.Equal(@"C:\dev\repo", verb.Path);
         Assert.Equal([@"C:\dev\repo"], verb.Paths);
     }
+
+    /// <summary>
+    /// A drive root keeps its separator.
+    ///
+    /// In scope under "the command-line grammar", and it is the one entry in it that silently names
+    /// the wrong folder rather than failing: Explorer's <c>%V</c> for a drive root is <c>C:\</c>, the
+    /// shell handler strips the trailing backslash so it cannot escape the closing quote, and
+    /// <c>C:</c> is the drive-<i>relative</i> path -- whichever directory is current on C: for the
+    /// process that resolves it, which for the resident service is its own install directory. Every
+    /// verb was affected; only <c>terminal</c> put the separator back.
+    /// </summary>
+    [Theory]
+    [InlineData("C:")]
+    [InlineData("\"C:\"")]
+    [InlineData("C:\\")]
+    public void A_drive_root_resolves_to_the_root_and_not_to_the_drive_relative_path(string given)
+    {
+        Verb verb = Verb.Parse(["commit", given], @"C:\dev\repo");
+
+        Assert.Equal(@"C:\", verb.Path);
+    }
+
+    /// <summary>
+    /// The same, per entry, for the two verbs whose whole tail is a path list.
+    /// </summary>
+    [Fact]
+    public void A_selection_verb_normalises_a_drive_root_too()
+    {
+        Verb verb = Verb.Parse(["add", "C:", @"D:\work"], @"C:\dev\repo");
+
+        Assert.Equal([@"C:\", @"D:\work"], verb.Paths);
+    }
 }

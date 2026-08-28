@@ -29,7 +29,7 @@ internal static partial class Program
     private static readonly string[] WindowVerbs =
     [
         "commit", "pull-rebase", "log", "blame", "repo", "pr",
-        "switch", "tag", "clone", "palette", "terminal", "tray",
+        "switch", "tag", "stash", "clone", "palette", "terminal", "tray",
         "submodule",
     ];
 
@@ -40,7 +40,7 @@ internal static partial class Program
     /// Both have to be waited for in that form, because both can refuse for safety and an exit code
     /// nobody can observe is not a contract.
     /// </summary>
-    private static readonly string[] TextWhenGivenAnArgument = ["switch", "tag"];
+    private static readonly string[] TextWhenGivenAnArgument = ["switch", "tag", "stash"];
 
     //`settings` is deliberately absent from WindowVerbs: it prints where the files are, and a verb
     //whose whole output is text has to be waited for or the console gets nothing.
@@ -94,9 +94,8 @@ internal static partial class Program
         }
 
         //The fast path: hand the whole command line to the resident service, print whatever it says, and
-        //exit. `tray` is excluded -- it *is* the resident service, so forwarding it to an existing one
-        //would be asking it to start itself.
-        if (args.Length > 0 && !args[0].Equals("tray", StringComparison.OrdinalIgnoreCase))
+        //exit -- unless the command is one of the two that have to run in this process.
+        if (args.Length > 0 && !MustRunHere(args))
         {
             //Whether this process can print is something only it knows, so it is part of the request: the
             //resident has no console and would otherwise answer a right-click as if it were a terminal.
@@ -114,8 +113,8 @@ internal static partial class Program
         bool waitForExit = args.Length > 0
                            && !WindowVerbs.Contains(args[0], StringComparer.OrdinalIgnoreCase);
 
-        //`switch <path> <branch>` and `tag <path> <name>` are text commands even though bare they open
-        //a picker -- see TextWhenGivenAnArgument.
+        //`switch <path> <branch>`, `tag <path> <name>` and `stash <path> <message>` are text commands
+        //even though bare they open a picker -- see TextWhenGivenAnArgument.
         if (!waitForExit
             && args.Length >= 3
             && TextWhenGivenAnArgument.Contains(args[0], StringComparer.OrdinalIgnoreCase))
@@ -124,6 +123,27 @@ internal static partial class Program
         }
 
         return Launch(appPath, args, waitForExit);
+    }
+
+    /// <summary>
+    /// Whether a command must run in this process rather than being forwarded to the resident service.
+    ///
+    /// Two of them. <c>tray</c> <i>is</i> the resident service, so forwarding it to an existing one
+    /// would be asking it to start itself. And <c>install-overlay system</c> -- with its opposite -- is
+    /// the <b>elevated</b> half of the overlay registration: this process was started with <c>runas</c>
+    /// and holds the rights for the one HKLM write in the product, and the resident service does not.
+    /// Forwarded, that write is attempted unelevated, fails, and the failure is reported against the
+    /// half that was never the problem.
+    /// </summary>
+    private static bool MustRunHere(string[] args)
+    {
+        if (args[0].Equals("tray", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return args.Length > 1
+               && args[1].Equals("system", StringComparison.OrdinalIgnoreCase)
+               && (args[0].Equals("install-overlay", StringComparison.OrdinalIgnoreCase)
+                   || args[0].Equals("uninstall-overlay", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

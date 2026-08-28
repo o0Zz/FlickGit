@@ -109,7 +109,16 @@ public sealed class RepositoryService(IGitProcessRunner git)
             cancellationToken).ConfigureAwait(false);
 
         if (!result.Succeeded)
-            return null;
+        {
+            //A bare repository fails the whole invocation, because --show-toplevel has no answer there:
+            //"fatal: this operation must be run in a work tree". Told apart from "not a repository at
+            //all" by Git's own words, so the ordinary miss -- a right-click on any folder on the machine
+            //-- still costs exactly one process. Without this IsBare is never true, and every
+            //`error.bare` guard downstream is unreachable code behind a generic "not a repository".
+            return result.StdErr.Contains("work tree", StringComparison.OrdinalIgnoreCase)
+                ? await ProbeBareAsync(directory, cancellationToken).ConfigureAwait(false)
+                : null;
+        }
 
         string[] lines = result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length == 0)
@@ -133,6 +142,43 @@ public sealed class RepositoryService(IGitProcessRunner git)
         string gitDirectory = lines.Length > 2 ? NormaliseRoot(lines[2].Trim()) : string.Empty;
 
         return new RepositoryInfo(root, Path.GetFileName(root), hasSubmodules, isBare, gitDirectory);
+    }
+
+    /// <summary>
+    /// The second probe, reached only when the first failed for want of a working tree.
+    ///
+    /// <c>Root</c> is the Git directory, because in a bare repository that is the repository: there is
+    /// no working tree for it to be anything else. Nothing commits into it -- every commit surface
+    /// refuses a bare repository by name, which is the whole reason this has to be detectable.
+    /// </summary>
+    private async Task<RepositoryInfo?> ProbeBareAsync(string directory, CancellationToken cancellationToken)
+    {
+        GitResult result = await git.ReadAsync(
+            directory,
+            ["rev-parse", "--is-bare-repository", "--absolute-git-dir"],
+            cancellationToken).ConfigureAwait(false);
+
+        if (!result.Succeeded)
+            return null;
+
+        string[] lines = result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        //Not bare after all: the first probe failed for some other reason, and inventing a repository
+        //out of that would be worse than the generic refusal.
+        if (lines.Length < 2 || !lines[0].Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        string gitDirectory = NormaliseRoot(lines[1].Trim());
+
+        if (gitDirectory.Length == 0)
+            return null;
+
+        return new RepositoryInfo(
+            gitDirectory,
+            Path.GetFileName(gitDirectory),
+            HasSubmodules: false,
+            IsBare: true,
+            gitDirectory);
     }
 
     /// <summary>

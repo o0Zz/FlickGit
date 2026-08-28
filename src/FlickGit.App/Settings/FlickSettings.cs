@@ -21,6 +21,14 @@ public sealed class FlickSettings
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
+    /// <summary>
+    /// True when <see cref="Load"/> refused a file written by a newer build, and the reason
+    /// <see cref="Save"/> then writes nothing. Never serialised: it is a fact about this process's
+    /// copy of the settings, not about the file on disk.
+    /// </summary>
+    [JsonIgnore]
+    public bool RefusedNewerSchema { get; private init; }
+
     public string GitPath { get; set; } = string.Empty;
 
     /// <summary>Empty means resolve per repository: remote HEAD, then main, then master.</summary>
@@ -179,7 +187,11 @@ public sealed class FlickSettings
                     $"(schema {loaded.SchemaVersion}, this build understands {CurrentSchemaVersion}).\n\n" +
                     $"Defaults are in use and the file has not been modified:\n{FilePath}";
 
-                return new FlickSettings();
+                //Marked, not just reported. Save() is called from RecentRepositories on every single
+                //repository resolution, so without this the very next right-click writes this build's
+                //defaults over the newer build's file -- while Load has just promised the file has not
+                //been modified.
+                return new FlickSettings { RefusedNewerSchema = true };
             }
 
             return loaded;
@@ -197,6 +209,11 @@ public sealed class FlickSettings
     /// </summary>
     public void Save()
     {
+        //The other half of the refusal above. Nothing in this process knows what the file holds, so
+        //the only safe write is none.
+        if (RefusedNewerSchema)
+            return;
+
         Directory.CreateDirectory(DirectoryPath);
 
         SchemaVersion = CurrentSchemaVersion;

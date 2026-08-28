@@ -104,6 +104,27 @@ internal sealed class FakeGitRunner : IGitProcessRunner
         return Execute(repositoryPath, args, readOnly: false);
     }
 
+    /// <summary>
+    /// The byte read, answered from the same rule table with the rule's stdout encoded as UTF-8.
+    ///
+    /// A fake cannot carry the thing this method exists for -- a blob that is not UTF-8 -- so it does
+    /// not pretend to: what is assertable here is the argument vector, which is the half a real
+    /// repository would hide.
+    /// </summary>
+    public async Task<GitResult.Bytes> ReadBytesAsync(
+        string? repositoryPath,
+        IReadOnlyList<string> args,
+        CancellationToken cancellationToken)
+    {
+        GitResult result = await Execute(repositoryPath, args, readOnly: true).ConfigureAwait(false);
+
+        return new GitResult.Bytes(
+            result.ExitCode,
+            System.Text.Encoding.UTF8.GetBytes(result.StdOut),
+            result.StdErr,
+            result.Duration);
+    }
+
     private Task<GitResult> Execute(string? repositoryPath, IReadOnlyList<string> args, bool readOnly)
     {
         Invocations.Add(new Invocation(repositoryPath, [.. args], readOnly));

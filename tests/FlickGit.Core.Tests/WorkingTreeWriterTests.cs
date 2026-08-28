@@ -195,6 +195,66 @@ public class WorkingTreeWriterTests : IDisposable
         Assert.True(outcome.Succeeded);
     }
 
+    [Fact]
+    public async Task AMixedEndingFileDoesNotGainABlankLineWhenALineIsAppended()
+    {
+        //"The working tree. Encoding, BOM and line-ending round trips." The rebuild terminates the
+        //last line itself, and with the terminator that line's *origin* had -- which for an appended
+        //line is the dominant style, not what the file used to end with. Comparing the result against
+        //the original's last terminator therefore never matched, and a second one went on: a blank
+        //line at EOF, added again on every subsequent save.
+        byte[] original = Encoding.UTF8.GetBytes("a\nb\nc\r\n");
+
+        (_, SaveOutcome outcome, byte[] saved) = await RoundTrip(
+            "appended.txt", original, text => text + "d\n");
+
+        Assert.True(outcome.Succeeded);
+        Assert.Equal(Encoding.UTF8.GetBytes("a\nb\nc\r\nd\n"), saved);
+    }
+
+    [Fact]
+    public async Task AFileWithNoTrailingNewlineDoesNotGainOneWhenTheEditorAddsOne()
+    {
+        //"The working tree", the half the existing no-trailing-newline test cannot reach: the strip
+        //branch. The terminator compared against was the empty string for such a file, so the branch
+        //that removes an added newline was unreachable and the file acquired one.
+        byte[] original = Encoding.UTF8.GetBytes("one\ntwo");
+
+        (_, SaveOutcome outcome, byte[] saved) = await RoundTrip(
+            "gainsnothing.txt", original, text => text + "\n");
+
+        Assert.True(outcome.Succeeded);
+        Assert.Equal(original, saved);
+    }
+
+    [Fact]
+    public async Task TheSavedStampCarriesTheLineEndingsThatWereWrittenNotTheOnesLoaded()
+    {
+        //"The working tree." The caller feeds SaveOutcome.Saved back in as the baseline for the next
+        //save. Carrying the load-time per-line list forward indexes it by line numbers that have
+        //moved under an insertion, and hands half the file the other kind's terminator -- so the
+        //second save is the one that rewrites a file the first left alone.
+        byte[] original = Encoding.UTF8.GetBytes("crlf\r\nlf\nmore\n");
+
+        string full = Write("restamped.txt", original);
+        FileText loaded = await Loader.LoadAsync(full, CancellationToken.None);
+
+        //Insert a line at the top, so every original line's number shifts by one.
+        SaveOutcome first = await Writer.SaveAsync(
+            _root, "restamped.txt", loaded, "new\n" + loaded.Text, force: false, CancellationToken.None);
+
+        Assert.True(first.Succeeded);
+
+        byte[] afterFirst = File.ReadAllBytes(full);
+
+        //The second save changes nothing, so it must write exactly what the first one did.
+        SaveOutcome second = await Writer.SaveAsync(
+            _root, "restamped.txt", first.Saved!, first.Saved!.Text, force: false, CancellationToken.None);
+
+        Assert.True(second.Succeeded);
+        Assert.Equal(afterFirst, File.ReadAllBytes(full));
+    }
+
     // ---- refusals -----------------------------------------------------------------
 
     [Fact]

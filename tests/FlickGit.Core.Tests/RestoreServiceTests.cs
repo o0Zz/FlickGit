@@ -51,8 +51,11 @@ public class RestoreServiceTests
 
         string[] args = Assert.Single(git.Invocations).Args;
 
+        //`:(literal)` on the path, and this is the call where it matters most in the whole product:
+        //a glob character would make the one command that discards uncommitted work discard it in a
+        //file the user never selected, and report success.
         Assert.Equal(
-            ["restore", "--source=HEAD", "--staged", "--worktree", "--", "src/Thing.cs"],
+            ["restore", "--source=HEAD", "--staged", "--worktree", "--", ":(literal)src/Thing.cs"],
             args);
     }
 

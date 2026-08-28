@@ -196,6 +196,15 @@ public sealed class CommitViewModel : ObservableObject
     /// </summary>
     public Func<bool>? IsEditorDirty { get; set; }
 
+    /// <summary>
+    /// Asks whether the pane's unsaved edit may be thrown away, for the one gesture that would
+    /// otherwise do it silently: clicking a different row. True to go ahead.
+    ///
+    /// Separate from <see cref="ConfirmAsync"/> because it is answered synchronously, inside the
+    /// list's SelectionChanged, so the selection can be put back before anything has been adopted.
+    /// </summary>
+    public Func<bool>? ConfirmDiscardEdit { get; set; }
+
     public RepositoryInfo Repository
     {
         get => _repository;
@@ -554,8 +563,24 @@ public sealed class CommitViewModel : ObservableObject
     /// Adopts the list's whole selection. The window pushes it here on every
     /// <c>SelectionChanged</c>, because <c>ListBox.SelectedItems</c> is not bindable.
     /// </summary>
-    public void SetSelectedFiles(IReadOnlyList<FileChangeItem> files)
+    /// <returns>
+    /// False when the selection was refused, which happens for one reason: the pane holds an unsaved
+    /// edit and the user chose to keep editing. The list puts its selection back, so the highlighted
+    /// row never names a different file from the one the pane is showing.
+    /// </returns>
+    public bool SetSelectedFiles(IReadOnlyList<FileChangeItem> files)
     {
+        //Asked before anything is adopted. Loading another file goes through DiffPane.Show, which drops
+        //IsDirty and the undo history with it -- so without this a single click on the next row throws
+        //away a working-tree edit with no prompt, and disarms the dirty guard on close as it goes.
+        if (files.Count == 1
+            && !string.Equals(_requestedDiffPath, files[0].Path, StringComparison.Ordinal)
+            && IsEditorDirty?.Invoke() == true
+            && ConfirmDiscardEdit?.Invoke() != true)
+        {
+            return false;
+        }
+
         _selectedFiles = files;
         RaiseCommandStates();
 
@@ -571,7 +596,7 @@ public sealed class CommitViewModel : ObservableObject
             if (!string.Equals(_requestedDiffPath, files[0].Path, StringComparison.Ordinal))
                 _ = LoadDiffAsync(files[0]);
 
-            return;
+            return true;
         }
 
         //Except while the pane holds an unsaved edit. Clearing it goes through DiffPane.Show, which
@@ -580,6 +605,8 @@ public sealed class CommitViewModel : ObservableObject
         //confirmation still says the Recycle Bin will not have it.
         if (IsEditorDirty?.Invoke() != true)
             _ = LoadDiffAsync(null);
+
+        return true;
     }
 
     public SideBySideDiff? CurrentDiff
@@ -896,16 +923,12 @@ public sealed class CommitViewModel : ObservableObject
 
         //The queued Enter, cashed in. CanCommit is re-checked inside CommitAsync, so a message that
         //arrived blank cannot reach a commit from here.
-        Stage = CommitStage.Committing;
-
-        try
-        {
-            await CommitAsync(_queuedPush).ConfigureAwait(true);
-        }
-        finally
-        {
-            Stage = CommitStage.Idle;
-        }
+        //
+        //The stage is left Idle across the call and CommitAsync owns the move to Committing. Setting
+        //it here instead is what made the whole one-key path silently do nothing: CanCommit opens with
+        //`_stage is not (Queued or Committing)`, so CommitAsync returned at its first line -- no
+        //commit, no push, no error, and a button that read "Committing" on the way past.
+        await CommitAsync(_queuedPush).ConfigureAwait(true);
     }
 
     private void ApplyStreamedText(string text)
@@ -1780,6 +1803,11 @@ public sealed class CommitViewModel : ObservableObject
             return;
 
         IsBusy = true;
+
+        //After the guard, never before it -- CanCommit refuses this stage. It is set here rather than
+        //at either call site so that the button and the queued Enter report the same thing, and so
+        //that EscapePressed refuses to close the window for the whole of a commit however it started.
+        Stage = CommitStage.Committing;
         StatusText = null;
 
         try
@@ -1809,6 +1837,7 @@ public sealed class CommitViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            Stage = CommitStage.Idle;
         }
     }
 

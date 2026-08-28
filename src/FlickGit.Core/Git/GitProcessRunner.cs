@@ -29,7 +29,7 @@ namespace FlickGit.Git;
 /// the repository's locks.</description></item>
 /// </list>
 ///
-/// <b>All four public methods are one <see cref="ExecuteAsync"/>.</b> The streaming path was a second
+/// <b>All five public methods are one <see cref="ExecuteAsync"/>.</b> The streaming path was a second
 /// copy of it — its own <c>ProcessStartInfo</c>, its own start, its own kill-tree, its own timing and
 /// logging — on the grounds that it "must not wait for the stderr pipe to reach the end". That is
 /// true and it is one line: which stderr task is started. The two copies had already drifted, which
@@ -42,26 +42,41 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
     /// <summary>UTF-8 with no BOM. Git speaks UTF-8 on stdout regardless of the console code page.</summary>
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    public Task<GitResult> RunAsync(
+    public async Task<GitResult> RunAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryPath, args, readOnly: false, null, null, cancellationToken);
+        (await ExecuteAsync(repositoryPath, args, readOnly: false, null, null, false, cancellationToken)
+            .ConfigureAwait(false)).AsResult();
 
-    public Task<GitResult> ReadAsync(
+    public async Task<GitResult> ReadAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryPath, args, readOnly: true, null, null, cancellationToken);
+        (await ExecuteAsync(repositoryPath, args, readOnly: true, null, null, false, cancellationToken)
+            .ConfigureAwait(false)).AsResult();
 
-    public Task<GitResult> RunWithInputAsync(
+    public async Task<GitResult.Bytes> ReadBytesAsync(
+        string? repositoryPath,
+        IReadOnlyList<string> args,
+        CancellationToken cancellationToken)
+    {
+        Execution execution = await ExecuteAsync(
+            repositoryPath, args, readOnly: true, null, null, binaryOutput: true, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new GitResult.Bytes(execution.ExitCode, execution.StdOutBytes, execution.StdErr, execution.Duration);
+    }
+
+    public async Task<GitResult> RunWithInputAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         string standardInput,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(repositoryPath, args, readOnly: false, standardInput, null, cancellationToken);
+        (await ExecuteAsync(repositoryPath, args, readOnly: false, standardInput, null, false, cancellationToken)
+            .ConfigureAwait(false)).AsResult();
 
-    public Task<GitResult> RunStreamingAsync(
+    public async Task<GitResult> RunStreamingAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         Action<string> onStandardErrorLine,
@@ -69,7 +84,9 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
     {
         ArgumentNullException.ThrowIfNull(onStandardErrorLine);
 
-        return ExecuteAsync(repositoryPath, args, readOnly: false, null, onStandardErrorLine, cancellationToken);
+        return (await ExecuteAsync(
+            repositoryPath, args, readOnly: false, null, onStandardErrorLine, false, cancellationToken)
+            .ConfigureAwait(false)).AsResult();
     }
 
     /// <param name="standardInput">Written to stdin before it is closed, or null to close it at once.</param>
@@ -78,12 +95,19 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
     /// is the whole of the streaming path: with it, stderr is pumped a character at a time; without
     /// it, read to the end.
     /// </param>
-    private async Task<GitResult> ExecuteAsync(
+    /// <param name="binaryOutput">
+    /// Reads stdout as bytes rather than decoding it, for <see cref="ReadBytesAsync"/>. The one flag
+    /// rather than a second copy of this method: everything else about the call -- the argument
+    /// building, the concurrent drain, the kill-tree, the timing -- is identical, and the copies are
+    /// what drifted last time.
+    /// </param>
+    private async Task<Execution> ExecuteAsync(
         string? repositoryPath,
         IReadOnlyList<string> args,
         bool readOnly,
         string? standardInput,
         Action<string>? onStandardErrorLine,
+        bool binaryOutput,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -141,7 +165,13 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         //a deadlock on any output larger than a pipe buffer. Started *before* stdin is written for
         //the same reason: a patch bigger than the pipe buffer would block this process on the write
         //while Git blocks on an output nobody is reading.
-        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        Task<string>? stdoutTask = binaryOutput
+            ? null
+            : process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+
+        Task<byte[]>? stdoutBytesTask = binaryOutput
+            ? DrainAsync(process.StandardOutput.BaseStream)
+            : null;
 
         Task<string> stderrTask = onStandardErrorLine is null
             ? process.StandardError.ReadToEndAsync(CancellationToken.None)
@@ -168,11 +198,12 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
             throw;
         }
 
-        string stdout = await stdoutTask.ConfigureAwait(false);
+        string stdout = stdoutTask is null ? string.Empty : await stdoutTask.ConfigureAwait(false);
+        byte[] stdoutBytes = stdoutBytesTask is null ? [] : await stdoutBytesTask.ConfigureAwait(false);
         string stderr = await stderrTask.ConfigureAwait(false);
 
         var duration = Stopwatch.GetElapsedTime(startedAt);
-        var result = new GitResult(process.ExitCode, stdout, stderr, duration);
+        var result = new Execution(process.ExitCode, stdout, stdoutBytes, stderr, duration);
 
         //Command name and timing only. CLAUDE.md, "Logging": never the diff, never file
         //contents, never a commit message body -- and Git's stderr is only recorded on
@@ -181,10 +212,33 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         log.Debug($"git {commandName} -> {result.ExitCode} in {duration.TotalMilliseconds:F0} ms  [{repositoryPath}]");
         timings?.Record($"git {commandName}", duration);
 
-        if (!result.Succeeded)
+        if (result.ExitCode != 0)
             log.Warn($"git {commandName} failed ({result.ExitCode}): {Truncate(stderr)}");
 
         return result;
+    }
+
+    /// <summary>
+    /// stdout to the end, undecoded. The same "drain concurrently or deadlock" rule as the text path,
+    /// and the same CancellationToken.None: a cancelled call kills the tree, and a half-drained pipe
+    /// is what would leave it hanging instead.
+    /// </summary>
+    private static async Task<byte[]> DrainAsync(Stream stdout)
+    {
+        using var buffer = new MemoryStream();
+
+        await stdout.CopyToAsync(buffer, CancellationToken.None).ConfigureAwait(false);
+
+        return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// One invocation's outcome before it is narrowed to the public shape the caller asked for. Only
+    /// one of the two stdout fields is ever populated, which is what <c>binaryOutput</c> decides.
+    /// </summary>
+    private sealed record Execution(int ExitCode, string StdOut, byte[] StdOutBytes, string StdErr, TimeSpan Duration)
+    {
+        public GitResult AsResult() => new(ExitCode, StdOut, StdErr, Duration);
     }
 
     /// <summary>

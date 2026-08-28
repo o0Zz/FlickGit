@@ -2,6 +2,7 @@ using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Repositories;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Merges;
 
@@ -261,13 +262,6 @@ public sealed class ConflictService(IGitProcessRunner git, RepositoryService rep
 
         return paths;
     }
-
-    /// <summary>
-    /// The path as a <b>pathspec that cannot glob</b> — the rule <c>TrackingService</c> keeps, for the
-    /// same reason: <c>a[1].txt</c> is an ordinary Windows file name and a character class to Git, so
-    /// without this a resolution could land on <c>a1.txt</c> instead.
-    /// </summary>
-    private static string Literal(string path) => $":(literal){path}";
 
     /// <summary>Git's own account of a failure, wherever it chose to write it.</summary>
     private static string Words(GitResult result) =>

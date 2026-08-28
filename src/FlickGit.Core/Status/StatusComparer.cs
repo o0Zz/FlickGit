@@ -30,7 +30,17 @@ public static class StatusComparer
         RepositoryStatus before,
         RepositoryStatus after)
     {
-        var afterByPath = after.Files.ToDictionary(f => f.Path, StringComparer.Ordinal);
+        //Not ToDictionary: porcelain v2 legitimately reports one path twice -- after
+        //`git rm --cached foo` it emits both a staged deletion (`1 D. ... foo`) and an untracked
+        //entry (`? foo`) -- and the duplicate key would throw. This runs *after* the branch switch
+        //in CommitFlow, so throwing here leaves the user with files staged, the branch changed, no
+        //commit and no explanation. TryAdd keeps the first entry, which is the tracked one the
+        //selection was made against.
+        var afterByPath = new Dictionary<string, GitFileChange>(after.Files.Count, StringComparer.Ordinal);
+
+        foreach (GitFileChange file in after.Files)
+            afterByPath.TryAdd(file.Path, file);
+
         var changed = new List<string>();
 
         foreach (GitFileChange selected in before.Files.Where(f => f.IsSelected))

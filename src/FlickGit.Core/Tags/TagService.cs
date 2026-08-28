@@ -144,7 +144,12 @@ public sealed class TagService(IGitProcessRunner git)
                 ["push", remote, "--delete", $"refs/tags/{tag}"],
                 cancellationToken).ConfigureAwait(false);
 
-            if (!pushed.Succeeded)
+            //A remote that has no such ref is this half's *success*, not its failure. Nothing here asks
+            //the network what tags exist -- the window offers "and on the remote" as a choice rather
+            //than as a fact -- so deleting a tag that was never pushed takes this path every time, and
+            //treating it as a failure meant such a tag could not be deleted at all: the remote call
+            //failed and the local delete below never ran.
+            if (!pushed.Succeeded && !SaysTheRemoteHasNoSuchRef(pushed.ErrorText))
                 return TagOutcome.Failed(pushed.ErrorText);
         }
 
@@ -155,6 +160,17 @@ public sealed class TagService(IGitProcessRunner git)
 
         return local.Succeeded ? TagOutcome.Ok : TagOutcome.Failed(local.ErrorText);
     }
+
+    /// <summary>
+    /// Git's refusal to delete a ref the remote does not have.
+    ///
+    /// Matched on Git's own wording because the exit code cannot tell this apart from any other push
+    /// failure, and the difference decides whether the local tag is then deleted or left alone. Erring
+    /// towards *not* matching is the safe direction: an unrecognised message stops the whole delete,
+    /// which is where this method started.
+    /// </summary>
+    private static bool SaysTheRemoteHasNoSuchRef(string error) =>
+        error.Contains("remote ref does not exist", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Publishes one tag, by its fully qualified ref for the reason <see cref="DeleteAsync"/> gives.</summary>
     public async Task<TagOutcome> PushAsync(

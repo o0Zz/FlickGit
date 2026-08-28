@@ -2,6 +2,7 @@ using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Repositories;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Diff;
 
@@ -111,7 +112,10 @@ public sealed class RestoreService(IGitProcessRunner git, RepositoryService repo
     /// </summary>
     /// <remarks>
     /// The path is passed after <c>--</c> and as its own argument, so a file named like an option
-    /// cannot become one.
+    /// cannot become one, and through <see cref="GitPathspec.Literal"/> so it cannot glob either.
+    /// That second guard is the load-bearing one here: this is the only command in the product that
+    /// asks Git to discard uncommitted work, so a pathspec matching a file the user did not select
+    /// destroys work in it, with an exit code of 0.
     ///
     /// <b>There is deliberately no overload taking a list</b>, and reverting a multi-selection does not
     /// want one: the caller loops, because each file's copy on disk goes to the Recycle Bin
@@ -126,7 +130,7 @@ public sealed class RestoreService(IGitProcessRunner git, RepositoryService repo
     {
         GitResult result = await git.RunAsync(
             repository.Root,
-            ["restore", "--source=HEAD", "--staged", "--worktree", "--", path],
+            ["restore", "--source=HEAD", "--staged", "--worktree", "--", Literal(path)],
             cancellationToken).ConfigureAwait(false);
 
         if (!result.Succeeded)
