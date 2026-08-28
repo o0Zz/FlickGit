@@ -4,7 +4,7 @@
         Title="FlickGit"
         SizeToContent="WidthAndHeight"
         ResizeMode="NoResize"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         Topmost="True"
         Background="{StaticResource Surface}">

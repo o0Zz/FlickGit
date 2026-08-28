@@ -237,6 +237,7 @@
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling"
+                         PreviewMouseRightButtonDown="OnFileRowRightClick"
                          SelectionChanged="OnFileSelectionChanged">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
@@ -245,6 +246,11 @@
                         </Style>
                     </ListBox.ItemContainerStyle>
 
+                    <!-- Declared here rather than built on opening, unlike the pickers': its one item
+                         is the same word whatever the row is. The row still has to be selected first,
+                         which is what PreviewMouseRightButtonDown above is for — a ListBox does not
+                         select on right-click, so without it Blame would open the file that happened
+                         to be highlighted rather than the one under the pointer. -->
                     <ListBox.ContextMenu>
                         <ContextMenu>
                             <MenuItem x:Name="BlameFileItem" Click="OnBlameFile" />

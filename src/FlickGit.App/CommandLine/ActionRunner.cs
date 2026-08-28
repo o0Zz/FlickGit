@@ -183,7 +183,8 @@ public sealed class ActionRunner(
             Strings.Get("action.confirm.title"),
             body,
             Strings.Get("action.confirm.yes"),
-            Strings.Get("common.cancel"));
+            Strings.Get("common.cancel"),
+            destructive: true);
     }
 
     private void Report(GitAction action, Outcome outcome, VerbOutput output)

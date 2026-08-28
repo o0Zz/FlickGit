@@ -26,6 +26,9 @@ public partial class SecretWindow : Window
     {
         InitializeComponent();
 
+        //The titlebar as well as the heading. Every other window in the product names its operation
+        //there; this one said "FlickGit", so an unowned modal was also an anonymous one in the taskbar.
+        Title = title;
         TitleText.Text = title;
         PromptText.Text = prompt;
         TargetText.Text = Strings.Get("ai.key.target", target);
@@ -39,8 +42,9 @@ public partial class SecretWindow : Window
     /// <summary>
     /// Asks for an AI provider's API key.
     /// </summary>
-    public static string? AskForApiKey(AiProvider provider) =>
+    public static string? AskForApiKey(Window? owner, AiProvider provider) =>
         Ask(
+            owner,
             Strings.Get("ai.key.title", provider.ToString()),
 
             //Copilot gets its own sentence, and it earns the branch: the other two want a key from a
@@ -61,8 +65,9 @@ public partial class SecretWindow : Window
     /// which settings screen. The host is what the answer is filed under, so it is what the sentence
     /// below the box says.
     /// </summary>
-    public static string? AskForForgeToken(ForgeKind kind, string host) =>
+    public static string? AskForForgeToken(Window? owner, ForgeKind kind, string host) =>
         Ask(
+            owner,
             Strings.Get("pr.token.title", host),
             Strings.Get(kind switch
             {
@@ -72,9 +77,21 @@ public partial class SecretWindow : Window
             }, host),
             CredentialStore.ForgeTarget(host));
 
-    private static string? Ask(string title, string prompt, string target)
+    /// <param name="owner">
+    /// The window this question belongs to, or null when it comes from a command line with none open.
+    /// <b>Not optional.</b> Notice.cs states the reason it exists: an unowned modal over a window the
+    /// user is looking at can end up behind it, and a modal behind its own parent is a hung application
+    /// as far as the user can tell. Topmost was masking that here rather than fixing it.
+    /// </param>
+    private static string? Ask(Window? owner, string title, string prompt, string target)
     {
         var window = new SecretWindow(title, prompt, target);
+
+        if (owner is not null)
+            window.Owner = owner;
+        else
+            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
         window.ShowDialog();
 
         return window._secret;

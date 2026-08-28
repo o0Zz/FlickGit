@@ -1,3 +1,4 @@
+using System.Windows;
 using FlickGit.App.Views;
 using FlickGit.Forges;
 using FlickGit.Logging;
@@ -37,10 +38,16 @@ public sealed class ForgeCredentials(CredentialStore store, GitCredentialFill he
     /// Skip both stored sources and ask. Passed after a service has refused a credential: whatever
     /// is on the machine has just been shown not to work, so offering it again would loop.
     /// </param>
+    /// <param name="owner">
+    /// The window the question belongs to, so the prompt cannot open behind it. Null from a surface with
+    /// no window. This class already reaches for SecretWindow, so carrying the owner makes an existing
+    /// dependency honest rather than adding one.
+    /// </param>
     public async Task<string?> AcquireAsync(
         RepositoryInfo repository,
         ForgeRepository forge,
         bool forcePrompt,
+        Window? owner,
         CancellationToken cancellationToken)
     {
         if (!forcePrompt
@@ -51,7 +58,7 @@ public sealed class ForgeCredentials(CredentialStore store, GitCredentialFill he
 
         //A window, not a console prompt and never a command-line argument -- the same argument
         //SecretWindow carries for the AI key, and it applies unchanged to a forge token.
-        if (SecretWindow.AskForForgeToken(forge.Kind, forge.Host) is not { Length: > 0 } typed)
+        if (SecretWindow.AskForForgeToken(owner, forge.Kind, forge.Host) is not { Length: > 0 } typed)
             return null;
 
         //Stored even if it turns out not to work. The alternative is validating it with a request of

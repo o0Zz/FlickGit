@@ -156,10 +156,16 @@
                            TextTrimming="CharacterEllipsis"
                            Style="{StaticResource Muted}" />
 
+                <!-- Enter creates, and it is handled on these two boxes rather than given to the
+                     button as IsDefault — the same choice the stash window makes and for the same
+                     reason: IsDefault would fire Create from the filter box and from the list, where
+                     the user has just arrowed onto an existing tag and creating a new one is not what
+                     they aimed at. -->
                 <TextBox x:Name="NameBox"
                          Grid.Row="2"
                          VerticalAlignment="Center"
                          FontFamily="Cascadia Mono, Consolas, Courier New"
+                         PreviewKeyDown="OnNewKeyDown"
                          TextChanged="OnNewNameChanged" />
 
                 <!-- A message here makes the tag annotated, which is why this box also drives the
@@ -169,6 +175,7 @@
                          Grid.Column="1"
                          Margin="8,0,0,0"
                          VerticalAlignment="Center"
+                         PreviewKeyDown="OnNewKeyDown"
                          TextChanged="OnNewNameChanged" />
 
                 <Button x:Name="CreateButton"

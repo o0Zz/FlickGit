@@ -6,14 +6,18 @@ namespace FlickGit.App.CommandLine;
 /// <summary>
 /// Turns a <see cref="CommitFlowResult"/> into the words a user reads. Nine outcomes to phrase.
 ///
-/// <b>One caller: <c>CommitViewModel</c>.</b> This used to claim it was separate "because the
-/// command line has to phrase the same nine", and that was never true -- no command-line path runs
-/// <see cref="CommitFlow"/> at all. <c>flick commit</c> opens the window, and <c>flick push</c>
-/// phrases its own refusals straight from the <c>push.*</c> keys. Hard Requirement 2 would have it
-/// folded into its caller on that basis, and it is not, for the reason the same document gives two
-/// bullets earlier: the caller is already the largest file in the product, and sixty lines of
-/// outcome-to-string mapping in the middle of its state machine makes both harder to read. What is
-/// here is a pure function of its argument that happens to live in its own file.
+/// <b>Two callers, and the second is the point.</b> <c>CommitViewModel</c> puts
+/// <see cref="SuccessText"/> in the window's footer and <c>App.xaml.cs</c> puts it in the tray
+/// notification -- which is the surface that outlives the window closing itself. Those two used to
+/// phrase the same outcome separately, and they disagreed: the footer said "Pushed x to origin/x"
+/// and the toast said only the hash, so a Commit &amp; Push reported the push nowhere the user could
+/// still see it. One phrasing in one place is what stops that recurring.
+///
+/// No command-line path runs <see cref="CommitFlow"/> at all -- <c>flick commit</c> opens the
+/// window, and <c>flick push</c> phrases its own refusals straight from the <c>push.*</c> keys.
+/// What is here is a pure function of its argument that happens to live in its own file, kept out
+/// of its larger caller because sixty lines of outcome-to-string mapping in the middle of a state
+/// machine makes both harder to read.
 ///
 /// Presentation, so it stays in the App assembly. The decision each outcome describes was already
 /// made in <see cref="CommitFlow"/>, which is where it is tested.

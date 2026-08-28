@@ -187,7 +187,8 @@ public sealed class EnvironmentVerbs(
             {
                 //A window, not an argument. A key on a command line is in the shell's history and visible in the
                 //process list.
-                string? typed = SecretWindow.AskForApiKey(provider);
+                //No owner: `flick ai key set` has no window of ours open behind it.
+                string? typed = SecretWindow.AskForApiKey(null, provider);
 
                 if (typed is null)
                     return output.Report(Strings.Get("app.name"), false, Strings.Get("ai.key.cancelled"));

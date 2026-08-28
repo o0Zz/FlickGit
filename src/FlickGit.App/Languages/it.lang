@@ -48,7 +48,7 @@ commit.warn.conflict = Questo repository ha conflitti non risolti. Risolverli pr
 commit.queued = Commit appena arriva il messaggio…
 commit.committing = Commit in corso…
 # The keyboard map, shown in the footer until there is an outcome to report in its place.
-commit.hint = ⏎ commit e push   ⇧⏎ nuova riga   ^S salva   F5 aggiorna   esc chiudi
+commit.hint = ⏎ / ^⏎ commit e push   ⇧⏎ nuova riga   ^S salva   F5 aggiorna   esc chiudi
 
 # ---- elenco dei file ----
 files.tooltip.split = In stage +{0} -{1} · Copia di lavoro +{2} -{3}
@@ -168,6 +168,8 @@ diff.search.close = Chiudi (Esc)
 pull.title = Pull (rebase) — {0}
 pull.success = Pull completato.
 pull.conflict = Il rebase si è fermato per via di conflitti.
+pull.failed = Il pull non è stato completato.
+pull.cancelled = Interrotto. Non è stato annullato nulla: controlla `git status` prima di riprovare, un rebase può essere applicato in parte e --autostash può aver lasciato le tue modifiche nello stash.
 pull.submodule.failed = Il pull è riuscito, ma i sottomoduli non sono aggiornati.
 
 # ---- selettore di ramo ----
@@ -234,6 +236,7 @@ tag.checkout.title = Passare a questo tag?
 tag.checkout.confirm = Passare a {0}?\n\nHEAD sarà scollegata: sarai sul commit taggato e non su un ramo. Non si perde nulla — aprire Rami e sceglierne uno per tornare indietro.
 tag.checkout.yes = Passa
 tag.checkout.done = HEAD è scollegata su {0}.
+tag.checkout.failed = Il tag non è stato estratto. Sei ancora sullo stesso commit.
 tag.checkout.blocked = Impossibile passare a {0} — questi file verrebbero sovrascritti. Non è stato modificato né scartato nulla. Farne prima il commit oppure metterli in stash.
 
 tag.menu.delete = Elimina tag…
@@ -264,10 +267,12 @@ stash.none = In questo repository non c'è nulla nello stash.
 # {0} numero di stash
 stash.count = {0} stash
 stash.pushed = Messo da parte. Le modifiche sono nello stash.
+stash.push.failed = Non è stato messo nulla da parte. Il tuo albero di lavoro è invariato.
 stash.nothing = Nulla da mettere da parte. Non ci sono modifiche, e i file non tracciati contano solo se vengono inclusi.
 # {0} riferimento dello stash
 stash.popped = {0} applicato e rimosso.
 stash.dropped = {0} eliminato.
+stash.drop.failed = Lo stash non è stato eliminato, quindi è ancora nell'elenco.
 stash.pop.kept = {0} è ancora nell'elenco, quindi non è andato perso nulla. Il messaggio di Git è qui sotto: o non ha cambiato niente, o ha applicato quel che poteva lasciando dei conflitti da risolvere.
 stash.menu.pop = Applica {0}
 stash.menu.drop = Elimina {0}…
@@ -277,6 +282,47 @@ stash.confirm.drop = Eliminare {0} — {1}?\n\nLe modifiche che contiene vengono
 stash.confirm.yes = Elimina
 stash.moved.title = L'elenco degli stash è cambiato
 stash.moved = Non è stato fatto nulla: lo stash su cui si è fatto clic non è più quello in quella posizione — nel frattempo qualcosa ne ha creato o applicato uno. L'elenco è stato ricaricato, si scelga di nuovo.
+
+# ---- finestra dei sottomoduli ----
+submodule.title = Sottomoduli — {0}
+submodule.none = Questo repository non ha sottomoduli. Aggiungine uno qui sotto.
+submodule.nomatch = Nessun risultato.
+submodule.count = {0} sottomoduli
+submodule.state.uninitialised = non inizializzato
+submodule.state.changed = modificato
+submodule.menu.init = Inizializza
+submodule.menu.update = Aggiorna
+submodule.menu.open = Apri cartella
+submodule.menu.remove = Rimuovi…
+submodule.initialising = Recupero di {0}…
+submodule.initialised = {0} inizializzato.
+submodule.updating = Aggiornamento di {0}…
+submodule.updated = {0} aggiornato.
+submodule.opened = {0} aperto
+submodule.openfailed = Non è stato possibile aprire {0}.
+submodule.notinitialised = {0} non è ancora inizializzato — non c'è nessuna cartella da aprire.
+submodule.add = AGGIUNGI UN SOTTOMODULO
+submodule.add.url = URL del repository
+submodule.add.into = In questa cartella
+submodule.add.button = Aggiungi
+submodule.add.hint = Clona in {0} e lo prepara. Non viene fatto alcun commit.
+submodule.add.refused.nourl = Incolla l'URL del repository da aggiungere.
+submodule.add.refused.nopath = Indica una cartella di questo repository in cui clonarlo.
+submodule.add.refused.outside = {0} è fuori da questo repository. Un sottomodulo deve stare al suo interno.
+submodule.add.refused.notempty = {0} esiste già e non è vuota. Scegli un'altra cartella.
+submodule.add.refused.exists = {0} è già un sottomodulo qui.
+submodule.adding = Aggiunta di {0}…
+submodule.added = {0} aggiunto.
+submodule.remove.title = Rimuovi sottomodulo
+submodule.remove.ask = Rimuovere il sottomodulo in {0}?\n\nSparisce da .gitmodules e dall'albero di lavoro, e la modifica viene preparata perché tu la committi.\n\nIl suo clone sotto .git/modules viene conservato, così non si perde nulla di ciò che vi è stato committato e mai inviato — elimina quella cartella a mano se un giorno vuoi riaggiungere {0}.
+submodule.remove.yes = Rimuovi
+submodule.removed = {0} rimosso.
+submodule.failed = L'operazione non è stata completata. Non è stato committato nulla: controlla cosa è preparato prima di farlo.
+submodule.remove.dirty.title = Rimuovi comunque
+submodule.remove.dirty.ask = {0} contiene modifiche mai committate.\n\nNon è stato rimosso nulla. Rimuoverlo comunque distrugge quelle modifiche: non sono in questo repository, non c'è nessun Cestino dietro di esse e git restore non può recuperarle.\n\nCommittale dentro {0} prima, se vuoi conservarle.
+submodule.remove.dirty.yes = Rimuovi e scarta
+submodule.staged = Preparato, non committato.
+submodule.commit = Committa…
 
 # ---- finestra del log ----
 log.title = Log — {0}
@@ -377,6 +423,7 @@ repo.upstream.askagain = Chiedi di nuovo
 repo.upstream.reset = FlickGit chiederà di nuovo al prossimo push di un nuovo ramo.
 repo.detached = HEAD è staccata, quindi nessun ramo traccia un remoto.
 repo.save = Salva
+repo.failed = La modifica non è stata completata. Confronta i valori qui sotto con quanto riporta Git.
 
 # ---- push ----
 push.button = Push
@@ -398,7 +445,7 @@ pr.deletebranch = Elimina {0} dopo il merge
 pr.generate = Scrivi con l'IA
 pr.create = Crea la pull request
 pr.open = Apri
-pr.hint = ⏎ crea   esc chiudi
+pr.hint = ⏎ / ^⏎ crea   esc chiudi
 pr.generating = Scrittura della descrizione…
 pr.notitle = Una pull request ha bisogno di un titolo.
 pr.summary = {0} commit · {1} file · +{2} −{3}
@@ -440,6 +487,7 @@ edit.close.discard = Scarta
 edit.external.title = Cambiato su disco
 edit.external.reload = Ricarica dal disco
 edit.external.overwrite = Sovrascrivi
+edit.keepediting = Continua a modificare
 
 # ---- messaggi di commit generati dall'IA ----
 ai.generating = Scrittura di un messaggio…
@@ -518,6 +566,7 @@ action.blame = Blame…
 action.add = Aggiungi
 action.rm = Rimuovi…
 action.repo = Impostazioni del repository…
+action.submodule = Sottomoduli…
 action.clone = Clona…
 action.terminal = Apri un terminale qui
 

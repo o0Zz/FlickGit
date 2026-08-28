@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.Config;
@@ -33,6 +34,16 @@ public partial class RepositoryWindow : Window
     private readonly RemoteService _remotes;
 
     private readonly List<GitRemote> _configured = [];
+
+    /// <summary>
+    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
+    ///
+    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
+    /// the repository in a state nobody reported, which is worse than waiting for it.
+    /// </summary>
+    private readonly CancellationTokenSource _closing = new();
+
+    private bool _busy;
 
     /// <summary>What the last read said. Null until <see cref="LoadAsync"/> has run once.</summary>
     private RepositoryConfig? _current;
@@ -79,12 +90,70 @@ public partial class RepositoryWindow : Window
         SaveButton.Content = Strings.Get("repo.save");
         CloseButton.Content = Strings.Get("common.close");
 
-        Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
+        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
+        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
+        //
+        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
+        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
+        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
+        //it would take the resident process and every pre-warmed window with it.
+        InputBindings.Add(new KeyBinding
+        {
+            Key = Key.F5,
+            Command = new AsyncCommand(
+                LoadAsync,
+                canExecute: () => !_busy,
+                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
+        });
+
+        //Loaded rather than in LoadAsync, which also runs after every remote edit: refocusing there
+        //would pull the caret out of whatever the user was typing in next.
+        Loaded += async (_, _) =>
+        {
+            await LoadAsync().ConfigureAwait(true);
+            FocusFirstField();
+        };
     }
 
+    /// <summary>
+    /// The first field the window is actually offering. The identity boxes when this repository sets
+    /// its own, and the remote list when it inherits the global one -- a disabled TextBox cannot take
+    /// focus, so asking it to would leave the window with nothing focused at all.
+    /// </summary>
+    private void FocusFirstField()
+    {
+        if (IdentityPanel.IsEnabled)
+            NameBox.Focus();
+        else
+            RemoteList.Focus();
+    }
+
+    /// <summary>
+    /// The window's read, with the one exception a closing window can now raise turned back into
+    /// "stop". Without this the token added for _closing would surface as an unhandled
+    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
+    /// outcome than the leak it was added to fix.
+    /// </summary>
     private async Task LoadAsync()
     {
-        RepositoryConfig config = await _config.ReadAsync(_repository, CancellationToken.None).ConfigureAwait(true);
+        //A write that finished after the window closed still asks for a reload. There is nothing left
+        //to populate, and the read would only be cancelled a moment later anyway.
+        if (_closing.IsCancellationRequested)
+            return;
+
+        try
+        {
+            await ReadStateAsync().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            //Closed while the read was in flight. There is no longer anything to populate.
+        }
+    }
+
+    private async Task ReadStateAsync()
+    {
+        RepositoryConfig config = await _config.ReadAsync(_repository, _closing.Token).ConfigureAwait(true);
         _current = config;
         _loading = true;
 
@@ -289,7 +358,8 @@ public partial class RepositoryWindow : Window
             Strings.Get("repo.remote.confirm.title"),
             Strings.Get("repo.remote.confirm", selected.Name),
             Strings.Get("repo.remote.confirm.yes"),
-            Strings.Get("common.cancel"));
+            Strings.Get("common.cancel"),
+            destructive: true);
 
         if (!confirmed)
             return;
@@ -440,10 +510,12 @@ public partial class RepositoryWindow : Window
 
     /// <summary>Git's own words, never paraphrased — CLAUDE.md, "Error Handling".</summary>
     private void Report(string title, ConfigOutcome outcome) =>
-        Notice.Show(this, title, outcome.GitError ?? string.Empty);
+        Notice.GitFailure(this, title, Strings.Get("repo.failed"), outcome.GitError, _repository.Root);
 
     private void SetBusy(bool busy)
     {
+        _busy = busy;
+
         RemoteList.IsEnabled = !busy;
         RemoteNameBox.IsEnabled = !busy;
         RemoteUrlBox.IsEnabled = !busy;
@@ -467,6 +539,18 @@ public partial class RepositoryWindow : Window
         //putting them back the way they were is how a Remove button survives the removal.
         AskAgainButton.IsEnabled = _current?.AllowUpstreamCreation is not null;
         UpdateRemoteButtons();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
+        //CancellationToken.None and then reloads, so a token read can still happen after the window is
+        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
+        //in an async continuation means the resident process dies. Cancelling is what this needs; the
+        //source is collected with the window.
+        _closing.Cancel();
+
+        base.OnClosed(e);
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

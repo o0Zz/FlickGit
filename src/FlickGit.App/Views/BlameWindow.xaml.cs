@@ -190,6 +190,13 @@ public partial class BlameWindow : Window
         _timings.Record("blame.read", clock.Elapsed);
 
         SelectLine(Math.Min(Editor.TextArea.Caret.Line, Math.Max(_lines.Count, 1)));
+
+        //The editor takes the keyboard, because every gesture this window has is aimed at a line: the
+        //arrow keys move the subject, and Alt+Left steps back from it. Without this the window opens
+        //with a selected line that nothing can move until it is clicked. Focus the TextArea rather than
+        //the TextEditor -- the editor forwards focus, but only once it is loaded, and a walk back
+        //re-enters here on an already-loaded window.
+        Editor.TextArea.Focus();
     }
 
     /// <summary>Shows a reason in place of the file, and leaves the walk where it was.</summary>

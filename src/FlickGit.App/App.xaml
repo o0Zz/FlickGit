@@ -95,6 +95,18 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
+        <!-- The affirmative of a question that destroys something: delete a branch, drop a stash,
+             remove a remote. Only the label is coloured, and deliberately so. The accent belongs to
+             the *default* button — which on those questions is the refusal, because Enter must not
+             carry out a deletion — and a second saturated fill beside it would be two buttons
+             shouting at each other. DangerText as a foreground is also how every other warning in
+             the product is drawn, so this adds a use of the existing vocabulary rather than a new
+             colour. -->
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Foreground" Value="{StaticResource DangerText}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
         <Style TargetType="TextBox">
             <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />
             <Setter Property="Foreground" Value="{StaticResource Text}" />

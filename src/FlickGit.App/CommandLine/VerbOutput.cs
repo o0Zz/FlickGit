@@ -1,4 +1,5 @@
 using System.Text;
+using System.Windows;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Views;
 using FlickGit.Cli;
@@ -111,5 +112,11 @@ public sealed class VerbOutput
     /// also runs the tray icon and the pipe listener.
     /// </summary>
     public void Notice(string title, string message, bool compact) =>
-        new NoticeWindow(title, message, compact).Show();
+        //The one notice in the product with no owner -- it answers a verb that may have no window at
+        //all -- so it is also the one that has to say where to put itself. NoticeWindow defaults to
+        //CenterOwner for the owned case, which is every other caller.
+        new NoticeWindow(title, message, compact)
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        }.Show();
 }

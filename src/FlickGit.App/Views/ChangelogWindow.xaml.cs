@@ -109,6 +109,11 @@ public partial class ChangelogWindow : Window
         //subjects would leave both buttons live over nothing at all.
         UpdateActions();
 
+        //"Edit it here, then copy it or save it" is what this window is for, so the caret starts in the
+        //box holding the text rather than on a button. Loaded rather than here, because focus cannot be
+        //given to an element that has not been arranged yet.
+        Loaded += (_, _) => ChangelogBox.Focus();
+
         _ready = true;
     }
 

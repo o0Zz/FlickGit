@@ -116,6 +116,12 @@ public partial class SettingsWindow : Window
 
         SaveButton.Content = Strings.Get("settings.save");
         CloseButton.Content = Strings.Get("common.close");
+
+        //The tab strip takes the keyboard, so Left and Right move between General, Help and About from
+        //the moment the window opens. Focusing the first checkbox instead would put the caret on one
+        //setting out of a dozen and make the tabs unreachable without the mouse. Loaded rather than
+        //here, because focus cannot be given to an element that has not been arranged yet.
+        Loaded += (_, _) => Tabs.Focus();
     }
 
     /// <summary>
@@ -423,7 +429,7 @@ public partial class SettingsWindow : Window
             return;
 
         //The window returns the key; it is never logged and never comes back out of the store.
-        if (SecretWindow.AskForApiKey(provider) is not { Length: > 0 } typed)
+        if (SecretWindow.AskForApiKey(this, provider) is not { Length: > 0 } typed)
             return;
 
         Report(_keys.Write(CredentialStore.AiTarget(provider), typed)

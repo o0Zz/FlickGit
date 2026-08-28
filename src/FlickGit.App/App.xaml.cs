@@ -260,9 +260,20 @@ public partial class App : Application
             //Here rather than inside the view model: its job is the outcome, not which surfaces hear about
             //it. The window closes itself after a successful commit, so this is the only thing left to say
             //it worked.
-            viewModel.Committed += result => notifier.Success(
-                Strings.Get("app.name"),
-                Strings.Get("commit.success", result.ShortHash, result.Subject));
+            //
+            //Through CommitOutcomeReporter rather than formatting commit.success directly, which is what
+            //this did and why a Commit & Push reported only the hash: the footer used the reporter and
+            //said "Pushed x to origin/x", the toast did not, and the toast is the half that outlives the
+            //window. One phrasing, one place, so the two surfaces cannot disagree again.
+            //
+            //Titled with the repository rather than "FlickGit". The premise of the product is a user
+            //across five to ten repositories a day, so which one this happened in is the first thing the
+            //notification has to answer -- and the body already names the operation.
+            viewModel.Committed += result =>
+            {
+                if (CommitOutcomeReporter.SuccessText(result) is { Length: > 0 } text)
+                    notifier.Success(viewModel.RepositoryName, text);
+            };
 
             return viewModel;
         });

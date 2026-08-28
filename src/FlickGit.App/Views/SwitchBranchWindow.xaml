@@ -132,7 +132,7 @@
                     <!-- Stashing is a choice the user makes here, never something the switch does
                          on their behalf. -->
                     <Button x:Name="StashButton" MinWidth="150" Click="OnStashSwitch" />
-                    <Button x:Name="BlockedCancelButton" Margin="8,0,0,0" MinWidth="80" Click="OnClose" />
+                    <Button x:Name="BlockedCloseButton" Margin="8,0,0,0" MinWidth="80" Click="OnClose" />
                 </StackPanel>
             </StackPanel>
         </Border>

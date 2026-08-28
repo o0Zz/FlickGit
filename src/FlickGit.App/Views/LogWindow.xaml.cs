@@ -192,7 +192,16 @@ public partial class LogWindow : Window
             //The first page selects its newest commit, so the window opens showing something rather than a
             //prompt over three empty panes.
             if (CommitList.SelectedItems.Count == 0)
+            {
                 CommitList.SelectedIndex = 0;
+
+                //And the list takes the keyboard, because a selected row nothing can move is a window
+                //that has to be clicked before the arrow keys do anything. The guard above makes this the
+                //first page only: a later "load more" must not pull focus back out of wherever the user
+                //has put it. AppWindow.Present has already shown and arranged the window by now, so
+                //Focus lands rather than being dropped on an unarranged element.
+                CommitList.Focus();
+            }
         }
         catch (GitNotFoundException ex)
         {
@@ -359,6 +368,15 @@ public partial class LogWindow : Window
         if (rows.Count == 0)
             Diff.Show(null, isLoading: false);
     }
+
+    /// <summary>
+    /// A ListBox does not select on right-click, so the Blame item would otherwise be built for
+    /// whichever row was highlighted before -- opening the wrong file's history, with the right-clicked
+    /// one still under the pointer. Every other list in the product routes right-click through this
+    /// same helper; this one did not.
+    /// </summary>
+    private void OnFileRowRightClick(object sender, MouseButtonEventArgs e) =>
+        FilterList.SelectRowUnderPointer(FileList, e.OriginalSource);
 
     /// <summary>
     /// Blame the selected file at the commit being looked at. The revision is the range's tip rather

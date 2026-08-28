@@ -52,7 +52,7 @@ commit.warn.conflict = This repository has unresolved conflicts. Resolve them be
 commit.queued = Committing when the message arrives…
 commit.committing = Committing…
 # The keyboard map, shown in the footer until there is an outcome to report in its place.
-commit.hint = ⏎ commit & push   ⇧⏎ new line   ^S save   F5 refresh   esc close
+commit.hint = ⏎ / ^⏎ commit & push   ⇧⏎ new line   ^S save   F5 refresh   esc close
 
 # ---- file list columns ----
 
@@ -218,6 +218,8 @@ diff.search.close = Close (Esc)
 pull.title = Pull (rebase) — {0}
 pull.success = Pull completed successfully.
 pull.conflict = Rebase stopped because of conflicts.
+pull.failed = The pull did not complete.
+pull.cancelled = Stopped. Nothing was undone, so check `git status` before trying again: a rebase may be part-applied, and --autostash may have left your changes in the stash list.
 pull.submodule.failed = The pull succeeded, but the submodules are stale.
 
 # ---- branch selector ----
@@ -347,6 +349,7 @@ tag.checkout.title = Check out this tag?
 tag.checkout.confirm = Check out {0}?\n\nHEAD will be detached: you will be on the tagged commit rather than on a branch. Nothing is lost — open Branches and pick one to come back.
 tag.checkout.yes = Check out
 tag.checkout.done = HEAD is detached at {0}.
+tag.checkout.failed = The tag was not checked out. You are still on the same commit.
 tag.checkout.blocked = Cannot check out {0} — these files would be overwritten. Nothing was modified or discarded. Commit or stash them first.
 
 tag.menu.delete = Delete tag…
@@ -381,10 +384,12 @@ stash.none = Nothing is stashed in this repository.
 # {0} number of stashes
 stash.count = {0} stash(es)
 stash.pushed = Stashed. Your changes are in the stash.
+stash.push.failed = Nothing was stashed. Your working tree is unchanged.
 stash.nothing = Nothing to stash. There are no changes to put away, and untracked files count only when they are included.
 # {0} stash reference
 stash.popped = Popped {0}.
 stash.dropped = Dropped {0}.
+stash.drop.failed = The stash was not dropped, so it is still in the list.
 stash.pop.kept = {0} is still in the list, so nothing is lost. Git's own message is below: it either refused and changed nothing, or applied what it could and left conflicts for you to resolve.
 stash.menu.pop = Pop {0}
 stash.menu.drop = Drop {0}…
@@ -452,6 +457,7 @@ submodule.remove.ask = Remove the submodule at {0}?\n\nIt goes from .gitmodules 
 submodule.remove.yes = Remove
 # {0} path
 submodule.removed = Removed {0}.
+submodule.failed = The operation did not complete. Nothing was committed, so check what is staged before you do.
 
 # The second question, and only after Git has actually refused. Forcing is reachable from nowhere
 # else in the product, so this is the sentence that has to carry the whole cost.
@@ -608,6 +614,7 @@ repo.upstream.askagain = Ask again
 repo.upstream.reset = FlickGit will ask again the next time you push a new branch.
 repo.detached = HEAD is detached, so no branch is tracking a remote.
 repo.save = Save
+repo.failed = The change did not complete. Check the values below against what Git reports.
 
 # ---- push ----
 push.button = Push
@@ -633,7 +640,7 @@ pr.deletebranch = Delete {0} when it merges
 pr.generate = Write with AI
 pr.create = Create pull request
 pr.open = Open
-pr.hint = ⏎ create   esc close
+pr.hint = ⏎ / ^⏎ create   esc close
 pr.generating = Writing a description…
 pr.notitle = A pull request needs a title.
 # {0} commits, {1} files, {2} added lines, {3} removed lines
@@ -683,6 +690,7 @@ edit.close.discard = Discard
 edit.external.title = Changed on disk
 edit.external.reload = Reload from disk
 edit.external.overwrite = Overwrite
+edit.keepediting = Keep editing
 
 # ---- AI commit messages ----
 ai.generating = Writing a message…

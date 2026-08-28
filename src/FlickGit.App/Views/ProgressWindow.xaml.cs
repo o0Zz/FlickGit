@@ -18,17 +18,29 @@ namespace FlickGit.App.Views;
 public partial class ProgressWindow : Window
 {
     private readonly ObservableCollection<Step> _steps = [];
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private bool _finished;
 
     public ProgressWindow(string title)
     {
         InitializeComponent();
 
-        CloseButton.Content = Strings.Get("common.close");
+        //"Cancel" until the operation reports, then "Close" — the same swap the clone window makes,
+        //and the reason the one button can carry both Esc and Enter throughout.
+        CloseButton.Content = Strings.Get("common.cancel");
 
         Title = title;
         TitleText.Text = title;
         StepList.ItemsSource = _steps;
     }
+
+    /// <summary>
+    /// Cancels the operation the window is showing. Passed to the service instead of
+    /// <see cref="CancellationToken.None"/>, which is what left a pull against an unreachable remote
+    /// with no way to stop it.
+    /// </summary>
+    public CancellationToken Token => _cancellation.Token;
 
     /// <summary>
     /// Marks the previous step done and starts a new one. Wired to the
@@ -75,8 +87,22 @@ public partial class ProgressWindow : Window
             step.Complete();
     }
 
+    /// <summary>
+    /// The user stopped it. Reported rather than acted on: CLAUDE.md's pull section says not to abort a
+    /// rebase automatically, so nothing here undoes a partly-applied one -- the message says to look.
+    /// </summary>
+    public void Cancelled(string message)
+    {
+        if (_steps.Count > 0)
+            _steps[^1].Fail();
+
+        Finish(message, (Brush)FindResource("DangerText"), detail: null);
+    }
+
     private void Finish(string message, Brush brush, string? detail)
     {
+        _finished = true;
+
         ResultText.Text = message;
         ResultText.Foreground = brush;
         ResultText.Visibility = Visibility.Visible;
@@ -87,13 +113,42 @@ public partial class ProgressWindow : Window
             DetailBox.Visibility = Visibility.Visible;
         }
 
-        CloseButton.IsEnabled = true;
+        //There is an outcome on screen now, so the button stops being the way out of the operation and
+        //becomes the way out of the window -- which is also the moment Enter may reach it. While the
+        //operation was running the same button cancelled it, and Enter on that is a killed rebase from
+        //a keystroke nobody aimed.
+        CloseButton.Content = Strings.Get("common.close");
+        CloseButton.IsDefault = true;
         CloseButton.Focus();
 
         SizeToContent = SizeToContent.Height;
     }
 
-    private void OnClose(object sender, RoutedEventArgs e) => Close();
+    /// <summary>
+    /// Esc and the button both land here. While the operation runs this cancels it and the window
+    /// stays to report what happened -- the same exception to "Esc closes, always" that a running
+    /// clone makes, and for the same reason: the outcome is the thing the user opened this for.
+    /// </summary>
+    private void OnClose(object sender, RoutedEventArgs e)
+    {
+        if (_finished)
+        {
+            Close();
+            return;
+        }
+
+        _cancellation.Cancel();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        //Closed by the title bar, or by a caller that decided not to wait. Either way the operation must
+        //not outlive the only window that could report it.
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+
+        base.OnClosed(e);
+    }
 
     /// <summary>One row. Public only because WPF's binding engine needs it to be.</summary>
     public sealed class Step(string label) : ObservableObject

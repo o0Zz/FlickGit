@@ -389,7 +389,8 @@ public sealed class RepositoryVerbs(
                 Strings.Get("file.remove.title"),
                 Strings.Get("file.remove.ask", target.Relative),
                 Strings.Get("file.remove.yes"),
-                Strings.Get("common.cancel")))
+                Strings.Get("common.cancel"),
+                destructive: true))
         {
             return VerbResult.Exit(ExitCodes.UserCancelled);
         }
@@ -436,7 +437,8 @@ public sealed class RepositoryVerbs(
                 Strings.Get("folder.remove.title"),
                 Strings.Get("folder.remove.ask", relative, plan.TrackedFiles, plan.UntrackedFiles),
                 Strings.Get("folder.remove.yes"),
-                Strings.Get("common.cancel"))),
+                Strings.Get("common.cancel"),
+                destructive: true)),
             () => Task.FromResult(Binned(deleter.DeleteFolder(repository.Root, relative))),
             CancellationToken.None).ConfigureAwait(true);
 

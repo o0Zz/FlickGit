@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Text;
 using System.Windows;
+using System.Windows.Input;
 using FlickGit.Ai;
 using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
@@ -405,6 +406,30 @@ public partial class PullRequestWindow : Window
             _edited = true;
     }
 
+    /// <summary>
+    /// Ctrl+Enter creates, from anywhere in the window including the description box.
+    ///
+    /// <b>Needed because IsDefault is not enough here.</b> A multi-line TextBox consumes Enter to
+    /// insert a newline and never lets it reach the default button, and it does not special-case the
+    /// Ctrl modifier either -- so once the caret was in the description, the only way to create was the
+    /// mouse. The commit window carries the same chord for the same reason.
+    /// </summary>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+
+        if (e.Handled || e.Key != Key.Enter || Keyboard.Modifiers != ModifierKeys.Control)
+            return;
+
+        //Through the button's own guard: it is disabled until the plan says a request can be proposed,
+        //and a chord must not reach past a refusal the click cannot.
+        if (!CreateButton.IsEnabled)
+            return;
+
+        e.Handled = true;
+        OnCreate(this, e);
+    }
+
     private async void OnCreate(object sender, RoutedEventArgs e)
     {
         if (_busy || _plan is not { CanPropose: true } plan || plan.Forge is not { } forge)
@@ -442,7 +467,7 @@ public partial class PullRequestWindow : Window
                 forge,
                 draft,
                 force => Dispatcher.InvokeAsync(() =>
-                    _credentials.AcquireAsync(_repository, forge, force, CancellationToken.None)).Task.Unwrap(),
+                    _credentials.AcquireAsync(_repository, forge, force, this, CancellationToken.None)).Task.Unwrap(),
                 AskUpstreamAsync,
                 new Progress<PullRequestStep>(Report),
                 CancellationToken.None).ConfigureAwait(true);

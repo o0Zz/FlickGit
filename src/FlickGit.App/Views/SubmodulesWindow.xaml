@@ -143,10 +143,15 @@
                            TextTrimming="CharacterEllipsis"
                            Style="{StaticResource Muted}" />
 
+                <!-- Enter adds, handled on these two boxes rather than given to the button as
+                     IsDefault: the clone dialog can afford IsDefault because it is a form and nothing
+                     else, while this window is a list first, and Enter on a row the user has just
+                     arrowed onto must not add a different submodule. -->
                 <TextBox x:Name="UrlBox"
                          Grid.Row="2"
                          VerticalAlignment="Center"
                          FontFamily="Cascadia Mono, Consolas, Courier New"
+                         PreviewKeyDown="OnAddKeyDown"
                          TextChanged="OnUrlChanged" />
 
                 <!-- Derived from the URL until the user types here, at which point it is theirs —
@@ -157,6 +162,7 @@
                          Margin="8,0,0,0"
                          VerticalAlignment="Center"
                          FontFamily="Cascadia Mono, Consolas, Courier New"
+                         PreviewKeyDown="OnAddKeyDown"
                          TextChanged="OnIntoChanged" />
 
                 <Button x:Name="AddButton"

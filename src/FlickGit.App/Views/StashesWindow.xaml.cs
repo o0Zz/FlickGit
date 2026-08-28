@@ -43,6 +43,16 @@ public partial class StashesWindow : Window
     private readonly RepositoryInfo _repository;
     private readonly StashService _stashes;
 
+    /// <summary>
+    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
+    ///
+    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
+    /// the repository in a state nobody reported, which is worse than waiting for it.
+    /// </summary>
+    private readonly CancellationTokenSource _closing = new();
+
+    private bool _busy;
+
     public StashesWindow(RepositoryInfo repository, StashService stashes)
     {
         InitializeComponent();
@@ -59,7 +69,46 @@ public partial class StashesWindow : Window
 
         UntrackedBox.ToolTip = Strings.Get("stash.untracked.hint");
 
+        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
+        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
+        //
+        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
+        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
+        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
+        //it would take the resident process and every pre-warmed window with it.
+        InputBindings.Add(new KeyBinding
+        {
+            Key = Key.F5,
+            Command = new AsyncCommand(
+                LoadAsync,
+                canExecute: () => !_busy,
+                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
+        });
+
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// The window's read, with the one exception a closing window can now raise turned back into
+    /// "stop". Without this the token added for _closing would surface as an unhandled
+    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
+    /// outcome than the leak it was added to fix.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        //A write that finished after the window closed still asks for a reload. There is nothing left
+        //to populate, and the read would only be cancelled a moment later anyway.
+        if (_closing.IsCancellationRequested)
+            return;
+
+        try
+        {
+            await ReadStateAsync().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            //Closed while the read was in flight. There is no longer anything to populate.
+        }
     }
 
     /// <summary>
@@ -69,10 +118,10 @@ public partial class StashesWindow : Window
     /// its own sentence -- the same order the tag window uses, so the count is what is showing
     /// whenever there is nothing more specific to say.
     /// </summary>
-    private async Task LoadAsync()
+    private async Task ReadStateAsync()
     {
         IReadOnlyList<GitStash> stashes = await _stashes
-            .ListAsync(_repository, CancellationToken.None)
+            .ListAsync(_repository, _closing.Token)
             .ConfigureAwait(true);
 
         StashList.ItemsSource = stashes.Select(Row).ToList();
@@ -187,7 +236,8 @@ public partial class StashesWindow : Window
             Strings.Get("stash.confirm.title"),
             Strings.Get("stash.confirm.drop", stash.Reference, stash.Message),
             Strings.Get("stash.confirm.yes"),
-            Strings.Get("common.cancel"));
+            Strings.Get("common.cancel"),
+            destructive: true);
 
         return confirmed ? DropAsync(stash) : Task.CompletedTask;
     }
@@ -210,7 +260,12 @@ public partial class StashesWindow : Window
 
             if (!outcome.Succeeded)
             {
-                Notice.Show(this, Strings.Get("stash.drop"), outcome.GitError ?? string.Empty);
+                Notice.GitFailure(
+                    this,
+                    Strings.Get("stash.drop"),
+                    Strings.Get("stash.drop.failed"),
+                    outcome.GitError,
+                    _repository.Root);
                 return;
             }
 
@@ -257,7 +312,12 @@ public partial class StashesWindow : Window
 
             if (!outcome.Succeeded)
             {
-                Notice.Show(this, Strings.Get("stash.push"), outcome.GitError ?? string.Empty);
+                Notice.GitFailure(
+                    this,
+                    Strings.Get("stash.push"),
+                    Strings.Get("stash.push.failed"),
+                    outcome.GitError,
+                    _repository.Root);
                 return;
             }
 
@@ -292,10 +352,24 @@ public partial class StashesWindow : Window
 
     private void SetBusy(bool busy)
     {
+        _busy = busy;
+
         StashList.IsEnabled = !busy;
         NoteBox.IsEnabled = !busy;
         UntrackedBox.IsEnabled = !busy;
         StashButton.IsEnabled = !busy;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
+        //CancellationToken.None and then reloads, so a token read can still happen after the window is
+        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
+        //in an async continuation means the resident process dies. Cancelling is what this needs; the
+        //source is collected with the window.
+        _closing.Cancel();
+
+        base.OnClosed(e);
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

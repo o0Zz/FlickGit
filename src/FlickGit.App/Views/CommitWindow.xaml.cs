@@ -268,6 +268,18 @@ public partial class CommitWindow : Window
             return;
         }
 
+        //Ctrl+Enter commits from anywhere, and "anywhere" has to include the diff pane -- which is
+        //where the user spends the time that makes a modified gesture worth having. It is checked
+        //before the editor gate below precisely because that gate exists to protect *plain* Enter:
+        //Enter in the editor is a newline in the user's file, while Ctrl+Enter is a chord no editor
+        //claims. CLAUDE.md's keyboard map promises "Ctrl+⏎ commit & push from anywhere".
+        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            _viewModel.EnterPressed(push: true);
+            e.Handled = true;
+            return;
+        }
+
         //The editor owns the rest of its keyboard. Enter there is a newline in the user's file.
         if (Diff.IsKeyboardFocusWithin)
             return;
@@ -278,8 +290,9 @@ public partial class CommitWindow : Window
                 //A newline in the message body, which is the one thing Enter can no longer do.
                 break;
 
-            case Key.Enter when Keyboard.Modifiers is ModifierKeys.None or ModifierKeys.Control:
-                //Ctrl+Enter as well as Enter, so it works from anywhere including the file list.
+            case Key.Enter when Keyboard.Modifiers == ModifierKeys.None:
+                //Plain Enter, from the message box and the file list. The Ctrl form is handled above,
+                //ahead of the editor gate, so it is deliberately not spelled again here.
                 _viewModel.EnterPressed(push: true);
                 e.Handled = true;
                 break;
@@ -331,15 +344,22 @@ public partial class CommitWindow : Window
         }
 
         //The external-modification prompt. Three explicit choices, and the default is the
-        //non-destructive one.
-        bool overwrite = ConfirmWindow.Ask(
+        //non-destructive one: overwriting loses what is on disk and reloading loses what is in the
+        //editor, so neither may be what Esc picks.
+        ConfirmChoice choice = ConfirmWindow.AskWithCancel(
             this,
             Strings.Get("edit.external.title"),
             outcome.Message ?? string.Empty,
             Strings.Get("edit.external.overwrite"),
-            Strings.Get("edit.external.reload"));
+            Strings.Get("edit.external.reload"),
+            Strings.Get("edit.keepediting"));
 
-        if (overwrite)
+        //Nothing happened: the file on disk and the editor both stand, and the save the user asked for
+        //simply did not run. They are back where they were, with the edit still unsaved.
+        if (choice == ConfirmChoice.Cancelled)
+            return;
+
+        if (choice == ConfirmChoice.Yes)
         {
             SaveOutcome forced = await _viewModel.SaveCurrentFileAsync(text, force: true).ConfigureAwait(true);
 
@@ -392,7 +412,7 @@ public partial class CommitWindow : Window
         }
     }
 
-    private void OnCommitted(CommitResult result)
+    private void OnCommitted(CommitFlowResult result)
     {
         if (_viewModel?.CloseAfterCommit == true && !Diff.IsDirty)
             Close();
@@ -408,17 +428,26 @@ public partial class CommitWindow : Window
         //edit to a stray Esc is exactly the kind of silent data loss this product must not have.
         if (Diff.IsDirty)
         {
-            bool save = ConfirmWindow.Ask(
+            ConfirmChoice choice = ConfirmWindow.AskWithCancel(
                 this,
                 Strings.Get("edit.save"),
                 Strings.Get("edit.close.dirty", _viewModel?.CurrentDiff?.Path ?? string.Empty),
                 Strings.Get("edit.close.save"),
-                Strings.Get("edit.close.discard"));
+                Strings.Get("edit.close.discard"),
+                Strings.Get("edit.keepediting"));
 
-            if (save)
+            if (choice == ConfirmChoice.Yes)
             {
                 e.Cancel = true;
                 Diff.RequestSave();
+                return;
+            }
+
+            //Keep editing: the close itself is abandoned, which is the answer Esc now gives. Without
+            //this the escape key out of a confirmation would discard the edit it was asking about.
+            if (choice == ConfirmChoice.Cancelled)
+            {
+                e.Cancel = true;
                 return;
             }
         }

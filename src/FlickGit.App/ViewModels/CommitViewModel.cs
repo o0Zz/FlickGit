@@ -134,7 +134,12 @@ public sealed class CommitViewModel : ObservableObject
 
     public ObservableCollection<string> Branches { get; } = [];
 
-    public event Action<CommitResult>? Committed;
+    /// <summary>
+    /// A commit landed. Carries the whole flow result rather than just the hash and subject, because
+    /// the window is not the only thing that reports it: the tray notification is what survives the
+    /// window closing itself, and phrasing that needs to know whether the push happened too.
+    /// </summary>
+    public event Action<CommitFlowResult>? Committed;
 
     public event Action<string, string>? ErrorRaised;
 
@@ -1431,7 +1436,7 @@ public sealed class CommitViewModel : ObservableObject
 
         if (result.Outcome == CommitFlowOutcome.Committed)
         {
-            Committed?.Invoke(result.Commit!);
+            Committed?.Invoke(result);
         }
         else if (CommitOutcomeReporter.FailureText(result) is { } failure)
         {
@@ -1522,7 +1527,11 @@ public sealed class CommitViewModel : ObservableObject
             return;
         }
 
-        RaiseError(Strings.Get("error.title"), exception.Message);
+        //Not a GitOperationException, so there is no operation name to use as a title. The repository
+        //path is still known, and it is half of what CLAUDE.md requires an error to carry.
+        RaiseError(
+            Strings.Get("error.title"),
+            $"{exception.Message}\n\n{Strings.Get("error.repositorypath", _repository.Root)}");
     }
 
     private async Task LoadBranchesAsync()

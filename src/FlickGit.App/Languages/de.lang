@@ -48,7 +48,7 @@ commit.warn.conflict = Dieses Repository hat ungelöste Konflikte. Bitte vor dem
 commit.queued = Commit, sobald die Nachricht da ist…
 commit.committing = Commit läuft…
 # The keyboard map, shown in the footer until there is an outcome to report in its place.
-commit.hint = ⏎ Commit und Push   ⇧⏎ neue Zeile   ^S speichern   F5 aktualisieren   Esc schließen
+commit.hint = ⏎ / ^⏎ Commit und Push   ⇧⏎ neue Zeile   ^S speichern   F5 aktualisieren   Esc schließen
 
 # ---- Dateiliste ----
 files.tooltip.split = Bereitgestellt +{0} -{1} · Arbeitsverzeichnis +{2} -{3}
@@ -168,6 +168,8 @@ diff.search.close = Schließen (Esc)
 pull.title = Pull (Rebase) — {0}
 pull.success = Pull erfolgreich abgeschlossen.
 pull.conflict = Der Rebase wurde wegen Konflikten angehalten.
+pull.failed = Der Pull wurde nicht abgeschlossen.
+pull.cancelled = Abgebrochen. Es wurde nichts zurückgenommen — prüfen Sie `git status`, bevor Sie es erneut versuchen: ein Rebase kann teilweise angewendet sein, und --autostash kann Ihre Änderungen im Stash zurückgelassen haben.
 pull.submodule.failed = Der Pull hat funktioniert, aber die Submodule sind veraltet.
 
 # ---- Branch-Auswahl ----
@@ -234,6 +236,7 @@ tag.checkout.title = Diesen Tag auschecken?
 tag.checkout.confirm = {0} auschecken?\n\nHEAD wird detached: Sie sind dann auf dem getaggten Commit statt auf einem Branch. Nichts geht verloren — öffnen Sie Branches und wählen Sie einen aus, um zurückzukommen.
 tag.checkout.yes = Auschecken
 tag.checkout.done = HEAD ist detached bei {0}.
+tag.checkout.failed = Das Tag wurde nicht ausgecheckt. Sie sind weiterhin auf demselben Commit.
 tag.checkout.blocked = {0} kann nicht ausgecheckt werden — diese Dateien würden überschrieben. Es wurde nichts geändert oder verworfen. Committen oder stashen Sie sie zuerst.
 
 tag.menu.delete = Tag löschen…
@@ -264,10 +267,12 @@ stash.none = In diesem Repository ist nichts gestasht.
 # {0} Anzahl der Stashes
 stash.count = {0} Stash(es)
 stash.pushed = Gestasht. Ihre Änderungen liegen im Stash.
+stash.push.failed = Es wurde nichts gestasht. Ihr Arbeitsverzeichnis ist unverändert.
 stash.nothing = Nichts zu stashen. Es gibt keine Änderungen, und nicht versionierte Dateien zählen nur, wenn sie einbezogen werden.
 # {0} Stash-Referenz
 stash.popped = {0} angewendet und entfernt.
 stash.dropped = {0} verworfen.
+stash.drop.failed = Der Stash wurde nicht verworfen und steht weiterhin in der Liste.
 stash.pop.kept = {0} liegt weiterhin in der Liste, es ist also nichts verloren. Die Meldung von Git steht darunter: entweder wurde nichts geändert, oder es wurde angewendet, was möglich war, und Konflikte bleiben zum Auflösen.
 stash.menu.pop = {0} anwenden
 stash.menu.drop = {0} verwerfen…
@@ -277,6 +282,47 @@ stash.confirm.drop = {0} — {1} verwerfen?\n\nDie enthaltenen Änderungen werde
 stash.confirm.yes = Verwerfen
 stash.moved.title = Die Stash-Liste hat sich geändert
 stash.moved = Es wurde nichts getan: der angeklickte Stash ist nicht mehr der an dieser Position — zwischenzeitlich wurde ein Stash angelegt oder angewendet. Die Liste wurde neu geladen, bitte erneut auswählen.
+
+# ---- Submodul-Fenster ----
+submodule.title = Submodule — {0}
+submodule.none = Dieses Repository hat keine Submodule. Fügen Sie unten eines hinzu.
+submodule.nomatch = Keine Treffer.
+submodule.count = {0} Submodule
+submodule.state.uninitialised = nicht initialisiert
+submodule.state.changed = geändert
+submodule.menu.init = Initialisieren
+submodule.menu.update = Aktualisieren
+submodule.menu.open = Ordner öffnen
+submodule.menu.remove = Entfernen…
+submodule.initialising = {0} wird geholt…
+submodule.initialised = {0} initialisiert.
+submodule.updating = {0} wird aktualisiert…
+submodule.updated = {0} aktualisiert.
+submodule.opened = {0} geöffnet
+submodule.openfailed = {0} konnte nicht geöffnet werden.
+submodule.notinitialised = {0} ist noch nicht initialisiert — es gibt keinen Ordner zum Öffnen.
+submodule.add = SUBMODUL HINZUFÜGEN
+submodule.add.url = Repository-URL
+submodule.add.into = In diesen Ordner
+submodule.add.button = Hinzufügen
+submodule.add.hint = Klont nach {0} und bereitet es zum Commit vor. Es wird nichts committet.
+submodule.add.refused.nourl = Fügen Sie die URL des Repositorys ein, das hinzugefügt werden soll.
+submodule.add.refused.nopath = Nennen Sie einen Ordner in diesem Repository, in den geklont werden soll.
+submodule.add.refused.outside = {0} liegt außerhalb dieses Repositorys. Ein Submodul muss darin liegen.
+submodule.add.refused.notempty = {0} existiert bereits und ist nicht leer. Wählen Sie einen anderen Ordner.
+submodule.add.refused.exists = {0} ist hier bereits ein Submodul.
+submodule.adding = {0} wird hinzugefügt…
+submodule.added = {0} hinzugefügt.
+submodule.remove.title = Submodul entfernen
+submodule.remove.ask = Das Submodul unter {0} entfernen?\n\nEs verschwindet aus .gitmodules und aus dem Arbeitsverzeichnis, und die Änderung wird für Ihren Commit vorbereitet.\n\nSein Klon unter .git/modules bleibt erhalten, damit nichts verloren geht, was darin committet und nie gepusht wurde — löschen Sie diesen Ordner von Hand, falls Sie {0} je wieder hinzufügen wollen.
+submodule.remove.yes = Entfernen
+submodule.removed = {0} entfernt.
+submodule.failed = Der Vorgang wurde nicht abgeschlossen. Es wurde nichts committet — prüfen Sie den Index, bevor Sie es tun.
+submodule.remove.dirty.title = Trotzdem entfernen
+submodule.remove.dirty.ask = {0} enthält Änderungen, die nie committet wurden.\n\nEs wurde nichts entfernt. Trotzdem zu entfernen zerstört diese Änderungen: sie liegen nicht in diesem Repository, es gibt keinen Papierkorb dafür, und git restore kann sie nicht zurückholen.\n\nCommitten Sie sie zuerst in {0}, wenn Sie sie behalten wollen.
+submodule.remove.dirty.yes = Entfernen und verwerfen
+submodule.staged = Vorbereitet, nicht committet.
+submodule.commit = Committen…
 
 # ---- Log-Fenster ----
 log.title = Log — {0}
@@ -377,6 +423,7 @@ repo.upstream.askagain = Erneut fragen
 repo.upstream.reset = FlickGit fragt beim nächsten Push eines neuen Branches erneut.
 repo.detached = HEAD ist detached, also verfolgt kein Branch ein Remote.
 repo.save = Speichern
+repo.failed = Die Änderung wurde nicht abgeschlossen. Prüfen Sie die Werte unten gegen das, was Git meldet.
 
 # ---- Push ----
 push.button = Push
@@ -398,7 +445,7 @@ pr.deletebranch = {0} nach dem Merge löschen
 pr.generate = Mit KI schreiben
 pr.create = Pull Request erstellen
 pr.open = Öffnen
-pr.hint = ⏎ erstellen   esc schließen
+pr.hint = ⏎ / ^⏎ erstellen   esc schließen
 pr.generating = Beschreibung wird geschrieben…
 pr.notitle = Ein Pull Request braucht einen Titel.
 pr.summary = {0} Commits · {1} Dateien · +{2} −{3}
@@ -440,6 +487,7 @@ edit.close.discard = Verwerfen
 edit.external.title = Auf der Festplatte geändert
 edit.external.reload = Von der Festplatte neu laden
 edit.external.overwrite = Überschreiben
+edit.keepediting = Weiter bearbeiten
 
 # ---- KI-Commit-Nachrichten ----
 ai.generating = Nachricht wird geschrieben…
@@ -518,6 +566,7 @@ action.blame = Blame…
 action.add = Hinzufügen
 action.rm = Entfernen…
 action.repo = Repository-Einstellungen…
+action.submodule = Submodule…
 action.clone = Klonen…
 action.terminal = Terminal hier öffnen
 

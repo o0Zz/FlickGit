@@ -60,12 +60,21 @@
                 </ScrollViewer>
             </Border>
 
+            <!-- One button, two jobs, exactly as the clone window's does: "Cancel" while the operation
+                 runs and "Close" once it has reported. IsCancel is what makes Esc reach it at all —
+                 without it this was the one window in the product where the escape key did nothing for
+                 its whole life. Enabled from the start for the same reason: a disabled button is a
+                 window with no way out of a pull that has stopped answering.
+
+                 No IsDefault here. It is set in code once the operation has reported, because while it
+                 is still running this button kills the running rebase — and Enter must never
+                 be the key that does that, least of all a keystroke queued before the window painted.
+                 Esc asking for it is a deliberate gesture; Enter is habit. -->
             <Button x:Name="CloseButton"
                     Style="{StaticResource PrimaryButton}"
                     HorizontalAlignment="Right"
                     Margin="0,16,0,0"
-                    IsEnabled="False"
-                    IsDefault="True"
+                    IsCancel="True"
                     Click="OnClose" />
         </StackPanel>
     </Border>

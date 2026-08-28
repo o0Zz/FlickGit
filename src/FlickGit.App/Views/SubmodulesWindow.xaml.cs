@@ -32,6 +32,16 @@ public partial class SubmodulesWindow : Window
     private readonly List<GitSubmodule> _all = [];
 
     /// <summary>
+    /// Cancelled when the window closes, and passed to this window's <i>reads</i> only.
+    ///
+    /// The writes keep <see cref="CancellationToken.None"/> on purpose: abandoning one part-way leaves
+    /// the repository in a state nobody reported, which is worse than waiting for it.
+    /// </summary>
+    private readonly CancellationTokenSource _closing = new();
+
+    private bool _busy;
+
+    /// <summary>
     /// Raised when the user asks to commit what this window staged. The window opens nothing itself,
     /// the way the palette does not run its own actions -- the caller owns the commit window.
     /// </summary>
@@ -63,20 +73,65 @@ public partial class SubmodulesWindow : Window
         CommitButton.Content = Strings.Get("submodule.commit");
         CloseButton.Content = Strings.Get("common.close");
 
+        //F5 re-reads. A window binding rather than a button, so it works from the filter box and the
+        //list alike -- the same shape as the commit window's, which was the only F5 in the product.
+        //
+        //AsyncCommand rather than RelayCommand over an async void: Commands.cs gives both reasons and
+        //both apply here. Its re-entrancy guard stops two F5 presses interleaving two reads of the
+        //same list, and its onError keeps an unhandled task exception out of WPF's dispatcher, where
+        //it would take the resident process and every pre-warmed window with it.
+        InputBindings.Add(new KeyBinding
+        {
+            Key = Key.F5,
+            Command = new AsyncCommand(
+                LoadAsync,
+                canExecute: () => !_busy,
+                onError: exception => Notice.Show(this, Strings.Get("error.title"), exception.Message)),
+        });
+
         Loaded += async (_, _) => await LoadAsync().ConfigureAwait(true);
     }
 
     private SubmoduleRow? Selected => ModuleList.SelectedItem as SubmoduleRow;
 
     /// <summary>
+    /// The window's read, with the one exception a closing window can now raise turned back into
+    /// "stop". Without this the token added for _closing would surface as an unhandled
+    /// OperationCanceledException inside an async void handler, which ends the process -- a worse
+    /// outcome than the leak it was added to fix.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        //A write that finished after the window closed still asks for a reload. There is nothing left
+        //to populate, and the read would only be cancelled a moment later anyway.
+        if (_closing.IsCancellationRequested)
+            return;
+
+        try
+        {
+            await ReadStateAsync().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            //Closed while the read was in flight. There is no longer anything to populate.
+        }
+    }
+
+    /// <summary>
     /// Re-reads everything. Called after every mutation rather than patching the row that changed:
     /// <c>submodule add</c> touches <c>.gitmodules</c> as well as the row, and a removal takes a row
     /// away.
     /// </summary>
-    private async Task LoadAsync()
+    private async Task ReadStateAsync()
     {
+        IReadOnlyList<GitSubmodule> modules = await _submodules
+            .ListAsync(_repository, _closing.Token)
+            .ConfigureAwait(true);
+
+        //Cleared after the await, not before: see the note in TagsWindow.ReadStateAsync. Clearing
+        //first lets two overlapping reads leave every submodule in the list twice.
         _all.Clear();
-        _all.AddRange(await _submodules.ListAsync(_repository, CancellationToken.None).ConfigureAwait(true));
+        _all.AddRange(modules);
 
         ApplyFilter();
         UpdateAddHint();
@@ -246,7 +301,8 @@ public partial class SubmodulesWindow : Window
             Strings.Get("submodule.remove.title"),
             Strings.Get("submodule.remove.ask", path),
             Strings.Get("submodule.remove.yes"),
-            Strings.Get("common.cancel"));
+            Strings.Get("common.cancel"),
+            destructive: true);
 
         if (!confirmed)
             return;
@@ -281,7 +337,8 @@ public partial class SubmodulesWindow : Window
                     Strings.Get("submodule.remove.dirty.title"),
                     Strings.Get("submodule.remove.dirty.ask", path),
                     Strings.Get("submodule.remove.dirty.yes"),
-                    Strings.Get("common.cancel"));
+                    Strings.Get("common.cancel"),
+                    destructive: true);
 
                 if (!askAgain)
                 {
@@ -404,6 +461,23 @@ public partial class SubmodulesWindow : Window
             _ => Strings.Get("submodule.add.refused.notempty", path),
         };
 
+    /// <summary>
+    /// Enter in the URL or path box adds. See the boxes' own comment in the XAML for why this is not
+    /// IsDefault on the button.
+    ///
+    /// Gated on the button, which is where the refusals already live: no URL, no path, an escaping
+    /// path, a non-empty target, a path already declared. Re-deciding any of that here would be a
+    /// second answer to it.
+    /// </summary>
+    private void OnAddKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || !AddButton.IsEnabled)
+            return;
+
+        e.Handled = true;
+        OnAdd(sender, e);
+    }
+
     private async void OnAdd(object sender, RoutedEventArgs e)
     {
         string url = UrlBox.Text.Trim();
@@ -450,6 +524,18 @@ public partial class SubmodulesWindow : Window
         Close();
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        //Cancel, and deliberately *not* Dispose. Every write in this window runs to completion on
+        //CancellationToken.None and then reloads, so a token read can still happen after the window is
+        //gone -- and CancellationTokenSource.Token throws ObjectDisposedException once disposed, which
+        //in an async continuation means the resident process dies. Cancelling is what this needs; the
+        //source is collected with the window.
+        _closing.Cancel();
+
+        base.OnClosed(e);
+    }
+
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
@@ -466,11 +552,15 @@ public partial class SubmodulesWindow : Window
         CommitButton.Visibility = _staged ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    //Through the shared helper, not an inline NoticeWindow: this was the one call site still building
+    //its own, which is exactly the duplication Notice.cs was extracted to remove.
     private void Report(string title, SubmoduleOutcome outcome) =>
-        new NoticeWindow(title, outcome.GitError ?? string.Empty, compact: false) { Owner = this }.ShowDialog();
+        Notice.GitFailure(this, title, Strings.Get("submodule.failed"), outcome.GitError, _repository.Root);
 
     private void SetBusy(bool busy)
     {
+        _busy = busy;
+
         FilterBox.IsEnabled = !busy;
         ModuleList.IsEnabled = !busy;
         UrlBox.IsEnabled = !busy;

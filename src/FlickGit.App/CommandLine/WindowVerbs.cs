@@ -188,14 +188,31 @@ public sealed class WindowVerbs(
         var window = new ProgressWindow(Strings.Get("pull.title", repository.Name));
         AppWindow.Present(window);
 
-        PullOutcome outcome = await pulls
-            .PullRebaseAsync(repository, new Progress<string>(window.AddStep), CancellationToken.None)
-            .ConfigureAwait(true);
+        PullOutcome outcome;
+
+        try
+        {
+            //The window's own token, so its Cancel button and Esc reach the git process rather than
+            //being decoration over an operation nothing can stop.
+            outcome = await pulls
+                .PullRebaseAsync(repository, new Progress<string>(window.AddStep), window.Token)
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            //Nothing is undone here. A cancelled `pull --rebase` can leave a rebase in progress, and
+            //CLAUDE.md is explicit that FlickGit does not abort one on the user's behalf -- so the
+            //window says to look rather than tidying up behind Git's back.
+            window.Cancelled(Strings.Get("pull.cancelled"));
+            return VerbResult.Stay(ExitCodes.UserCancelled);
+        }
 
         if (!outcome.Succeeded)
         {
             window.Fail(
-                outcome.StoppedOnConflict ? Strings.Get("pull.conflict") : Strings.Get("error.title"),
+                //Both arms are sentences about the pull. This said error.title on the second one, which
+                //put "FlickGit" on screen as the result of the operation.
+                outcome.StoppedOnConflict ? Strings.Get("pull.conflict") : Strings.Get("pull.failed"),
                 outcome.GitError ?? string.Empty,
                 outcome.Suggestion);
 

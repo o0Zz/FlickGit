@@ -8,10 +8,11 @@
         ShowInTaskbar="False"
         Background="{StaticResource Surface}">
 
-    <!-- A two-choice question, with both choices named after what they do rather than "OK" and
-         "Cancel". Every question this window asks is a guardrail — create an upstream, pull before
-         pushing, overwrite a file that changed on disk — and a user answering "OK" to a question
-         they skim-read is precisely the failure the guardrail exists to prevent. -->
+    <!-- A question with two named choices, or three when one of them loses the user's work. Every
+         choice is named after what it does rather than "OK" and "Cancel". Every question this window
+         asks is a guardrail — create an upstream, pull before pushing, overwrite a file that changed
+         on disk — and a user answering "OK" to a question they skim-read is precisely the failure the
+         guardrail exists to prevent. -->
 
     <Border Padding="18,16" MinWidth="360" MaxWidth="560">
         <StackPanel>
@@ -23,8 +24,8 @@
                        LineHeight="18" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-                <!-- Which of the two is the default button is decided per question, in the
-                     constructor, and it is the only thing about this dialog that is not fixed.
+                <!-- Which button is the default is decided per question, in the constructor, and it is
+                     the only thing about this dialog that is not fixed.
 
                      A guardrail's affirmative is not the default. Enter must not commit the user to the
                      consequential half of a question they have not read, and there is no way back from
@@ -37,13 +38,25 @@
                      are also performed over a multi-selection, where aiming at a dialog per file is the
                      cost that selection exists to remove.
 
-                     Esc is "no" either way, which is IsCancel's job and never the default button's. -->
+                     Esc never loses work. In the two-choice form that is IsCancel on NoButton, whose
+                     label is a refusal. In the three-choice form both of the first two buttons *do*
+                     something irreversible to an edit, so IsCancel moves to CancelButton and the
+                     answer Esc gives is "nothing happened" — see ConfirmWindow.AskWithCancel. -->
                 <Button x:Name="YesButton" MinWidth="120" Click="OnYes" />
                 <Button x:Name="NoButton"
                         MinWidth="100"
                         Margin="8,0,0,0"
                         IsCancel="True"
                         Click="OnNo" />
+
+                <!-- Collapsed for the two-choice form, which is every guardrail consent. Shown only by
+                     AskWithCancel, and last because it is the dismissing answer: the same place the
+                     Close button sits in every window in the product. -->
+                <Button x:Name="CancelButton"
+                        MinWidth="100"
+                        Margin="8,0,0,0"
+                        Visibility="Collapsed"
+                        Click="OnCancel" />
             </StackPanel>
         </StackPanel>
     </Border>
