@@ -75,24 +75,21 @@ add.done = {0} aggiunto allo stage
 add.done.many = {0} file aggiunti allo stage
 
 # ---- eliminare un file ----
-delete.menu = Elimina file…
+delete.menu = Elimina file
 delete.title = Elimina file
-delete.question = Eliminare {0}?
-delete.tracked = Finisce nel cestino. Git ce l'ha ancora, quindi l'eliminazione diventa una modifica da confermare — o da annullare con git restore.
-delete.untracked = Finisce nel cestino. Git non ha mai visto questo file, quindi è l'unico modo per recuperarlo.
-delete.yes = Elimina
-delete.no = Mantieni
+delete.untracked = {0} rimosso da Git — il file è ancora sul disco
 delete.done = {0} eliminato
 delete.missing = {0} non è più sul disco.
 delete.outside = {0} è fuori da {1} e non verrà eliminato.
 delete.reparsepoint = {0} è un collegamento simbolico o una giunzione. FlickGit non elimina attraverso di essi.
 delete.failed = Impossibile eliminare {0}:\n\n{1}
-delete.menu.many = Elimina {0} file…
-delete.question.many = Eliminare {0} file?
-delete.body.many = Finiscono tutti nel cestino. Git ha ancora quelli tracciati, quindi quelle eliminazioni diventano modifiche da confermare — o da annullare con git restore.
-delete.untracked.many = {0} di essi non sono tracciati. Git non li ha mai visti, quindi il cestino è l'unico modo per recuperarli.
+delete.menu.many = Elimina {0} file
+delete.untracked.many = {0} file rimossi da Git — i file sono ancora sul disco
+delete.done.mixed = {0} eliminati · {1} rimossi da Git
 delete.done.many = {0} file eliminati
-delete.partial = {0} file sono stati eliminati prima di questo.
+delete.partial = {0} file erano già stati eliminati prima di questo.
+delete.untrack.menu = Rimuovi da Git
+delete.untrack.menu.many = Rimuovi {0} file da Git
 
 # ---- ripristinare un file ----
 revert.menu = Ripristina il file…
@@ -119,45 +116,30 @@ revert.partial = {0} file sono stati ripristinati prima di questo.
 # per questo che solo quello chiede.
 # {0} percorso relativo al repository
 file.added = {0} aggiunto all'indice
-file.removed = {0} eliminato — l'eliminazione è nell'indice, non nel commit.
-file.untracked = Git non traccia {0}, quindi non c'è nulla da rimuovere. L'eliminazione di Explorer cancella il file stesso.
+file.removed = {0} rimosso da Git — il file è ancora sul disco
+file.untracked = Git non traccia {0}, quindi non c'è nulla da rimuovere.
 # {0} il percorso così come è stato passato, {1} radice del repository
 file.outside = {0} è fuori da {1} e non verrà toccato.
-file.remove.title = Rimuovi il file
 # {0} percorso relativo al repository
-file.remove.ask = Rimuovere {0}?\n\nViene cancellato dal disco e l'eliminazione va nell'indice, non nel commit. HEAD ce l'ha ancora, quindi «Ripristina il file…» lo rimette a posto.\n\nGit rifiuta se il file contiene modifiche mai confermate.
-file.remove.yes = Rimuovi
 
 # ---- il menu cartella di Explorer ----
 # {0} percorso relativo al repository
-folder.nothingtoadd = Non c'è nulla da aggiungere all'indice sotto {0}.
 # {0} percorso relativo al repository, {1} quanti file tracciati sono stati rimossi
-folder.removed = {0} è nel Cestino — l'eliminazione di {1} file è nell'indice, non nel commit.
-folder.untracked = Git non traccia nulla sotto {0}, quindi non c'è nulla da rimuovere. L'eliminazione di Explorer cancella la cartella stessa.
+folder.removed = Tutto il contenuto di {0} è stato rimosso da Git — i file sono ancora sul disco
+folder.untracked = Git non traccia nulla sotto {0}, quindi non c'è nulla da rimuovere.
 # {0} il percorso così come è stato indicato
 folder.isroot = {0} è la radice del repository. È «Commit» che aggiunge all'indice un intero repository — «Aggiungi» e «Rimuovi» agiscono su una cartella al suo interno.
-folder.add.title = Aggiungi la cartella
 # {0} percorso, {1} file in totale, {2} quanti sono nuovi per Git
-folder.add.ask = Aggiungere {0}?\n\n{1} file al suo interno vanno nell'indice, {2} dei quali nuovi per Git.\n\nNulla viene committato e nulla viene inviato.
-folder.add.yes = Aggiungi
-folder.remove.title = Rimuovi la cartella
 # {0} percorso, {1} file tracciati, {2} file che Git non ha mai visto
-folder.remove.ask = Rimuovere {0}?\n\nLa cartella va nel Cestino e l'eliminazione dei suoi {1} file tracciati va nell'indice, non nel commit.\n\n{2} file al suo interno che Git non ha mai visto finiscono anch'essi nel Cestino — per quelli è l'unica via di ritorno, come per tutto ciò che .gitignore nasconde.\n\nGit rifiuta se un file tracciato al suo interno contiene modifiche mai confermate.
-folder.remove.yes = Rimuovi
 # {0} percorso relativo al repository
-folder.remove.binned = {0} è nel Cestino.
 
 # ---- il menu di Esplora risorse su più elementi selezionati ----
 selection.added = {0} elementi aggiunti all'area di staging.
-selection.removed = {0} elementi rimossi — l'eliminazione di {1} file tracciati è in staging, non è stata committata.
-selection.nothingtoadd = Non c'è nulla da aggiungere nei {0} elementi selezionati.
-selection.add.title = Aggiungi questi elementi
-selection.add.ask = Aggiungere {0} elementi selezionati?\n\n{1} file vengono aggiunti allo staging, {2} dei quali nuovi per Git.\n\nNulla viene committato e nulla viene inviato.
-selection.add.yes = Aggiungi
-selection.remove.title = Rimuovi questi elementi
-selection.remove.ask = Rimuovere {0} elementi selezionati?\n\n{1} di essi sono cartelle e finiscono nel Cestino con tutto il loro contenuto.\n\nL'eliminazione di {2} file tracciati va in staging, non viene committata. {3} file che Git non ha mai visto finiscono anch'essi nel Cestino — per quelli è l'unica via di ritorno, come per tutto ciò che .gitignore nasconde.\n\nGit rifiuta se uno di essi contiene modifiche mai committate.
-selection.remove.yes = Rimuovi
-selection.remove.partial = {0} elementi sono stati rimossi prima di questo.
+selection.removed = {0} elementi rimossi da Git — i file sono ancora sul disco
+selection.untracked = Git non traccia nessuno dei {0} elementi selezionati, quindi non c'è nulla da rimuovere.
+# {0} how many were skipped because Git has nothing under them
+selection.remove.skipped = Altri {0} sono stati lasciati invariati: Git non li traccia.
+selection.remove.skipped.one = Un altro è stato lasciato invariato: Git non lo traccia.
 selection.toomany = Sono selezionati {0} elementi — più di quanti una riga di comando possa portarne. Apri la finestra di commit e gestiscili dall'elenco dei file.
 
 # ---- visualizzatore diff ----
@@ -617,7 +599,7 @@ action.stash = Stash…
 action.log = Mostra il log…
 action.blame = Blame…
 action.add = Aggiungi
-action.rm = Rimuovi…
+action.rm = Rimuovi da Git
 action.repo = Impostazioni del repository…
 action.submodule = Sottomoduli…
 action.clone = Clona…

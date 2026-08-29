@@ -381,16 +381,14 @@ public sealed class ActionCatalog
         new("terminal", VerbKind.Terminal, 160, ActionSurfaces.All, "terminal.ico", InMore: true),
 
         //The two operations that put a path under Git's control or take it out again -- on a clicked
-        //file, and on a clicked folder. Last, and `rm` last of the two: the destructive entry is the
-        //one furthest from the pointer's resting place, and these are the only entries in the submenu
-        //that act on something smaller than the repository.
+        //file, and on a clicked folder. Last, and `rm` last of the two: these are the only entries in
+        //the submenu that act on something smaller than the repository.
         //
-        //`Folder` rather than `Menu` is the whole safety story of the folder half. `git add` on a
-        //directory stages everything under it and a folder removal takes the lot to the Recycle Bin,
-        //which is a blast radius that must not be one click away from the background of the folder
-        //being browsed, from a drive, or from the repository root -- and `Folder` is the surface that
-        //means none of those. What is left is a folder the user pointed at, with the count of what
-        //will happen in the question. See TrackingService for the rest of it.
+        //Neither deletes anything: `add` stages, and `rm` is `git rm --cached`, which takes the path
+        //out of the index and leaves every file where it is. `Folder` rather than `Menu` is still what
+        //keeps both off the folder background, the drive and the repository root -- one click on a
+        //directory reaches everything under it, and Commit is already the entry that stages a whole
+        //repository. See TrackingService for the rest of it.
         //
         //One entry each carrying both surfaces, not two entries: a built-in's id *is* its CLI verb,
         //so `add` can only be spelled once.

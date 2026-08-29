@@ -37,8 +37,6 @@ public sealed class RepositoryVerbs(
     TagService tags,
     StashService stashes,
     TrackingService files,
-    RemovalFlow removals,
-    WorkingTreeDeleter deleter,
     UpstreamConsent consent)
 {
     /// <summary>`flick status` — the file list as text.</summary>
@@ -292,14 +290,14 @@ public sealed class RepositoryVerbs(
     /// `flick add &lt;path&gt;...` — the Explorer menu's Add on whatever was selected, and the CLI
     /// spelling of it.
     ///
-    /// <b>Files ask nothing</b>: staging discards nothing, and unticking the row in the commit window
-    /// is how it is taken back out again. Explorer also has those rows highlighted, so the size of what
-    /// is about to happen is on screen already.
+    /// <b>It asks nothing, on a file or on a folder.</b> Staging discards nothing: the working tree is
+    /// untouched, and unticking the row in the commit window takes it back out of the index again.
+    /// There is no state a question could protect, so it costs a click and buys nothing — and the
+    /// folder count it used to carry was two Git reads on the way to a command that was going to run
+    /// anyway.
     ///
-    /// <b>A folder in the selection asks, and the question carries the count.</b> Not because staging
-    /// became dangerous — it did not — but because one click on a directory can stage several hundred
-    /// files and the number is the only part of that the user cannot see. Counting first is also what
-    /// lets a folder with nothing to stage say so instead of running a command that would do nothing.
+    /// <b>It is also the way back from a removal.</b> Untracking leaves the file on disk, so adding
+    /// that path again puts the content straight back into the index and the staged deletion with it.
     ///
     /// <b>Either every path is acted on or none is.</b> The selection is one gesture, so a member that
     /// will not resolve refuses the batch rather than being skipped past — see <see cref="TargetsIn"/>.
@@ -313,9 +311,6 @@ public sealed class RepositoryVerbs(
 
         if (TargetsIn(output, title, repository, paths) is not { } targets)
             return VerbResult.Exit(ExitCodes.NotARepository);
-
-        if (await ConfirmAddAsync(output, repository, targets).ConfigureAwait(true) is { } refused)
-            return refused;
 
         TrackingResult result = await files
             .AddAsync(repository, [.. targets.Select(t => t.Relative)], CancellationToken.None)
@@ -340,91 +335,23 @@ public sealed class RepositoryVerbs(
     }
 
     /// <summary>
-    /// The folder reads and the one question — or the result to return instead of adding.
+    /// `flick rm &lt;path&gt;...` — the menu's Remove on whatever was selected: <b>out of Git, still on
+    /// disk</b>.
     ///
-    /// <b>Asked only when the selection holds a folder</b>, which is the case the question was written
-    /// for. Two reads per folder rather than one, because the two sets are disjoint and so neither
-    /// needs de-duplicating: <c>ls-files --others</c> is what Git has never seen and
-    /// <c>diff --name-only</c> is what it has and what has changed since. Their sum, plus the files
-    /// that were selected outright, is what <c>git add</c> would touch.
+    /// <c>git rm --cached</c> and nothing else. What the user asked for is "stop tracking this, keep my
+    /// file", so the working tree is never touched: each path becomes a staged deletion, ready to
+    /// commit, and the file comes back in the list as untracked. On a folder it is the same command with
+    /// <c>-r</c>, which is why a folder no longer goes anywhere near the Recycle Bin.
     ///
-    /// <b>"Nothing to stage" only ends the verb when there is nothing else in the batch.</b> A folder
-    /// with nothing under it sitting beside two selected files must not stop those files being staged
-    /// — which is what returning the early success here would do.
-    /// </summary>
-    private async Task<VerbResult?> ConfirmAddAsync(
-        VerbOutput output,
-        RepositoryInfo repository,
-        IReadOnlyList<TargetPath> targets)
-    {
-        TargetPath[] folders = [.. targets.Where(t => t.IsFolder)];
-
-        if (folders.Length == 0)
-            return null;
-
-        int untracked = 0;
-        int changed = 0;
-
-        foreach (TargetPath folder in folders)
-        {
-            untracked += await files
-                .UntrackedCountAsync(repository, folder.Relative, CancellationToken.None)
-                .ConfigureAwait(true);
-
-            changed += await files
-                .ChangedCountAsync(repository, folder.Relative, CancellationToken.None)
-                .ConfigureAwait(true);
-        }
-
-        int selectedFiles = targets.Count - folders.Length;
-        int total = untracked + changed + selectedFiles;
-
-        if (total == 0)
-        {
-            //Success, not a failure: the folder is simply already staged or already clean. Exit 0 so
-            //a script that adds several folders in a row is not stopped by the quiet one.
-            output.Say(
-                repository.Name,
-                folders.Length == 1
-                    ? Strings.Get("folder.nothingtoadd", folders[0].Relative)
-                    : Strings.Get("selection.nothingtoadd", targets.Count));
-
-            return VerbResult.Exit(ExitCodes.Success);
-        }
-
-        bool oneFolderOnly = targets.Count == 1;
-
-        if (!ConfirmWindow.Ask(
-                null,
-                Strings.Get(oneFolderOnly ? "folder.add.title" : "selection.add.title"),
-                oneFolderOnly
-                    ? Strings.Get("folder.add.ask", folders[0].Relative, total, untracked)
-                    : Strings.Get("selection.add.ask", targets.Count, total, untracked),
-                Strings.Get(oneFolderOnly ? "folder.add.yes" : "selection.add.yes"),
-                Strings.Get("common.cancel")))
-        {
-            return VerbResult.Exit(ExitCodes.UserCancelled);
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// `flick rm &lt;path&gt;...` — the menu's Remove on whatever was selected: gone from the working
-    /// tree, and the deletions staged, not committed.
+    /// <b>It asks nothing, and that is a consequence rather than a decision.</b> A confirmation exists
+    /// to protect state that cannot be recovered; there is none here, because nothing is deleted and
+    /// <c>flick add</c> on the same path puts the index back. The gate, the counts and the one question
+    /// went with the destructive step they were guarding.
     ///
-    /// <b>It asks first, on every surface, and a dialog even from the command line</b> — the same rule
-    /// and the same reason as <see cref="ConsentToUpstreamAsync"/>: CLAUDE.md's Safety Rules want
-    /// explicit intent expressed in the moment, and the fast surfaces are not shortcuts around them.
-    /// Nothing is forced anywhere, so Git still refuses content that differs from both HEAD and the
-    /// index, and the confirmation says what remains recoverable rather than promising more than that.
-    ///
-    /// <b>One question for the whole selection, asked after every path has been gated.</b> That order
-    /// is <see cref="RemovalFlow"/>'s, and it is the reason the sequence lives in Core with tests: a
-    /// question per item would run the gate for the fifth only after the first four had already gone.
-    ///
-    /// What is left here is the half Core cannot do — a window to ask in, and a Recycle Bin that
-    /// <c>net9.0</c> cannot reach — plus the words for each way it can end.
+    /// <b>A path Git has nothing under is reported, not removed.</b> Explorer's own Delete is what
+    /// removes an untracked file, and <c>git rm</c> is all-or-nothing over its pathspecs — so leaving
+    /// such a path in the batch would refuse the removal of everything selected beside it. It is
+    /// counted out first and named in the notification instead.
     /// </summary>
     public async Task<VerbResult> RemoveAsync(
         VerbOutput output,
@@ -436,142 +363,74 @@ public sealed class RepositoryVerbs(
         if (TargetsIn(output, title, repository, paths) is not { } targets)
             return VerbResult.Exit(ExitCodes.NotARepository);
 
-        RemovalTarget[] batch = [.. targets.Select(t => new RemovalTarget(t.Relative, t.IsFolder))];
+        //Git's own answer to "is there anything here to remove", per target. One read each rather than
+        //one for the batch, because the answer is per path: what is skipped has to be nameable, and
+        //what is left is what the one command may carry.
+        var tracked = new List<TargetPath>(targets.Count);
+        var untracked = new List<TargetPath>();
 
-        Removal removal = await removals.RunAsync(
-            repository,
-            batch,
-            plan => Task.FromResult(Ask(batch, plan)),
-
-            //Folders only: `RemovalFlow` removes the files with `git rm`, which deletes the
-            //working-tree copy itself, and calls this for nothing else. See its step 6.
-            target => Task.FromResult(Binned(deleter.DeleteFolder(repository.Root, target.Relative))),
-            CancellationToken.None).ConfigureAwait(true);
-
-        return Report(output, repository.Name, title, batch, removal);
-    }
-
-    /// <summary>
-    /// The one destructive question, in the words the batch earns.
-    ///
-    /// A selection of one keeps today's wording exactly, because it is the same operation and a
-    /// message reading "1 items" would be a regression in the common case. Past one, the counts are
-    /// what the sentence has to carry — the paths would be a list nobody reads in a dialog.
-    /// </summary>
-    private static bool Ask(IReadOnlyList<RemovalTarget> batch, RemovalPlan plan)
-    {
-        bool one = batch.Count == 1;
-        bool file = one && !batch[0].IsFolder;
-
-        string question = file
-            ? Strings.Get("file.remove.ask", batch[0].Relative)
-            : one
-                ? Strings.Get("folder.remove.ask", batch[0].Relative, plan.TrackedFiles, plan.UntrackedFiles)
-                : Strings.Get(
-                    "selection.remove.ask",
-                    batch.Count,
-                    plan.Folders,
-                    plan.TrackedFiles,
-                    plan.UntrackedFiles);
-
-        return ConfirmWindow.Ask(
-            null,
-            Strings.Get(file ? "file.remove.title" : one ? "folder.remove.title" : "selection.remove.title"),
-            question,
-            Strings.Get(file ? "file.remove.yes" : one ? "folder.remove.yes" : "selection.remove.yes"),
-            Strings.Get("common.cancel"),
-            destructive: true);
-    }
-
-    /// <summary>
-    /// What is true after the removal, said in the words of the outcome that ended it.
-    ///
-    /// The outcomes divide by what is true afterwards, which is what the messages have to say. Every
-    /// one before <c>BinFailed</c> left the working tree and the index exactly as they were.
-    /// <c>BinFailed</c> and <c>RecordFailed</c> are the two that can stop part-way through a selection,
-    /// which is why they are the two that add <c>selection.remove.partial</c>; and
-    /// <c>RecordFailed</c>'s message names the Recycle Bin, because that sentence is the way back.
-    /// </summary>
-    private static VerbResult Report(
-        VerbOutput output,
-        string repository,
-        string title,
-        IReadOnlyList<RemovalTarget> batch,
-        Removal removal)
-    {
-        bool one = batch.Count == 1;
-
-        switch (removal.Outcome)
+        foreach (TargetPath target in targets)
         {
-            case RemovalOutcome.Removed:
-                //The repository rather than the verb: see AddAsync. Only this branch says it -- the
-                //rest are failures, and a failure still opens a window that has to name the verb.
-                output.Say(
-                    repository,
-                    one
-                        ? Strings.Get(
-                            batch[0].IsFolder ? "folder.removed" : "file.removed",
-                            batch[0].Relative,
-                            removal.TrackedFiles)
-                        : Strings.Get("selection.removed", batch.Count, removal.TrackedFiles));
+            int here = await files
+                .TrackedCountAsync(repository, target.Relative, CancellationToken.None)
+                .ConfigureAwait(true);
 
-                return VerbResult.Exit(ExitCodes.Success);
-
-            case RemovalOutcome.NotTracked:
-                //Git's own answer here is `fatal: pathspec ... did not match any files`, which is
-                //accurate about a question the user did not ask. The path named is the one target that
-                //had nothing under it, whatever the size of the batch.
-                output.Fail(
-                    title,
-                    Strings.Get(
-                        IsFolder(batch, removal.Path) ? "folder.untracked" : "file.untracked",
-                        removal.Path ?? string.Empty));
-
-                return VerbResult.Exit(ExitCodes.GitError);
-
-            case RemovalOutcome.Declined:
-                return VerbResult.Exit(ExitCodes.UserCancelled);
-
-            case RemovalOutcome.RecordFailed:
-                output.Fail(
-                    title,
-                    Join(
-                        removal.Error,
-                        Strings.Get("folder.remove.binned", removal.Path ?? string.Empty),
-                        Partial(removal)));
-
-                return VerbResult.Exit(ExitCodes.GitError);
-
-            default:
-                //Refused, with Git naming the files that hold uncommitted work -- or BinFailed, whose
-                //message may be null because the shell has already put up its own and paraphrasing it
-                //would be worse than saying nothing. See DeleteOutcome.
-                if (Join(removal.Error, Partial(removal)) is { Length: > 0 } why)
-                    output.Fail(title, why);
-
-                return VerbResult.Exit(ExitCodes.GitError);
+            (here > 0 ? tracked : untracked).Add(target);
         }
+
+        if (tracked.Count == 0)
+        {
+            //Nothing ran and nothing failed: the user pointed at files Git has never seen, which is a
+            //no-op with something to say rather than an error. Exit 0, so a script removing several
+            //paths is not stopped by the one already outside Git.
+            output.Say(repository.Name, NotTracked(untracked));
+            return VerbResult.Exit(ExitCodes.Success);
+        }
+
+        TrackingResult result = await files
+            .UntrackAsync(repository, [.. tracked.Select(t => t.Relative)], CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (!result.Succeeded)
+        {
+            output.Fail(title, result.Error ?? string.Empty);
+            return VerbResult.Exit(ExitCodes.GitError);
+        }
+
+        //The repository, not the verb: see AddAsync. The skipped paths ride along in the same
+        //notification, because two notifications for one gesture is the thing this must not do.
+        output.Say(repository.Name, Removed(tracked) + Skipped(untracked));
+        return VerbResult.Exit(ExitCodes.Success);
     }
 
-    /// <summary>How much of the selection went before the failure, when any of it did.</summary>
-    private static string? Partial(Removal removal) =>
-        removal.Done > 0 ? Strings.Get("selection.remove.partial", removal.Done) : null;
-
-    /// <summary>Whether the target a path names is a folder, for choosing between two messages.</summary>
-    private static bool IsFolder(IReadOnlyList<RemovalTarget> batch, string? path) =>
-        path is not null
-        && batch.Any(t => t.IsFolder && string.Equals(t.Relative, path, StringComparison.Ordinal));
-
-    /// <summary>The non-empty parts, one per paragraph.</summary>
-    private static string Join(params string?[] parts) =>
-        string.Join("\n\n", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+    /// <summary>What the removal did, in the words the batch earns.</summary>
+    private static string Removed(IReadOnlyList<TargetPath> tracked) =>
+        tracked.Count == 1
+            ? Strings.Get(tracked[0].IsFolder ? "folder.removed" : "file.removed", tracked[0].Relative)
+            : Strings.Get("selection.removed", tracked.Count);
 
     /// <summary>
-    /// The App's <see cref="DeleteOutcome"/> as the Core flow's <see cref="TrackingResult"/> — the
-    /// same two fields, and the null message means the same thing in both.
+    /// The paths Git has nothing under, when they are the whole batch — so the message stands alone.
     /// </summary>
-    private static TrackingResult Binned(DeleteOutcome outcome) =>
-        outcome.Succeeded ? TrackingResult.Ok : new TrackingResult(false, outcome.Message);
+    private static string NotTracked(IReadOnlyList<TargetPath> untracked) =>
+        untracked.Count == 1
+            ? Strings.Get(untracked[0].IsFolder ? "folder.untracked" : "file.untracked", untracked[0].Relative)
+            : Strings.Get("selection.untracked", untracked.Count);
+
+    /// <summary>
+    /// The same, as a sentence after a removal that did happen. Empty when there were none.
+    ///
+    /// Two spellings rather than a count in one, for the reason <see cref="Removed"/> keeps the
+    /// singular wording: "1 were left alone" is the sentence a plural-only string produces in the
+    /// commonest case of all.
+    /// </summary>
+    private static string Skipped(IReadOnlyList<TargetPath> untracked) =>
+        untracked.Count switch
+        {
+            0 => string.Empty,
+            1 => ". " + Strings.Get("selection.remove.skipped.one"),
+            _ => ". " + Strings.Get("selection.remove.skipped", untracked.Count),
+        };
 
     /// <summary>
     /// Every selected path as Git speaks it — or null after saying why none of them will be acted on.

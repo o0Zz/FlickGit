@@ -22,8 +22,9 @@ public enum VerbKind
 
     /// <summary>
     /// <c>git add</c> on the selection, which for anything Git has never seen is what starts tracking
-    /// it. Files or folders, unlike <see cref="Blame"/>; a folder counts what it would stage and asks
-    /// before it does.
+    /// it. Files or folders, unlike <see cref="Blame"/>, and it asks nothing either way: staging
+    /// discards nothing. It is also the way back from <see cref="Remove"/>, which leaves the file on
+    /// disk for this to pick up again.
     ///
     /// <b>The two verbs that take a path list.</b> Explorer hands over every item that was selected,
     /// and acting on the first one and silently dropping the rest is what this used to do.
@@ -31,17 +32,17 @@ public enum VerbKind
     Add,
 
     /// <summary>
-    /// <c>git rm</c> on the selection: gone from the working tree, and the deletions staged. Files or
-    /// folders — and a folder goes to the Recycle Bin rather than to <c>git rm -r</c>, because that is
-    /// where the untracked files are.
+    /// <c>git rm --cached</c> on the selection: out of the index, and <b>every file left exactly where
+    /// it is</b>. Files or folders — <c>-r</c> covers a folder and <c>--cached</c> is what keeps the
+    /// flag away from the working tree.
     ///
-    /// <b>One question for the whole selection</b>, asked after every path has been gated and before
-    /// anything is destroyed. See <c>RemovalFlow</c>, where that order is the safety rule.
+    /// <b>It destroys nothing, so it asks nothing.</b> Each path becomes a staged deletion beside the
+    /// untracked file it left behind, and <see cref="Add"/> on the same path is the way back.
     ///
     /// Spelled <c>rm</c> rather than <c>remove</c> or <c>delete</c>, because it is <i>exactly</i>
-    /// <c>git rm</c> and a second word for it would be a second thing to remember. It asks before it
-    /// runs, on every surface — see <c>RepositoryVerbs</c> — which is what CLAUDE.md's "explicit user
-    /// intent, expressed in the moment" means for a verb a script can also reach.
+    /// <c>git rm</c> and a second word for it would be a second thing to remember. What it is not is a
+    /// delete: a path Git has nothing under is reported rather than removed, because Explorer's own
+    /// Delete is the thing that removes a file.
     /// </summary>
     Remove,
 

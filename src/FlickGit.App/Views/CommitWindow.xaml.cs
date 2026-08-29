@@ -226,11 +226,11 @@ public partial class CommitWindow : Window
         EditFileMenuItem.Header = Label("edit", _viewModel.EditableCount);
         AddFileMenuItem.Header = Label("add", _viewModel.AddableCount);
         RevertFileMenuItem.Header = Label("revert", _viewModel.RevertableCount);
-        //Two spellings of one item, chosen by what the click would actually do. A row HEAD has no
-        //copy of is unstaged rather than binned, and an item still reading "Delete file..." would be
-        //the only place the user could find that out -- afterwards.
+        //Two spellings of one item, chosen by what the click would actually do. A row Git has
+        //something for is taken out of the index and the file stays; only an untracked one is
+        //deleted -- and a menu is the last place to find out which of those just happened.
         DeleteFileMenuItem.Header = Label(
-            _viewModel.DeleteUnstagesOnly ? "delete.unstage" : "delete",
+            _viewModel.DeleteBinsOnly ? "delete" : "delete.untrack",
             _viewModel.DeletableCount);
 
         TakeOursMenuItem.Header = Label("conflict.ours", _viewModel.ResolvableOursCount);
@@ -259,13 +259,12 @@ public partial class CommitWindow : Window
     }
 
     /// <summary>
-    /// <b>Del sends the highlighted files to the Recycle Bin</b>, through the very command the context
-    /// menu's <c>Delete file…</c> reaches — so it asks the same question and counts the untracked ones
-    /// the same way.
+    /// <b>Del takes the highlighted rows out of Git and leaves their files alone</b>, through the very
+    /// command the context menu's item reaches — so the two cannot come to mean different things.
     ///
-    /// <b>Except for a row HEAD has no copy of</b>, which is unstaged rather than binned and asks
-    /// nothing, because an unstage discards nothing there could be a question about. A selection made
-    /// entirely of those runs the one Git command this key can reach; anything else still runs none.
+    /// <b>Except an untracked row</b>, which Git has nothing to remove from and which goes to the
+    /// Recycle Bin instead. Neither half asks: the Git side destroys nothing, and the bin is the way
+    /// back from the other.
     ///
     /// <b>On the list rather than on the window</b>, because everywhere else in this window Del belongs
     /// to text: it is a character in the message box and a character in the diff pane's editor over the
@@ -274,7 +273,7 @@ public partial class CommitWindow : Window
     ///
     /// <b>Only the bare key.</b> Shift+Del means "skip the Recycle Bin" everywhere in Explorer, and
     /// this window has nothing that does that — so it falls through to nothing rather than quietly
-    /// meaning the recoverable thing.
+    /// meaning the recoverable thing, which for the untracked half is the only thing it means.
     /// </summary>
     private void OnFileListKeyDown(object sender, KeyEventArgs e)
     {

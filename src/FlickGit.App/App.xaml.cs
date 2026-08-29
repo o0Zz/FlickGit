@@ -191,7 +191,6 @@ public partial class App : Application
         services.AddSingleton<EditorLauncher>();
         services.AddSingleton<RestoreService>();
         services.AddSingleton<TrackingService>();
-        services.AddSingleton<RemovalFlow>();
         services.AddSingleton<UntrackedFileMeasurer>();
 
         services.AddSingleton<ShellIntegration>();

@@ -110,11 +110,12 @@ public sealed class FileChangeItem(GitFileChange change) : ObservableObject
     public bool IsUntracked => Change.IsUntracked;
 
     /// <summary>
-    /// Whether the file is still there to be deleted.
+    /// Whether the row has a file to open — what Edit is greyed out by.
     ///
-    /// Both deletion states show a <c>D</c> on the row and neither has a file left: one was removed
-    /// from the working tree, the other with <c>git rm</c>. The context menu greys Delete out for
-    /// both rather than offering it and then refusing.
+    /// Both deletion states show a <c>D</c> on the row: one was deleted from the working tree, the
+    /// other is a deletion Git already holds in the index. <b>The second of those may still have a
+    /// file</b> — a removal leaves it on disk — but it is reported as its own untracked row, which is
+    /// the row that has something to open.
     /// </summary>
     public bool IsOnDisk =>
         Change.WorkTreeStatus != GitChangeType.Deleted && !Change.IsDeletionStaged;

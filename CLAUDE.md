@@ -111,7 +111,8 @@ would hide.
 - **The sequences** — `CommitFlow` (stage, switch, verify, commit, push) and `PullRequestFlow` (push,
   then create).
 - **The safety rules.** A blocked switch changes nothing; a stash restores only the one it created; a
-  diverged push is refused; `add -A` never appears in an argument list; `branch -D` never appears
+  diverged push is refused; `add -A` never appears in an argument list; `git rm` always carries
+  `--cached` and never `-f`, so no removal can reach the working tree; `branch -D` never appears
   unless force was asked for; untracked and secret-matching files are not staged by default; every
   read carries `--no-optional-locks`.
 - **The working tree.** Encoding, BOM and line-ending round trips, line reverting, and the one value
@@ -209,10 +210,10 @@ src/
 │   ├── Status/              porcelain v2, numstat, name-status parsing, StatusService
 │   ├── Diff/                DiffService, FileTextLoader, WorkingTreeWriter, DiffDocument,
 │   │                        Hunks + PatchService (patch generator, `git apply --cached`)
-│   ├── Files/               TrackingService -- `git add`/`git rm` over a resolved path list,
-│   │                        never forced and never a pathspec that can glob; RemovalFlow,
-│   │                        whose order is the safety rule (gate every target, ask once,
-│   │                        bin, record)
+│   ├── Files/               TrackingService -- `git add` and `git rm --cached` over a resolved
+│   │                        path list, never forced and never a pathspec that can glob.
+│   │                        Neither vector can reach the working tree, which is why there
+│   │                        is no flow beside it
 │   ├── Commits/             CommitService, CommitFlow
 │   ├── Merges/              MergeStateService (file probes, no git.exe) and ConflictService --
 │   │                        checkout-then-add, and the gate that refuses --continue
@@ -384,7 +385,7 @@ flick status <path>
 flick log <path>                     commit history; multi-select for a combined diff
 flick blame <file>                   who last touched each line, and what came before
 flick add <path>...                  stage files or folders, tracking what is new
-flick rm <path>...                   delete files or folders and stage the deletions; asks first
+flick rm <path>...                   stop tracking files or folders; the files stay on disk
 flick repo <path>                    identity, remotes and this repository's defaults
 flick terminal <path>                open a terminal there
 flick run <id> [path]                run a catalog action by id
@@ -533,20 +534,48 @@ there — *is* passed to `git add`.
 
 ## Delete and revert, from the file list
 
-Both take a multi-selection, both **send the copy on disk to the Recycle Bin first**, and both loop one
-path per call so the first failure stops with a count of what went before.
+Both take a multi-selection. Only Revert asks anything, and only Revert can discard work.
 
-**Delete file…** runs no Git command at all. An untracked file is uncommitted work Git has never seen,
-so `git restore` cannot bring it back — the Recycle Bin is what makes the operation recoverable, and
-what earns it one question. Rows whose file is already gone are filtered out of the selection. Two
-refusals: nothing outside the resolved root (`WorkingTreeWriter.ResolveInsideRepository`), and no
-symlinks or junctions. **`Del` reaches it from the file list** — the same command, so the same
-question, and on the list rather than the window because Del is a character in the message box and in
-the diff pane's editor. Shift+Del is not it: that means "skip the Recycle Bin" everywhere in Explorer,
-and nothing here does that.
+**Delete file / Remove from Git** — one item, two mechanics, chosen by whether Git has anything for
+the row rather than by a second thing to click. **It never asks.**
 
-**Revert file…** puts a row back the way HEAD has it, and **that is one sentence with two mechanics**
-because it turns on something the row's letter does not say: whether HEAD has the path.
+- **A row the index holds** — tracked, staged, or a staged addition — is `git rm --cached`
+  (`TrackingService.UntrackAsync`). The path leaves the index and **the file stays exactly where it
+  is**: the row becomes a staged deletion, the file comes back as an untracked row beside it, and
+  nothing is deleted anywhere. One command covers both cases and gets each right without being asked
+  which it is — on a tracked path it stages a deletion, and on a staged addition, which HEAD has no
+  copy of, it drops the index entry, which is precisely unstaging it. It carries `-r` so a folder
+  needs no second vector, and `--cached` immediately beside it is what keeps that flag away from the
+  working tree.
+- **An untracked row** goes to the **Recycle Bin** and runs no Git command at all. Git has never seen
+  the file, so `git restore` cannot bring it back and the bin is the only thing that can. Two
+  refusals: nothing outside the resolved root (`WorkingTreeWriter.ResolveInsideRepository`), and no
+  symlinks or junctions.
+- **A row whose deletion is already staged is filtered out**, along with a conflicted one: the index
+  has no entry left to remove, and `git rm` is all-or-nothing, so leaving it in would refuse the whole
+  batch over a row with nothing to do.
+
+**Neither half asks, and that is a consequence rather than a preference.** The Git half destroys
+nothing — `flick add` on the same path puts the index straight back — and the bin half is undone by a
+gesture the user already knows. **`Del` reaches it from the file list**, on the list rather than the
+window because Del is a character in the message box and in the diff pane's editor. Shift+Del is not
+it: that means "skip the Recycle Bin" everywhere in Explorer, and nothing here does that.
+
+**One path then has two rows, and that is Git's own account of the state.** A staged deletion, ticked,
+which is the change waiting to be committed; and an untracked row, unticked, which is the file the user
+kept. Three things depend on keeping them apart: the tick carried across a refresh is keyed by path
+**and** untracked-ness, or the new row inherits the tick and the next commit stages the file straight
+back; the same pair is the `DiffCache` key, or the two rows share one diff; and `CommitFlow` never
+passes a staged deletion to `git add`, which is what lets the ticked `D` row commit the removal without
+re-adding the file beside it.
+
+**Add is the way back.** On a `D` row whose file is still on disk, `git add` restores the index entry
+and clears the deletion — so Add is the exact inverse of Del. On a `D` row with nothing left on disk it
+keeps its ordinary meaning of staging the deletion, and where the deletion is already staged there is
+nothing for a pathspec to match, so the row is filtered out.
+
+**Revert file…** puts a row back the way HEAD has it, **asks**, and **that is one sentence with two
+mechanics** because it turns on something the row's letter does not say: whether HEAD has the path.
 `RestoreService.KindFor` answers `Restore`, `Unstage` or `None` — an enum rather than a bool precisely
 because the Added case has a wrong answer that destroys a file.
 
@@ -554,14 +583,14 @@ because the Added case has a wrong answer that destroys a file.
   Recycle Bin first. `--source=HEAD` because the default restores from the *index* and would leave a
   staged change standing. **This is the only place in the product that asks Git to discard uncommitted
   work**, which is why the bin comes first — a locked file fails the bin, and failing there means
-  nothing has happened yet.
+  nothing has happened yet. It is also the only surviving confirmation in this window.
 - **`Unstage`** is a staged addition: HEAD has no copy, so the way HEAD has that path is *not tracked*.
   It is `CommitService.UnstageAsync` — `git restore --staged` — and **it must not go near the Recycle
   Bin**, because nothing is being overwritten and the copy on disk is exactly what the user keeps. The
-  branch is on the kind, never on `IsOnDisk`. **This is the only way back out of an `Add` pressed by
-  mistake**: Delete removes the file, and unticking the row leaves the index holding it. The row is
-  unticked as well, because in this window the tick box is the commit — left ticked, the next commit
-  would stage it straight back.
+  branch is on the kind, never on `IsOnDisk`. The row is unticked as well, because in this window the
+  tick box is the commit — left ticked, the next commit would stage it straight back. Del reaches the
+  same place for such a row by another route, which is agreement rather than duplication: there is one
+  way back out of an `Add` pressed by mistake and both items are it.
 - **`None` rows are skipped, not refused**: untracked (Delete is the item for those), renamed and
   copied (HEAD has the old path), and conflicted (taking HEAD's side is a merge decision).
 
@@ -1040,14 +1069,14 @@ public sealed record GitAction
 ─────────────────────────────────────────
 Pull (rebase)         ← + submodule update           FlickGit  ▸  Blame…
 Commit / Push…        ← branch in the label                      Add
-FlickGit            ▸                                            Remove…
+FlickGit            ▸                                            Remove from Git
       ├── Show log…          ├── Pull request…
       ├── Branches…          ├── Repository settings…
       ├── Tags…              ├── Clone…
       ├── Submodules…        ├── Fetch (prune)
       ├── Stashes…           ├── Open terminal here
       └── Push               ├── Add
-                             └── Remove…
+                             └── Remove from Git
 ```
 
 Two root entries, because those are the two the user *performs* all day. Everything else is one hover
@@ -1059,37 +1088,35 @@ puts an action there.
 path. They are the only entries that act on something smaller than the repository, which is why they
 sit last in the submenu and `rm` last of the two.
 
+**Neither of them deletes anything, and that is what settles every question about them.** Add stages;
+Remove is `git rm --cached`, which takes the paths out of the index and leaves every file exactly where
+it is. **So neither asks** — a confirmation exists to protect state that cannot be recovered, and here
+`flick add` on the same path is the way back. The gate, the counts and the one question went with the
+destructive step they were guarding.
+
 **They are also the only two that act on the whole selection**, and the only two whose verb reads more
 than one positional path — `ShellCommandIds.ValueOnSelection` is what says so, and every other entry
 is still handed the item under the pointer, because the token after its path means a branch or a tag
-name rather than a second path. One `git add`/`git rm` carries the batch, `RemovalFlow` asks **one**
-question with the totals, and **every** target is gated before that question is put: asking per item
-would run the gate for the fifth only after the first four had already gone. A selection longer than
-one command line can carry is **refused with its count, never truncated** — `Launcher` measures the
-line and sends `--too-many <n>` instead, because a removal carrying the first four hundred of five
-hundred selected files is a removal nobody asked for. Add stages (nothing to confirm for a file — staging
-discards nothing) and, like the removal, **reports through a notification rather than a window**: the
-outcome of a batch is not a decision, and it must not cost a click — see **Notifications**. Remove deletes and stages the deletion, behind one question, under four rules:
-**nothing is forced** (so `git rm` itself enforces "never discard uncommitted work"); **an untracked
-path is refused before the question**; **it asks on every surface**, with a dialog even from the
-command line; and **the pathspec cannot glob** — every command passes `:(literal)<path>`, or
-`a[1].txt` would match `a1.txt`.
+name rather than a second path. One `git add`/`git rm --cached` carries the batch. A selection longer
+than one command line can carry is **refused with its count, never truncated** — `Launcher` measures
+the line and sends `--too-many <n>` instead, because a removal carrying the first four hundred of five
+hundred selected files is a removal nobody asked for. Both **report through a notification rather than
+a window**: the outcome of a batch is not a decision, and it must not cost a click — see
+**Notifications**.
 
-**On a folder both act on everything below it, and three things pay for that.** First, the surface:
+Remove keeps three rules. **Nothing is forced** — without `-f`, Git still refuses the one state where
+dropping an index entry would strand content nothing else holds. **A path Git has nothing under is
+reported rather than removed**, and counted out of the batch before the command runs, because `git rm`
+is all-or-nothing over its pathspecs and Explorer's own Delete is what removes an untracked file. And
+**the pathspec cannot glob** — every command passes `:(literal)<path>`, or `a[1].txt` would match
+`a1.txt`.
+
+**On a folder both act on everything below it, and two things pay for that.** First, the surface:
 `ActionSurfaces.Folder` is *not* `Menu`, so the entries are drawn on a folder the user pointed at and
 never on a folder background, a drive, or the repository root — where Commit is already the entry that
-stages everything, and where `flick add .` from a terminal is refused by name. Second, the question
-carries the count, read first with `ls-files -z` and `diff --name-only -z`: the number of files is the
-one part of the blast radius the user cannot see. Third, `-r` appears on exactly two argument vectors
-and never without a second flag disarming it — `--dry-run`, which changes nothing, and `--cached`,
-which cannot reach the working tree. A test asserts there is no third.
-
-**A folder removal goes to the Recycle Bin, not to `git rm -r`**, because a folder is exactly where the
-untracked files are and Git would refuse over them or leave them behind. That puts the destructive step
-outside Git, where Git can no longer refuse it, so `FolderRemovalFlow` collects the refusal in advance:
-**gate (`rm -r --dry-run`) → ask → bin → record (`rm -r --cached`)**. Run the gate after the bin and a
-folder holding uncommitted work is gone before anything objects, with every step still reporting
-success — which is why the sequence is in Core with tests rather than in the verb.
+stages everything, and where `flick add .` from a terminal is refused by name. Second, `-r` appears on
+exactly one argument vector and never without `--cached` beside it, which cannot reach the working
+tree. A test asserts there is no second.
 
 ---
 
@@ -1379,11 +1406,11 @@ no focus and does not have to be dismissed.
 - **`ShowSuccessNotification` gates the commit celebration and nothing else.** Where a notification is
   the *only* report of an outcome, it is not gated — suppressing it would leave the operation with
   nothing to show for itself.
-- **Confirmations are for what cannot be undone**, plus the one case where the user cannot see how
-  much is about to happen: anything on the **Safety Rules** list, anything `RequiresConfirmation`, a
-  removal, and Add on a *folder*, whose question exists to carry the file count. Nothing else asks —
-  a confirmation for an operation that discards nothing and shows its own blast radius is a click
-  charged for no decision, which is why Add on a selection of files asks nothing at all.
+- **Confirmations are for what cannot be undone**: anything on the **Safety Rules** list, anything
+  `RequiresConfirmation`, and *Revert file…*, which discards uncommitted work. **Nothing else asks** —
+  a confirmation for an operation that destroys nothing is a click charged for no decision. That is
+  why Add asks nothing on a file or a folder, and why Remove asks nothing either: it takes paths out
+  of the index and leaves every file on disk, and Add is the way back.
 - **Never two dialogs for one gesture**, and never one dialog per item in a selection: one question
   with the totals, then one notification with the result.
 

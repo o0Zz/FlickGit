@@ -54,8 +54,9 @@ public sealed record RestoreResult(bool Succeeded, string? Error)
 /// working tree without being asked; this one names a single path the user right-clicked, after a
 /// confirmation, which is the "explicit user intent, expressed in the moment" the same section
 /// allows. The other half — "never discard uncommitted work" — is not this class's to keep: the
-/// caller sends the copy on disk to the Recycle Bin first, the same way the file list's Delete does,
-/// which is what makes the answer recoverable if it was the wrong one.
+/// caller sends the copy on disk to the Recycle Bin first, which is what makes the answer recoverable
+/// if it was the wrong one. Nothing else in the window needs that: Del removes a path from the index
+/// and leaves the file alone.
 ///
 /// <b>Only the restore half lives here.</b> <see cref="KindFor"/> also answers
 /// <see cref="RevertKind.Unstage"/>, and that half is <c>CommitService.UnstageAsync</c> — the call the
@@ -86,7 +87,7 @@ public sealed class RestoreService(IGitProcessRunner git, RepositoryService repo
     /// an enum rather than a bool.</description></item>
     /// <item><description><b>Untracked → <see cref="RevertKind.None"/>.</b> Neither HEAD nor the
     /// index has it, so there is no state to go back to. Removing it is what the user wants and
-    /// Delete is the item that does it, to the Recycle Bin.</description></item>
+    /// Del is the item that does it, to the Recycle Bin.</description></item>
     /// <item><description><b>Renamed or copied → <see cref="RevertKind.None"/>.</b> HEAD has the
     /// <i>old</i> path, not this one, so a correct revert is two operations — restore the old, remove
     /// the new — with two ways to fail half way. A tool that is not a complete Git client may decline

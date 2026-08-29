@@ -97,20 +97,15 @@ add.done = Staged {0}
 add.done.many = Staged {0} files
 
 # ---- deleting a file ----
-# The commit window's file list, right-click. Removes the file from the working tree and sends
-# it to the Recycle Bin, which is what makes one question enough for a destructive action.
+# The commit window's file list, Del or right-click. Two halves, and which one runs is decided by
+# whether Git has anything for the row rather than by a second menu item.
 #
-# Except on a row HEAD has no copy of -- a staged addition -- where the same item takes the add
-# back out of the index and leaves the file alone. That discards nothing, so it asks nothing, and
-# the delete.unstage.* spellings below are what the item and the status line say instead.
-delete.menu = Delete file…
+# A row Git tracks -- including a staged addition -- comes out of the index and the file stays
+# exactly where it is: the delete.untrack.* spellings below. A row Git has never seen goes to the
+# Recycle Bin, because nothing else could bring it back. Neither asks: one destroys nothing, and
+# the other is undone from the bin.
+delete.menu = Delete file
 delete.title = Delete file
-# {0} repository-relative path
-delete.question = Delete {0}?
-delete.tracked = It goes to the Recycle Bin. Git still has it, so the deletion becomes a change you can commit — or undo with git restore.
-delete.untracked = It goes to the Recycle Bin. Git has never seen this file, so that is the only way back.
-delete.yes = Delete
-delete.no = Keep
 # {0} repository-relative path
 delete.done = Deleted {0}
 delete.missing = {0} is no longer on disk.
@@ -119,32 +114,24 @@ delete.outside = {0} is outside {1} and will not be deleted.
 delete.reparsepoint = {0} is a symlink or junction. FlickGit will not delete through one.
 # {0} repository-relative path, {1} the reason Windows gave
 delete.failed = {0} could not be deleted:\n\n{1}
-# {0} repository-relative path, {1} Git's own words
-delete.unstage.failed = {0} could not be unstaged:\n\n{1}
 # {0} how many files the menu item would act on
-delete.menu.many = Delete {0} files…
-# {0} how many files
-delete.question.many = Delete {0} files?
-delete.body.many = They all go to the Recycle Bin. Git still has the tracked ones, so those deletions become changes you can commit — or undo with git restore.
-# {0} how many of them Git has never seen
-delete.untracked.many = {0} of them are untracked. Git has never seen those, so the Recycle Bin is the only way back.
+delete.menu.many = Delete {0} files
 # {0} how many files were deleted
 delete.done.many = Deleted {0} files
-# {0} how many rows were finished before the failure reported above this line. Deleted or
-# unstaged: one selection can hold both, and the count is what already happened either way.
-delete.partial = {0} of the selected files were already done before this one.
+# {0} how many files had already gone to the Recycle Bin before the failure reported above this line
+delete.partial = {0} of the selected files were already deleted before this one.
 
-# The same item on a row HEAD has no copy of: the add comes back out of the index, the file stays
-# where it is, and nothing is asked because nothing is discarded.
-delete.unstage.menu = Unstage file…
+# The same item on a row Git has something for: the path comes out of the index, the file stays on
+# disk as an untracked file, and the deletion is a change waiting to be committed.
+delete.untrack.menu = Remove from Git
 # {0} how many files the menu item would act on
-delete.unstage.menu.many = Unstage {0} files…
+delete.untrack.menu.many = Remove {0} files from Git
 # {0} repository-relative path
-delete.unstaged = Unstaged {0}
-# {0} how many files were unstaged
-delete.unstaged.many = Unstaged {0} files
-# A selection holding both kinds. {0} how many went to the Recycle Bin, {1} how many were unstaged
-delete.done.mixed = {0} deleted · {1} unstaged
+delete.untracked = Removed {0} from Git — the file is still on disk
+# {0} how many files were removed from Git
+delete.untracked.many = Removed {0} files from Git — the files are still on disk
+# A selection holding both kinds. {0} how many went to the Recycle Bin, {1} how many left the index
+delete.done.mixed = {0} deleted · {1} removed from Git
 
 # ---- reverting a file ----
 # The commit window's file list, right-click. Puts the file back the way HEAD has it, sending
@@ -179,65 +166,42 @@ revert.partial = {0} files were reverted before this one.
 
 # ---- the Explorer file menu ----
 # Right-click a *file*, beside Blame. `add` stages it, which for a file Git has never seen is what
-# starts tracking it; `rm` deletes it and stages the deletion, which is why only that one asks.
+# starts tracking it; `rm` takes it out of the index and leaves it on disk. Neither asks: neither
+# deletes anything.
 # {0} repository-relative path
 file.added = Staged {0}
-file.removed = Removed {0} — the deletion is staged, not committed.
-file.untracked = Git is not tracking {0}, so there is nothing for it to remove. Explorer's own Delete removes the file itself.
+file.removed = Removed {0} from Git — the file is still on disk
+file.untracked = Git is not tracking {0}, so there is nothing for it to remove.
 # {0} the path as it was given, {1} repository root
 file.outside = {0} is outside {1} and will not be touched.
-file.remove.title = Remove file
-# {0} repository-relative path
-file.remove.ask = Remove {0}?\n\nIt is deleted from disk and the deletion is staged, not committed. HEAD still has the file, so Revert file… puts it back.\n\nGit refuses if the file holds changes that were never committed.
-file.remove.yes = Remove
 
 # ---- the Explorer folder menu ----
-# The same Add and Remove, on a folder the user pointed at. Both act on everything below it, so both
-# ask, and the question carries the count -- the number is the only part of the blast radius the
-# user cannot see. Remove sends the folder to the Recycle Bin before it records anything, because a
-# folder is exactly where the untracked files are and `git rm -r` would refuse over them.
+# The same Add and Remove, on a folder the user pointed at. Both act on everything below it, and
+# neither asks: `add` stages what is under the folder and `rm` untracks it with `git rm -r --cached`,
+# which cannot reach the working tree. The folder itself is never deleted.
 # {0} repository-relative path
-folder.nothingtoadd = Nothing under {0} needs staging.
-# {0} repository-relative path, {1} how many tracked files were removed
-folder.removed = {0} is in the Recycle Bin — the deletion of {1} files is staged, not committed.
-folder.untracked = Git is not tracking anything under {0}, so there is nothing for it to remove. Explorer's own Delete removes the folder itself.
+folder.removed = Removed everything under {0} from Git — the files are still on disk
+folder.untracked = Git is not tracking anything under {0}, so there is nothing for it to remove.
 # {0} the path as it was given. Reached from a terminal, never from the menu: the entries are not
 # drawn on a repository root.
 folder.isroot = {0} is the repository root. Commit is what stages a whole repository — Add and Remove act on a folder inside it.
-folder.add.title = Add folder
-# {0} repository-relative path, {1} how many files in total, {2} how many of them Git has never seen
-folder.add.ask = Add {0}?\n\n{1} files under it are staged, {2} of them new to Git.\n\nNothing is committed and nothing is pushed.
-folder.add.yes = Add
-folder.remove.title = Remove folder
-# {0} repository-relative path, {1} how many tracked files, {2} how many Git has never seen
-folder.remove.ask = Remove {0}?\n\nThe folder goes to the Recycle Bin, and the deletion of its {1} tracked files is staged, not committed.\n\n{2} files inside it that Git has never seen go to the bin as well — that is the only way back for those, along with anything .gitignore hides.\n\nGit refuses if a tracked file inside holds changes that were never committed.
-folder.remove.yes = Remove
-# Said after a failure that came *after* the folder was already binned, so the way back is named.
-# {0} repository-relative path
-folder.remove.binned = {0} is in the Recycle Bin.
 
 # ---- the Explorer menu on more than one selected item ----
-# Add and Remove act on the whole selection. One question for the batch, not one per item, and every
-# Git gate has already run by the time it is asked -- see RemovalFlow, where that order is the safety
-# rule. A selection of one keeps the file.* and folder.* wording above: it is the same operation, and
-# "1 items" would be a regression in the common case.
+# Add and Remove act on the whole selection, in one Git command each. A selection of one keeps the
+# file.* and folder.* wording above: it is the same operation, and "1 items" would be a regression in
+# the common case.
 # {0} how many items were staged
 selection.added = Staged {0} items.
-# {0} how many items were removed, {1} how many tracked files that came to
-selection.removed = Removed {0} items — the deletion of {1} tracked files is staged, not committed.
-# {0} how many items were selected
-selection.nothingtoadd = Nothing in the {0} selected items needs staging.
-selection.add.title = Add these items
-# {0} how many items, {1} how many files would be staged, {2} how many of those are new to Git
-selection.add.ask = Add {0} selected items?\n\n{1} files are staged, {2} of them new to Git.\n\nNothing is committed and nothing is pushed.
-selection.add.yes = Add
-selection.remove.title = Remove these items
-# {0} how many items, {1} how many of them are folders, {2} tracked files in total, {3} files Git has
-# never seen inside those folders
-selection.remove.ask = Remove {0} selected items?\n\n{1} of them are folders and go to the Recycle Bin with everything inside them.\n\nThe deletion of {2} tracked files is staged, not committed. {3} files Git has never seen go to the bin as well — that is the only way back for those, along with anything .gitignore hides.\n\nGit refuses if any of them holds changes that were never committed.
-selection.remove.yes = Remove
-# Said when a failure came after part of the selection had already gone. {0} how many went first
-selection.remove.partial = {0} items were removed before this one.
+# {0} how many items were removed from the index
+selection.removed = Removed {0} items from Git — the files are still on disk
+# {0} how many items Git has nothing under
+selection.untracked = Git is not tracking any of the {0} selected items, so there is nothing for it to remove.
+# Said after a removal that left part of the selection alone, in the same notification rather
+# than a second one. Two spellings, because "1 were left alone" is what one string produces in
+# the commonest case of all.
+# {0} how many were skipped because Git has nothing under them
+selection.remove.skipped = {0} more were left alone: Git is not tracking them.
+selection.remove.skipped.one = One more was left alone: Git is not tracking it.
 # The selection was longer than one command line can carry, so the handler sent the count instead of
 # a shortened list -- nothing was staged and nothing was removed. {0} how many were selected
 selection.toomany = {0} items are selected — more than one command line can carry. Open the commit window and stage or delete them from the file list.
@@ -878,7 +842,7 @@ action.tag = Tags…
 action.log = Show log…
 action.blame = Blame…
 action.add = Add
-action.rm = Remove…
+action.rm = Remove from Git
 action.repo = Repository settings…
 action.submodule = Submodules…
 action.stash = Stashes…

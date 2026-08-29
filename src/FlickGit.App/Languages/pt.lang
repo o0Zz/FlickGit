@@ -75,24 +75,21 @@ add.done = {0} preparado
 add.done.many = {0} ficheiros preparados
 
 # ---- eliminar um ficheiro ----
-delete.menu = Eliminar ficheiro…
+delete.menu = Eliminar ficheiro
 delete.title = Eliminar ficheiro
-delete.question = Eliminar {0}?
-delete.tracked = Vai para a reciclagem. O Git continua a tê-lo, por isso a eliminação torna-se uma alteração que pode confirmar — ou desfazer com git restore.
-delete.untracked = Vai para a reciclagem. O Git nunca viu este ficheiro, por isso é a única forma de o recuperar.
-delete.yes = Eliminar
-delete.no = Manter
+delete.untracked = {0} removido do Git — o ficheiro continua no disco
 delete.done = {0} eliminado
 delete.missing = {0} já não está no disco.
 delete.outside = {0} está fora de {1} e não será eliminado.
 delete.reparsepoint = {0} é uma ligação simbólica ou uma junção. O FlickGit não elimina através de uma.
 delete.failed = Não foi possível eliminar {0}:\n\n{1}
-delete.menu.many = Eliminar {0} ficheiros…
-delete.question.many = Eliminar {0} ficheiros?
-delete.body.many = Vão todos para a reciclagem. O Git continua a ter os controlados, por isso essas eliminações tornam-se alterações que pode confirmar — ou desfazer com git restore.
-delete.untracked.many = {0} deles não são controlados. O Git nunca os viu, por isso a reciclagem é a única forma de os recuperar.
+delete.menu.many = Eliminar {0} ficheiros
+delete.untracked.many = {0} ficheiros removidos do Git — os ficheiros continuam no disco
+delete.done.mixed = {0} eliminados · {1} removidos do Git
 delete.done.many = {0} ficheiros eliminados
-delete.partial = {0} ficheiros foram eliminados antes deste.
+delete.partial = {0} ficheiros já tinham sido eliminados antes deste.
+delete.untrack.menu = Remover do Git
+delete.untrack.menu.many = Remover {0} ficheiros do Git
 
 # ---- reverter um ficheiro ----
 revert.menu = Reverter ficheiro…
@@ -119,45 +116,30 @@ revert.partial = {0} ficheiros foram revertidos antes deste.
 # só esse pergunta.
 # {0} caminho relativo ao repositório
 file.added = {0} preparado
-file.removed = {0} eliminado — a eliminação está preparada, não confirmada.
-file.untracked = O Git não segue {0}, por isso não há nada para remover. A eliminação do Explorador apaga o próprio ficheiro.
+file.removed = {0} removido do Git — o ficheiro continua no disco
+file.untracked = O Git não segue {0}, por isso não há nada para remover.
 # {0} o caminho tal como foi dado, {1} raiz do repositório
 file.outside = {0} está fora de {1} e não será tocado.
-file.remove.title = Remover ficheiro
 # {0} caminho relativo ao repositório
-file.remove.ask = Remover {0}?\n\nÉ apagado do disco e a eliminação fica preparada, não confirmada. O HEAD continua a tê-lo, por isso «Reverter ficheiro…» repõe-no.\n\nO Git recusa se o ficheiro tiver alterações que nunca foram confirmadas.
-file.remove.yes = Remover
 
 # ---- o menu de pasta do Explorador ----
 # {0} caminho relativo ao repositório
-folder.nothingtoadd = Não há nada para preparar em {0}.
 # {0} caminho relativo ao repositório, {1} quantos ficheiros seguidos foram removidos
-folder.removed = {0} está na Reciclagem — a eliminação de {1} ficheiros fica preparada, não confirmada.
-folder.untracked = O Git não segue nada em {0}, por isso não há nada para remover. A eliminação do Explorador apaga a própria pasta.
+folder.removed = Tudo o que está em {0} foi removido do Git — os ficheiros continuam no disco
+folder.untracked = O Git não segue nada dentro de {0}, por isso não há nada para remover.
 # {0} o caminho tal como foi dado
 folder.isroot = {0} é a raiz do repositório. É «Confirmar» que prepara um repositório inteiro — «Adicionar» e «Remover» atuam sobre uma pasta lá dentro.
-folder.add.title = Adicionar pasta
 # {0} caminho, {1} ficheiros no total, {2} quantos são novos para o Git
-folder.add.ask = Adicionar {0}?\n\n{1} ficheiros lá dentro ficam preparados, {2} deles novos para o Git.\n\nNada é confirmado e nada é enviado.
-folder.add.yes = Adicionar
-folder.remove.title = Remover pasta
 # {0} caminho, {1} ficheiros seguidos, {2} ficheiros que o Git nunca viu
-folder.remove.ask = Remover {0}?\n\nA pasta vai para a Reciclagem e a eliminação dos seus {1} ficheiros seguidos fica preparada, não confirmada.\n\n{2} ficheiros lá dentro que o Git nunca viu vão também para a Reciclagem — para esses é a única forma de voltar atrás, tal como para tudo o que o .gitignore esconde.\n\nO Git recusa se um ficheiro seguido lá dentro tiver alterações que nunca foram confirmadas.
-folder.remove.yes = Remover
 # {0} caminho relativo ao repositório
-folder.remove.binned = {0} está na Reciclagem.
 
 # ---- o menu do Explorador em vários itens selecionados ----
 selection.added = {0} itens preparados.
-selection.removed = {0} itens removidos — a eliminação de {1} ficheiros controlados está preparada, não submetida.
-selection.nothingtoadd = Não há nada a preparar nos {0} itens selecionados.
-selection.add.title = Adicionar estes itens
-selection.add.ask = Adicionar {0} itens selecionados?\n\n{1} ficheiros são preparados, {2} deles novos para o Git.\n\nNada é submetido e nada é enviado.
-selection.add.yes = Adicionar
-selection.remove.title = Remover estes itens
-selection.remove.ask = Remover {0} itens selecionados?\n\n{1} deles são pastas e vão para a Reciclagem com tudo o que contêm.\n\nA eliminação de {2} ficheiros controlados é preparada, não submetida. {3} ficheiros que o Git nunca viu vão também para a Reciclagem — essa é a única volta atrás para esses, tal como para o que o .gitignore esconde.\n\nO Git recusa se algum deles tiver alterações nunca submetidas.
-selection.remove.yes = Remover
-selection.remove.partial = {0} itens foram removidos antes deste.
+selection.removed = {0} itens removidos do Git — os ficheiros continuam no disco
+selection.untracked = O Git não segue nenhum dos {0} itens selecionados, por isso não há nada para remover.
+# {0} how many were skipped because Git has nothing under them
+selection.remove.skipped = Outros {0} ficaram como estavam: o Git não os segue.
+selection.remove.skipped.one = Outro ficou como estava: o Git não o segue.
 selection.toomany = Estão {0} itens selecionados — mais do que uma linha de comandos consegue transportar. Abra a janela de commit e trate deles a partir da lista de ficheiros.
 
 # ---- visualizador de diferenças ----
@@ -617,7 +599,7 @@ action.stash = Stashes…
 action.log = Mostrar histórico…
 action.blame = Blame…
 action.add = Adicionar
-action.rm = Remover…
+action.rm = Remover do Git
 action.repo = Definições do repositório…
 action.submodule = Submódulos…
 action.clone = Clonar…

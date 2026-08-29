@@ -35,24 +35,25 @@ public sealed record TrackingResult(bool Succeeded, string? Error)
 /// path it will not take stops the batch with nothing done rather than leaving half of it applied and
 /// no way for the user to tell which half.
 ///
-/// <b>Recursion exists here, and every place it does is named.</b> <c>git add</c> walks into a
-/// directory pathspec on its own, so <see cref="AddAsync"/> is the same argument vector for a file
-/// and for a folder and carries no <c>-r</c> at all. Removal needs the flag, and it appears on
-/// exactly two vectors, each disarmed by a second flag beside it: <see cref="CanRemoveFolderAsync"/>
-/// is <c>--dry-run</c> and therefore changes nothing, and <see cref="RemoveFolderAsync"/> is
-/// <c>--cached</c> and therefore cannot reach the working tree. <b>There is no <c>-r</c> in this
-/// file without one of those two words next to it</b>, which is what a test asserts rather than a
-/// reviewer.
+/// <b>Neither operation can reach the working tree, and that is the whole shape of this class.</b>
+/// <see cref="AddAsync"/> only ever writes the index, and <see cref="UntrackAsync"/> carries
+/// <c>--cached</c>, so removing a path from Git leaves the file exactly where it is — the row becomes
+/// a staged deletion and the file comes back as untracked, both of which the user can see. There is
+/// therefore nothing here to gate, nothing to send to the Recycle Bin and nothing to confirm: the
+/// destructive removal this class used to perform, and the ordering rules that made it safe, are gone
+/// rather than made optional.
 ///
-/// The step those two leave out — actually removing the folder from disk — is not Git's here. It is
-/// the Recycle Bin, through the App's <c>WorkingTreeDeleter</c>, because a folder holds untracked
-/// files that <c>git rm</c> would refuse and that <c>git restore</c> could never bring back.
+/// <b>Recursion exists on exactly one vector and <c>--cached</c> is what disarms it.</b>
+/// <c>git add</c> walks into a directory pathspec on its own, so <see cref="AddAsync"/> is the same
+/// argument vector for a file and for a folder and carries no <c>-r</c> at all.
+/// <see cref="UntrackAsync"/> needs the flag so that one call serves both, and it is safe there for a
+/// reason a reviewer does not have to supply: <c>--cached</c> is on the same line, and a test asserts
+/// there is no <c>-r</c> in this file without it.
 ///
-/// <b>Nothing here is forced.</b> <c>git rm</c> without <c>-f</c> refuses a file whose content
-/// differs from both HEAD and the index, which is exactly CLAUDE.md's "never discard uncommitted
-/// work" enforced by Git rather than by us — and what is left is recoverable, because HEAD still has
-/// the content and the file list's <i>Revert file…</i> restores it. That is what lets a deletion sit
-/// behind one confirmation instead of a warning nobody can act on.
+/// <b>Nothing here is forced.</b> Without <c>-f</c>, <c>git rm --cached</c> refuses the one state it
+/// could get wrong — index content differing from <i>both</i> HEAD and the file on disk, where
+/// dropping the entry would strand a staged version nothing else holds. That refusal is Git's own
+/// words, reported rather than parsed, and nothing has happened when it comes back.
 /// </summary>
 public sealed class TrackingService(IGitProcessRunner git, RepositoryService repositories, ILog log)
 {
@@ -60,53 +61,17 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
     /// How many paths the index holds under <paramref name="path"/> — one for a tracked file, zero
     /// for an untracked one, and everything below it for a folder.
     ///
-    /// Asked before a removal, so an untracked path is refused with a sentence naming the fact rather
-    /// than with <c>fatal: pathspec … did not match any files</c> — which is Git's accurate answer to
-    /// a question the user did not ask. Asked as a count rather than as a yes/no because the folder
-    /// confirmation has to state the number before it is allowed to happen.
+    /// Asked before a removal, so a path Git has nothing under is answered with a sentence naming the
+    /// fact rather than with <c>fatal: pathspec … did not match any files</c> — which is Git's
+    /// accurate answer to a question the user did not ask. It is also what keeps such a path out of
+    /// the batch entirely: <c>git rm</c> is all-or-nothing, so one untracked pathspec would refuse
+    /// the removal of everything selected beside it.
     /// </summary>
     public Task<int> TrackedCountAsync(
         RepositoryInfo repository,
         string path,
         CancellationToken cancellationToken) =>
         CountAsync(repository, ["ls-files", "-z", "--", Literal(path)], cancellationToken);
-
-    /// <summary>
-    /// How many files under <paramref name="path"/> Git has never seen — the ones an add would start
-    /// tracking, and the ones a removal sends to the Recycle Bin with nothing behind them.
-    ///
-    /// <c>--exclude-standard</c>, so the answer is the user's own files rather than <c>bin</c> and
-    /// <c>obj</c>. Those are still inside the folder and still go to the bin with it, which is what
-    /// the confirmation says instead of counting them.
-    /// </summary>
-    public Task<int> UntrackedCountAsync(
-        RepositoryInfo repository,
-        string path,
-        CancellationToken cancellationToken) =>
-        CountAsync(
-            repository,
-            ["ls-files", "-z", "--others", "--exclude-standard", "--", Literal(path)],
-            cancellationToken);
-
-    /// <summary>
-    /// How many tracked files under <paramref name="path"/> differ from the index — what an add would
-    /// change there, over and above the untracked ones it would start tracking.
-    ///
-    /// <c>--name-only -z</c> rather than <c>--numstat</c>: the question is how many, not how much,
-    /// and this one counts a file deleted from the working tree, which <c>git add</c> also stages.
-    ///
-    /// The three read-safe flags, like every other diff read in the product: this is a count the
-    /// folder-removal question puts in front of the user, and a <c>diff.external</c> driver in their
-    /// own gitconfig would answer with something no parser here reads as a NUL-separated name list.
-    /// </summary>
-    public Task<int> ChangedCountAsync(
-        RepositoryInfo repository,
-        string path,
-        CancellationToken cancellationToken) =>
-        CountAsync(
-            repository,
-            ["diff", "--name-only", "-z", .. GitDiffFlags.ReadSafe, "--", Literal(path)],
-            cancellationToken);
 
     /// <summary>
     /// Stages <paramref name="paths"/>, which for anything Git has never seen is what starts tracking
@@ -129,14 +94,25 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
                 cancellationToken);
 
     /// <summary>
-    /// Deletes <paramref name="paths"/> from the working tree and stages the deletions.
+    /// Takes <paramref name="paths"/> out of the index and <b>leaves every file exactly where it
+    /// is</b> — the removal this product performs, on a file or on a folder.
     ///
-    /// <b>Every path here is a file, and that is why there is no <c>-r</c> on this vector.</b> A
-    /// folder does not come this way: it goes to the Recycle Bin through <see cref="RemovalFlow"/>,
-    /// because a folder is exactly where the untracked files are and <c>git rm</c> would either refuse
-    /// over them or leave them behind.
+    /// <c>--cached</c> is the whole operation rather than a variant of it. What the user asked for is
+    /// "stop tracking this, keep my file", so nothing is deleted, nothing goes to the Recycle Bin and
+    /// there is nothing to confirm. Git reports the result as two rows for the same path — a staged
+    /// deletion, which is the change waiting to be committed, and an untracked file, which is the copy
+    /// the user kept.
+    ///
+    /// <b>What it does to a staged addition is the same command and the right answer.</b> HEAD has no
+    /// copy of such a path, so dropping the index entry is exactly unstaging it, and the file stays.
+    /// One vector therefore covers "mark this deleted" and "unstage this" without asking which the
+    /// row is.
+    ///
+    /// <c>-r</c> so that one call serves a folder as well as a file, and <c>--cached</c> immediately
+    /// beside it so the flag cannot reach the working tree — see the class comment for the rule a test
+    /// keeps.
     /// </summary>
-    public Task<TrackingResult> RemoveAsync(
+    public Task<TrackingResult> UntrackAsync(
         RepositoryInfo repository,
         IReadOnlyList<string> paths,
         CancellationToken cancellationToken) =>
@@ -144,96 +120,9 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
             ? Task.FromResult(TrackingResult.Ok)
             : RunAsync(
                 repository,
-                ["rm", "--", .. paths.Select(Literal)],
-                Removed(paths),
+                ["rm", "-r", "--cached", "--", .. paths.Select(Literal)],
+                Untracked(paths),
                 cancellationToken);
-
-    /// <summary>
-    /// Whether every file in <paramref name="paths"/> could be removed — with nothing done about it
-    /// either way.
-    ///
-    /// <b>This is a gate, not a preview</b>, and it is the file half of the one <see cref="RemovalFlow"/>
-    /// runs before it asks anything. Today a single file was gated by <c>git rm</c> itself refusing when
-    /// it ran, which is safe only because that call was the whole operation. In a selection it is not:
-    /// a folder binned first and a file refused second is half a removal, so the refusal has to be
-    /// collected before the question rather than discovered after it.
-    ///
-    /// One call for the list, because <c>git rm</c> is all-or-nothing over the pathspecs after
-    /// <c>--</c> and its refusal already names the offending files — <b>reported, never parsed</b>.
-    ///
-    /// <b>No <c>-r</c> here.</b> These are files, and the flag is the difference between answering
-    /// about what was clicked and answering about a tree.
-    /// </summary>
-    public async Task<TrackingResult> CanRemoveAsync(
-        RepositoryInfo repository,
-        IReadOnlyList<string> paths,
-        CancellationToken cancellationToken)
-    {
-        if (paths.Count == 0)
-            return TrackingResult.Ok;
-
-        GitResult result = await git.ReadAsync(
-            repository.Root,
-            ["rm", "--dry-run", "--", .. paths.Select(Literal)],
-            cancellationToken).ConfigureAwait(false);
-
-        if (result.Succeeded)
-            return TrackingResult.Ok;
-
-        log.Warn($"git rm --dry-run refused {paths.Count} path(s) ({result.ExitCode}).");
-        return TrackingResult.Failed(Words(result));
-    }
-
-    /// <summary>
-    /// Whether every tracked file under the folder <paramref name="path"/> could be removed — with
-    /// nothing done about it either way.
-    ///
-    /// <b>This is a gate, not a preview.</b> <c>--dry-run</c> runs the same check the real command
-    /// would and exits non-zero naming every file whose content differs from both HEAD and the index.
-    /// It is asked <i>before</i> the Recycle Bin, which is the one step in the folder removal that
-    /// Git does not perform and therefore cannot refuse: by the time the folder is in the bin,
-    /// "never discard uncommitted work" is no longer a decision anything can make. Answering here is
-    /// what keeps the whole sequence honest.
-    ///
-    /// Git's refusal is <b>reported, never parsed</b> — it names the offending files, which is a
-    /// better answer than any of ours, and reading it as data would be reading human-readable Git
-    /// output.
-    /// </summary>
-    public async Task<TrackingResult> CanRemoveFolderAsync(
-        RepositoryInfo repository,
-        string path,
-        CancellationToken cancellationToken)
-    {
-        GitResult result = await git.ReadAsync(
-            repository.Root,
-            ["rm", "-r", "--dry-run", "--", Literal(path)],
-            cancellationToken).ConfigureAwait(false);
-
-        if (result.Succeeded)
-            return TrackingResult.Ok;
-
-        log.Warn($"git rm --dry-run refused {path} ({result.ExitCode}).");
-        return TrackingResult.Failed(Words(result));
-    }
-
-    /// <summary>
-    /// Records the deletion of the folder <paramref name="path"/> in the index, the working tree
-    /// having already been dealt with.
-    ///
-    /// <b><c>--cached</c>, so this cannot delete anything.</b> The folder is in the Recycle Bin by the
-    /// time this runs, and the flag is what makes that ordering structural rather than a comment: a
-    /// bare <c>git rm -r</c> here would be a second thing able to destroy the user's files, reached
-    /// after the one question has already been answered.
-    /// </summary>
-    public Task<TrackingResult> RemoveFolderAsync(
-        RepositoryInfo repository,
-        string path,
-        CancellationToken cancellationToken) =>
-        RunAsync(
-            repository,
-            ["rm", "-r", "--cached", "--", Literal(path)],
-            $"Removed {path}",
-            cancellationToken);
 
     /// <summary>
     /// What the log says a batch did. The one path is named when there is one, because that is the
@@ -244,15 +133,15 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
         paths.Count == 1 ? $"Staged {paths[0]}" : $"Staged {paths.Count} paths";
 
     /// <inheritdoc cref="Staged"/>
-    private static string Removed(IReadOnlyList<string> paths) =>
-        paths.Count == 1 ? $"Removed {paths[0]}" : $"Removed {paths.Count} paths";
+    private static string Untracked(IReadOnlyList<string> paths) =>
+        paths.Count == 1 ? $"Untracked {paths[0]}" : $"Untracked {paths.Count} paths";
 
     /// <summary>
     /// How many entries a <c>-z</c> listing came back with.
     ///
-    /// <b>A read that failed counts nothing</b>, which is the direction to fail in: for a removal
-    /// zero is the refusal, and for an add it is "nothing to stage" rather than a stage of unknown
-    /// size. Both stop.
+    /// <b>A read that failed counts nothing</b>, which is the direction to fail in: zero is "Git has
+    /// nothing here", and a removal that believes that leaves the path alone rather than running a
+    /// command over a state it could not read.
     /// </summary>
     private async Task<int> CountAsync(
         RepositoryInfo repository,
@@ -298,8 +187,8 @@ public sealed class TrackingService(IGitProcessRunner git, RepositoryService rep
             return TrackingResult.Failed(Words(result));
         }
 
-        //The index moved, and for a removal the working tree with it -- so every cached answer about
-        //this repository is stale, and the palette's overview reads the same generation counter.
+        //The index moved -- the working tree never does here -- so every cached answer about this
+        //repository is stale, and the palette's overview reads the same generation counter.
         repositories.Invalidate(repository.Root);
 
         log.Info($"{logMessage} in {repository.Root}.");

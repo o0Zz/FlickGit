@@ -75,24 +75,21 @@ add.done = {0} bereitgestellt
 add.done.many = {0} Dateien bereitgestellt
 
 # ---- Datei löschen ----
-delete.menu = Datei löschen…
+delete.menu = Datei löschen
 delete.title = Datei löschen
-delete.question = {0} löschen?
-delete.tracked = Sie wandert in den Papierkorb. Git kennt sie weiterhin: das Löschen wird zu einer Änderung, die Sie committen — oder mit git restore rückgängig machen — können.
-delete.untracked = Sie wandert in den Papierkorb. Git hat diese Datei nie gesehen, das ist also der einzige Weg zurück.
-delete.yes = Löschen
-delete.no = Behalten
+delete.untracked = {0} aus Git entfernt — die Datei liegt weiterhin auf der Festplatte
 delete.done = {0} gelöscht
 delete.missing = {0} liegt nicht mehr auf der Festplatte.
 delete.outside = {0} liegt außerhalb von {1} und wird nicht gelöscht.
 delete.reparsepoint = {0} ist eine Verknüpfung oder Junction. FlickGit löscht nicht hindurch.
 delete.failed = {0} konnte nicht gelöscht werden:\n\n{1}
-delete.menu.many = {0} Dateien löschen…
-delete.question.many = {0} Dateien löschen?
-delete.body.many = Sie wandern alle in den Papierkorb. Git kennt die versionierten weiterhin: deren Löschen wird zu Änderungen, die Sie committen — oder mit git restore rückgängig machen — können.
-delete.untracked.many = {0} davon sind unversioniert. Git hat sie nie gesehen, der Papierkorb ist also der einzige Weg zurück.
+delete.menu.many = {0} Dateien löschen
+delete.untracked.many = {0} Dateien aus Git entfernt — die Dateien liegen weiterhin auf der Festplatte
+delete.done.mixed = {0} gelöscht · {1} aus Git entfernt
 delete.done.many = {0} Dateien gelöscht
-delete.partial = {0} Dateien wurden vor dieser gelöscht.
+delete.partial = {0} Dateien wurden vor dieser bereits gelöscht.
+delete.untrack.menu = Aus Git entfernen
+delete.untrack.menu.many = {0} Dateien aus Git entfernen
 
 # ---- Datei zurücksetzen ----
 revert.menu = Datei zurücksetzen…
@@ -119,45 +116,30 @@ revert.partial = {0} Dateien wurden vor dieser zurückgesetzt.
 # dieser Eintrag fragt.
 # {0} repository-relativer Pfad
 file.added = {0} gestaged
-file.removed = {0} gelöscht — das Löschen ist gestaged, nicht committet.
-file.untracked = Git verfolgt {0} nicht, es gibt also nichts zu entfernen. Das Löschen im Explorer entfernt die Datei selbst.
+file.removed = {0} aus Git entfernt — die Datei liegt weiterhin auf der Festplatte
+file.untracked = Git verfolgt {0} nicht, es gibt also nichts zu entfernen.
 # {0} der übergebene Pfad, {1} Repository-Wurzel
 file.outside = {0} liegt außerhalb von {1} und wird nicht angetastet.
-file.remove.title = Datei entfernen
 # {0} repository-relativer Pfad
-file.remove.ask = {0} entfernen?\n\nDie Datei wird von der Festplatte gelöscht und das Löschen wird gestaged, nicht committet. HEAD hat sie weiterhin, „Datei zurücksetzen…“ holt sie zurück.\n\nGit verweigert es, wenn die Datei nie committete Änderungen enthält.
-file.remove.yes = Entfernen
 
 # ---- das Explorer-Ordnermenü ----
 # {0} repository-relativer Pfad
-folder.nothingtoadd = Unter {0} gibt es nichts zu stagen.
 # {0} repository-relativer Pfad, {1} Anzahl der entfernten versionierten Dateien
-folder.removed = {0} liegt im Papierkorb — das Löschen von {1} Dateien ist gestaged, nicht committet.
-folder.untracked = Git verfolgt unter {0} nichts, es gibt also nichts zu entfernen. Das Löschen im Explorer entfernt den Ordner selbst.
+folder.removed = Alles unter {0} aus Git entfernt — die Dateien liegen weiterhin auf der Festplatte
+folder.untracked = Git verfolgt unter {0} nichts, es gibt also nichts zu entfernen.
 # {0} der übergebene Pfad
 folder.isroot = {0} ist die Repository-Wurzel. Ein ganzes Repository staged „Commit“ — „Hinzufügen“ und „Entfernen“ arbeiten auf einem Ordner darin.
-folder.add.title = Ordner hinzufügen
 # {0} Pfad, {1} Dateien insgesamt, {2} davon Git unbekannt
-folder.add.ask = {0} hinzufügen?\n\n{1} Dateien darunter werden gestaged, {2} davon sind für Git neu.\n\nEs wird nichts committet und nichts gepusht.
-folder.add.yes = Hinzufügen
-folder.remove.title = Ordner entfernen
 # {0} Pfad, {1} versionierte Dateien, {2} von Git nie gesehene Dateien
-folder.remove.ask = {0} entfernen?\n\nDer Ordner wandert in den Papierkorb, und das Löschen seiner {1} versionierten Dateien wird gestaged, nicht committet.\n\n{2} Dateien darin, die Git nie gesehen hat, landen ebenfalls im Papierkorb — für die ist das der einzige Weg zurück, ebenso wie für alles, was .gitignore verbirgt.\n\nGit verweigert es, wenn eine versionierte Datei darin nie committete Änderungen enthält.
-folder.remove.yes = Entfernen
 # {0} repository-relativer Pfad
-folder.remove.binned = {0} liegt im Papierkorb.
 
 # ---- das Explorer-Menü bei mehreren ausgewählten Elementen ----
 selection.added = {0} Elemente zum Commit vorgemerkt.
-selection.removed = {0} Elemente entfernt — das Löschen von {1} versionierten Dateien ist vorgemerkt, nicht committet.
-selection.nothingtoadd = In den {0} ausgewählten Elementen gibt es nichts vorzumerken.
-selection.add.title = Diese Elemente hinzufügen
-selection.add.ask = {0} ausgewählte Elemente hinzufügen?\n\n{1} Dateien werden vorgemerkt, davon {2} neu für Git.\n\nEs wird nichts committet und nichts gepusht.
-selection.add.yes = Hinzufügen
-selection.remove.title = Diese Elemente entfernen
-selection.remove.ask = {0} ausgewählte Elemente entfernen?\n\n{1} davon sind Ordner und wandern mit ihrem gesamten Inhalt in den Papierkorb.\n\nDas Löschen von {2} versionierten Dateien wird vorgemerkt, nicht committet. {3} Dateien, die Git nie gesehen hat, landen ebenfalls im Papierkorb — das ist für diese der einzige Weg zurück, ebenso wie für alles, was .gitignore verbirgt.\n\nGit verweigert dies, wenn eine davon nie committete Änderungen enthält.
-selection.remove.yes = Entfernen
-selection.remove.partial = {0} Elemente wurden vor diesem entfernt.
+selection.removed = {0} Elemente aus Git entfernt — die Dateien liegen weiterhin auf der Festplatte
+selection.untracked = Git verfolgt keines der {0} ausgewählten Elemente, es gibt also nichts zu entfernen.
+# {0} how many were skipped because Git has nothing under them
+selection.remove.skipped = {0} weitere blieben unverändert: Git verfolgt sie nicht.
+selection.remove.skipped.one = Eines blieb unverändert: Git verfolgt es nicht.
 selection.toomany = {0} Elemente sind ausgewählt — mehr, als eine Befehlszeile tragen kann. Öffnen Sie das Commit-Fenster und bearbeiten Sie sie in der Dateiliste.
 
 # ---- Diff-Ansicht ----
@@ -617,7 +599,7 @@ action.stash = Stashes…
 action.log = Log anzeigen…
 action.blame = Blame…
 action.add = Hinzufügen
-action.rm = Entfernen…
+action.rm = Aus Git entfernen
 action.repo = Repository-Einstellungen…
 action.submodule = Submodule…
 action.clone = Klonen…

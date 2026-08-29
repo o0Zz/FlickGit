@@ -75,24 +75,21 @@ add.done = {0} indexé
 add.done.many = {0} fichiers indexés
 
 # ---- suppression d'un fichier ----
-delete.menu = Supprimer le fichier…
+delete.menu = Supprimer le fichier
 delete.title = Supprimer le fichier
-delete.question = Supprimer {0} ?
-delete.tracked = Il part à la corbeille. Git le connaît toujours : la suppression devient une modification à valider — ou à annuler avec git restore.
-delete.untracked = Il part à la corbeille. Git n'a jamais vu ce fichier : c'est le seul moyen de le récupérer.
-delete.yes = Supprimer
-delete.no = Conserver
+delete.untracked = {0} retiré de Git — le fichier est toujours sur le disque
 delete.done = {0} supprimé
 delete.missing = {0} n'est plus sur le disque.
 delete.outside = {0} est en dehors de {1} et ne sera pas supprimé.
 delete.reparsepoint = {0} est un lien symbolique ou une jonction. FlickGit ne supprime pas au travers.
 delete.failed = {0} n'a pas pu être supprimé :\n\n{1}
-delete.menu.many = Supprimer {0} fichiers…
-delete.question.many = Supprimer {0} fichiers ?
-delete.body.many = Ils partent tous à la corbeille. Git connaît toujours les fichiers suivis : leurs suppressions deviennent des modifications à valider — ou à annuler avec git restore.
-delete.untracked.many = {0} d'entre eux ne sont pas suivis. Git ne les a jamais vus : la corbeille est le seul moyen de les récupérer.
+delete.menu.many = Supprimer {0} fichiers
+delete.untracked.many = {0} fichiers retirés de Git — les fichiers sont toujours sur le disque
+delete.done.mixed = {0} supprimés · {1} retirés de Git
 delete.done.many = {0} fichiers supprimés
-delete.partial = {0} fichiers ont été supprimés avant celui-ci.
+delete.partial = {0} fichiers avaient déjà été supprimés avant celui-ci.
+delete.untrack.menu = Retirer de Git
+delete.untrack.menu.many = Retirer {0} fichiers de Git
 
 # ---- rétablir un fichier ----
 revert.menu = Rétablir le fichier…
@@ -119,45 +116,30 @@ revert.partial = {0} fichiers ont été rétablis avant celui-ci.
 # pour cela que seul celui-là pose une question.
 # {0} chemin relatif au dépôt
 file.added = {0} indexé
-file.removed = {0} supprimé — la suppression est indexée, pas validée.
-file.untracked = Git ne suit pas {0} : il n'y a rien à retirer. La suppression d'Explorer efface le fichier lui-même.
+file.removed = {0} retiré de Git — le fichier est toujours sur le disque
+file.untracked = Git ne suit pas {0} : il n'y a rien à retirer.
 # {0} le chemin tel qu'il a été donné, {1} racine du dépôt
 file.outside = {0} est en dehors de {1} et ne sera pas touché.
-file.remove.title = Supprimer le fichier
 # {0} chemin relatif au dépôt
-file.remove.ask = Supprimer {0} ?\n\nLe fichier est effacé du disque et la suppression est indexée, pas validée. HEAD l'a toujours : « Rétablir le fichier… » le remet en place.\n\nGit refuse si le fichier contient des modifications jamais validées.
-file.remove.yes = Supprimer
 
 # ---- le menu de dossier d'Explorer ----
 # {0} chemin relatif au dépôt
-folder.nothingtoadd = Rien à indexer sous {0}.
 # {0} chemin relatif au dépôt, {1} nombre de fichiers suivis supprimés
-folder.removed = {0} est dans la Corbeille — la suppression de {1} fichiers est indexée, pas validée.
-folder.untracked = Git ne suit rien sous {0} : il n'y a rien à retirer. La suppression d'Explorer efface le dossier lui-même.
+folder.removed = Tout le contenu de {0} a été retiré de Git — les fichiers sont toujours sur le disque
+folder.untracked = Git ne suit rien sous {0} : il n'y a rien à retirer.
 # {0} le chemin tel qu'il a été donné
 folder.isroot = {0} est la racine du dépôt. C'est « Valider » qui indexe un dépôt entier — « Ajouter » et « Supprimer » agissent sur un dossier à l'intérieur.
-folder.add.title = Ajouter le dossier
 # {0} chemin, {1} fichiers au total, {2} dont Git n'a jamais vus
-folder.add.ask = Ajouter {0} ?\n\n{1} fichiers en dessous sont indexés, dont {2} nouveaux pour Git.\n\nRien n'est validé et rien n'est poussé.
-folder.add.yes = Ajouter
-folder.remove.title = Supprimer le dossier
 # {0} chemin, {1} fichiers suivis, {2} fichiers que Git n'a jamais vus
-folder.remove.ask = Supprimer {0} ?\n\nLe dossier part à la Corbeille, et la suppression de ses {1} fichiers suivis est indexée, pas validée.\n\n{2} fichiers à l'intérieur que Git n'a jamais vus partent aussi à la Corbeille — c'est le seul retour possible pour eux, comme pour tout ce que .gitignore masque.\n\nGit refuse si un fichier suivi à l'intérieur contient des modifications jamais validées.
-folder.remove.yes = Supprimer
 # {0} chemin relatif au dépôt
-folder.remove.binned = {0} est dans la Corbeille.
 
 # ---- le menu de l'Explorateur sur plusieurs éléments sélectionnés ----
 selection.added = {0} éléments indexés.
-selection.removed = {0} éléments supprimés — la suppression de {1} fichiers suivis est indexée, pas validée.
-selection.nothingtoadd = Rien à indexer dans les {0} éléments sélectionnés.
-selection.add.title = Ajouter ces éléments
-selection.add.ask = Ajouter {0} éléments sélectionnés ?\n\n{1} fichiers sont indexés, dont {2} nouveaux pour Git.\n\nRien n'est validé et rien n'est poussé.
-selection.add.yes = Ajouter
-selection.remove.title = Supprimer ces éléments
-selection.remove.ask = Supprimer {0} éléments sélectionnés ?\n\n{1} d'entre eux sont des dossiers et partent à la Corbeille avec tout ce qu'ils contiennent.\n\nLa suppression de {2} fichiers suivis est indexée, pas validée. {3} fichiers que Git n'a jamais vus partent aussi à la Corbeille — c'est le seul retour possible pour eux, comme pour ce que .gitignore masque.\n\nGit refuse si l'un d'eux contient des modifications jamais validées.
-selection.remove.yes = Supprimer
-selection.remove.partial = {0} éléments ont été supprimés avant celui-ci.
+selection.removed = {0} éléments retirés de Git — les fichiers sont toujours sur le disque
+selection.untracked = Git ne suit aucun des {0} éléments sélectionnés : il n'y a rien à retirer.
+# {0} how many were skipped because Git has nothing under them
+selection.remove.skipped = {0} autres ont été laissés tels quels : Git ne les suit pas.
+selection.remove.skipped.one = Un autre a été laissé tel quel : Git ne le suit pas.
 selection.toomany = {0} éléments sont sélectionnés — plus qu'une ligne de commande ne peut en porter. Ouvrez la fenêtre de commit et traitez-les depuis la liste des fichiers.
 
 # ---- visionneuse de diff ----
@@ -617,7 +599,7 @@ action.stash = Remises…
 action.log = Afficher le journal…
 action.blame = Blame…
 action.add = Ajouter
-action.rm = Supprimer…
+action.rm = Retirer de Git
 action.repo = Paramètres du dépôt…
 action.submodule = Sous-modules…
 action.clone = Cloner…

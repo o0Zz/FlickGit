@@ -7,6 +7,7 @@ using FlickGit.App.Settings;
 using FlickGit.Branches;
 using FlickGit.Commits;
 using FlickGit.Diff;
+using FlickGit.Files;
 using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Merges;
@@ -34,6 +35,7 @@ public sealed class CommitViewModel : ObservableObject
     private readonly PatchService _patches;
     private readonly WorkingTreeWriter _writer;
     private readonly WorkingTreeDeleter _deleter;
+    private readonly TrackingService _tracking;
     private readonly EditorLauncher _editors;
     private readonly RestoreService _restore;
     private readonly ConflictService _conflicts;
@@ -76,6 +78,7 @@ public sealed class CommitViewModel : ObservableObject
         PatchService patches,
         WorkingTreeWriter writer,
         WorkingTreeDeleter deleter,
+        TrackingService tracking,
         EditorLauncher editors,
         RestoreService restore,
         ConflictService conflicts,
@@ -93,6 +96,7 @@ public sealed class CommitViewModel : ObservableObject
         _patches = patches;
         _writer = writer;
         _deleter = deleter;
+        _tracking = tracking;
         _editors = editors;
         _restore = restore;
         _conflicts = conflicts;
@@ -361,20 +365,20 @@ public sealed class CommitViewModel : ObservableObject
         && _currentStatus.Files.Any(f => f.IsSelected);
 
     /// <summary>
-    /// The highlighted rows Delete can act on -- the ones with a file to remove, and the ones with an
-    /// addition to take back out of the index.
+    /// The highlighted rows Del can act on -- the untracked ones, which go to the Recycle Bin, and the
+    /// ones the index holds, which come out of it.
     ///
-    /// A row whose file is already gone -- deleted from the working tree, or removed with
-    /// <c>git rm</c> -- is filtered out rather than refused later. The <c>D</c> on the row already says
-    /// the answer, and in a selection of ten it is the only honest way to count what will happen.
+    /// <b>A row whose deletion is already staged is filtered out</b>, rather than refused later: the
+    /// index has no entry left to remove, so <c>git rm --cached</c> would answer
+    /// <c>pathspec ... did not match any files</c> and refuse the whole batch over a row with nothing
+    /// left to do. That is also the row a removal leaves behind, so it is the one most likely to be in
+    /// a selection reached with Ctrl+A.
     ///
-    /// <b>Unless HEAD has no copy of it</b>, in which case something is still left to do with the file
-    /// already gone: the index is holding an addition of a path that is now nowhere else. That is the
-    /// <c>AD</c> row, and leaving it out would make it the one row in this list nothing here can clear.
+    /// <b>A conflicted row too.</b> Taking a path out of the index mid-merge is a merge decision, and
+    /// Git refuses an unmerged path without <c>-f</c> in any case -- which this window will not pass.
     /// </summary>
     private List<FileChangeItem> Deletable =>
-        [.. _selectedFiles.Where(f =>
-            f.IsOnDisk || RestoreService.KindFor(f.Change) == RevertKind.Unstage)];
+        [.. _selectedFiles.Where(f => !f.IsConflicted && !f.Change.IsDeletionStaged)];
 
     /// <summary>
     /// The highlighted rows Revert can act on -- of either kind.
@@ -391,17 +395,31 @@ public sealed class CommitViewModel : ObservableObject
     /// The highlighted rows Add can act on — the ones <c>git add</c> has a pathspec for.
     ///
     /// Two kinds are filtered out, and both are CLAUDE.md's staging rules rather than taste. A
-    /// <see cref="GitFileChange.IsDeletionStaged"/> row is in neither the working tree nor the index,
-    /// so its pathspec matches nothing and <c>git add</c> fails the whole call — and there is nothing
-    /// to do anyway, since the index already holds the deletion. A conflicted row is the one thing
-    /// this window must never stage by accident: <c>git add</c> on it records the file with its
-    /// conflict markers as the resolution.
+    /// <see cref="GitFileChange.IsDeletionStaged"/> row with nothing left on disk is in neither the
+    /// working tree nor the index, so its pathspec matches nothing and <c>git add</c> fails the whole
+    /// call — and there is nothing to do anyway, since the index already holds the deletion. A
+    /// conflicted row is the one thing this window must never stage by accident: <c>git add</c> on it
+    /// records the file with its conflict markers as the resolution.
+    ///
+    /// <b>A staged deletion whose file is still there is the way back from Del, and it belongs here.</b>
+    /// Untracking leaves the file on disk as an untracked row beside the <c>D</c> one, so <c>git add</c>
+    /// finds the content, puts it back in the index and clears the deletion with it — Add is then
+    /// exactly the inverse of Del. The untracked twin is what says the file survived, which is Git's own
+    /// answer rather than a second probe of the disk.
     ///
     /// Filtered rather than refused, for the same reason Revert filters: Ctrl+A over the list is the
     /// ordinary way to reach a mass add, and the label counts what the click would touch.
     /// </summary>
     private List<FileChangeItem> Addable =>
-        [.. _selectedFiles.Where(f => !f.IsConflicted && !f.Change.IsDeletionStaged)];
+        [.. _selectedFiles.Where(f =>
+            !f.IsConflicted && (!f.Change.IsDeletionStaged || HasUntrackedTwin(f.Path)))];
+
+    /// <summary>
+    /// Whether the list holds an untracked row for <paramref name="path"/> — the file a removal left on
+    /// disk, beside the staged deletion it recorded.
+    /// </summary>
+    private bool HasUntrackedTwin(string path) =>
+        Files.Any(f => f.IsUntracked && string.Equals(f.Path, path, StringComparison.Ordinal));
 
     /// <summary>
     /// The highlighted rows Edit can act on — the ones there is still a file for.
@@ -510,16 +528,15 @@ public sealed class CommitViewModel : ObservableObject
     public bool CanDeleteFile => !_isBusy && Deletable.Count > 0;
 
     /// <summary>
-    /// Whether every row Delete would touch is one HEAD has no copy of -- so the click unstages,
-    /// touches no file and asks nothing.
+    /// Whether every row Del would touch is one Git has never seen — so the click sends files to the
+    /// Recycle Bin, and nothing else.
     ///
-    /// <b>The label reads off this rather than the dialog explaining itself afterwards.</b> An item
-    /// saying <i>Delete file...</i> that silently leaves the file where it is would be the one surprise
-    /// this behaviour could produce, and a menu is the last place to find out what a click did.
+    /// <b>The label reads off this, because the two halves do opposite things to the disk.</b> On an
+    /// untracked row Del deletes the file; on every other row it takes the path out of the index and
+    /// leaves the file alone. One word covering both could only manage it by being vague about the
+    /// destructive half, and a menu is the last place to find out what a click did.
     /// </summary>
-    public bool DeleteUnstagesOnly =>
-        Deletable is { Count: > 0 } rows
-        && rows.TrueForAll(f => RestoreService.KindFor(f.Change) == RevertKind.Unstage);
+    public bool DeleteBinsOnly => Deletable is { Count: > 0 } rows && rows.TrueForAll(f => f.IsUntracked);
 
     public bool CanRevertFile => !_isBusy && Revertable.Count > 0;
 
@@ -722,7 +739,19 @@ public sealed class CommitViewModel : ObservableObject
     public void Adopt(RepositoryStatus status)
     {
         //The tick boxes the user already set, kept across a refresh.
-        var previousSelection = Files.ToDictionary(f => f.Path, f => f.IsSelected, StringComparer.Ordinal);
+        //
+        //Keyed by the path *and* whether the row was untracked, because since Del untracks rather than
+        //deletes, one path can hold two rows: the staged deletion and the file it left on disk. Two
+        //reasons, and each is a bug this shape prevents. A dictionary keyed by path alone throws on the
+        //second row -- so the window would die on the refresh after any removal. And the new untracked
+        //row would otherwise inherit the tick of the tracked row it came from, which is the single
+        //thing CLAUDE.md's staging defaults exist to stop: the next commit would stage the file
+        //straight back and undo the removal the user just asked for.
+        var previousSelection = new Dictionary<(string Path, bool Untracked), bool>();
+
+        foreach (FileChangeItem file in Files)
+            previousSelection[(file.Path, file.IsUntracked)] = file.IsSelected;
+
         var previousHunks = Files
             .Where(f => f.Change.HasChosenHunks)
             .Select(f => f.Path)
@@ -736,7 +765,7 @@ public sealed class CommitViewModel : ObservableObject
 
         foreach (GitFileChange change in status.Files)
         {
-            if (previousSelection.TryGetValue(change.Path, out bool wasSelected))
+            if (previousSelection.TryGetValue((change.Path, change.IsUntracked), out bool wasSelected))
                 change.IsSelected = wasSelected;
 
             //Kept only while the index still holds something of the file: after a commit it does not, and
@@ -1013,7 +1042,7 @@ public sealed class CommitViewModel : ObservableObject
             return;
         }
 
-        if (_diffs.Cached(file.Path) is { } cached)
+        if (_diffs.Cached(file.Change) is { } cached)
         {
             CurrentDiff = cached;
             return;
@@ -1142,28 +1171,30 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Sends every selected file to the Recycle Bin -- except the ones HEAD has no copy of, which are
-    /// taken back out of the index and left exactly where they are.
+    /// Del: <b>the untracked rows go to the Recycle Bin, and every other row comes out of the
+    /// index with its file left exactly where it is.</b>
     ///
-    /// <b>A staged addition is not a file to delete, it is an <c>add</c> to undo.</b> HEAD has never
-    /// held the path, so the row's <c>A</c> is the whole of what happened to it, and the way back out is
-    /// <c>git restore --staged</c> -- the same call <see cref="RevertSelectedFilesAsync"/> makes for the
-    /// same rows, because it is the same question about the same state. Binning it instead left the
-    /// index still holding the addition and the row back as <c>AD</c>: a <c>D</c> for a file that was
-    /// never in the repository, over a staged blob the next commit could put back.
+    /// <b>The split is on whether Git has anything, because that is what decides where the file can
+    /// come back from.</b> An untracked file is uncommitted work Git has never seen, so the bin is the
+    /// only thing that can return it. A tracked one is in HEAD or in the index, so removing it from
+    /// there costs nothing that cannot be undone -- which is why nothing is deleted on that side and
+    /// nothing needs to be.
     ///
-    /// <b>Those rows ask nothing, and that is the rule rather than an omission.</b> An unstage discards
-    /// nothing -- no file moves, no work is lost, and the row is still there to add again -- so there is
-    /// nothing for a confirmation to protect. A selection made entirely of them therefore puts up no
-    /// dialog at all, and one that also holds a file to bin asks about <b>that file only</b>: the count
-    /// in the question is what the Recycle Bin is about to receive, never what is highlighted.
+    /// <b>One command covers the two Git cases, and it answers both correctly without being asked
+    /// which is which.</b> <c>git rm --cached</c> on a tracked path stages a deletion; on a staged
+    /// addition, which HEAD has no copy of, it drops the index entry -- and that is precisely
+    /// unstaging it. See <see cref="TrackingService.UntrackAsync"/>.
     ///
-    /// <b>The bin half is unchanged.</b> It is one of the two destructive things this window does, and
-    /// the Recycle Bin is what lets it ask once rather than twice -- and why Enter answers the question,
-    /// the answer being undoable by a gesture the user already knows. It runs no Git command: deleting a
-    /// tracked file leaves an ordinary <c>D</c> row the user can commit or put back with
-    /// <c>git restore</c>; deleting an untracked one simply removes it, and the warning distinguishing
-    /// those two is why the question has a second line.
+    /// <b>Nothing here asks.</b> The Git half destroys nothing at all, and the bin half is recoverable
+    /// by a gesture the user already knows -- so a dialog would charge a click for a decision that has
+    /// no downside either way. Del is the fast path for exactly this, and the status line at the foot
+    /// of the window is where the outcome is reported.
+    ///
+    /// <b>What the user sees afterwards is two rows for one path</b>, and that is Git's own account of
+    /// the state rather than a display quirk: a <c>D</c> for the deletion waiting to be committed, and
+    /// an untracked row for the file that stayed. The <c>D</c> is ticked and the untracked one is not,
+    /// so committing records the removal and leaves the file alone -- see <c>Adopt</c>, where that tick
+    /// is kept apart, and <c>CommitFlow</c>, which never passes a staged deletion to <c>git add</c>.
     /// </summary>
     private async Task DeleteSelectedFilesAsync()
     {
@@ -1172,76 +1203,50 @@ public sealed class CommitViewModel : ObservableObject
         if (files.Count == 0 || _isBusy)
             return;
 
-        //Split before the question and never inside the loop, so the dialog can count exactly what it
-        //is about to bin. The loop below still walks `files` in list order rather than these in turn --
-        //a mixed selection reordered under the user is a report about rows in an order they never saw.
-        List<FileChangeItem> binning =
-            [.. files.Where(f => RestoreService.KindFor(f.Change) != RevertKind.Unstage)];
-
-        //Nothing is going to the Recycle Bin, so there is nothing to confirm.
-        if (binning.Count > 0 && !await ConfirmDeleteAsync(binning).ConfigureAwait(true))
-            return;
+        //Split before anything runs so the report can name what happened to each half. The bin loop
+        //below still walks its own list in list order, which is the order the user saw.
+        List<FileChangeItem> binning = [.. files.Where(f => f.IsUntracked)];
+        List<FileChangeItem> untracking = [.. files.Where(f => !f.IsUntracked)];
 
         int deleted = 0;
-        int unstaged = 0;
         IsBusy = true;
 
         try
         {
-            foreach (FileChangeItem file in files)
+            //The index first, and one command for the whole batch. `git rm --cached` is all-or-nothing
+            //over its pathspecs, so it either takes every path or refuses before touching the index --
+            //there is no half-applied state for a count to describe. It is also the half that cannot
+            //fail destructively, so a refusal here stops before the bin rather than after it.
+            if (untracking.Count > 0)
             {
-                if (RestoreService.KindFor(file.Change) == RevertKind.Unstage)
+                TrackingResult result = await _tracking
+                    .UntrackAsync(_repository, [.. untracking.Select(f => f.Path)], CancellationToken.None)
+                    .ConfigureAwait(true);
+
+                if (!result.Succeeded)
                 {
-                    //The index only, through the call the commit sequence already makes for an unticked
-                    //file. No bin: nothing is being overwritten, and the copy on disk is precisely what
-                    //the user keeps.
-                    try
-                    {
-                        await _commits
-                            .UnstageAsync(
-                                _repository,
-                                [file.Path],
-                                _currentStatus?.IsUnborn ?? false,
-                                CancellationToken.None)
-                            .ConfigureAwait(true);
-                    }
-                    catch (GitOperationException failure)
-                    {
-                        //Caught rather than let through, for the reason the bin path reports its own
-                        //failures: in a mixed selection the count of what already happened is half the
-                        //answer, and an exception escaping to ReportError carries Git's words without
-                        //it. No mention of the Recycle Bin -- this branch never went near it.
-                        RaiseError(
-                            Strings.Get("delete.title"),
-                            Reason(
-                                Strings.Get("delete.unstage.failed", file.Path, failure.GitError),
-                                deleted + unstaged,
-                                "delete.partial")!);
+                    RaiseError(Strings.Get("delete.title"), result.Error ?? string.Empty);
+                    return;
+                }
 
-                        return;
-                    }
-
+                foreach (FileChangeItem file in untracking)
+                {
                     //The index side is empty now, so leaving HasChosenHunks set would tell the commit
                     //sequence to leave this file alone -- on a file whose index holds nothing.
                     file.Change.HasChosenHunks = false;
-
-                    //Before the refresh, because Adopt carries tick state across by path. The row
-                    //becomes an untracked one, and a ticked untracked row is the single thing the
-                    //staging defaults exist to prevent.
-                    file.IsSelected = false;
-
                     _diffs.Invalidate(file.Path);
-                    unstaged++;
-                    continue;
                 }
+            }
 
+            foreach (FileChangeItem file in binning)
+            {
                 DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
 
                 if (!outcome.Succeeded)
                 {
                     //A null message means the shell already said why, in its own words, so there is
                     //nothing of ours to add but the count -- and nothing at all when it is zero.
-                    if (Reason(outcome.Message, deleted + unstaged, "delete.partial") is { } reason)
+                    if (Reason(outcome.Message, deleted, "delete.partial") is { } reason)
                         RaiseError(Strings.Get("delete.title"), reason);
 
                     return;
@@ -1267,52 +1272,13 @@ public sealed class CommitViewModel : ObservableObject
         //Three cases rather than one total, because the two halves did opposite things to the disk and
         //a single number covering both could only report it by naming neither.
         StatusText =
-            deleted == 0 ? (unstaged == 1
-                ? Strings.Get("delete.unstaged", files[0].Path)
-                : Strings.Get("delete.unstaged.many", unstaged))
-            : unstaged == 0 ? (deleted == 1
-                ? Strings.Get("delete.done", files[0].Path)
+            deleted == 0 ? (untracking.Count == 1
+                ? Strings.Get("delete.untracked", untracking[0].Path)
+                : Strings.Get("delete.untracked.many", untracking.Count))
+            : untracking.Count == 0 ? (deleted == 1
+                ? Strings.Get("delete.done", binning[0].Path)
                 : Strings.Get("delete.done.many", deleted))
-            : Strings.Get("delete.done.mixed", deleted, unstaged);
-    }
-
-    /// <summary>
-    /// The one question, over the rows that are actually going to the Recycle Bin.
-    /// </summary>
-    /// <remarks>
-    /// Its own method because every count in it has to come from <paramref name="binning"/> and nothing
-    /// else: a dialog naming five files when two of them were only ever going to be unstaged is the
-    /// number the user checked their answer against.
-    /// </remarks>
-    private async Task<bool> ConfirmDeleteAsync(List<FileChangeItem> binning)
-    {
-        string question;
-        string body;
-
-        if (binning.Count == 1)
-        {
-            question = Strings.Get("delete.question", binning[0].Path);
-            body = Strings.Get(binning[0].IsUntracked ? "delete.untracked" : "delete.tracked");
-        }
-        else
-        {
-            question = Strings.Get("delete.question.many", binning.Count);
-            body = Strings.Get("delete.body.many");
-
-            int untracked = binning.Count(f => f.IsUntracked);
-
-            if (untracked > 0)
-                body += "\n\n" + Strings.Get("delete.untracked.many", untracked);
-        }
-
-        return await (ConfirmAsync?.Invoke(
-            Strings.Get("delete.title"),
-            question + "\n\n" + body,
-            Strings.Get("delete.yes"),
-            Strings.Get("delete.no"),
-            //Enter accepts: every file named here goes to the Recycle Bin, which is the whole reason one
-            //question is enough for it.
-            true) ?? Task.FromResult(false)).ConfigureAwait(true);
+            : Strings.Get("delete.done.mixed", deleted, untracking.Count);
     }
 
     /// <summary>
@@ -1336,12 +1302,15 @@ public sealed class CommitViewModel : ObservableObject
     /// leave alone instead of the menu item going dead.
     ///
     /// <b>A staged addition is reverted by unstaging it, and that is the same sentence rather than a
-    /// second feature.</b> HEAD has no copy of the path, so the way HEAD has it is: untracked. That is
-    /// also the only way back out of an <c>Add</c> pressed by mistake -- Delete answers a different
-    /// question by removing the file, and unticking the row alone leaves the index still holding it.
+    /// second feature.</b> HEAD has no copy of the path, so the way HEAD has it is: untracked, and
+    /// unticking the row alone would leave the index still holding it.
     /// <see cref="RestoreService.KindFor"/> decides which of the two kinds a row is, in Core and under
     /// test, because getting it wrong in the Added direction is a file deleted by a command that
     /// exits 0.
+    ///
+    /// Del reaches the same place for such a row by another route -- it takes the path out of the index
+    /// too -- which is agreement rather than duplication: there is one way back out of an <c>Add</c>
+    /// pressed by mistake, and both items are it.
     ///
     /// <b>Those rows go nowhere near the Recycle Bin</b>, and the branch below is on the kind rather
     /// than on <see cref="FileChangeItem.IsOnDisk"/> for exactly that reason: an unstage discards
@@ -2005,7 +1974,7 @@ public sealed class CommitViewModel : ObservableObject
         Raise(nameof(CanCommit));
         Raise(nameof(CanGenerate));
         Raise(nameof(CanDeleteFile));
-        Raise(nameof(DeleteUnstagesOnly));
+        Raise(nameof(DeleteBinsOnly));
         DeleteFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(CanRevertFile));
         RevertFileCommand.RaiseCanExecuteChanged();
@@ -2036,7 +2005,7 @@ public sealed class CommitViewModel : ObservableObject
     private void RaiseError(string title, string message) => ErrorRaised?.Invoke(title, message);
 
     /// <summary>
-    /// What to show when a bin or a restore refused part way through a selection.
+    /// What to show when a delete or a restore refused part way through a selection.
     ///
     /// <paramref name="message"/> is null when the shell already told the user why -- a cancelled
     /// Recycle Bin prompt -- so the only thing left to say is how many files went before it, and there

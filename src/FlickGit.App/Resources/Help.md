@@ -76,7 +76,8 @@ The tick boxes decide the commit — nothing else does.
   whatever you did over there. Whichever editor it is, the file is handed to it as an argument, so
   pressing Edit on a `build.bat` or a stray `setup.exe` in the list opens it rather than running it.
 
-Right-click a row for **Add**, **Revert file…** and **Delete file…**, each acting on everything you
+Right-click a row for **Add**, **Revert file…** and the delete item — which reads **Remove from Git**
+or **Delete file** depending on what the rows you picked actually are — each acting on everything you
 have highlighted.
 
 **Revert file…** puts the row back the way HEAD has it, and what that means depends on whether HEAD
@@ -93,10 +94,22 @@ has the file at all:
 Rows HEAD cannot help with are skipped rather than greyed out, and the dialog counts them: untracked
 files (Delete is the item for those), renames, and anything conflicted.
 
-**Del** is Delete file…: it sends the selected files to the Recycle Bin and runs no Git command at
-all, so a tracked file simply becomes a `D` row you can commit or put back, and an untracked one is
-gone from the tree but still in the bin. It asks first, and only from the file list — in the message
-box and in the diff pane Del is an ordinary character.
+**Del** is the same item, and what it does depends on whether Git has the row at all:
+
+- **A file Git tracks** — including one you just added — comes **out of Git and stays on your disk**.
+  The row turns into a `D` you can commit, and the file itself turns up again at the bottom of the
+  list as untracked. Nothing is deleted, so nothing is asked. Press **Add** on either of those two
+  rows and the removal is undone.
+- **A file Git has never seen** goes to the **Recycle Bin**, and runs no Git command at all. There is
+  nowhere else it could come back from, which is why the bin rather than a question is what makes it
+  safe.
+
+Seeing one file on two rows afterwards is Git's own account of the state, not a glitch: the `D` row is
+the removal waiting to be committed, and the untracked row is the file you kept. The `D` is ticked and
+the untracked one is not, so committing records the removal and leaves your file alone.
+
+Del works only from the file list — in the message box and in the diff pane it is an ordinary
+character.
 
 ### Conflicts
 
@@ -434,27 +447,26 @@ The other two entries on a **file**'s FlickGit menu, beside Blame.
 
 **Add** stages the file, which for one Git has never seen is what starts tracking it. Nothing is
 committed, so the file simply turns up ticked in the commit window. There is nothing to confirm and
-nothing to undo — untick the row and it is out again.
+nothing to undo — untick the row and it is out again. It is also how you undo a Remove.
 
-**Remove…** deletes the file and stages the deletion, and asks first because it is the one that
-deletes. Two things are worth knowing before you press it:
+**Remove from Git** takes the file out of Git and **leaves it on your disk**. It is `git rm --cached`:
+the deletion turns up in the commit window as a `D` row waiting to be committed, and the file itself
+comes back in the list as untracked. Nothing is deleted anywhere, so nothing is asked — and **Add** on
+the same file puts it straight back.
 
-- **Git refuses if the file holds changes that were never committed**, and says which file. Nothing
-  is forced, so nothing you have not committed can be lost this way.
-- **HEAD still has the file**, so **Revert file…** in the commit window puts it back. What it does
-  *not* do is send anything to the Recycle Bin — that is **Delete file…** in the commit window, which
-  removes the file and runs no Git command at all.
+If you want the file *gone* rather than untracked, that is Explorer's own Delete, or **Del** in the
+commit window's file list.
 
-An untracked file has nothing for Git to remove, and says so: Explorer's own Delete is what removes
-the file itself.
+A file Git has never seen has nothing to remove, and says so rather than doing anything.
 
 **Both entries act on everything you selected.** Select five files and Add stages all five; select a
-mixture of files and folders and Remove asks **one** question carrying the totals, then takes the
-folders to the Recycle Bin and stages every deletion. If any one of them is refused — because Git
-will not discard uncommitted work, or because something in the selection is not inside this
-repository — **none of them is touched**, so you never end up with half a removal you cannot reason
-about. A selection too large to fit on one command line is refused by name rather than trimmed: use
-the commit window's file list for those.
+mixture of files and folders and Remove takes the lot out of the index in one command, folders
+included — everything under a folder stops being tracked and every file stays where it is. Anything in
+the selection Git is not tracking is left alone and counted in the message. If Git refuses — which it
+does only for a file whose staged version differs from both your copy and the last commit — or if
+something in the selection is not inside this repository, **none of them is touched**, so you never end
+up with half a removal you cannot reason about. A selection too large to fit on one command line is
+refused by name rather than trimmed: use the commit window's file list for those.
 
 ## Command line
 

@@ -19,8 +19,13 @@ namespace FlickGit.App.ViewModels;
 /// moved past them.</description></item>
 /// </list>
 ///
-/// The cache is keyed by path alone, so anything that changes a file's content has to
-/// <see cref="Invalidate"/> it — a save, or a commit.
+/// The cache is keyed by path <i>and</i> by whether the row is untracked, so anything that changes a
+/// file's content has to <see cref="Invalidate"/> it — a save, or a commit.
+///
+/// <b>The second half of the key is not decoration.</b> A removal takes the path out of the index and
+/// leaves the file where it is, so Git reports it twice: a staged deletion, whose diff is HEAD against
+/// nothing, and an untracked file, whose diff is nothing against the file. One key would hand the
+/// second row the first row's diff.
 /// </summary>
 public sealed class DiffCache(DiffService diffs, ILog log)
 {
@@ -38,8 +43,22 @@ public sealed class DiffCache(DiffService diffs, ILog log)
         _repository = repository;
     }
 
-    /// <summary>Drops one file, after a save or a commit changed it.</summary>
-    public void Invalidate(string path) => _cache.Remove(path);
+    /// <summary>
+    /// Drops one file, after a save or a commit changed it.
+    ///
+    /// Both spellings of the key, because a caller has a path and not a row — and after a removal the
+    /// stale entry is as likely to be one as the other.
+    /// </summary>
+    public void Invalidate(string path)
+    {
+        _cache.Remove(Key(path, untracked: false));
+        _cache.Remove(Key(path, untracked: true));
+    }
+
+    /// <summary>
+    /// The cache key. Untracked rows are spelled apart, so a path Git reports twice is two entries.
+    /// </summary>
+    private static string Key(string path, bool untracked) => untracked ? "?" + path : path;
 
     /// <summary>Drops everything, after a commit moved HEAD under every diff.</summary>
     public void Clear() => _cache.Clear();
@@ -51,9 +70,9 @@ public sealed class DiffCache(DiffService diffs, ILog log)
         _inFlight = null;
     }
 
-    /// <summary>A cached diff for <paramref name="path"/>, or null when there is none.</summary>
-    public SideBySideDiff? Cached(string path) =>
-        _cache.TryGetValue(path, out SideBySideDiff? diff) ? diff : null;
+    /// <summary>A cached diff for <paramref name="file"/>, or null when there is none.</summary>
+    public SideBySideDiff? Cached(GitFileChange file) =>
+        _cache.TryGetValue(Key(file.Path, file.IsUntracked), out SideBySideDiff? diff) ? diff : null;
 
     /// <summary>
     /// The diff for <paramref name="file"/>, computing it if it is not cached.
@@ -68,7 +87,7 @@ public sealed class DiffCache(DiffService diffs, ILog log)
         if (_repository is null)
             return null;
 
-        if (Cached(file.Path) is { } cached)
+        if (Cached(file) is { } cached)
             return cached;
 
         //A new token per request, and the previous one cancelled: only the newest selection is
@@ -87,7 +106,7 @@ public sealed class DiffCache(DiffService diffs, ILog log)
             if (cancellation.IsCancellationRequested)
                 return null;
 
-            _cache[file.Path] = diff;
+            _cache[Key(file.Path, file.IsUntracked)] = diff;
             return diff;
         }
         catch (OperationCanceledException)
@@ -119,12 +138,12 @@ public sealed class DiffCache(DiffService diffs, ILog log)
 
         foreach (GitFileChange file in files)
         {
-            if (_cache.ContainsKey(file.Path))
+            if (_cache.ContainsKey(Key(file.Path, file.IsUntracked)))
                 continue;
 
             try
             {
-                _cache[file.Path] = await diffs
+                _cache[Key(file.Path, file.IsUntracked)] = await diffs
                     .ComputeAsync(_repository, file, CancellationToken.None)
                     .ConfigureAwait(true);
             }
