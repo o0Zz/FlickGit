@@ -111,7 +111,7 @@ public sealed class ActionRunner(
 
                 //Git's own words: never paraphrased, never generic.
                 log.Warn($"Action '{action.Id}' failed: git {string.Join(' ', args)} -> {result.ExitCode}");
-                notifier.Warn(action.Label, result.StdErr.Trim() is { Length: > 0 } text ? text : result.StdOut.Trim());
+                notifier.Show(action.Label, result.StdErr.Trim() is { Length: > 0 } text ? text : result.StdOut.Trim());
                 return Outcome.Failed;
             }
 

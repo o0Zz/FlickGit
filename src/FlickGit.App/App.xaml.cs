@@ -118,7 +118,7 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnLastWindowClose;
 
         if (settingsError is not null)
-            VerbOutput.Direct().Notice(Strings.Get("app.name"), settingsError, compact: false);
+            Output().Notice(Strings.Get("app.name"), settingsError, compact: false);
 
         _ = RunLaunchVerbAsync(verb);
     }
@@ -331,7 +331,7 @@ public partial class App : Application
 
     private async Task RunLaunchVerbAsync(Verb verb)
     {
-        VerbResult result = await RunAsync(verb, VerbOutput.Direct()).ConfigureAwait(true);
+        VerbResult result = await RunAsync(verb, Output()).ConfigureAwait(true);
 
         _exitCode = result.Code;
 
@@ -347,10 +347,20 @@ public partial class App : Application
     /// the resident service because a menu entry went stale.
     /// </summary>
     private async Task RunTrayVerbAsync(Verb verb) =>
-        await RunAsync(verb, VerbOutput.Direct()).ConfigureAwait(true);
+        await RunAsync(verb, Output()).ConfigureAwait(true);
 
     private Task<VerbResult> RunAsync(Verb verb, VerbOutput output) =>
         _services!.GetRequiredService<VerbRunner>().RunAsync(verb, output);
+
+    /// <summary>
+    /// Somewhere for a verb launched by this process to answer.
+    ///
+    /// The notifier travels with it because an ordinary outcome is now a notification rather than a
+    /// window — see <see cref="VerbOutput.Say"/>. Resolved per call rather than held in a field: this
+    /// runs before <see cref="StartResident"/> on the one-shot path and after it on the tray path,
+    /// and the singleton is the same object either way.
+    /// </summary>
+    private VerbOutput Output() => VerbOutput.Direct(_services!.GetRequiredService<Notifier>());
 
     private void StartResident()
     {
@@ -373,7 +383,7 @@ public partial class App : Application
 
         ServiceProvider services = _services!;
         var recent = services.GetRequiredService<RecentRepositories>();
-        VerbOutput output = VerbOutput.Direct();
+        VerbOutput output = Output();
 
         _trayIcon = TrayIconFactory.Create(
             recent: () => recent.Paths,
@@ -417,7 +427,7 @@ public partial class App : Application
             //Reported, and startup continues. A hotkey somebody else owns must not cost the user their tray
             //icon, their context menu or their pipe.
             _log.Warn(trigger.Error);
-            services.GetRequiredService<Notifier>().Warn(Strings.Get("app.name"), trigger.Error);
+            services.GetRequiredService<Notifier>().Show(Strings.Get("app.name"), trigger.Error);
         }
 
         //After the tray icon exists and the pipe is listening, at background priority so it cannot delay
@@ -457,7 +467,9 @@ public partial class App : Application
             Verb verb = Verb.Parse(request.Arguments, request.WorkingDirectory);
             _log.Debug($"Pipe request: {verb.Kind} {verb.Path}");
 
-            VerbOutput output = VerbOutput.ForClient(request.HasConsole);
+            VerbOutput output = VerbOutput.ForClient(
+                _services!.GetRequiredService<Notifier>(),
+                request.HasConsole);
 
             VerbResult result = await RunAsync(verb, output).ConfigureAwait(true);
 
@@ -470,7 +482,7 @@ public partial class App : Application
     {
         _log.Error($"Unhandled UI exception: {e.Exception}");
 
-        VerbOutput.Direct().Notice(
+        Output().Notice(
             Strings.Get("error.title"),
             $"{e.Exception.Message}\n\nThe log may hold more:\n{FlickSettings.LogsDirectoryPath}",
             compact: false);

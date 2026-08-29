@@ -302,7 +302,7 @@ public sealed class AiTextService(
             //Once, on the call that crosses the threshold: a persistent warning rather than failing silently
             //on every commit, and equally not one warning per commit.
             if (_consecutiveFailures == DegradedAfter)
-                notifier.Warn(Strings.Get("app.name"), Strings.Get("ai.degraded", DegradedAfter, reason));
+                notifier.Show(Strings.Get("app.name"), Strings.Get("ai.degraded", DegradedAfter, reason));
         }
 
         if (reason is { Length: > 0 })

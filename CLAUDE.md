@@ -1068,7 +1068,8 @@ would run the gate for the fifth only after the first four had already gone. A s
 one command line can carry is **refused with its count, never truncated** — `Launcher` measures the
 line and sends `--too-many <n>` instead, because a removal carrying the first four hundred of five
 hundred selected files is a removal nobody asked for. Add stages (nothing to confirm for a file — staging
-discards nothing). Remove deletes and stages the deletion, behind one question, under four rules:
+discards nothing) and, like the removal, **reports through a notification rather than a window**: the
+outcome of a batch is not a decision, and it must not cost a click — see **Notifications**. Remove deletes and stages the deletion, behind one question, under four rules:
 **nothing is forced** (so `git rm` itself enforces "never discard uncommitted work"); **an untracked
 path is refused before the question**; **it asks on every surface**, with a dialog even from the
 command line; and **the pathspec cannot glob** — every command passes `:(literal)<path>`, or
@@ -1364,8 +1365,29 @@ No files were modified or discarded.
 Never show generic errors such as "Something went wrong." When an operation fails midway, preserve
 repository state and explain what happened.
 
-**Notifications** are native Windows notifications or small non-intrusive dialogs. Avoid unnecessary
-confirmation dialogs; optimise for one-click workflows.
+**Notifications, and the rule that governs every outcome: do not make the user click to be told
+something.** A window is for a *question* or a *failure* — something the user has to read, decide or
+act on. Everything else is a Windows notification through the tray icon, which needs no click, steals
+no focus and does not have to be dismissed.
+
+- **A success is a notification, never a dialog.** "Staged 5 items", "Removed 3 items", the commit
+  toast. `VerbOutput.Say` is where that is decided, once, for every verb: a console when there is one,
+  a notification when there is not. `VerbOutput.Fail` is the other half and still opens a window.
+- **The notice window survives only as the fallback**, for a one-shot launch with no tray icon to
+  speak through. The resident service is an optimisation, never a dependency, so an outcome must not
+  become invisible when it is not running.
+- **`ShowSuccessNotification` gates the commit celebration and nothing else.** Where a notification is
+  the *only* report of an outcome, it is not gated — suppressing it would leave the operation with
+  nothing to show for itself.
+- **Confirmations are for what cannot be undone**, plus the one case where the user cannot see how
+  much is about to happen: anything on the **Safety Rules** list, anything `RequiresConfirmation`, a
+  removal, and Add on a *folder*, whose question exists to carry the file count. Nothing else asks —
+  a confirmation for an operation that discards nothing and shows its own blast radius is a click
+  charged for no decision, which is why Add on a selection of files asks nothing at all.
+- **Never two dialogs for one gesture**, and never one dialog per item in a selection: one question
+  with the totals, then one notification with the result.
+
+Optimise for one-click workflows.
 
 **Logging** under `%LOCALAPPDATA%\FlickGit\Logs\`, with rotation: Git command name, duration, exit code,
 repository path, sanitised errors, and the latency measurements. **Never log** API keys, credentials,

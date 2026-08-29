@@ -327,8 +327,11 @@ public sealed class RepositoryVerbs(
             return VerbResult.Exit(ExitCodes.GitError);
         }
 
+        //The repository, not the verb, because with no console this is a notification and the
+        //commit toast is titled the same way: five repositories are open and "Add" names none of
+        //them. The failures above keep the verb, which is what an error window has to lead with.
         output.Say(
-            title,
+            repository.Name,
             targets.Count == 1
                 ? Strings.Get("file.added", targets[0].Relative)
                 : Strings.Get("selection.added", targets.Count));
@@ -381,7 +384,7 @@ public sealed class RepositoryVerbs(
             //Success, not a failure: the folder is simply already staged or already clean. Exit 0 so
             //a script that adds several folders in a row is not stopped by the quiet one.
             output.Say(
-                Strings.Get("action.add"),
+                repository.Name,
                 folders.Length == 1
                     ? Strings.Get("folder.nothingtoadd", folders[0].Relative)
                     : Strings.Get("selection.nothingtoadd", targets.Count));
@@ -445,7 +448,7 @@ public sealed class RepositoryVerbs(
             target => Task.FromResult(Binned(deleter.DeleteFolder(repository.Root, target.Relative))),
             CancellationToken.None).ConfigureAwait(true);
 
-        return Report(output, title, batch, removal);
+        return Report(output, repository.Name, title, batch, removal);
     }
 
     /// <summary>
@@ -491,6 +494,7 @@ public sealed class RepositoryVerbs(
     /// </summary>
     private static VerbResult Report(
         VerbOutput output,
+        string repository,
         string title,
         IReadOnlyList<RemovalTarget> batch,
         Removal removal)
@@ -500,8 +504,10 @@ public sealed class RepositoryVerbs(
         switch (removal.Outcome)
         {
             case RemovalOutcome.Removed:
+                //The repository rather than the verb: see AddAsync. Only this branch says it -- the
+                //rest are failures, and a failure still opens a window that has to name the verb.
                 output.Say(
-                    title,
+                    repository,
                     one
                         ? Strings.Get(
                             batch[0].IsFolder ? "folder.removed" : "file.removed",

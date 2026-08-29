@@ -1,3 +1,4 @@
+using FlickGit.App.CommandLine;
 using FlickGit.App.Settings;
 using H.NotifyIcon;
 
@@ -21,6 +22,18 @@ public sealed class Notifier(FlickSettings settings)
     /// </summary>
     public TaskbarIcon? Tray { get; set; }
 
+    /// <summary>
+    /// Whether there is anywhere to show one at all — a tray icon, which means the resident service.
+    ///
+    /// Asked by <see cref="VerbOutput.Say"/>, which prefers a notification to a window for an
+    /// ordinary outcome and has to put the window back when the answer is no.
+    /// </summary>
+    public bool CanNotify => Tray is not null;
+
+    /// <summary>
+    /// The commit celebration, and the one thing <c>ShowSuccessNotification</c> turns off — the
+    /// setting says "after a successful commit" and means exactly that.
+    /// </summary>
     public void Success(string title, string message)
     {
         if (!settings.ShowSuccessNotification)
@@ -30,16 +43,16 @@ public sealed class Notifier(FlickSettings settings)
     }
 
     /// <summary>
-    /// Something did not work, and there is no window to say so in.
+    /// Anything that has to arrive: a failure with no window to say so in, and every verb outcome
+    /// that reached <see cref="VerbOutput.Say"/> without a console to print to.
     ///
-    /// Deliberately not gated on <c>ShowSuccessNotification</c>: that setting turns off the
-    /// celebration after a commit, not the tool's ability to report a failure. A hotkey that could
-    /// not be registered or a popup Windows refused to raise has to be sayable, and a modal window
-    /// at logon would be worse than the problem it describes.
+    /// <b>Deliberately not gated on <c>ShowSuccessNotification</c>.</b> That setting turns off the
+    /// celebration after a commit, not the tool's ability to speak. A hotkey that could not be
+    /// registered has to be sayable, and a modal window at logon would be worse than the problem it
+    /// describes — and for `flick add` on a selection this notification <i>is</i> the report, so
+    /// suppressing it would leave the operation with no outcome at all.
     /// </summary>
-    public void Warn(string title, string message) => Show(title, message);
-
-    private void Show(string title, string message)
+    public void Show(string title, string message)
     {
         if (Tray is null)
             return;

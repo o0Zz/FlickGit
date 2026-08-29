@@ -1,6 +1,7 @@
 using System.Text;
 using System.Windows;
 using FlickGit.App.Infrastructure;
+using FlickGit.App.Resident;
 using FlickGit.App.Views;
 using FlickGit.Cli;
 
@@ -25,16 +26,19 @@ public sealed class VerbOutput
 {
     private readonly StringBuilder _output = new();
     private readonly StringBuilder _error = new();
+    private readonly Notifier _notifier;
     private readonly bool _capture;
 
-    private VerbOutput(bool capture, bool hasConsole)
+    private VerbOutput(Notifier notifier, bool capture, bool hasConsole)
     {
+        _notifier = notifier;
         _capture = capture;
         HasConsole = hasConsole;
     }
 
     /// <summary>For a verb this process was launched to run. Text goes to its own console.</summary>
-    public static VerbOutput Direct() => new(capture: false, hasConsole: ConsoleOutput.IsAvailable);
+    public static VerbOutput Direct(Notifier notifier) =>
+        new(notifier, capture: false, hasConsole: ConsoleOutput.IsAvailable);
 
     /// <summary>
     /// For a verb arriving over the pipe. Text is collected for the response instead of printed.
@@ -43,8 +47,8 @@ public sealed class VerbOutput
     /// Whether the <i>stub</i> has somewhere to print. It decides between text and a window exactly
     /// as a direct launch would, because the user cannot tell the two apart and should not have to.
     /// </param>
-    public static VerbOutput ForClient(bool clientHasConsole) =>
-        new(capture: true, hasConsole: clientHasConsole);
+    public static VerbOutput ForClient(Notifier notifier, bool clientHasConsole) =>
+        new(notifier, capture: true, hasConsole: clientHasConsole);
 
     /// <summary>True when a write will reach somebody: a terminal, a pipe, a redirected file.</summary>
     public bool HasConsole { get; }
@@ -64,11 +68,26 @@ public sealed class VerbOutput
             ConsoleOutput.WriteLine(text);
     }
 
-    /// <summary>An ordinary outcome: printed, or shown as a compact notice.</summary>
+    /// <summary>
+    /// An ordinary outcome: printed, or — with no console — said in the notification area.
+    ///
+    /// <b>A notification rather than a window, because "it worked" is not worth a click.</b> Add over
+    /// a multiple selection is the case that made the point: nothing went wrong, nothing is being
+    /// decided, and a notice window turns a finished operation into one more button to press.
+    /// CLAUDE.md, "Notifications": an ordinary outcome is a notification and only a failure or a
+    /// question earns a window. <see cref="Fail"/> is the other half of that rule, and deliberately
+    /// still opens one.
+    ///
+    /// <b>The notice window stays as the fallback</b>, for a one-shot launch with no tray icon to
+    /// speak through: the resident service is an optimisation and never a dependency, so an outcome
+    /// must not become invisible when it is not running.
+    /// </summary>
     public void Say(string title, string message)
     {
         if (HasConsole)
             Line(message);
+        else if (_notifier.CanNotify)
+            _notifier.Show(title, message);
         else
             Notice(title, message, compact: true);
     }
