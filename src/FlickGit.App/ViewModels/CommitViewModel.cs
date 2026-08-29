@@ -1198,7 +1198,11 @@ public sealed class CommitViewModel : ObservableObject
                     try
                     {
                         await _commits
-                            .UnstageAsync(_repository, [file.Path], CancellationToken.None)
+                            .UnstageAsync(
+                                _repository,
+                                [file.Path],
+                                _currentStatus?.IsUnborn ?? false,
+                                CancellationToken.None)
                             .ConfigureAwait(true);
                     }
                     catch (GitOperationException failure)
@@ -1406,7 +1410,11 @@ public sealed class CommitViewModel : ObservableObject
                     try
                     {
                         await _commits
-                            .UnstageAsync(_repository, [file.Path], CancellationToken.None)
+                            .UnstageAsync(
+                                _repository,
+                                [file.Path],
+                                _currentStatus?.IsUnborn ?? false,
+                                CancellationToken.None)
                             .ConfigureAwait(true);
                     }
                     catch (GitOperationException failure)

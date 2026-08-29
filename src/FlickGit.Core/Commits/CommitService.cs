@@ -1,4 +1,5 @@
 using FlickGit.Git;
+using FlickGit.History;
 using FlickGit.Logging;
 using FlickGit.Models;
 using FlickGit.Repositories;
@@ -64,16 +65,37 @@ public sealed class CommitService(IGitProcessRunner git, RepositoryService repos
     /// `git restore --staged` and nothing else. It is unambiguous about not touching the
     /// working tree, unlike `git reset`, whose name also spells the most destructive command in
     /// Git — and there is no fallback to it: Git 2.23 is the stated minimum.
+    ///
+    /// <paramref name="isUnborn"/> is the repository with no commit yet, where the source this
+    /// command takes for granted does not exist. See the comment on the argument list.
     /// </summary>
     public async Task UnstageAsync(
         RepositoryInfo repository,
         IReadOnlyList<string> paths,
+        bool isUnborn,
         CancellationToken cancellationToken)
     {
         if (paths.Count == 0)
             return;
 
-        var args = new List<string>(paths.Count + 3) { "restore", "--staged", "--" };
+        var args = new List<string>(paths.Count + 4) { "restore" };
+
+        //`restore --staged` takes its source from HEAD, and a freshly cloned empty repository has
+        //no commit for HEAD to name: `fatal: could not resolve HEAD`, exit 128, and the commit
+        //never runs — which is every commit in such a repository where the user unticked a row.
+        //The empty tree is what HEAD would name if it existed, so restoring the index from it drops
+        //the entry and leaves the file on disk exactly where it is. That is precisely what
+        //unstaging a first-ever addition means.
+        //
+        //Never unconditional, and the flag is not a tidiness. Against a HEAD that does exist,
+        //restoring the index from the empty tree records a *deletion* of every path named: an
+        //unticked modified file comes back `1 D.` with the file sitting on disk untracked, and the
+        //next commit deletes it. Exit code 0, no message — a worse bug than the one this fixes.
+        if (isUnborn)
+            args.Add($"--source={CommitRange.EmptyTree}");
+
+        args.Add("--staged");
+        args.Add("--");
         args.AddRange(paths.Select(Literal));
 
         GitResult result = await git.RunAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);

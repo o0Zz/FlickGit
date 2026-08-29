@@ -38,7 +38,11 @@ public sealed class CommitFlow(
         //1. Stage the selection, and take back out of the index anything the user unticked. `git commit`
         //commits the index, so an unticked-but-staged file would otherwise be committed anyway.
         if (request.PathsToUnstage.Count > 0)
-            await commits.UnstageAsync(repository, request.PathsToUnstage, cancellationToken).ConfigureAwait(false);
+        {
+            await commits
+                .UnstageAsync(repository, request.PathsToUnstage, request.IsUnborn, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         await commits.StageAsync(repository, request.SelectedPaths, cancellationToken).ConfigureAwait(false);
 
@@ -245,6 +249,14 @@ public sealed record CommitRequest
     /// <summary>Files already in the index that the user unticked, so they come back out of it.</summary>
     public IReadOnlyList<string> PathsToUnstage { get; init; } = [];
 
+    /// <summary>
+    /// The repository has no commit yet, so the unstage cannot take its source from HEAD.
+    ///
+    /// It travels with <see cref="PathsToUnstage"/> because it is a fact about the same status read
+    /// those paths came from — asking Git a second time would let the two disagree.
+    /// </summary>
+    public bool IsUnborn { get; init; }
+
     /// <summary>Null to stay on the branch already checked out -- the normal case, and no Git call.</summary>
     public string? TargetBranch { get; init; }
 
@@ -302,6 +314,10 @@ public sealed record CommitRequest
             [
                 .. status.Files.Where(f => !f.IsSelected && f.IsStaged && !f.HasChosenHunks).Select(f => f.Path)
             ],
+
+            //Derived here, beside the list it governs, so no surface can get the pair out of step:
+            //`git restore --staged` resolves HEAD, and a clone of an empty remote has none.
+            IsUnborn = status.IsUnborn,
 
             TargetBranch = targetBranch,
             CreateBranch = createBranch,
