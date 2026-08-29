@@ -99,6 +99,10 @@ add.done.many = Staged {0} files
 # ---- deleting a file ----
 # The commit window's file list, right-click. Removes the file from the working tree and sends
 # it to the Recycle Bin, which is what makes one question enough for a destructive action.
+#
+# Except on a row HEAD has no copy of -- a staged addition -- where the same item takes the add
+# back out of the index and leaves the file alone. That discards nothing, so it asks nothing, and
+# the delete.unstage.* spellings below are what the item and the status line say instead.
 delete.menu = Delete file…
 delete.title = Delete file
 # {0} repository-relative path
@@ -115,6 +119,8 @@ delete.outside = {0} is outside {1} and will not be deleted.
 delete.reparsepoint = {0} is a symlink or junction. FlickGit will not delete through one.
 # {0} repository-relative path, {1} the reason Windows gave
 delete.failed = {0} could not be deleted:\n\n{1}
+# {0} repository-relative path, {1} Git's own words
+delete.unstage.failed = {0} could not be unstaged:\n\n{1}
 # {0} how many files the menu item would act on
 delete.menu.many = Delete {0} files…
 # {0} how many files
@@ -124,8 +130,21 @@ delete.body.many = They all go to the Recycle Bin. Git still has the tracked one
 delete.untracked.many = {0} of them are untracked. Git has never seen those, so the Recycle Bin is the only way back.
 # {0} how many files were deleted
 delete.done.many = Deleted {0} files
-# {0} how many were deleted before the failure reported above this line
-delete.partial = {0} files were deleted before this one.
+# {0} how many rows were finished before the failure reported above this line. Deleted or
+# unstaged: one selection can hold both, and the count is what already happened either way.
+delete.partial = {0} of the selected files were already done before this one.
+
+# The same item on a row HEAD has no copy of: the add comes back out of the index, the file stays
+# where it is, and nothing is asked because nothing is discarded.
+delete.unstage.menu = Unstage file…
+# {0} how many files the menu item would act on
+delete.unstage.menu.many = Unstage {0} files…
+# {0} repository-relative path
+delete.unstaged = Unstaged {0}
+# {0} how many files were unstaged
+delete.unstaged.many = Unstaged {0} files
+# A selection holding both kinds. {0} how many went to the Recycle Bin, {1} how many were unstaged
+delete.done.mixed = {0} deleted · {1} unstaged
 
 # ---- reverting a file ----
 # The commit window's file list, right-click. Puts the file back the way HEAD has it, sending

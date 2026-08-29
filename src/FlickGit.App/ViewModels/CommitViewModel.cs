@@ -361,13 +361,20 @@ public sealed class CommitViewModel : ObservableObject
         && _currentStatus.Files.Any(f => f.IsSelected);
 
     /// <summary>
-    /// The highlighted rows Delete can act on.
+    /// The highlighted rows Delete can act on -- the ones with a file to remove, and the ones with an
+    /// addition to take back out of the index.
     ///
     /// A row whose file is already gone -- deleted from the working tree, or removed with
     /// <c>git rm</c> -- is filtered out rather than refused later. The <c>D</c> on the row already says
     /// the answer, and in a selection of ten it is the only honest way to count what will happen.
+    ///
+    /// <b>Unless HEAD has no copy of it</b>, in which case something is still left to do with the file
+    /// already gone: the index is holding an addition of a path that is now nowhere else. That is the
+    /// <c>AD</c> row, and leaving it out would make it the one row in this list nothing here can clear.
     /// </summary>
-    private List<FileChangeItem> Deletable => [.. _selectedFiles.Where(f => f.IsOnDisk)];
+    private List<FileChangeItem> Deletable =>
+        [.. _selectedFiles.Where(f =>
+            f.IsOnDisk || RestoreService.KindFor(f.Change) == RevertKind.Unstage)];
 
     /// <summary>
     /// The highlighted rows Revert can act on -- of either kind.
@@ -501,6 +508,18 @@ public sealed class CommitViewModel : ObservableObject
     public int EditableCount => Editable.Count;
 
     public bool CanDeleteFile => !_isBusy && Deletable.Count > 0;
+
+    /// <summary>
+    /// Whether every row Delete would touch is one HEAD has no copy of -- so the click unstages,
+    /// touches no file and asks nothing.
+    ///
+    /// <b>The label reads off this rather than the dialog explaining itself afterwards.</b> An item
+    /// saying <i>Delete file...</i> that silently leaves the file where it is would be the one surprise
+    /// this behaviour could produce, and a menu is the last place to find out what a click did.
+    /// </summary>
+    public bool DeleteUnstagesOnly =>
+        Deletable is { Count: > 0 } rows
+        && rows.TrueForAll(f => RestoreService.KindFor(f.Change) == RevertKind.Unstage);
 
     public bool CanRevertFile => !_isBusy && Revertable.Count > 0;
 
@@ -1123,17 +1142,28 @@ public sealed class CommitViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Deletes every selected file that is still on disk, to the Recycle Bin.
+    /// Sends every selected file to the Recycle Bin -- except the ones HEAD has no copy of, which are
+    /// taken back out of the index and left exactly where they are.
     ///
-    /// <b>One of the two destructive things this window does, and the Recycle Bin is what lets it ask
-    /// once rather than twice.</b> It is also why Enter answers the question: the answer is undoable by
-    /// a gesture the user already knows, and a dialog per file is what the multi-selection exists to
-    /// stop.
+    /// <b>A staged addition is not a file to delete, it is an <c>add</c> to undo.</b> HEAD has never
+    /// held the path, so the row's <c>A</c> is the whole of what happened to it, and the way back out is
+    /// <c>git restore --staged</c> -- the same call <see cref="RevertSelectedFilesAsync"/> makes for the
+    /// same rows, because it is the same question about the same state. Binning it instead left the
+    /// index still holding the addition and the row back as <c>AD</c>: a <c>D</c> for a file that was
+    /// never in the repository, over a staged blob the next commit could put back.
     ///
-    /// No Git command runs. Deleting a tracked file leaves an ordinary <c>D</c> row the user can commit
-    /// or put back with <c>git restore</c>; deleting an untracked one simply removes it. The warning
-    /// that distinguishes those two is why the question has a second line, and over a selection it
-    /// counts the untracked ones rather than naming them.
+    /// <b>Those rows ask nothing, and that is the rule rather than an omission.</b> An unstage discards
+    /// nothing -- no file moves, no work is lost, and the row is still there to add again -- so there is
+    /// nothing for a confirmation to protect. A selection made entirely of them therefore puts up no
+    /// dialog at all, and one that also holds a file to bin asks about <b>that file only</b>: the count
+    /// in the question is what the Recycle Bin is about to receive, never what is highlighted.
+    ///
+    /// <b>The bin half is unchanged.</b> It is one of the two destructive things this window does, and
+    /// the Recycle Bin is what lets it ask once rather than twice -- and why Enter answers the question,
+    /// the answer being undoable by a gesture the user already knows. It runs no Git command: deleting a
+    /// tracked file leaves an ordinary <c>D</c> row the user can commit or put back with
+    /// <c>git restore</c>; deleting an untracked one simply removes it, and the warning distinguishing
+    /// those two is why the question has a second line.
     /// </summary>
     private async Task DeleteSelectedFilesAsync()
     {
@@ -1142,51 +1172,72 @@ public sealed class CommitViewModel : ObservableObject
         if (files.Count == 0 || _isBusy)
             return;
 
-        string question;
-        string body;
+        //Split before the question and never inside the loop, so the dialog can count exactly what it
+        //is about to bin. The loop below still walks `files` in list order rather than these in turn --
+        //a mixed selection reordered under the user is a report about rows in an order they never saw.
+        List<FileChangeItem> binning =
+            [.. files.Where(f => RestoreService.KindFor(f.Change) != RevertKind.Unstage)];
 
-        if (files.Count == 1)
-        {
-            question = Strings.Get("delete.question", files[0].Path);
-            body = Strings.Get(files[0].IsUntracked ? "delete.untracked" : "delete.tracked");
-        }
-        else
-        {
-            question = Strings.Get("delete.question.many", files.Count);
-            body = Strings.Get("delete.body.many");
-
-            int untracked = files.Count(f => f.IsUntracked);
-
-            if (untracked > 0)
-                body += "\n\n" + Strings.Get("delete.untracked.many", untracked);
-        }
-
-        bool confirmed = await (ConfirmAsync?.Invoke(
-            Strings.Get("delete.title"),
-            question + "\n\n" + body,
-            Strings.Get("delete.yes"),
-            Strings.Get("delete.no"),
-            //Enter accepts: every file named here goes to the Recycle Bin, which is the whole reason one
-            //question is enough for it.
-            true) ?? Task.FromResult(false)).ConfigureAwait(true);
-
-        if (!confirmed)
+        //Nothing is going to the Recycle Bin, so there is nothing to confirm.
+        if (binning.Count > 0 && !await ConfirmDeleteAsync(binning).ConfigureAwait(true))
             return;
 
         int deleted = 0;
+        int unstaged = 0;
         IsBusy = true;
 
         try
         {
             foreach (FileChangeItem file in files)
             {
+                if (RestoreService.KindFor(file.Change) == RevertKind.Unstage)
+                {
+                    //The index only, through the call the commit sequence already makes for an unticked
+                    //file. No bin: nothing is being overwritten, and the copy on disk is precisely what
+                    //the user keeps.
+                    try
+                    {
+                        await _commits
+                            .UnstageAsync(_repository, [file.Path], CancellationToken.None)
+                            .ConfigureAwait(true);
+                    }
+                    catch (GitOperationException failure)
+                    {
+                        //Caught rather than let through, for the reason the bin path reports its own
+                        //failures: in a mixed selection the count of what already happened is half the
+                        //answer, and an exception escaping to ReportError carries Git's words without
+                        //it. No mention of the Recycle Bin -- this branch never went near it.
+                        RaiseError(
+                            Strings.Get("delete.title"),
+                            Reason(
+                                Strings.Get("delete.unstage.failed", file.Path, failure.GitError),
+                                deleted + unstaged,
+                                "delete.partial")!);
+
+                        return;
+                    }
+
+                    //The index side is empty now, so leaving HasChosenHunks set would tell the commit
+                    //sequence to leave this file alone -- on a file whose index holds nothing.
+                    file.Change.HasChosenHunks = false;
+
+                    //Before the refresh, because Adopt carries tick state across by path. The row
+                    //becomes an untracked one, and a ticked untracked row is the single thing the
+                    //staging defaults exist to prevent.
+                    file.IsSelected = false;
+
+                    _diffs.Invalidate(file.Path);
+                    unstaged++;
+                    continue;
+                }
+
                 DeleteOutcome outcome = _deleter.Delete(_repository.Root, file.Path);
 
                 if (!outcome.Succeeded)
                 {
                     //A null message means the shell already said why, in its own words, so there is
                     //nothing of ours to add but the count -- and nothing at all when it is zero.
-                    if (Reason(outcome.Message, deleted, "delete.partial") is { } reason)
+                    if (Reason(outcome.Message, deleted + unstaged, "delete.partial") is { } reason)
                         RaiseError(Strings.Get("delete.title"), reason);
 
                     return;
@@ -1208,9 +1259,56 @@ public sealed class CommitViewModel : ObservableObject
 
         //After the refresh: Adopt does not clear this, but a status line set before it would be
         //reporting on a list that had not been rebuilt yet.
-        StatusText = deleted == 1
-            ? Strings.Get("delete.done", files[0].Path)
-            : Strings.Get("delete.done.many", deleted);
+        //
+        //Three cases rather than one total, because the two halves did opposite things to the disk and
+        //a single number covering both could only report it by naming neither.
+        StatusText =
+            deleted == 0 ? (unstaged == 1
+                ? Strings.Get("delete.unstaged", files[0].Path)
+                : Strings.Get("delete.unstaged.many", unstaged))
+            : unstaged == 0 ? (deleted == 1
+                ? Strings.Get("delete.done", files[0].Path)
+                : Strings.Get("delete.done.many", deleted))
+            : Strings.Get("delete.done.mixed", deleted, unstaged);
+    }
+
+    /// <summary>
+    /// The one question, over the rows that are actually going to the Recycle Bin.
+    /// </summary>
+    /// <remarks>
+    /// Its own method because every count in it has to come from <paramref name="binning"/> and nothing
+    /// else: a dialog naming five files when two of them were only ever going to be unstaged is the
+    /// number the user checked their answer against.
+    /// </remarks>
+    private async Task<bool> ConfirmDeleteAsync(List<FileChangeItem> binning)
+    {
+        string question;
+        string body;
+
+        if (binning.Count == 1)
+        {
+            question = Strings.Get("delete.question", binning[0].Path);
+            body = Strings.Get(binning[0].IsUntracked ? "delete.untracked" : "delete.tracked");
+        }
+        else
+        {
+            question = Strings.Get("delete.question.many", binning.Count);
+            body = Strings.Get("delete.body.many");
+
+            int untracked = binning.Count(f => f.IsUntracked);
+
+            if (untracked > 0)
+                body += "\n\n" + Strings.Get("delete.untracked.many", untracked);
+        }
+
+        return await (ConfirmAsync?.Invoke(
+            Strings.Get("delete.title"),
+            question + "\n\n" + body,
+            Strings.Get("delete.yes"),
+            Strings.Get("delete.no"),
+            //Enter accepts: every file named here goes to the Recycle Bin, which is the whole reason one
+            //question is enough for it.
+            true) ?? Task.FromResult(false)).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -1899,6 +1997,7 @@ public sealed class CommitViewModel : ObservableObject
         Raise(nameof(CanCommit));
         Raise(nameof(CanGenerate));
         Raise(nameof(CanDeleteFile));
+        Raise(nameof(DeleteUnstagesOnly));
         DeleteFileCommand.RaiseCanExecuteChanged();
         Raise(nameof(CanRevertFile));
         RevertFileCommand.RaiseCanExecuteChanged();

@@ -226,7 +226,12 @@ public partial class CommitWindow : Window
         EditFileMenuItem.Header = Label("edit", _viewModel.EditableCount);
         AddFileMenuItem.Header = Label("add", _viewModel.AddableCount);
         RevertFileMenuItem.Header = Label("revert", _viewModel.RevertableCount);
-        DeleteFileMenuItem.Header = Label("delete", _viewModel.DeletableCount);
+        //Two spellings of one item, chosen by what the click would actually do. A row HEAD has no
+        //copy of is unstaged rather than binned, and an item still reading "Delete file..." would be
+        //the only place the user could find that out -- afterwards.
+        DeleteFileMenuItem.Header = Label(
+            _viewModel.DeleteUnstagesOnly ? "delete.unstage" : "delete",
+            _viewModel.DeletableCount);
 
         TakeOursMenuItem.Header = Label("conflict.ours", _viewModel.ResolvableOursCount);
         TakeTheirsMenuItem.Header = Label("conflict.theirs", _viewModel.ResolvableTheirsCount);
@@ -255,8 +260,12 @@ public partial class CommitWindow : Window
 
     /// <summary>
     /// <b>Del sends the highlighted files to the Recycle Bin</b>, through the very command the context
-    /// menu's <c>Delete file…</c> reaches — so it asks the same question, counts the untracked ones the
-    /// same way, and runs no Git command either.
+    /// menu's <c>Delete file…</c> reaches — so it asks the same question and counts the untracked ones
+    /// the same way.
+    ///
+    /// <b>Except for a row HEAD has no copy of</b>, which is unstaged rather than binned and asks
+    /// nothing, because an unstage discards nothing there could be a question about. A selection made
+    /// entirely of those runs the one Git command this key can reach; anything else still runs none.
     ///
     /// <b>On the list rather than on the window</b>, because everywhere else in this window Del belongs
     /// to text: it is a character in the message box and a character in the diff pane's editor over the
