@@ -40,7 +40,6 @@ commit.summary.counts = {0} modificati · {1} non tracciati (esclusi)
 commit.summary.binary = bin
 commit.success = Commit {0}  {1}
 commit.empty.selection = Selezionare almeno un file prima di fare commit.
-commit.warn.primary = Si sta facendo commit su {0}.
 commit.warn.secret = Questo file corrisponde a un modello di segreto: controllarlo prima del commit.
 commit.warn.conflict = Questo repository ha conflitti non risolti. Risolverli prima del commit.
 
@@ -448,7 +447,7 @@ repo.remote.confirm = Rimuovere «{0}»?\n\nI suoi rami di tracciamento remoto s
 repo.remote.confirm.yes = Rimuovi
 repo.section.defaults = FLICKGIT, PER QUESTO REPOSITORY
 repo.primarybranch = Ramo principale
-repo.primarybranch.hint = Vuoto, viene risolto da origin/HEAD, poi main, poi master. Solo l'avviso «commit sul ramo principale» lo legge.
+repo.primarybranch.hint = Vuoto, viene risolto da origin/HEAD, poi main, poi master. Solo la destinazione della pull request lo legge.
 repo.upstream.unasked = FlickGit non ha ancora chiesto se un nuovo ramo può creare un upstream qui.
 repo.upstream.allowed = Un nuovo ramo può creare un upstream qui.
 repo.upstream.refused = Un nuovo ramo non può creare un upstream qui.
@@ -649,7 +648,6 @@ settings.overlay = Contrassegna le cartelle dei repository in Esplora file
 settings.overlay.hint = Richiede i diritti di amministratore una volta e ha effetto dopo il riavvio di Esplora file.
 
 settings.section.commit = Commit
-settings.warnprimary = Avvisa quando si esegue un commit sul branch principale
 settings.closeafter = Chiudi la finestra di commit dopo un commit riuscito
 settings.notify = Mostra una notifica dopo un commit riuscito
 

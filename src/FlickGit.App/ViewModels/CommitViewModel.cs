@@ -48,9 +48,7 @@ public sealed class CommitViewModel : ObservableObject
     private string _message = string.Empty;
     private string _branchInput = string.Empty;
     private BranchResolution _branchResolution = new(BranchIntent.Empty, string.Empty);
-    private string? _primaryBranch;
     private bool _isBusy;
-    private string? _notice;
     private string? _statusText;
 
     private FileChangeItem? _selectedFile;
@@ -290,18 +288,6 @@ public sealed class CommitViewModel : ObservableObject
                 RaiseCommandStates();
         }
     }
-
-    public string? Notice
-    {
-        get => _notice;
-        private set
-        {
-            if (Set(ref _notice, value))
-                Raise(nameof(HasNotice));
-        }
-    }
-
-    public bool HasNotice => _notice is not null;
 
     public string? StatusText
     {
@@ -686,13 +672,11 @@ public sealed class CommitViewModel : ObservableObject
 
         Repository = repository;
         _currentStatus = null;
-        _primaryBranch = null;
         Branches.Clear();
 
         Message = string.Empty;
         BranchInput = string.Empty;
         BranchResolution = new BranchResolution(BranchIntent.Empty, string.Empty);
-        Notice = null;
         StatusText = null;
         IsBusy = false;
 
@@ -793,10 +777,8 @@ public sealed class CommitViewModel : ObservableObject
         Raise(nameof(AheadBehindText));
         Raise(nameof(SelectionText));
         RaiseMergeState();
-        UpdateNotice();
         RaiseCommandStates();
 
-        _ = ResolvePrimaryBranchAsync();
         _ = LoadBranchesAsync();
 
         _selectedFile = Files.FirstOrDefault(f => f.Path == previouslySelectedPath) ?? Files.FirstOrDefault();
@@ -1942,33 +1924,6 @@ public sealed class CommitViewModel : ObservableObject
             await RefreshAsync().ConfigureAwait(true);
     }
 
-    /// <summary>
-    /// The warning strip.
-    ///
-    /// <b>It no longer mentions conflicts.</b> The resolution bar below it says the same thing with
-    /// the buttons that act on it, and two strips saying "there are conflicts" one above the other is
-    /// one more than the window needs. Losing the branch to it is what this removal fixes: a rebase
-    /// onto main used to hide the primary-branch warning behind a conflict notice.
-    /// </summary>
-    private void UpdateNotice()
-    {
-        //The warning is about the branch being committed *to*, which with the ComboBox is not
-        //necessarily the one checked out.
-        string? target = _branchResolution.Intent switch
-        {
-            BranchIntent.Current or BranchIntent.Empty => _currentStatus?.Branch,
-            BranchIntent.ExistingBranch => _branchResolution.Branch,
-            _ => null,
-        };
-
-        Notice = _settings.WarnWhenCommittingToPrimaryBranch
-                 && _primaryBranch is not null
-                 && target is not null
-                 && string.Equals(target, _primaryBranch, StringComparison.Ordinal)
-            ? Strings.Get("commit.warn.primary", target)
-            : null;
-    }
-
     private void RaiseCommandStates()
     {
         Raise(nameof(CanCommit));
@@ -2058,23 +2013,6 @@ public sealed class CommitViewModel : ObservableObject
         {
             //The ComboBox still works as a free-text field without its drop-down.
             _log.Debug($"Branch listing failed: {ex.Message}");
-        }
-    }
-
-    private async Task ResolvePrimaryBranchAsync()
-    {
-        try
-        {
-            _primaryBranch = await _branches
-                .ResolvePrimaryBranchAsync(_repository, _settings.PrimaryBranch, CancellationToken.None)
-                .ConfigureAwait(true);
-
-            UpdateNotice();
-        }
-        catch (Exception ex)
-        {
-            //A missing warning strip is a cosmetic loss. Failing the window over it is not.
-            _log.Debug($"Primary branch resolution failed: {ex.Message}");
         }
     }
 

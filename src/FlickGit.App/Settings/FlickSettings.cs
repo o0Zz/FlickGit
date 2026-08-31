@@ -17,7 +17,7 @@ namespace FlickGit.App.Settings;
 public sealed class FlickSettings
 {
     /// <summary>Bumped when a property is removed or its meaning changes. Adding one does not.</summary>
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -33,8 +33,6 @@ public sealed class FlickSettings
 
     /// <summary>Empty means resolve per repository: remote HEAD, then main, then master.</summary>
     public string PrimaryBranch { get; set; } = string.Empty;
-
-    public bool WarnWhenCommittingToPrimaryBranch { get; set; } = true;
 
     public bool CloseCommitWindowAfterSuccess { get; set; } = true;
 

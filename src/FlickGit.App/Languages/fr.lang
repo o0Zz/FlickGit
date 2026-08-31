@@ -40,7 +40,6 @@ commit.summary.counts = {0} modifié(s) · {1} non suivi(s) (exclus)
 commit.summary.binary = bin
 commit.success = Commit {0}  {1}
 commit.empty.selection = Cochez au moins un fichier avant de committer.
-commit.warn.primary = Vous committez sur {0}.
 commit.warn.secret = Ce fichier correspond à un motif de secret — vérifiez-le avant de committer.
 commit.warn.conflict = Ce dépôt a des conflits non résolus. Résolvez-les avant de committer.
 
@@ -448,7 +447,7 @@ repo.remote.confirm = Supprimer « {0} » ?\n\nSes branches de suivi disparaisse
 repo.remote.confirm.yes = Supprimer
 repo.section.defaults = FLICKGIT, POUR CE DÉPÔT
 repo.primarybranch = Branche principale
-repo.primarybranch.hint = Vide, elle est déduite de origin/HEAD, puis main, puis master. Seul l'avertissement « commit sur la branche principale » la lit.
+repo.primarybranch.hint = Vide, elle est déduite de origin/HEAD, puis main, puis master. Seule la cible de la pull request la lit.
 repo.upstream.unasked = FlickGit n'a pas encore demandé si une nouvelle branche peut créer une branche amont ici.
 repo.upstream.allowed = Une nouvelle branche peut créer une branche amont ici.
 repo.upstream.refused = Une nouvelle branche ne peut pas créer de branche amont ici.
@@ -649,7 +648,6 @@ settings.overlay = Marquer les dossiers de dépôt dans l'Explorateur
 settings.overlay.hint = Demande une fois des droits administrateur, et s'applique après le redémarrage de l'Explorateur.
 
 settings.section.commit = Commit
-settings.warnprimary = Avertir lors d'un commit sur la branche principale
 settings.closeafter = Fermer la fenêtre de commit après un commit réussi
 settings.notify = Afficher une notification après un commit réussi
 

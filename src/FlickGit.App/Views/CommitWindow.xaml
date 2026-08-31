@@ -11,12 +11,11 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />                <!-- 0 header -->
-            <RowDefinition Height="Auto" />                <!-- 1 warning strip -->
-            <RowDefinition Height="Auto" />                <!-- 2 resolution bar -->
-            <RowDefinition Height="*" MinHeight="160" />   <!-- 3 files | diff -->
-            <RowDefinition Height="4" />                   <!-- 4 splitter -->
-            <RowDefinition Height="104" MinHeight="76" />  <!-- 5 commit message -->
-            <RowDefinition Height="Auto" />                <!-- 6 footer -->
+            <RowDefinition Height="Auto" />                <!-- 1 resolution bar -->
+            <RowDefinition Height="*" MinHeight="160" />   <!-- 2 files | diff -->
+            <RowDefinition Height="4" />                   <!-- 3 splitter -->
+            <RowDefinition Height="104" MinHeight="76" />  <!-- 4 commit message -->
+            <RowDefinition Height="Auto" />                <!-- 5 footer -->
         </Grid.RowDefinitions>
 
         <!-- Header: repository, branch, ahead/behind. The repository name is shown even
@@ -91,29 +90,6 @@
             </Grid>
         </Border>
 
-        <!-- The warning strip: committing to the primary branch. Its own row rather than an
-             overlay, so it pushes the layout down and cannot be missed.
-
-             It no longer mentions conflicts — the resolution bar below says the same thing with
-             the buttons that act on it. -->
-        <Border Grid.Row="1"
-                Background="{StaticResource WarnBackground}"
-                BorderBrush="{StaticResource WarnBorder}"
-                BorderThickness="0,0,0,1"
-                Padding="14,7">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding HasNotice}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" FontWeight="SemiBold" />
-        </Border>
-
         <!-- The resolution bar. Shown only while the repository is part-way through a merge,
              rebase, cherry-pick or revert, which is the one state where the way forward is not
              the Commit button at the bottom of this window.
@@ -121,7 +97,7 @@
              Two lines rather than one, and the second is load-bearing: "ours" and "theirs" are
              reversed during a rebase, so the buttons keep Git's words and this says what they
              mean right now. -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="1"
                 Background="{StaticResource WarnBackground}"
                 BorderBrush="{StaticResource WarnBorder}"
                 BorderThickness="0,0,0,1"
@@ -172,7 +148,7 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="360" MinWidth="260" />
                 <ColumnDefinition Width="4" />
@@ -385,14 +361,14 @@
              list and the diff pane, which share the row above. Not persisted and not a
              setting: the resident service keeps one pre-warmed window, so the drag lasts
              the session. -->
-        <GridSplitter Grid.Row="4"
+        <GridSplitter Grid.Row="3"
                       Height="4"
                       HorizontalAlignment="Stretch"
                       Background="{StaticResource Border}"
                       ResizeBehavior="PreviousAndNext" />
 
         <!-- Commit message -->
-        <Border Grid.Row="5"
+        <Border Grid.Row="4"
                 Padding="14,10">
             <Grid>
                 <Grid.RowDefinitions>
@@ -445,7 +421,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="6"
+        <Border Grid.Row="5"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"

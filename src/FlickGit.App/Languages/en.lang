@@ -44,7 +44,6 @@ commit.summary.binary = bin
 # {0} short hash, {1} subject
 commit.success = Committed {0}  {1}
 commit.empty.selection = Tick at least one file before committing.
-commit.warn.primary = You are committing to {0}.
 commit.warn.secret = This file matched a secret pattern — check it before committing.
 commit.warn.conflict = This repository has unresolved conflicts. Resolve them before committing.
 
@@ -666,7 +665,7 @@ repo.remote.confirm = Remove '{0}'?\n\nIts remote-tracking branches go with it, 
 repo.remote.confirm.yes = Remove
 repo.section.defaults = FLICKGIT, FOR THIS REPOSITORY
 repo.primarybranch = Primary branch
-repo.primarybranch.hint = Empty resolves it from origin/HEAD, then main, then master. Only the "committing to the primary branch" warning reads it.
+repo.primarybranch.hint = Empty resolves it from origin/HEAD, then main, then master. Only the pull request target reads it.
 repo.upstream.unasked = FlickGit has not asked yet whether a new branch may create an upstream here.
 repo.upstream.allowed = A new branch may create an upstream here.
 repo.upstream.refused = A new branch may not create an upstream here.
@@ -896,7 +895,6 @@ settings.overlay = Badge repository folders in Explorer
 settings.overlay.hint = Needs administrator once, and takes effect after Explorer restarts.
 
 settings.section.commit = Commit
-settings.warnprimary = Warn when committing to the primary branch
 settings.closeafter = Close the commit window after a successful commit
 settings.notify = Show a notification after a successful commit
 

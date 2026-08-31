@@ -87,7 +87,6 @@ public partial class SettingsWindow : Window
         AutostartHint.Text = Strings.Get("settings.autostart.hint");
 
         CommitSection.Text = Strings.Get("settings.section.commit");
-        WarnPrimaryBox.Content = Strings.Get("settings.warnprimary");
         CloseAfterBox.Content = Strings.Get("settings.closeafter");
         NotifyBox.Content = Strings.Get("settings.notify");
 
@@ -200,7 +199,6 @@ public partial class SettingsWindow : Window
             .FirstOrDefault(c => c.Provider == ParseProvider(_settings.AiProvider))
             ?? AiProviderBox.Items.Cast<ProviderChoice>().First();
 
-        WarnPrimaryBox.IsChecked = _settings.WarnWhenCommittingToPrimaryBranch;
         CloseAfterBox.IsChecked = _settings.CloseCommitWindowAfterSuccess;
         NotifyBox.IsChecked = _settings.ShowSuccessNotification;
         ClosePullBox.IsChecked = _settings.ClosePullWindowAfterSuccess;
@@ -288,7 +286,6 @@ public partial class SettingsWindow : Window
     /// </summary>
     private async void OnSave(object sender, RoutedEventArgs e)
     {
-        _settings.WarnWhenCommittingToPrimaryBranch = WarnPrimaryBox.IsChecked == true;
         _settings.CloseCommitWindowAfterSuccess = CloseAfterBox.IsChecked == true;
         _settings.ShowSuccessNotification = NotifyBox.IsChecked == true;
         _settings.ClosePullWindowAfterSuccess = ClosePullBox.IsChecked == true;

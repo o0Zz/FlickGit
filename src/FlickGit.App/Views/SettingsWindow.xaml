@@ -66,8 +66,7 @@
                                    Style="{StaticResource SectionLabel}"
                                    Margin="0,22,0,0" />
 
-                        <CheckBox x:Name="WarnPrimaryBox" Margin="0,8,0,0" />
-                        <CheckBox x:Name="CloseAfterBox" Margin="0,10,0,0" />
+                        <CheckBox x:Name="CloseAfterBox" Margin="0,8,0,0" />
                         <CheckBox x:Name="NotifyBox" Margin="0,10,0,0" />
 
                         <!-- The commit window's Edit item hands a file to this program. It earns a row
