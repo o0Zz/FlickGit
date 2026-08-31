@@ -194,9 +194,9 @@ public sealed class PullRequestService(
     }
 
     /// <summary>
-    /// The default target: <c>flickgit.pullRequestTarget</c>, otherwise the primary branch the rest of
-    /// the product already resolves. One resolution rule rather than two -- a second walk here would
-    /// be free to disagree with the warning strip the commit window draws.
+    /// The default target: <c>flickgit.pullRequestTarget</c>, otherwise the primary branch
+    /// <see cref="BranchService.ResolvePrimaryBranchAsync"/> resolves. One resolution rule rather than
+    /// two -- a second walk here would be free to disagree with the repository's own configured answer.
     /// </summary>
     private async Task<string> ResolveTargetAsync(
         RepositoryInfo repository,

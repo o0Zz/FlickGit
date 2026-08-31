@@ -46,11 +46,11 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     }
 
     /// <summary>
-    /// Which branch this repository treats as primary, for the warning strip.
+    /// Which branch this repository treats as primary. Its one caller is the pull-request target.
     ///
     /// Order: this repository's own <c>flickgit.primaryBranch</c>, the user's setting, the remote's
     /// HEAD, <c>main</c>, <c>master</c>. Remote HEAD comes before the two guesses because a repository
-    /// still on <c>master</c> should not be warned about <c>main</c>.
+    /// still on <c>master</c> should have its request targeted at <c>master</c>.
     ///
     /// <b>Neither configured answer is cached.</b> The override is one <c>config --get</c>, so it is
     /// always current and the window that writes it needs no way to invalidate anything. Only the

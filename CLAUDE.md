@@ -692,13 +692,12 @@ Guardrails, checked **before** executing:
 - **Behind the remote:** offer `pull --rebase --autostash` then push as a single button. Do not push and
   let it fail.
 - **Diverged, or push would require force: stop.** Never offer force-push from any surface.
-- **On the primary branch:** a warning strip if enabled (default on) — the one case where the fast path
-  deserves friction.
 - Secret detection runs before the commit, not only before the AI call.
 
 **Primary branch resolution**, most specific first: `flickgit.primaryBranch` in the repository's own
 config, the user setting, `symbolic-ref refs/remotes/origin/HEAD`, `main`, `master`. Cache only the
-answer that costs a ref lookup. Never block a window on it — show the window without the strip.
+answer that costs a ref lookup. **Its one reader is the pull-request target** — the commit window
+does not consult it, because there is no longer a warning strip for it to feed.
 
 **Branch choice is an editable ComboBox in the commit window**, not a separate action. Default is the
 current branch, and committing without touching it must involve no extra Git work. Free text matching
@@ -1269,7 +1268,7 @@ diff.
   only for one that actually stops something.
 
 The settings window (`flick settings`) is three tabs and deliberately small: the Explorer menu on/off,
-the repository overlay on/off, start with Windows, three commit switches, the pull switch, the AI
+the repository overlay on/off, start with Windows, two commit switches, the pull switch, the AI
 provider and its key button, the language picker, and a pointer to `settings.json` / `actions.json`. **It is not a full settings app and
 will not be** — a drag-and-drop action list with icon pickers would be more UI than the rest of the
 product, and a graphical front end for a documented, hand-editable file. What earns a window is the
