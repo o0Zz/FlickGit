@@ -240,6 +240,36 @@
                   Impersonate="yes"
                   Return="ignore" />
 
+    <!-- The badge is drawn from a cached bitmap, and the cache is what makes a changed icon
+         invisible.
+
+         Explorer keeps overlay bitmaps in iconcache*.db keyed by the icon's PATH and index, and
+         overlay.ico's path never changes. So an upgrade that ships a new badge replaces the file
+         and changes nothing on screen: not after this installer restarts Explorer, not after a
+         reboot, not after a reinstall. It was diagnosed the long way once already — every copy of
+         the file verified byte-identical while the shell kept drawing the previous one — and
+         deleting these files is the only thing that shifted it. SHChangeNotify does not: it will
+         not reload an overlay handler and it will not evict an overlay bitmap.
+
+         Immediate, because it must run while Explorer is dead AND against the installing user's
+         profile. A deferred action runs as SYSTEM unless it impersonates, and would then clear
+         SYSTEM's cache and report success — rule 3 above, arriving by a different door. Being
+         immediate, there is no Impersonate to set.
+
+         After InstallFinalize rather than beside the kill, for two reasons: the shell has been
+         down for the whole install by then, so there is no racing a taskkill that has not finished
+         releasing its handles; and the new overlay.ico is already on disk, so the Explorer that
+         starts next caches the new bitmap on its first pass.
+
+         iconcache only. thumbcache*.db is tens of megabytes of unrelated user data and has nothing
+         to do with overlays. LocalAppDataFolder rather than %LOCALAPPDATA% because every path in
+         this package is an MSI property, and it is resolved by CostFinalize, which is long past. -->
+    <CustomAction Id="ClearIconCache"
+                  Directory="SystemFolder"
+                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -WindowStyle Hidden -Command &quot;Remove-Item '[LocalAppDataFolder]Microsoft\Windows\Explorer\iconcache*.db' -Force -ErrorAction SilentlyContinue&quot;"
+                  Execute="immediate"
+                  Return="ignore" />
+
     <!-- Only if nothing brought it back already: Winlogon restarts the shell on its own in some
          configurations, and running explorer.exe when a shell is already up opens a File Explorer
          window in the user's face at the end of an install. -->
@@ -287,7 +317,10 @@
       <Custom Action="RegisterShell" After="InstallFiles" Condition="NOT REMOVE" />
       <Custom Action="RegisterAutostart" After="RegisterShell" Condition="NOT REMOVE" />
 
-      <Custom Action="StartExplorer" After="InstallFinalize" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <!-- ClearIconCache sits between the two: the files are unlocked because Explorer is still
+           down, and the icon it will cache on the way up is the one just installed. -->
+      <Custom Action="ClearIconCache" After="InstallFinalize" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="StartExplorer" After="ClearIconCache" Condition="NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="StartFlickGit" After="StartExplorer" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
 
