@@ -1421,7 +1421,7 @@ public sealed class CommitViewModel : ObservableObject
                 }
 
                 RestoreResult result = await _restore
-                    .RevertAsync(_repository, file.Path, CancellationToken.None)
+                    .RevertAsync(_repository, file.Path, binned, CancellationToken.None)
                     .ConfigureAwait(true);
 
                 if (!result.Succeeded)

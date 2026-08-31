@@ -45,7 +45,7 @@ public class RestoreServiceTests
         //and `--worktree` together are what makes the row's letter go away.
         var git = new FakeGitRunner().Returns(["restore"]);
 
-        RestoreResult result = await Create(git).RevertAsync(Repository, "src/Thing.cs", default);
+        RestoreResult result = await Create(git).RevertAsync(Repository, "src/Thing.cs", binned: false, default);
 
         Assert.True(result.Succeeded);
 
@@ -68,7 +68,7 @@ public class RestoreServiceTests
         //one's name.
         var git = new FakeGitRunner().Returns(["restore"]);
 
-        await Create(git).RevertAsync(Repository, "src/Thing.cs", default);
+        await Create(git).RevertAsync(Repository, "src/Thing.cs", binned: false, default);
 
         string[] args = Assert.Single(git.Invocations).Args;
 
@@ -86,7 +86,7 @@ public class RestoreServiceTests
         //It is supposed to take the index lock. The flag is for reads.
         var git = new FakeGitRunner().Returns(["restore"]);
 
-        await Create(git).RevertAsync(Repository, "src/Thing.cs", default);
+        await Create(git).RevertAsync(Repository, "src/Thing.cs", binned: false, default);
 
         Assert.False(Assert.Single(git.Invocations).ReadOnly);
     }
@@ -96,7 +96,7 @@ public class RestoreServiceTests
     {
         var git = new FakeGitRunner().Returns(["restore"], exitCode: 1, stderr: "error: unable to unlink");
 
-        RestoreResult result = await Create(git).RevertAsync(Repository, "src/Thing.cs", default);
+        RestoreResult result = await Create(git).RevertAsync(Repository, "src/Thing.cs", binned: false, default);
 
         Assert.False(result.Succeeded);
         Assert.Equal("error: unable to unlink", result.Error);
@@ -181,5 +181,71 @@ public class RestoreServiceTests
         Assert.Equal(
             RevertKind.None,
             RestoreService.KindFor(File(index: GitChangeType.Conflicted, workTree: GitChangeType.Conflicted)));
+    }
+
+    /// <summary>
+    /// In scope under "the safety rules": a diverged push is refused, a blocked switch changes
+    /// nothing, and this is the same shape -- the only command that discards uncommitted work runs
+    /// nothing at all when its undo was not put in place first.
+    ///
+    /// A real file on a real temp root, because the whole precondition is a question about the disk.
+    /// </summary>
+    [Fact]
+    public async Task AFileStillOnDiskThatWasNotBinnedRunsNoGitCommand()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "flickgit-revert-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "src"));
+        System.IO.File.WriteAllText(Path.Combine(root, "src", "Thing.cs"), "work the user has not committed");
+
+        try
+        {
+            var git = new FakeGitRunner().Returns(["restore"]);
+            var repository = new RepositoryInfo(
+                root, "repo", HasSubmodules: false, IsBare: false, GitDirectory: Path.Combine(root, ".git"));
+
+            RestoreResult result = await Create(git)
+                .RevertAsync(repository, "src/Thing.cs", binned: false, default);
+
+            Assert.False(result.Succeeded);
+
+            //The point of the rule: no restore was issued, so the work is still there.
+            Assert.Empty(git.Invocations);
+            Assert.True(System.IO.File.Exists(Path.Combine(root, "src", "Thing.cs")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The other half, so the test above is pinning the precondition rather than the file simply
+    /// existing: the same path, binned, issues the restore.
+    /// </summary>
+    [Fact]
+    public async Task AFileOnDiskThatWasBinnedIsRestored()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "flickgit-revert-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "src"));
+        System.IO.File.WriteAllText(Path.Combine(root, "src", "Thing.cs"), "already in the Recycle Bin");
+
+        try
+        {
+            var git = new FakeGitRunner().Returns(["restore"]);
+            var repository = new RepositoryInfo(
+                root, "repo", HasSubmodules: false, IsBare: false, GitDirectory: Path.Combine(root, ".git"));
+
+            RestoreResult result = await Create(git)
+                .RevertAsync(repository, "src/Thing.cs", binned: true, default);
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(
+                ["restore", "--source=HEAD", "--staged", "--worktree", "--", ":(literal)src/Thing.cs"],
+                Assert.Single(git.Invocations).Args);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }

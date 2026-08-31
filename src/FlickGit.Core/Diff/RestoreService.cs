@@ -1,3 +1,4 @@
+using System.IO;
 using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
@@ -43,6 +44,18 @@ public sealed record RestoreResult(bool Succeeded, string? Error)
     public static readonly RestoreResult Ok = new(true, null);
 
     public static RestoreResult Failed(string error) => new(false, error);
+
+    /// <summary>
+    /// The caller asked to revert a file whose copy on disk had not been sent to the Recycle Bin.
+    ///
+    /// <b>Unlocalised, deliberately.</b> Every user-facing string in the product comes from a
+    /// <c>.lang</c> file, and this one does not because no user can be in this state: it reports a
+    /// caller that skipped the bin, which is a bug in <i>our</i> code. It is worded rather than left
+    /// null so that if it ever does reach a window it says something, rather than being the generic
+    /// failure Error Handling forbids.
+    /// </summary>
+    public static readonly RestoreResult NotBinned =
+        new(false, "The copy on disk was not sent to the Recycle Bin first, so this revert was refused.");
 }
 
 /// <summary>
@@ -123,12 +136,34 @@ public sealed class RestoreService(IGitProcessRunner git, RepositoryService repo
     /// immediately before its restore. Binning the whole selection and then restoring it in one command
     /// would leave every file binned and none replaced when the restore fails; interleaving leaves one.
     /// So the safer shape is also the one that keeps this method naming a single path.
+    ///
+    /// <b><paramref name="binned"/> is a precondition, not a hint.</b> That the caller bins first used
+    /// to be a sentence in this comment, checked by nobody and implemented in a view model where no
+    /// test could reach it -- for the one command in the product that discards uncommitted work. So the
+    /// rule is enforced here instead: a path still present on disk that was not binned runs no Git
+    /// command at all and comes back <see cref="RestoreResult.NotBinned"/>.
+    ///
+    /// The bin itself stays in the App, and cannot move: it is a Windows shell facility, and
+    /// <c>WorkingTreeDeleter</c> states why a <c>net9.0</c> Core may not reach one. Seeing whether a
+    /// file exists needs none of that, which is what lets the rule live here without the interface a
+    /// flow owning both halves would have cost.
     /// </remarks>
     public async Task<RestoreResult> RevertAsync(
         RepositoryInfo repository,
         string path,
+        bool binned,
         CancellationToken cancellationToken)
     {
+        //Resolved through the same helper the writer and the deleter use, so "inside the repository"
+        //has one answer. A path that does not resolve is left to the command below to refuse.
+        if (!binned
+            && WorkingTreeWriter.ResolveInsideRepository(repository.Root, path) is { } absolute
+            && File.Exists(absolute))
+        {
+            log.Warn($"Refused to revert {path}: its copy on disk was not sent to the Recycle Bin.");
+            return RestoreResult.NotBinned;
+        }
+
         GitResult result = await git.RunAsync(
             repository.Root,
             ["restore", "--source=HEAD", "--staged", "--worktree", "--", Literal(path)],
