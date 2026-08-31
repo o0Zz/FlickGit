@@ -58,21 +58,40 @@ internal static class ShellCommandIds
     /// <summary>
     /// Our subkey name under <see cref="OverlayIdentifiersPath"/>.
     ///
-    /// <b>The leading space is load-bearing.</b> Windows sorts these names and loads only the first
-    /// <see cref="OverlaySlotLimit"/>; a space sorts ahead of every letter. One space rather than the
-    /// four OneDrive uses: enough to beat a name that starts with a letter, and not a bid to outrank
-    /// whoever is already there.
+    /// <b>The leading spaces are load-bearing, and there are five of them for a measured reason.</b>
+    /// Windows sorts these names ordinally and there are two limits behind that sort, not one: it
+    /// enumerates the first <see cref="OverlaySlotLimit"/> handlers, and separately it has only
+    /// fifteen overlay <i>image list</i> indices, four of which it keeps for its own overlays -- the
+    /// shortcut arrow, the share hand, the slow-file badge. Indices are handed out in sort order, so
+    /// a handler can be loaded, be asked, answer <c>S_OK</c>, and still be composited with nothing.
+    ///
+    /// <b>That is not hypothetical, it is what shipped.</b> With one space this key sorted eleventh,
+    /// behind OneDrive's seven handlers and three from Office. Every repository answered S_OK and no
+    /// badge was ever drawn -- indistinguishable, from outside, from the handler not working at all.
+    /// Five spaces beats the four OneDrive uses; one space beat only names starting with a letter,
+    /// which is nobody who competes for these slots.
+    ///
+    /// <b>Sorting first is not a claim to the corner.</b> <c>GetPriority</c> still answers 50, so a
+    /// sync engine's "not uploaded yet" wins on any item where both apply. The sort decides whether
+    /// we get an index at all; the priority decides what happens per item, and only the second of
+    /// those is a question about which badge matters more.
     /// </summary>
-    public const string OverlayKeyName = " FlickGit";
+    public const string OverlayKeyName = "     FlickGit";
 
     /// <summary>
-    /// How many overlay handlers Windows actually loads, out of however many are registered.
+    /// How many overlay handlers can actually be <i>drawn</i>, out of however many are registered.
     ///
-    /// Named because <c>flick diag doctor</c> reports our position against it: the limit is the whole
-    /// risk of this feature, and a registration that sorted past the fifteenth is indistinguishable
-    /// from a bug -- the key is there, and nothing is drawn.
+    /// <b>Eleven, not fifteen, and the difference is the whole risk of this feature.</b> Fifteen is
+    /// the size of the shell's overlay image list; Windows keeps four of those indices for its own
+    /// overlays -- the shortcut arrow, the share hand, the slow-file badge -- so eleven is what is
+    /// left for handlers, handed out in key-name sort order.
+    ///
+    /// The number matters because a handler past it fails <i>silently and completely</i>: it is
+    /// created, <c>GetOverlayInfo</c> succeeds, <c>IsMemberOf</c> is called and answered, and nothing
+    /// is ever composited. <c>flick diag doctor</c> reports our position against this, and reporting
+    /// fifteen is what let a build ship that answered S_OK for every repository and drew nothing.
     /// </summary>
-    public const int OverlaySlotLimit = 15;
+    public const int OverlaySlotLimit = 11;
 
     /// <summary>
     /// Where the handler is registered under each parent class, and the name of the key.
