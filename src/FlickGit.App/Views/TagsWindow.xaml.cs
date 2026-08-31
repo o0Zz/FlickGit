@@ -167,10 +167,10 @@ public partial class TagsWindow : ReloadableWindow
     /// </summary>
     private async void OnCheckout(object sender, MouseButtonEventArgs e)
     {
-        if ((e.OriginalSource as DependencyObject).FindAncestor<ListBoxItem>()?.Content is not TagRow row)
+        if (!FilterList.SelectRowUnderPointer(TagList, e.OriginalSource) || Selected is not { } tag)
             return;
 
-        await CheckOutAsync(row.Name).ConfigureAwait(true);
+        await CheckOutAsync(tag).ConfigureAwait(true);
     }
 
     /// <summary>

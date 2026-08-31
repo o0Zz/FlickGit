@@ -127,10 +127,10 @@ public partial class StashesWindow : ReloadableWindow
     /// </summary>
     private async void OnPop(object sender, MouseButtonEventArgs e)
     {
-        if ((e.OriginalSource as DependencyObject).FindAncestor<ListBoxItem>()?.Content is not StashRow row)
+        if (!FilterList.SelectRowUnderPointer(StashList, e.OriginalSource) || Selected is not { } stash)
             return;
 
-        await PopAsync(row.Stash).ConfigureAwait(true);
+        await PopAsync(stash).ConfigureAwait(true);
     }
 
     private async Task PopAsync(GitStash stash)

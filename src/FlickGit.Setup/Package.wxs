@@ -262,11 +262,19 @@
          starts next caches the new bitmap on its first pass.
 
          iconcache only. thumbcache*.db is tens of megabytes of unrelated user data and has nothing
-         to do with overlays. LocalAppDataFolder rather than %LOCALAPPDATA% because every path in
-         this package is an MSI property, and it is resolved by CostFinalize, which is long past. -->
+         to do with overlays.
+
+         $env:LOCALAPPDATA rather than [LocalAppDataFolder], and that is the one place this action
+         breaks the package's own convention of resolving every path through an MSI property. A
+         property is substituted into the command as plain text, and here it would land inside a
+         quoted PowerShell string — so a profile path holding an apostrophe closes the string early
+         and the command does not parse. Return="ignore" then swallows it, which leaves a user named
+         O'Brien with a cache that is never cleared, a stale badge after every upgrade, and no
+         symptom to chase. The environment variable needs no quoting at all, and this action is
+         immediate, so it already reads the installing user's profile. -->
     <CustomAction Id="ClearIconCache"
                   Directory="SystemFolder"
-                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -WindowStyle Hidden -Command &quot;Remove-Item '[LocalAppDataFolder]Microsoft\Windows\Explorer\iconcache*.db' -Force -ErrorAction SilentlyContinue&quot;"
+                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -WindowStyle Hidden -Command &quot;Remove-Item ($env:LOCALAPPDATA + '\Microsoft\Windows\Explorer\iconcache*.db') -Force -ErrorAction SilentlyContinue&quot;"
                   Execute="immediate"
                   Return="ignore" />
 

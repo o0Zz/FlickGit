@@ -1,31 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 
 namespace FlickGit.App.Infrastructure;
-
-/// <summary>
-/// Walks up the visual tree. Its one use is finding the row a pointer is over.
-///
-/// <b>Here rather than at the bottom of a window file.</b> It lived under
-/// <c>SwitchBranchWindow.xaml.cs</c>, below the class, with a comment saying it was "for the one
-/// place that has to find the row under the pointer" -- and it had three callers across two windows
-/// by then.
-/// </summary>
-internal static class VisualTree
-{
-    public static T? FindAncestor<T>(this DependencyObject? from) where T : DependencyObject
-    {
-        for (DependencyObject? node = from; node is not null; node = VisualTreeHelper.GetParent(node))
-        {
-            if (node is T match)
-                return match;
-        }
-
-        return null;
-    }
-}
 
 /// <summary>
 /// The keyboard and pointer plumbing that every "filter box above a list" surface needs.
@@ -73,9 +50,9 @@ internal static class FilterList
     /// not reading closely.
     ///
     /// <b><see cref="ItemsControl.ContainerFromElement(DependencyObject)"/> rather than a visual-tree
-    /// walk</b>, which is the commit window's implementation and the one that survives a row template
-    /// built from <c>Run</c>s: those are <c>ContentElement</c>s rather than <c>Visual</c>s, and
-    /// <c>VisualTreeHelper.GetParent</c> throws on one.
+    /// walk.</b> A row template built from <c>Run</c>s produces <c>ContentElement</c>s rather than
+    /// <c>Visual</c>s, and <c>VisualTreeHelper.GetParent</c> throws on one. This method is now the
+    /// only way any window finds the row under the pointer, which is what retired the walk.
     ///
     /// <b>A click inside a multi-selection means the selection; anywhere else means the one row under
     /// the pointer.</b> The diff pane's context menu already works that way, and the commit window's
