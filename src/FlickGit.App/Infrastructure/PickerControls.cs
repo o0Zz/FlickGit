@@ -81,8 +81,15 @@ internal static class FilterList
     /// the pointer.</b> The diff pane's context menu already works that way, and the commit window's
     /// file list is <c>Extended</c> -- where a bare <c>IsSelected = true</c> would <i>add</i> the
     /// clicked row to whatever was highlighted, so a right-click on an unrelated file would revert it
-    /// along with three others. For the pickers, which are single-selection, clearing and re-selecting
-    /// one row is what the assignment already did.
+    /// along with three others. Hence the clear before the select.
+    ///
+    /// <b>And hence the mode test, because <c>SelectedItems</c> throws in a single-selection list.</b>
+    /// Not "is redundant there" -- <c>Clear</c> raises "Can only change SelectedItems collection in
+    /// multiple selection modes", so on five of this method's six callers every right-click was an
+    /// unhandled exception and an error dialog instead of a context menu. Only the commit window's
+    /// list declares <c>Extended</c>; the four pickers and the log window's file list take the
+    /// default. In <c>Single</c> mode the assignment below is the whole operation: selecting a row
+    /// deselects the previous one, which is exactly what the clear was reaching for.
     /// </summary>
     /// <returns>False when the click was not on a row, so the caller can suppress the menu.</returns>
     public static bool SelectRowUnderPointer(ListBox list, object? originalSource)
@@ -95,7 +102,9 @@ internal static class FilterList
 
         if (!row.IsSelected)
         {
-            list.SelectedItems.Clear();
+            if (list.SelectionMode != SelectionMode.Single)
+                list.SelectedItems.Clear();
+
             row.IsSelected = true;
         }
 
