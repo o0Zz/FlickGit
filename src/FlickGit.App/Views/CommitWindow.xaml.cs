@@ -106,8 +106,17 @@ public partial class CommitWindow : Window
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
         //The view model decides *when* to ask; the window owns the only thing that can actually ask.
+        //
+        //Onto the dispatcher, and that is not a formality. CommitFlow raises its guardrail questions
+        //from wherever its own ConfigureAwait(false) left it, which is a thread-pool thread from the
+        //first git.exe call onwards -- so a `switch -c` followed by `push -u` asks "create an
+        //upstream?" off the UI thread. Constructing a Window there throws "the calling thread must be
+        //STA", and the Task.FromResult around a synchronous body is exactly what hid it: an async
+        //signature moves no work anywhere. ShowDialog pumps its own message loop, so the flow waits
+        //on the dialog rather than the dialog blocking the pump.
         _viewModel.ConfirmAsync = (title, question, yes, no, defaultIsAffirmative) =>
-            Task.FromResult(ConfirmWindow.Ask(this, title, question, yes, no, defaultIsAffirmative));
+            Dispatcher.InvokeAsync(
+                () => ConfirmWindow.Ask(this, title, question, yes, no, defaultIsAffirmative)).Task;
 
         //Asked only by the revert confirmation, so it can say that an unsaved edit is not what goes to
         //the Recycle Bin.
