@@ -3,14 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:FlickGit.App.Views"
         Title="Stashes"
-        Width="680" Height="440"
-        MinWidth="520" MinHeight="300"
+        Width="1100" Height="720"
+        MinWidth="760" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Surface}">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
+            <RowDefinition Height="200" MinHeight="90" />
+            <RowDefinition Height="4" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="200" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -21,20 +24,27 @@
 
              Right-click acts on the row under the pointer, for the reason both pickers give: dropping
              is the destructive thing here, and a menu built from "whatever is highlighted" is how the
-             wrong one goes. The menu is built in ContextMenuOpening because both its items name the
-             stash they would act on.
+             wrong one goes. The menu is built in ContextMenuOpening because its items name what they
+             would act on — the stash, or the count of them.
 
              Double-click pops the row, and Pop is on the menu as well, because nobody discovers a
              double-click. Unlike the tag window's checkout it asks nothing first: a pop puts work back
              rather than discarding any, and Git refuses outright rather than overwriting a file that
-             is in the way. -->
+             is in the way.
+
+             Extended rather than Multiple, for the reason the log window's commit list gives: click,
+             Ctrl+click, Shift+click and Shift+arrow, where a bare click still has to mean "just this
+             one". Several rows is a Drop gesture — see OnContextMenuOpening, and OnPop for why Pop
+             refuses one. -->
         <ListBox x:Name="StashList"
+                 SelectionMode="Extended"
                  BorderThickness="0"
                  Background="{StaticResource Surface}"
                  HorizontalContentAlignment="Stretch"
                  MouseDoubleClick="OnPop"
                  PreviewMouseRightButtonDown="OnRowRightClick"
-                 ContextMenuOpening="OnContextMenuOpening">
+                 ContextMenuOpening="OnContextMenuOpening"
+                 SelectionChanged="OnStashSelectionChanged">
             <ListBox.ContextMenu>
                 <ContextMenu x:Name="RowMenu" />
             </ListBox.ContextMenu>
@@ -88,6 +98,128 @@
             </ListBox.ItemTemplate>
         </ListBox>
 
+        <GridSplitter Grid.Row="1"
+                      Height="4"
+                      HorizontalAlignment="Stretch"
+                      Background="{StaticResource Border}"
+                      ResizeBehavior="PreviousAndNext" />
+
+        <!-- What is in the stash on the highlighted row. Both halves come from the same read, so the
+             label and the totals cannot disagree about which stash they describe. -->
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,0,0,1"
+                Padding="14,8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="RangeText" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+
+                <TextBlock x:Name="TotalsText"
+                           Margin="12,0,0,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Style="{StaticResource Muted}" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" MinWidth="220" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" MinWidth="360" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Background="{StaticResource SurfaceAlt}"
+                        BorderBrush="{StaticResource Border}"
+                        BorderThickness="0,0,1,1"
+                        Padding="10,6">
+                    <TextBlock x:Name="FilesHeader" Style="{StaticResource SectionLabel}" />
+                </Border>
+
+                <!-- Single-select, unlike the stash list above it: one file at a time is what feeds
+                     the pane. No context menu at all — every item one would carry acts on the working
+                     tree, and nothing in a stash is in the working tree. -->
+                <ListBox Grid.Row="1"
+                         x:Name="FileList"
+                         BorderThickness="0,0,1,0"
+                         BorderBrush="{StaticResource Border}"
+                         Background="{StaticResource Surface}"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling"
+                         SelectionChanged="OnFileSelectionChanged">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="4,1" />
+                            <Setter Property="ToolTip" Value="{Binding Tooltip}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="{Binding StatusCode}"
+                                           FontFamily="Cascadia Mono, Consolas, Courier New"
+                                           FontWeight="Bold"
+                                           VerticalAlignment="Center" />
+
+                                <TextBlock Grid.Column="1"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis">
+                                    <Run Text="{Binding Directory, Mode=OneWay}" Foreground="{StaticResource TextMuted}" />
+                                    <Run Text="{Binding FileName, Mode=OneWay}" />
+                                </TextBlock>
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding Added}"
+                                           Margin="8,0,4,0"
+                                           MinWidth="34"
+                                           TextAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Cascadia Mono, Consolas, Courier New"
+                                           FontSize="11"
+                                           Foreground="#FF1F7A33" />
+
+                                <TextBlock Grid.Column="3"
+                                           Text="{Binding Removed}"
+                                           MinWidth="34"
+                                           TextAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Cascadia Mono, Consolas, Courier New"
+                                           FontSize="11"
+                                           Foreground="{StaticResource DangerText}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <GridSplitter Grid.Column="1"
+                          Width="4"
+                          HorizontalAlignment="Stretch"
+                          Background="{StaticResource Border}"
+                          ResizeBehavior="PreviousAndNext" />
+
+            <!-- Read-only, and not because this window says so: every diff it is handed carries a
+                 DiffRange, which is what makes the right pane uneditable and labels it with the two
+                 revisions instead of "Working tree ↔ HEAD". This window also subscribes to none of
+                 the pane's events, so there is nothing for a save or a stage to reach. -->
+            <views:DiffPane x:Name="Diff" Grid.Column="2" />
+        </Grid>
+
         <!-- Putting work away. Below the list rather than in a dialog, so what is already stashed and
              what is about to be are on screen together, which is the same argument the tag window's
              create row makes about "does v1.4.0 exist already".
@@ -95,7 +227,7 @@
              The message carries its own label, because it is the part that is not obvious: it is
              optional, and leaving it empty is not a worse answer, it just lets Git name the commit
              instead. -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="4"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"
@@ -154,7 +286,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="5"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"

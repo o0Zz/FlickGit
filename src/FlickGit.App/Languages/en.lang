@@ -427,9 +427,13 @@ tag.confirm.yes = Delete
 
 # ---- stashes window ---------------------------------------------------------
 # A stash is work put away: the working tree as it was, saved and rolled back. The window is the
-# list, plus the one thing you create below it. The rule underneath it is that a row is addressed
-# by a *position* -- stash@{1} is whatever happens to be second right now -- so FlickGit checks the
-# stash is still the one on screen before it pops or drops anything. stash.moved is the other case.
+# list, what is in the stash on the row you are pointing at, and the one thing you create below it.
+# The rule underneath it is that a row is addressed by a *position* -- stash@{1} is whatever happens
+# to be second right now -- so FlickGit checks the stash is still the one on screen before it pops or
+# drops anything. stash.moved is the other case.
+#
+# Drop takes several rows at once and asks once, with the totals. Pop takes one: popping several in
+# a row is a chain of merges, where the second lands on a tree the first has already changed.
 #
 # There is no wording here for `stash clear` or `stash apply`, because neither is offered anywhere.
 
@@ -461,6 +465,22 @@ stash.confirm.drop = Drop {0} — {1}?\n\nThe changes in it are thrown away with
 stash.confirm.yes = Drop
 stash.moved.title = The stash list changed
 stash.moved = Nothing was done, because the stash you clicked is no longer the one at that position — something pushed or popped a stash in the meantime. The list has been reloaded; please pick it again.
+stash.files.header = Changed files
+# {0} number of files, {1} lines added, {2} lines removed
+stash.totals = {0} files · +{1} −{2}
+# Shown where the totals go, for a stash whose parents could not be read.
+stash.files.none = Nothing to show for this stash.
+# {0} number of selected stashes
+stash.menu.drop.many = Drop {0} stashes…
+stash.confirm.title.many = Drop these stashes?
+# {0} number of stashes, {1} one "reference — message" line per stash
+stash.confirm.drop.many = Drop {0} stashes?\n\n{1}\n\nThe changes in them are thrown away without being applied. A stash has no reflog, so FlickGit cannot bring them back.
+# {0} number of stashes
+stash.dropped.many = Dropped {0} stashes.
+# {0} how many were dropped, {1} how many were selected
+stash.drop.failed.many = {0} of {1} dropped. The rest are still in the list.
+# Pop is one row at a time. Said where the count goes, because nothing happened.
+stash.pop.one = Pop takes one stash at a time. Pick a single row.
 
 # ---- submodules window ------------------------------------------------------
 # A submodule is another repository pinned at one commit inside this one. The window is the third

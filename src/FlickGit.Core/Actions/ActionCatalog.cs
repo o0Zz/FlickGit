@@ -354,12 +354,11 @@ public sealed class ActionCatalog
         //it are where the work goes, and this is where it waits. Not a ref, so it is not one of those
         //three; not a push, so it is not the next one.
         //
-        //No icon, and none borrowed. Every .ico in the folder is already the picture of another entry
-        //in this same menu, and a Stashes row wearing the commit or branch icon reads as a second way
-        //to do that. ShellIntegration writes no icon value when this is null, so the row simply has
-        //none until a stash.ico exists -- the csproj copies Resources\icons\*.ico by wildcard, so
-        //that is a file and one word here.
-        new("stash", VerbKind.Stash, 118, ActionSurfaces.All, InMore: true, NeedsRepository: true),
+        //Its own icon rather than one borrowed from another entry: every other .ico in the folder is
+        //already the picture of a different row in this same menu, and a Stashes row wearing the
+        //commit or branch icon would read as a second way to do that.
+        new("stash", VerbKind.Stash, 118, ActionSurfaces.All, "stash.ico", InMore: true,
+            NeedsRepository: true),
 
         new("push", VerbKind.Push, 120, ActionSurfaces.All, "push.ico", InMore: true, NeedsRepository: true),
 

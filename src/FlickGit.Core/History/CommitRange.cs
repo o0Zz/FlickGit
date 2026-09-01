@@ -83,6 +83,15 @@ public sealed record CommitRange
         : $"{Oldest.ShortSha}^ ↔ {Newest.ShortSha}";
 
     /// <summary>
+    /// This range as the three things the diff viewer needs of it.
+    ///
+    /// The projection lives here rather than at the call site so that <see cref="Diff.DiffRange"/>
+    /// stays the only shape <c>DiffService</c> knows about, and the window's spelling of a range
+    /// cannot drift from the label the pane shows.
+    /// </summary>
+    public Diff.DiffRange Diff => new(BaseSpec, TipSpec, Label);
+
+    /// <summary>
     /// Which commits a selection means, given the list it was made in.
     ///
     /// Pure, and it takes the whole list rather than just the chosen commits, because

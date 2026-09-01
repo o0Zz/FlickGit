@@ -1,6 +1,24 @@
 namespace FlickGit.Diff;
 
 /// <summary>
+/// The two object-store sides a read-only diff is of, and what to call them on screen.
+///
+/// Three strings rather than the <see cref="History.CommitRange"/> this started as, because a range
+/// of commits is only one of the things a historical diff can be of. A stash is a commit too, and
+/// the untracked half of one is a tree against the empty tree — neither has an oldest and a newest
+/// commit to name, and both read better labelled <c>a1b2c3d ↔ stash@{0}</c> than as two bare
+/// hashes. These three fields are all <c>DiffService.ComputeRangeAsync</c> ever read of a range, so
+/// these three fields are what it takes.
+/// </summary>
+/// <param name="BaseSpec">The left side. A bare object id, never revision syntax.</param>
+/// <param name="TipSpec">The right side, also a bare object id.</param>
+/// <param name="Label">
+/// The viewer's header, as <c>&lt;left&gt; ↔ &lt;right&gt;</c>. Not localised and it does not need to
+/// be: two abbreviated hashes and an arrow read the same in every language.
+/// </param>
+public sealed record DiffRange(string BaseSpec, string TipSpec, string Label);
+
+/// <summary>
 /// How much diffing the file's size allows. Thresholds from CLAUDE.md, "Diff Viewer →
 /// Performance", and they exist to keep the viewer responsive rather than to save work
 /// for its own sake.
@@ -91,17 +109,17 @@ public sealed record SideBySideDiff
     public string? Notice { get; init; }
 
     /// <summary>
-    /// The commit range this diff is of, or null when the right side is the working tree.
+    /// The two revisions this diff is of, or null when the right side is the working tree.
     ///
     /// Non-null means both sides came out of Git's object store, so there is no file on disk the
     /// right pane corresponds to and nothing to save — which is why <see cref="IsEditable"/>
     /// consults it before anything else. Carrying the range rather than a bare flag also gives the
-    /// viewer its header (<see cref="History.CommitRange.Label"/>) with no second field to keep in
+    /// viewer its header (<see cref="DiffRange.Label"/>) with no second field to keep in
     /// step: a diff cannot then be rendered read-only under a label saying "Working tree ↔ HEAD",
     /// which — given that the whole staged-versus-worktree section exists because a mislabelled
     /// header is how users lose work — is exactly the mistake not to make possible.
     /// </summary>
-    public History.CommitRange? Range { get; init; }
+    public DiffRange? Range { get; init; }
 
     /// <summary>True when the right pane may be edited: a working-tree diff, not binary, and small enough to re-diff live.</summary>
     public bool IsEditable =>

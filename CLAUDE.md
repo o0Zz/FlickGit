@@ -609,9 +609,12 @@ user types a character any hunk list from Git is stale. The viewer diffs two in-
 DiffPlex and recomputes on edit, debounced 200 ms, off the UI thread.
 
 The left-hand base is **always HEAD** (`git show HEAD:<path>`), empty for an untracked file. In the log
-window it is the commit range instead, and `SideBySideDiff.Range` carries it — non-null means read-only
+and stash windows it is two revisions out of the object store instead, and `SideBySideDiff.Range` — a
+`DiffRange`, being the base spec, the tip spec and a label — carries them. **Non-null means read-only**
 and supplies the header text, so a historical diff cannot be rendered under a "Working tree ↔ HEAD"
-label.
+label. Three strings rather than a `CommitRange`, because a stash is a commit and its untracked half is
+a tree against the empty tree: neither has an oldest and a newest commit to name, and `CommitRange`
+projects itself into one through its `Diff` property.
 
 - **Do not use DiffPlex's side-by-side alignment.** It pairs a block's deletions with its insertions
   positionally, so a plain replacement lands red and green on different rows when the counts differ.
@@ -909,8 +912,20 @@ thing in FlickGit that detaches HEAD** — everywhere else that state is reporte
 stays open to say so. No moving a tag, no `--force`, no signing, no tag-at-a-chosen-commit, and no
 command-line spelling.
 
-**Stashes** — what is put away, put the working tree away, pop one back, drop one. Untracked files are
-a checkbox, ticked by default, and **`--all` is never passed** — that would take ignored files too.
+**Stashes** — what is put away, **what is in the one you are pointing at**, put the working tree away,
+pop one back, drop some. Untracked files are a checkbox, ticked by default, and **`--all` is never
+passed** — that would take ignored files too.
+
+**A stash is a commit, which is what makes its contents readable without popping it** — and popping it
+to find out what is in it is the exact thing this window exists to stop the user doing. So the middle
+of the window is the log window's lower half: a file list against a read-only diff pane, reached
+through `StashService.ListFilesAsync`, itself reading through `HistoryService.GetFilesAsync` rather
+than a second copy of the range file lister. A stash's first parent is the commit it was made on, so
+its tracked half is `<parent>..<stash>` — exactly what `git stash show` compares. **The untracked half
+is not in that tree**, being a third parent commit of its own, so those files are listed too, against
+the empty tree, and `git stash show`'s blind spot is not reproduced: a file list that quietly omitted
+part of what it describes is the failure the log window's gap disclosure exists to prevent. `%P` rides
+on the `stash list` read, so none of this costs a process. Nothing in this half writes anything.
 
 **A stash is named by a position, and that is the whole safety rule here.** `stash@{1}` is whatever is
 second at the moment the command runs, and the list is renumbered by any push or pop — a terminal's, an
@@ -926,6 +941,17 @@ asks in its own words: a stash has no reflog, so nothing here finds it again. **
 that destroys every saved change), **no `apply`** (a second spelling of pop), no `stash branch`, no
 `--keep-index`, no force. Popping and dropping have **no command-line spelling**, because a reflog
 selector written into a script is a position that will have moved by the time it runs.
+
+**Drop takes a multi-selection and Pop does not, and both halves of that follow from the position
+rule.** Drop asks **once, with the totals**, naming every row — never one dialog per item — and
+`StashService.DropAsync` then drops **highest reflog index first**, because dropping `stash@{k}`
+renumbers every entry above k and leaves everything below it alone: run in the order the rows were
+clicked, the second command would name a position now holding a different stash. The whole selection is
+verified against one read **before the first command**, so one stale row drops nothing at all, and each
+row is verified again as its turn comes, because a terminal can push a stash between two of these
+commands. A batch that stops half-way reports **how many went**. Pop stays one row: popping several is
+a chain of merges in which the second lands on a tree the first has already changed, and a double-click
+inside a multi-selection says so in the footer rather than picking a row itself.
 
 **Submodules** — what is there, add one, remove one, and **it commits nothing**: both operations leave
 their work in the index and the window's button opens the commit window. Two reads only:
@@ -1442,6 +1468,8 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | AI description / changelog first token     | 600 ms | 2 s        |
 | Log window painted, first 200 commits      | 250 ms | 600 ms     |
 | Commit selection settled → file list       | 150 ms | 400 ms     |
+| Stash selection settled → file list        | 150 ms | 400 ms     |
+| Click → rendered stash diff                | 250 ms | 600 ms     |
 | Blame painted, 2,000-line file             | 250 ms | 600 ms     |
 | Blame previous revision, one step          | 200 ms | 500 ms     |
 | Pull request window painted                | 250 ms | 600 ms     |

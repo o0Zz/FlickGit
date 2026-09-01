@@ -425,7 +425,7 @@ public partial class LogWindow : Window
         try
         {
             SideBySideDiff diff = await _diffs
-                .ComputeRangeAsync(_repository, row.Change, range, CancellationToken.None)
+                .ComputeRangeAsync(_repository, row.Change, range.Diff, CancellationToken.None)
                 .ConfigureAwait(true);
 
             _cache[key] = diff;
@@ -461,7 +461,7 @@ public partial class LogWindow : Window
             try
             {
                 _cache[key] = await _diffs
-                    .ComputeRangeAsync(_repository, file, range, CancellationToken.None)
+                    .ComputeRangeAsync(_repository, file, range.Diff, CancellationToken.None)
                     .ConfigureAwait(true);
             }
             catch (Exception ex)

@@ -82,7 +82,7 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     public async Task<SideBySideDiff> ComputeRangeAsync(
         RepositoryInfo repository,
         GitFileChange file,
-        CommitRange range,
+        DiffRange range,
         CancellationToken cancellationToken)
     {
         Task<FileText> leftTask = LoadBlobAsync(repository, range.BaseSpec, file.OldPath ?? file.Path, cancellationToken);
@@ -113,7 +113,7 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
         FileText left,
         FileText right,
         bool knownBinary,
-        CommitRange? range,
+        DiffRange? range,
         IReadOnlyList<string> unifiedArgs,
         CancellationToken cancellationToken)
     {
@@ -267,7 +267,7 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     private static IReadOnlyList<string> UnifiedArgs(GitFileChange file) =>
         ["diff", "HEAD", .. GitDiffFlags.ReadSafe, "--", file.Path];
 
-    private static IReadOnlyList<string> RangeUnifiedArgs(GitFileChange file, CommitRange range)
+    private static IReadOnlyList<string> RangeUnifiedArgs(GitFileChange file, DiffRange range)
     {
         List<string> args =
         [

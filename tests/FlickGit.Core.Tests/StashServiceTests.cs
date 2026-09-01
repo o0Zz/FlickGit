@@ -1,3 +1,4 @@
+using FlickGit.History;
 using FlickGit.Models;
 using FlickGit.Repositories;
 using FlickGit.Stashes;
@@ -22,12 +23,25 @@ public class StashServiceTests
 
     /// <summary>The row every pop and drop test below claims to have clicked.</summary>
     private static readonly GitStash First =
-        new("stash@{0}", "a1b2c3d4e5", "main", "pool leak on reconnect", default);
+        new("stash@{0}", "a1b2c3d4e5", "main", "pool leak on reconnect", default, ["b0b0b0b0b0", "1de41de41d"]);
 
-    private static readonly string OneStash = Stream(
-        "stash@{0}\u001fa1b2c3d4e5\u001f2026-08-26T14:03:00+00:00\u001fOn main: pool leak on reconnect");
+    private static readonly string OneStash = Stream(Record("stash@{0}", "a1b2c3d4e5", "On main: pool leak on reconnect"));
 
-    private static StashService Create(FakeGitRunner git) => new(git, new RepositoryService(git));
+    private static StashService Create(FakeGitRunner git) =>
+        new(git, new RepositoryService(git), new HistoryService(git));
+
+    /// <summary>
+    /// One <c>--format</c> record: reference, sha, parents, date, subject. Written through a helper
+    /// rather than inline because the field the tests care least about -- the parents -- is the one
+    /// whose absence would silently shift every field after it.
+    /// </summary>
+    private static string Record(
+        string reference,
+        string sha,
+        string subject,
+        string parents = "b0b0b0b0b0 1de41de41d",
+        string date = "2026-08-26T14:03:00+00:00") =>
+        $"{reference}\u001f{sha}\u001f{parents}\u001f{date}\u001f{subject}";
 
     /// <summary>
     /// As Git emits it: every record NUL-terminated, and a newline after that because a
@@ -45,12 +59,14 @@ public class StashServiceTests
     public void The_listing_yields_one_stash_per_record()
     {
         IReadOnlyList<GitStash> stashes = StashService.Parse(Stream(
-            "stash@{0}\u001fa1b2c3d4e5\u001f2026-08-26T14:03:00+02:00\u001fOn main: pool leak\ton reconnect",
-            "stash@{1}\u001ff6a7b8c9d0\u001f2026-08-24T09:40:12+02:00\u001fWIP on feature/storage-gw: 9f0e1d2 café Ünïcödé",
+            Record("stash@{0}", "a1b2c3d4e5", "On main: pool leak\ton reconnect",
+                date: "2026-08-26T14:03:00+02:00"),
+            Record("stash@{1}", "f6a7b8c9d0", "WIP on feature/storage-gw: 9f0e1d2 café Ünïcödé",
+                date: "2026-08-24T09:40:12+02:00"),
 
-            //Three fields where there should be four. Dropped, so a truncated read costs the last row
+            //Four fields where there should be five. Dropped, so a truncated read costs the last row
             //rather than the list.
-            "stash@{2}\u001fdeadbeef01\u001f2026-08-01T00:00:00+00:00"));
+            "stash@{2}\u001fdeadbeef01\u001fb0b0b0b0b0\u001f2026-08-01T00:00:00+00:00"));
 
         Assert.Equal(2, stashes.Count);
 
@@ -103,16 +119,17 @@ public class StashServiceTests
         //Something newer went on top, so what the user clicked as stash@{1} is now stash@{2}.
         var git = new FakeGitRunner()
             .Returns(["stash", "list"], Stream(
-                "stash@{0}\u001f1111111111\u001f2026-08-26T15:00:00+00:00\u001fOn main: pushed since",
-                "stash@{1}\u001fa1b2c3d4e5\u001f2026-08-26T14:03:00+00:00\u001fOn main: pool leak"))
+                Record("stash@{0}", "1111111111", "On main: pushed since"),
+                Record("stash@{1}", "a1b2c3d4e5", "On main: pool leak")))
             .Returns(["stash", "drop"]);
 
-        var clicked = new GitStash("stash@{1}", "9999999999", "main", "the row that was drawn", default);
+        var clicked = new GitStash("stash@{1}", "9999999999", "main", "the row that was drawn", default, []);
 
-        StashOutcome outcome = await Create(git).DropAsync(Repository, clicked, CancellationToken.None);
+        StashDropOutcome outcome = await Create(git).DropAsync(Repository, [clicked], CancellationToken.None);
 
-        Assert.False(outcome.Succeeded);
-        Assert.Equal(StashRefusal.Moved, outcome.Refusal);
+        Assert.False(outcome.Outcome.Succeeded);
+        Assert.Equal(StashRefusal.Moved, outcome.Outcome.Refusal);
+        Assert.Equal(0, outcome.Dropped);
 
         //Not attempted, rather than attempted and failed. The verification read is the only call.
         Assert.Single(git.Invocations);
@@ -175,7 +192,7 @@ public class StashServiceTests
 
         await stashes.PushAsync(Repository, "wip", includeUntracked: true, CancellationToken.None);
         await stashes.PopAsync(Repository, First, CancellationToken.None);
-        await stashes.DropAsync(Repository, First, CancellationToken.None);
+        await stashes.DropAsync(Repository, [First], CancellationToken.None);
 
         foreach (string forbidden in new[] { "clear", "apply", "--all", "--force", "-f", "--keep-index", "--staged" })
             Assert.True(git.NeverCalledWith(forbidden), forbidden);
@@ -240,5 +257,119 @@ public class StashServiceTests
         string[] push = Assert.Single(git.Invocations, i => i.Args.Contains("push")).Args;
 
         Assert.Equal(["stash", "push", "--include-untracked", "-m", "--force looking message"], push);
+    }
+
+    /// <summary>
+    /// A batch drop runs highest reflog index first, whatever order the rows arrived in.
+    ///
+    /// <b>THE rule of the batch, and the reason the ordering is in the service rather than the
+    /// window.</b> Dropping <c>stash@{k}</c> renumbers every entry above k and leaves everything
+    /// below it alone. So dropped in the order a user Ctrl+clicked them, the second command would
+    /// name a position that now holds a different stash — and for a drop there is nothing in the
+    /// product that finds the casualty again. Highest first is what keeps every reference still
+    /// waiting its turn naming the commit it named when the user pointed at it.
+    /// </summary>
+    [Fact]
+    public async Task A_batch_drop_takes_the_highest_reflog_index_first()
+    {
+        var git = new FakeGitRunner()
+            .Returns(["stash", "list"], Stream(
+                Record("stash@{0}", "0000000000", "On main: newest"),
+                Record("stash@{1}", "1111111111", "On main: second"),
+                Record("stash@{2}", "2222222222", "On main: third"),
+                Record("stash@{3}", "3333333333", "On main: oldest")))
+            .Returns(["stash", "drop"]);
+
+        //Handed over newest-first and out of order, which is what a Ctrl+click selection gives.
+        GitStash[] selection =
+        [
+            new("stash@{0}", "0000000000", "main", "newest", default, []),
+            new("stash@{3}", "3333333333", "main", "oldest", default, []),
+            new("stash@{1}", "1111111111", "main", "second", default, []),
+        ];
+
+        StashDropOutcome outcome = await Create(git).DropAsync(Repository, selection, CancellationToken.None);
+
+        Assert.True(outcome.Outcome.Succeeded);
+        Assert.Equal(3, outcome.Dropped);
+
+        string[] dropped =
+        [
+            .. git.Invocations
+                .Where(invocation => invocation.Args.Contains("drop"))
+                .Select(invocation => invocation.Args[^1]),
+        ];
+
+        Assert.Equal(["stash@{3}", "stash@{1}", "stash@{0}"], dropped);
+    }
+
+    /// <summary>
+    /// One stale row in a selection refuses the whole batch, and nothing is dropped.
+    ///
+    /// Checked for every row against one read <i>before</i> the first command, rather than as each
+    /// row's turn comes: verified as it went, the batch would drop the rows above the stale one and
+    /// only then stop, having destroyed stashes on the strength of a list the user was no longer
+    /// looking at.
+    /// </summary>
+    [Fact]
+    public async Task A_batch_drop_with_one_stale_row_drops_nothing()
+    {
+        var git = new FakeGitRunner()
+            .Returns(["stash", "list"], Stream(
+                Record("stash@{0}", "0000000000", "On main: newest"),
+                Record("stash@{1}", "1111111111", "On main: second")))
+            .Returns(["stash", "drop"]);
+
+        GitStash[] selection =
+        [
+            new("stash@{0}", "0000000000", "main", "newest", default, []),
+
+            //Same position, different commit: something pushed or popped while the window sat open.
+            new("stash@{1}", "9999999999", "main", "the row that was drawn", default, []),
+        ];
+
+        StashDropOutcome outcome = await Create(git).DropAsync(Repository, selection, CancellationToken.None);
+
+        Assert.Equal(StashRefusal.Moved, outcome.Outcome.Refusal);
+        Assert.Equal(0, outcome.Dropped);
+        Assert.True(git.NeverCalledWith("drop"));
+    }
+
+    /// <summary>
+    /// The parents field, which is what makes a stash's contents viewable.
+    ///
+    /// The third parent is the one that matters: it holds the untracked files that went into the
+    /// stash, and they are in no other tree — so a stash listing that could not tell it was there
+    /// would show a stash of five files as three and say nothing about the other two.
+    /// </summary>
+    [Fact]
+    public void A_stash_names_its_parents()
+    {
+        IReadOnlyList<GitStash> stashes = StashService.Parse(Stream(
+            Record("stash@{0}", "aaaaaaaaaa", "On main: with untracked",
+                parents: "b0b0b0b0b0 1de41de41d c0ffee00c0"),
+            Record("stash@{1}", "bbbbbbbbbb", "On main: without",
+                parents: "d0d0d0d0d0 2de42de42d")));
+
+        Assert.Equal(["b0b0b0b0b0", "1de41de41d", "c0ffee00c0"], stashes[0].Parents);
+        Assert.Equal("b0b0b0b0b0", stashes[0].BaseSha);
+        Assert.Equal("c0ffee00c0", stashes[0].UntrackedSha);
+
+        //The tracked half is the stash commit against the commit it was made on, which is exactly
+        //what `git stash show` compares -- and the label names the stash rather than a second hash,
+        //because "which stash is this" is the question the pane's header has to answer.
+        Assert.Equal("b0b0b0b0b0", stashes[0].TrackedRange?.BaseSpec);
+        Assert.Equal("aaaaaaaaaa", stashes[0].TrackedRange?.TipSpec);
+        Assert.Equal("b0b0b0b ↔ stash@{0}", stashes[0].TrackedRange?.Label);
+
+        //The untracked half is that third commit against the empty tree, so every file in it reads as
+        //an addition.
+        Assert.Equal(CommitRange.EmptyTree, stashes[0].UntrackedRange?.BaseSpec);
+        Assert.Equal("c0ffee00c0", stashes[0].UntrackedRange?.TipSpec);
+
+        //Two parents, so no untracked half at all -- and null rather than an empty range, because the
+        //window has to be able to not ask for it.
+        Assert.Null(stashes[1].UntrackedSha);
+        Assert.Null(stashes[1].UntrackedRange);
     }
 }

@@ -268,11 +268,12 @@ public sealed class WindowVerbs(
     }
 
     /// <summary>
-    /// The stash window. Per call, for the reason <see cref="TagPicker"/> gives.
+    /// The stash window. Per call, for the reason <see cref="TagPicker"/> gives -- and with more
+    /// force now that it holds a diff cache and a selection of its own.
     /// </summary>
     public VerbResult StashPicker(RepositoryInfo repository)
     {
-        var window = new StashesWindow(repository, stashes);
+        var window = new StashesWindow(repository, stashes, diffs, settings, timings, log);
 
         AppWindow.Present(window);
 
