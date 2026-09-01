@@ -218,6 +218,7 @@ branch.aborted = La bascule a modifié des fichiers que vous aviez sélectionné
 
 # ---- fenêtre Branches ----
 switch.title = Branches — {0}
+switch.filter.hint = Filtrer les branches, ou saisir un nouveau nom pour la créer
 switch.local = Locales
 switch.remote = Distantes
 switch.button = Basculer
@@ -243,6 +244,7 @@ branch.noremote = « {0} » ne commence pas par le nom d'un dépôt distant conf
 
 # ---- fenêtre des étiquettes ----
 tag.title = Étiquettes — {0}
+tag.filter.hint = Filtrer les étiquettes
 tag.new = Nouvelle étiquette
 tag.name.label = Nom
 tag.message.label = Message — facultatif ; un message en fait une étiquette annotée
@@ -251,7 +253,7 @@ tag.push = Pousser l'étiquette
 tag.delete = Supprimer l'étiquette
 tag.message.hint = Laissez vide pour une étiquette légère. Ce que vous écrivez ici devient le message de l'étiquette et la rend annotée.
 tag.none = Aucune étiquette dans ce dépôt pour l'instant.
-tag.nomatch = Aucune étiquette ne correspond.
+tag.nomatch = Aucune étiquette ne correspond à '{0}' — créez-la ci-dessous.
 tag.count = {0} étiquette(s)
 tag.lightweight = légère
 tag.invalid = nom d'étiquette invalide
@@ -317,6 +319,7 @@ stash.moved = Rien n'a été fait : la remise sur laquelle vous avez cliqué n'e
 
 # ---- fenêtre des sous-modules ----
 submodule.title = Sous-modules — {0}
+submodule.filter.hint = Filtrer les sous-modules
 submodule.none = Ce dépôt n'a aucun sous-module. Ajoutez-en un ci-dessous.
 submodule.nomatch = Aucun résultat.
 submodule.count = {0} sous-modules

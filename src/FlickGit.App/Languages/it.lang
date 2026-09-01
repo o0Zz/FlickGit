@@ -218,6 +218,7 @@ branch.aborted = Il cambio di ramo ha modificato file che erano stati selezionat
 
 # ---- finestra Rami ----
 switch.title = Rami — {0}
+switch.filter.hint = Filtra i rami, o digita un nuovo nome per crearlo
 switch.local = Locali
 switch.remote = Remoti
 switch.button = Cambia
@@ -243,6 +244,7 @@ branch.noremote = «{0}» non inizia con il nome di un remoto configurato.
 
 # ---- finestra dei tag ----
 tag.title = Tag — {0}
+tag.filter.hint = Filtra i tag
 tag.new = Nuovo tag
 tag.name.label = Nome
 tag.message.label = Messaggio — facoltativo; un messaggio lo rende un tag annotato
@@ -251,7 +253,7 @@ tag.push = Invia tag
 tag.delete = Elimina tag
 tag.message.hint = Lasciare vuoto per un tag leggero. Ciò che si scrive qui diventa il messaggio del tag e lo rende annotato.
 tag.none = Non ci sono ancora tag in questo repository.
-tag.nomatch = Nessun tag corrisponde.
+tag.nomatch = Nessun tag corrisponde a '{0}' — crealo qui sotto.
 tag.count = {0} tag
 tag.lightweight = leggero
 tag.invalid = non è un nome di tag valido
@@ -317,6 +319,7 @@ stash.moved = Non è stato fatto nulla: lo stash su cui si è fatto clic non è 
 
 # ---- finestra dei sottomoduli ----
 submodule.title = Sottomoduli — {0}
+submodule.filter.hint = Filtra i sottomoduli
 submodule.none = Questo repository non ha sottomoduli. Aggiungine uno qui sotto.
 submodule.nomatch = Nessun risultato.
 submodule.count = {0} sottomoduli

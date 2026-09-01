@@ -65,6 +65,7 @@ public partial class TagsWindow : ReloadableWindow
         _switches = switches;
 
         Title = Strings.Get("tag.title", repository.Name);
+        FilterHint.Text = Strings.Get("tag.filter.hint");
         NewLabel.Text = Strings.Get("tag.new");
         NameLabel.Text = Strings.Get("tag.name.label");
         MessageLabel.Text = Strings.Get("tag.message.label");
@@ -105,6 +106,12 @@ public partial class TagsWindow : ReloadableWindow
     {
         string pattern = FilterBox.Text.Trim();
 
+        //Untrimmed, unlike the pattern: a box holding only spaces is not empty, and the hint
+        //must not sit under a caret that has moved off it.
+        FilterHint.Visibility = FilterBox.Text.Length == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         //With nothing typed, Git's own ordering: `--sort=-v:refname` puts 1.10 above 1.9, and the
         //matcher would fall back to alphabetical and undo exactly that. Once there is a pattern the
         //best match wins, which is what somebody who typed a version wants.
@@ -119,7 +126,9 @@ public partial class TagsWindow : ReloadableWindow
 
         StatusText.Text = _all.Count == 0
             ? Strings.Get("tag.none")
-            : matches.Count == 0 ? Strings.Get("tag.nomatch")
+            //Only reachable with something typed, so the pattern is always there to name — and
+            //naming it is what points at the create panel instead of leaving the user to retype.
+            : matches.Count == 0 ? Strings.Get("tag.nomatch", pattern)
             : Strings.Get("tag.count", _all.Count);
     }
 

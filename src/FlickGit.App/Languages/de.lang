@@ -218,6 +218,7 @@ branch.aborted = Der Wechsel hat Dateien verändert, die Sie ausgewählt hatten:
 
 # ---- Fenster Branches ----
 switch.title = Branches — {0}
+switch.filter.hint = Branches filtern, oder einen neuen Namen eingeben, um ihn anzulegen
 switch.local = Lokal
 switch.remote = Remote
 switch.button = Wechseln
@@ -243,6 +244,7 @@ branch.noremote = „{0}“ beginnt nicht mit dem Namen eines konfigurierten Rem
 
 # ---- Tag-Fenster ----
 tag.title = Tags — {0}
+tag.filter.hint = Tags filtern
 tag.new = Neuer Tag
 tag.name.label = Name
 tag.message.label = Nachricht — optional; eine Nachricht macht daraus einen annotierten Tag
@@ -251,7 +253,7 @@ tag.push = Tag pushen
 tag.delete = Tag löschen
 tag.message.hint = Leer lassen für einen leichtgewichtigen Tag. Alles, was hier steht, wird zur Nachricht des Tags und macht ihn annotiert.
 tag.none = In diesem Repository gibt es noch keine Tags.
-tag.nomatch = Kein Tag passt.
+tag.nomatch = Kein Tag passt zu '{0}' — unten anlegen.
 tag.count = {0} Tag(s)
 tag.lightweight = leichtgewichtig
 tag.invalid = kein gültiger Tag-Name
@@ -317,6 +319,7 @@ stash.moved = Es wurde nichts getan: der angeklickte Stash ist nicht mehr der an
 
 # ---- Submodul-Fenster ----
 submodule.title = Submodule — {0}
+submodule.filter.hint = Submodule filtern
 submodule.none = Dieses Repository hat keine Submodule. Fügen Sie unten eines hinzu.
 submodule.nomatch = Keine Treffer.
 submodule.count = {0} Submodule

@@ -55,6 +55,7 @@ public partial class SubmodulesWindow : ReloadableWindow
         _submodules = submodules;
 
         Title = Strings.Get("submodule.title", repository.Name);
+        FilterHint.Text = Strings.Get("submodule.filter.hint");
         AddLabel.Text = Strings.Get("submodule.add");
         UrlLabel.Text = Strings.Get("submodule.add.url");
         IntoLabel.Text = Strings.Get("submodule.add.into");
@@ -95,6 +96,12 @@ public partial class SubmodulesWindow : ReloadableWindow
     private void ApplyFilter()
     {
         string pattern = FilterBox.Text.Trim();
+
+        //Untrimmed, unlike the pattern: a box holding only spaces is not empty, and the hint
+        //must not sit under a caret that has moved off it.
+        FilterHint.Visibility = FilterBox.Text.Length == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         List<GitSubmodule> matches = pattern.Length == 0
             ? [.. _all]

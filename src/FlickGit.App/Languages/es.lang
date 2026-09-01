@@ -218,6 +218,7 @@ branch.aborted = El cambio de rama modificó archivos que había seleccionado:\n
 
 # ---- ventana Ramas ----
 switch.title = Ramas — {0}
+switch.filter.hint = Filtra las ramas, o escribe un nombre nuevo para crearla
 switch.local = Locales
 switch.remote = Remotas
 switch.button = Cambiar
@@ -243,6 +244,7 @@ branch.noremote = «{0}» no empieza por el nombre de un remoto configurado.
 
 # ---- ventana de etiquetas ----
 tag.title = Etiquetas — {0}
+tag.filter.hint = Filtra las etiquetas
 tag.new = Nueva etiqueta
 tag.name.label = Nombre
 tag.message.label = Mensaje — opcional; un mensaje la convierte en una etiqueta anotada
@@ -251,7 +253,7 @@ tag.push = Enviar etiqueta
 tag.delete = Eliminar etiqueta
 tag.message.hint = Déjelo vacío para una etiqueta ligera. Lo que escriba aquí se convierte en el mensaje de la etiqueta y la hace anotada.
 tag.none = Todavía no hay etiquetas en este repositorio.
-tag.nomatch = Ninguna etiqueta coincide.
+tag.nomatch = Ninguna etiqueta coincide con '{0}' — créala abajo.
 tag.count = {0} etiqueta(s)
 tag.lightweight = ligera
 tag.invalid = no es un nombre de etiqueta válido
@@ -317,6 +319,7 @@ stash.moved = No se ha hecho nada: el stash que pulsó ya no es el que ocupa esa
 
 # ---- ventana de submódulos ----
 submodule.title = Submódulos — {0}
+submodule.filter.hint = Filtra los submódulos
 submodule.none = Este repositorio no tiene submódulos. Añada uno abajo.
 submodule.nomatch = No hay coincidencias.
 submodule.count = {0} submódulos

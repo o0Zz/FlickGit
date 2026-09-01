@@ -60,6 +60,7 @@ public partial class SwitchBranchWindow : ReloadableWindow
         Title = Strings.Get("switch.title", repository.Name);
         CurrentBranch = currentBranch;
 
+        FilterHint.Text = Strings.Get("switch.filter.hint");
         StashButton.Content = Strings.Get("switch.stash");
         SwitchButton.Content = Strings.Get("switch.button");
 
@@ -152,6 +153,12 @@ public partial class SwitchBranchWindow : ReloadableWindow
     private void ApplyFilter()
     {
         string pattern = FilterBox.Text.Trim();
+
+        //Untrimmed, unlike the pattern: a box holding only spaces is not empty, and the hint
+        //must not sit under a caret that has moved off it.
+        FilterHint.Visibility = FilterBox.Text.Length == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         //Local branches keep their ordering advantage over remote ones even under a fuzzy match:
         //switching to a local branch is the common case, and a remote match that scored a point higher

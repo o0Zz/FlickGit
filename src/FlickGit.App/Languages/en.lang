@@ -299,6 +299,7 @@ branch.aborted = The switch changed files you had selected:\n\n{0}\n\nThe list h
 
 # ---- branches window ----
 switch.title = Branches — {0}
+switch.filter.hint = Filter branches, or type a new name to create it
 switch.local = Local
 switch.remote = Remote
 switch.button = Switch
@@ -377,6 +378,7 @@ worktree.refused.path = {0} cannot be used as a worktree folder.
 # ---- tags window ----
 # {0} repository name
 tag.title = Tags — {0}
+tag.filter.hint = Filter tags
 tag.new = New tag
 tag.name.label = Name
 tag.message.label = Message — optional; a message makes it an annotated tag
@@ -385,7 +387,8 @@ tag.push = Push tag
 tag.delete = Delete tag
 tag.message.hint = Leave it empty for a lightweight tag. Anything typed here becomes the tag's own message, and makes it an annotated tag.
 tag.none = No tags in this repository yet.
-tag.nomatch = No tag matches.
+# {0} what was typed in the filter box
+tag.nomatch = No tag matches '{0}' — create it below.
 # {0} number of tags
 tag.count = {0} tag(s)
 tag.lightweight = lightweight
@@ -466,6 +469,7 @@ stash.moved = Nothing was done, because the stash you clicked is no longer the o
 
 # {0} repository name
 submodule.title = Submodules — {0}
+submodule.filter.hint = Filter submodules
 submodule.none = This repository has no submodules. Add one below.
 submodule.nomatch = Nothing matches.
 # {0} count

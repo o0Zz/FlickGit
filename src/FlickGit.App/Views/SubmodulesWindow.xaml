@@ -17,29 +17,27 @@
         </Grid.RowDefinitions>
 
         <!-- The same filter-first shape as the branch and tag pickers. A repository with twenty
-             submodules is exactly the one where finding the row matters. -->
+             submodules is exactly the one where finding the row matters.
+
+             It filters and nothing else: a submodule is a URL *and* a path, so adding one is the panel
+             below. The hint says so, which is what the "&gt;" prompt it replaced could not. -->
         <Border Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,0,0,1"
                 Padding="12,10">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Text="&gt;"
+                <TextBlock x:Name="FilterHint"
                            VerticalAlignment="Center"
-                           Margin="0,0,8,0"
-                           FontFamily="Cascadia Mono, Consolas, Courier New"
-                           Foreground="{StaticResource Accent}"
-                           FontWeight="Bold" />
+                           Margin="6,0,0,0"
+                           FontSize="14"
+                           IsHitTestVisible="False"
+                           Style="{StaticResource Muted}" />
 
                 <TextBox x:Name="FilterBox"
-                         Grid.Column="1"
                          BorderThickness="0"
                          Background="Transparent"
                          FontSize="14"
+                         VerticalContentAlignment="Center"
                          TextChanged="OnFilterChanged"
                          PreviewKeyDown="OnFilterKeyDown" />
             </Grid>

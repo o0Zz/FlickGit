@@ -17,29 +17,28 @@
         </Grid.RowDefinitions>
 
         <!-- A filter box, not a list to scroll. The user works across many branches and knows the
-             name; typing three letters of it should be enough. -->
+             name; typing three letters of it should be enough.
+
+             The hint is where a "&gt;" prompt used to be, and it carries the half of this box nobody
+             would guess: a name matching nothing is a branch to create. That glyph belongs to the
+             palette, where a command grammar is behind it; here there was none for it to promise. -->
         <Border Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,0,0,1"
                 Padding="12,10">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Text="&gt;"
+                <TextBlock x:Name="FilterHint"
                            VerticalAlignment="Center"
-                           Margin="0,0,8,0"
-                           FontFamily="Cascadia Mono, Consolas, Courier New"
-                           Foreground="{StaticResource Accent}"
-                           FontWeight="Bold" />
+                           Margin="6,0,0,0"
+                           FontSize="14"
+                           IsHitTestVisible="False"
+                           Style="{StaticResource Muted}" />
 
                 <TextBox x:Name="FilterBox"
-                         Grid.Column="1"
                          BorderThickness="0"
                          Background="Transparent"
                          FontSize="14"
+                         VerticalContentAlignment="Center"
                          TextChanged="OnFilterChanged"
                          PreviewKeyDown="OnFilterKeyDown" />
             </Grid>

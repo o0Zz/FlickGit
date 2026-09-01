@@ -17,29 +17,29 @@
         </Grid.RowDefinitions>
 
         <!-- The same filter-first shape as the branch picker: the user works across many tags and
-             knows the version they want; typing three characters of it should be enough. -->
+             knows the version they want; typing three characters of it should be enough.
+
+             It filters and nothing else, unlike the branch picker's, because a tag is a name *and* an
+             optional message — so creating one is the panel below rather than a gesture in here. The
+             hint says which of the two this box is, which is what the "&gt;" prompt it replaced did
+             not. -->
         <Border Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,0,0,1"
                 Padding="12,10">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Text="&gt;"
+                <TextBlock x:Name="FilterHint"
                            VerticalAlignment="Center"
-                           Margin="0,0,8,0"
-                           FontFamily="Cascadia Mono, Consolas, Courier New"
-                           Foreground="{StaticResource Accent}"
-                           FontWeight="Bold" />
+                           Margin="6,0,0,0"
+                           FontSize="14"
+                           IsHitTestVisible="False"
+                           Style="{StaticResource Muted}" />
 
                 <TextBox x:Name="FilterBox"
-                         Grid.Column="1"
                          BorderThickness="0"
                          Background="Transparent"
                          FontSize="14"
+                         VerticalContentAlignment="Center"
                          TextChanged="OnFilterChanged"
                          PreviewKeyDown="OnFilterKeyDown" />
             </Grid>
