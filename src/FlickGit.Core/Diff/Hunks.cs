@@ -162,13 +162,18 @@ public static class Hunks
         if (leftCount == 0 && rightCount == 0)
             return null;
 
-        //Unified-diff convention: a side contributing nothing is written as start 0.
-        string path = repositoryRelativePath.Replace('\\', '/');
+        //Git writes forward slashes in a patch header. On Windows the path may arrive with the platform
+        //separator and is rewritten; on Unix a backslash is a legal character in a file name, so the same
+        //rewrite would split one name into two segments and emit a header Git cannot match.
+        string path = OperatingSystem.IsWindows()
+            ? repositoryRelativePath.Replace('\\', '/')
+            : repositoryRelativePath;
 
         var patch = new StringBuilder();
         patch.Append("diff --git a/").Append(path).Append(" b/").Append(path).Append('\n');
         patch.Append("--- a/").Append(path).Append('\n');
         patch.Append("+++ b/").Append(path).Append('\n');
+        //Unified-diff convention: a side contributing nothing is written as start 0.
         patch.Append("@@ -").Append(leftCount == 0 ? 0 : leftStart).Append(',').Append(leftCount)
              .Append(" +").Append(rightCount == 0 ? 0 : rightStart).Append(',').Append(rightCount)
              .Append(" @@\n");

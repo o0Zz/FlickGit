@@ -18,30 +18,36 @@ namespace FlickGit.Tests;
 public class WorktreeServiceTests
 {
     private static readonly RepositoryInfo Repository =
-        new(@"C:\dev\repo", "repo", HasSubmodules: false, IsBare: false, GitDirectory: @"C:\dev\repo\.git");
+        new(PlatformPaths.Root, "repo", HasSubmodules: false, IsBare: false, GitDirectory: PlatformPaths.GitDirectory);
 
     private static WorktreeService Create(FakeGitRunner git) => new(git, new RepositoryService(git));
 
-    /// <summary>What Git actually prints, including the three records with no branch of their own.</summary>
-    private const string ListOutput = """
-        worktree C:/dev/repo
+    /// <summary>
+    /// What Git actually prints, including the three records with no branch of their own.
+    ///
+    /// A template rather than a const: Git writes forward slashes on every platform, but the root it
+    /// writes them under is platform-shaped, and the parser hands its output to
+    /// <c>RepositoryService.NormaliseRoot</c> -- which resolves it.
+    /// </summary>
+    private static readonly string ListOutput = $"""
+        worktree {PlatformPaths.GitRoot}
         HEAD 1111111111111111111111111111111111111111
         branch refs/heads/main
 
-        worktree C:/dev/repo-feature-storage gw
+        worktree {PlatformPaths.GitRoot}-feature-storage gw
         HEAD 2222222222222222222222222222222222222222
         branch refs/heads/feature/storage-gw
 
-        worktree C:/dev/repo-detached
+        worktree {PlatformPaths.GitRoot}-detached
         HEAD 3333333333333333333333333333333333333333
         detached
 
-        worktree C:/dev/repo-gone
+        worktree {PlatformPaths.GitRoot}-gone
         HEAD 4444444444444444444444444444444444444444
         branch refs/heads/fix/pool-leak
         prunable gitdir file points to non-existent location
 
-        worktree C:/dev/repo-usb
+        worktree {PlatformPaths.GitRoot}-usb
         HEAD 5555555555555555555555555555555555555555
         branch refs/heads/release
         locked on a removable drive, do not prune
@@ -55,16 +61,16 @@ public class WorktreeServiceTests
 
         Assert.Equal(5, worktrees.Count);
 
-        //Normalised to the Windows spelling, so a worktree path and a resolved repository root compare
-        //as strings.
-        Assert.Equal(@"C:\dev\repo", worktrees[0].Path);
+        //Normalised to the platform's own spelling, so a worktree path and a resolved repository root
+        //compare as strings.
+        Assert.Equal(PlatformPaths.Root, worktrees[0].Path);
         Assert.Equal("main", worktrees[0].Branch);
 
         //refs/heads/ stripped, and a branch containing a slash keeps it.
         Assert.Equal("feature/storage-gw", worktrees[1].Branch);
 
         //The value runs to the end of the line: a path containing a space is one field, not two.
-        Assert.Equal(@"C:\dev\repo-feature-storage gw", worktrees[1].Path);
+        Assert.Equal(PlatformPaths.Sibling("-feature-storage gw"), worktrees[1].Path);
 
         //Detached and bare worktrees have no branch, which is what keeps them off the Branches window --
         //and is the only thing anything asks about one, which is why the record no longer carries a
@@ -98,7 +104,7 @@ public class WorktreeServiceTests
 
         WorktreeOutcome outcome = await Create(git).AddAsync(
             Repository,
-            @"C:\dev\repo\worktrees\hotfix",
+            PlatformPaths.Under("worktrees", "hotfix"),
             WorktreeStart.Create("hotfix"),
             CancellationToken.None);
 
@@ -116,7 +122,7 @@ public class WorktreeServiceTests
 
         WorktreeOutcome outcome = await Create(git).AddAsync(
             Repository,
-            @"..\repo-hotfix",
+            PlatformPaths.Up("repo-hotfix"),
             WorktreeStart.Create("hotfix"),
             CancellationToken.None);
 
@@ -124,23 +130,36 @@ public class WorktreeServiceTests
         Assert.Empty(git.Invocations);
     }
 
-    [Theory]
-    [InlineData(@"C:\dev\repo")]
-    [InlineData(@"C:\dev\repo\src")]
-    [InlineData(@"C:\dev\repo\..\repo\src")]
-    [InlineData(@"c:\DEV\REPO\src")]
-    public void ContainmentCatchesTheRootItselfAndEveryWayDownIntoIt(string path) =>
-        Assert.True(WorktreeService.IsInside(@"C:\dev\repo", path));
+    public static TheoryData<string> Inside =>
+    [
+        PlatformPaths.Root,
+        PlatformPaths.Under("src"),
+        PlatformPaths.Under("..", "repo", "src"),
+
+        //Deliberately a different case. IsInside stays case-insensitive on every platform because a
+        //`yes` there is a refusal, so over-matching can only ever refuse more -- see its own comment.
+        PlatformPaths.Join(PlatformPaths.Root.ToUpperInvariant(), "src"),
+    ];
 
     [Theory]
-    [InlineData(@"C:\dev\repo2")]
-    [InlineData(@"C:\dev\repo-hotfix")]
-    [InlineData(@"C:\dev\other\repo")]
-    [InlineData(@"D:\repo")]
+    [MemberData(nameof(Inside))]
+    public void ContainmentCatchesTheRootItselfAndEveryWayDownIntoIt(string path) =>
+        Assert.True(WorktreeService.IsInside(PlatformPaths.Root, path));
+
+    public static TheoryData<string> Outside =>
+    [
+        PlatformPaths.Sibling("2"),
+        PlatformPaths.Sibling("-hotfix"),
+        PlatformPaths.Beside("other", "repo"),
+        PlatformPaths.OtherVolume,
+    ];
+
+    [Theory]
+    [MemberData(nameof(Outside))]
     public void ContainmentDoesNotCatchASiblingWhoseNameStartsTheSame(string path) =>
-        //"C:\repo2" is not inside "C:\repo", which a bare StartsWith would get wrong -- and a sibling
-        //named after the repository is precisely what this feature suggests.
-        Assert.False(WorktreeService.IsInside(@"C:\dev\repo", path));
+        //"repo2" is not inside "repo", which a bare StartsWith would get wrong -- and a sibling named
+        //after the repository is precisely what this feature suggests.
+        Assert.False(WorktreeService.IsInside(PlatformPaths.Root, path));
 
     [Fact]
     public async Task AddingForAnExistingBranchNamesThePathBeforeTheBranch()

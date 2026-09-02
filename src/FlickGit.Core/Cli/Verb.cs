@@ -312,7 +312,10 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
     {
         string trimmed = path.Trim().Trim('"').Trim();
 
-        return trimmed.Length == 2 && trimmed[1] == ':' && char.IsLetter(trimmed[0])
+        //Windows only. Off it there are no drives, and "C:" is an ordinary two-character directory
+        //name -- appending a separator there would rewrite a path the user meant literally.
+        return OperatingSystem.IsWindows()
+               && trimmed.Length == 2 && trimmed[1] == ':' && char.IsLetter(trimmed[0])
             ? trimmed + System.IO.Path.DirectorySeparatorChar
             : trimmed;
     }

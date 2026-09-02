@@ -1,4 +1,5 @@
 using FlickGit.Logging;
+using FlickGit.Repositories;
 
 namespace FlickGit.Palette;
 
@@ -40,7 +41,7 @@ public sealed class RepositoryScanner(ILog log)
     public IReadOnlyList<string> Scan(IEnumerable<string> roots, CancellationToken cancellationToken)
     {
         var found = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(PathComparison.Comparer);
 
         foreach (string root in roots)
         {

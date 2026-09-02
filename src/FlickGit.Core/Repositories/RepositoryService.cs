@@ -21,7 +21,7 @@ public sealed class RepositoryService(IGitProcessRunner git)
     /// </summary>
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(30);
 
-    private readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CacheEntry> _cache = new(PathComparison.Comparer);
 
     private long _writeGeneration;
 
@@ -85,8 +85,7 @@ public sealed class RepositoryService(IGitProcessRunner git)
 
         foreach (string key in _cache.Keys)
         {
-            if (string.Equals(key, root, StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith(inside, StringComparison.OrdinalIgnoreCase))
+            if (PathComparison.Equal(key, root) || PathComparison.StartsWith(key, inside))
             {
                 _cache.TryRemove(key, out _);
             }
@@ -217,41 +216,43 @@ public sealed class RepositoryService(IGitProcessRunner git)
     }
 
     /// <summary>
-    /// Git's <c>--show-toplevel</c> spelling turned into the Windows one: back slashes,
-    /// drive letter upper-cased, no trailing separator.
+    /// Git's <c>--show-toplevel</c> spelling turned into the platform's own: the platform
+    /// separator, the drive letter upper-cased on Windows, no trailing separator.
     /// </summary>
     internal static string NormaliseRoot(string gitToplevel)
     {
         if (gitToplevel.Length == 0)
             return string.Empty;
 
-        string windows = gitToplevel.Replace('/', Path.DirectorySeparatorChar);
+        string normalised = gitToplevel.Replace('/', Path.DirectorySeparatorChar);
 
         try
         {
-            windows = Path.GetFullPath(windows);
+            normalised = Path.GetFullPath(normalised);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
             //Keep what Git said rather than losing the answer entirely.
         }
 
-        windows = TrimTrailingSeparator(windows);
+        normalised = TrimTrailingSeparator(normalised);
 
-        //"c:\dev\repo" and "C:\dev\repo" are one directory, and the cache is
-        //case-insensitive anyway; upper-casing the drive letter keeps the *displayed*
-        //path stable no matter which spelling Explorer handed over.
-        if (windows.Length >= 2 && windows[1] == ':')
-            windows = char.ToUpperInvariant(windows[0]) + windows[1..];
+        //"c:\dev\repo" and "C:\dev\repo" are one directory, and the cache is case-insensitive
+        //there anyway; upper-casing the drive letter keeps the *displayed* path stable no matter
+        //which spelling Explorer handed over. There is no drive letter to fix off Windows, where the
+        //comparison is case-sensitive and rewriting any character would name a different path.
+        if (OperatingSystem.IsWindows() && normalised.Length >= 2 && normalised[1] == ':')
+            normalised = char.ToUpperInvariant(normalised[0]) + normalised[1..];
 
-        return windows;
+        return normalised;
     }
 
     private static string TrimTrailingSeparator(string path)
     {
-        //A root directory ("C:\") keeps its separator -- removing it would leave "C:",
-        //which Windows reads as "the current directory on drive C", not as the root.
-        if (path.Length <= 3)
+        //A root directory keeps its separator. On Windows "C:\" would otherwise become "C:", which
+        //Windows reads as "the current directory on drive C" rather than the root; on Unix "/" would
+        //become the empty string, which names nothing at all.
+        if (path.Length <= (OperatingSystem.IsWindows() ? 3 : 1))
             return path;
 
         return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);

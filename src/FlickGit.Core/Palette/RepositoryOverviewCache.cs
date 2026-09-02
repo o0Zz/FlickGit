@@ -70,7 +70,7 @@ public sealed class RepositoryOverviewCache(
         long generation = repositories.WriteGeneration;
 
         var roots = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(PathComparison.Comparer);
 
         foreach (string root in recent.Concat(scanner.Scan(scanRoots, cancellationToken)))
         {

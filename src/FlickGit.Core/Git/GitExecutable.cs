@@ -3,14 +3,14 @@ using FlickGit.Logging;
 namespace FlickGit.Git;
 
 /// <summary>
-/// Finds git.exe once and remembers it.
+/// Finds the git executable once and remembers it.
 ///
 /// Resolution order, per CLAUDE.md, "Git Command Execution": the user's setting, then
 /// PATH, then the standard install locations. The result is cached for the life of the
 /// process — a resident service that probed the file system on every Git call would
-/// spend more time looking for git.exe than running it.
+/// spend more time looking for Git than running it.
 ///
-/// A missing git.exe surfaces as one clear error from <see cref="Path"/>, not as a
+/// A missing Git surfaces as one clear error from <see cref="Path"/>, not as a
 /// mystery failure per command.
 /// </summary>
 public sealed class GitExecutable
@@ -20,14 +20,36 @@ public sealed class GitExecutable
     private readonly Lazy<string?> _resolved;
 
     /// <summary>
-    /// Where Git for Windows and the common portable layouts put it. Ordered:
-    /// 64-bit system install, 32-bit, per-user install, Scoop, then the two
-    /// portable roots people actually use.
+    /// The file name to look for. Windows needs the extension and Unix must not have it: a
+    /// candidate of "git.exe" matches nothing on any PATH entry there, which would leave Git
+    /// undiscoverable on a machine that has it installed and working.
+    ///
+    /// Internal because <see cref="GitNotFoundException"/> names it in the message it builds.
     /// </summary>
-    private static readonly string[] WellKnownRelativePaths =
+    internal static string ExecutableName { get; } = OperatingSystem.IsWindows() ? "git.exe" : "git";
+
+    /// <summary>
+    /// Where Git for Windows and the common portable layouts put it, relative to a shell folder.
+    /// Ordered: 64-bit system install, 32-bit, per-user install.
+    /// </summary>
+    private static readonly string[] WindowsRelativePaths =
     [
         @"Git\cmd\git.exe",
         @"Git\bin\git.exe",
+    ];
+
+    /// <summary>
+    /// Where Git is when it is not on PATH on a Unix machine. Absolute rather than relative to a
+    /// shell folder, because the folders that scheme relies on -- ProgramFiles and its 32-bit
+    /// sibling -- come back empty off Windows. Ordered: Homebrew on Apple silicon, Homebrew on
+    /// Intel, the ordinary system location, then the Xcode command line tools' shim.
+    /// </summary>
+    private static readonly string[] UnixPaths =
+    [
+        "/opt/homebrew/bin/git",
+        "/usr/local/bin/git",
+        "/usr/bin/git",
+        "/Library/Developer/CommandLineTools/usr/bin/git",
     ];
 
     public GitExecutable(string? configuredPath, ILog log)
@@ -37,28 +59,28 @@ public sealed class GitExecutable
         _resolved = new Lazy<string?>(Resolve, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    /// <summary>True when git.exe was found. Every surface checks this before offering an action.</summary>
+    /// <summary>True when Git was found. Every surface checks this before offering an action.</summary>
     public bool IsAvailable => _resolved.Value is not null;
 
     /// <summary>
-    /// The full path to git.exe.
+    /// The full path to the git executable.
     /// </summary>
-    /// <exception cref="GitNotFoundException">git.exe could not be located.</exception>
+    /// <exception cref="GitNotFoundException">Git could not be located.</exception>
     public string Path => _resolved.Value ?? throw new GitNotFoundException(_configuredPath);
 
     private string? Resolve()
     {
         //An explicit setting is honoured even if it is wrong: silently falling back to
-        //a different git.exe than the one the user named would be worse than failing.
+        //a different Git than the one the user named would be worse than failing.
         if (_configuredPath is not null)
         {
             if (File.Exists(_configuredPath))
             {
-                _log.Info($"git.exe from settings: {_configuredPath}");
+                _log.Info($"{ExecutableName} from settings: {_configuredPath}");
                 return _configuredPath;
             }
 
-            _log.Warn($"Configured git.exe does not exist: {_configuredPath}");
+            _log.Warn($"Configured {ExecutableName} does not exist: {_configuredPath}");
             return null;
         }
 
@@ -67,11 +89,11 @@ public sealed class GitExecutable
             if (!File.Exists(candidate))
                 continue;
 
-            _log.Info($"git.exe resolved to {candidate}");
+            _log.Info($"{ExecutableName} resolved to {candidate}");
             return candidate;
         }
 
-        _log.Warn("git.exe was not found on PATH or in any standard install location.");
+        _log.Warn($"{ExecutableName} was not found on PATH or in any standard install location.");
         return null;
     }
 
@@ -95,7 +117,7 @@ public sealed class GitExecutable
                 string candidate;
                 try
                 {
-                    candidate = System.IO.Path.Combine(trimmed, "git.exe");
+                    candidate = System.IO.Path.Combine(trimmed, ExecutableName);
                 }
                 catch (ArgumentException)
                 {
@@ -105,6 +127,14 @@ public sealed class GitExecutable
 
                 yield return candidate;
             }
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            foreach (string absolute in UnixPaths)
+                yield return absolute;
+
+            yield break;
         }
 
         foreach (Environment.SpecialFolder folder in new[]
@@ -118,23 +148,27 @@ public sealed class GitExecutable
             if (root.Length == 0)
                 continue;
 
-            foreach (string relative in WellKnownRelativePaths)
+            foreach (string relative in WindowsRelativePaths)
                 yield return System.IO.Path.Combine(root, relative);
         }
     }
 }
 
 /// <summary>
-/// git.exe is not installed, or the configured path is wrong. Carries enough to tell
+/// Git is not installed, or the configured path is wrong. Carries enough to tell
 /// the user what to do about it, which is the whole contract of CLAUDE.md,
 /// "Error Handling".
 /// </summary>
 public sealed class GitNotFoundException(string? configuredPath) : Exception(BuildMessage(configuredPath))
 {
+    private static string InstallHint => OperatingSystem.IsWindows()
+        ? "Install Git for Windows, or set the path to git.exe in FlickGit settings."
+        : "Install Git -- `xcode-select --install` or `brew install git` -- or set the path to git in FlickGit settings.";
+
     private static string BuildMessage(string? configuredPath) =>
         configuredPath is null
-            ? "git.exe was not found on PATH or in any standard install location.\n\n" +
-              "Install Git for Windows, or set the path to git.exe in FlickGit settings."
-            : $"git.exe was not found at the configured path:\n\n{configuredPath}\n\n" +
+            ? $"{GitExecutable.ExecutableName} was not found on PATH or in any standard install location.\n\n" +
+              InstallHint
+            : $"{GitExecutable.ExecutableName} was not found at the configured path:\n\n{configuredPath}\n\n" +
               "Correct it in FlickGit settings, or clear it to search PATH instead.";
 }

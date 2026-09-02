@@ -309,10 +309,25 @@ public class WorkingTreeWriterTests : IDisposable
         Assert.True(outcome.Succeeded);
     }
 
+    public static TheoryData<string> Escapes
+    {
+        get
+        {
+            TheoryData<string> data = ["../outside.txt", "src/../../outside.txt"];
+
+            //Windows only, and not merely a spelling difference: off Windows a backslash is an
+            //ordinary character in a file name, so "..\outside.txt" names one file *inside* the
+            //repository. Asserting OutsideRepository for it there would demand a refusal that would
+            //itself be the bug.
+            if (OperatingSystem.IsWindows())
+                data.Add(@"..\outside.txt");
+
+            return data;
+        }
+    }
+
     [Theory]
-    [InlineData("../outside.txt")]
-    [InlineData("src/../../outside.txt")]
-    [InlineData(@"..\outside.txt")]
+    [MemberData(nameof(Escapes))]
     public async Task APathThatEscapesTheRepositoryIsRefused(string relativePath)
     {
         //"Never edit files outside the resolved repository root."
@@ -331,7 +346,7 @@ public class WorkingTreeWriterTests : IDisposable
         FileText any = Loader.FromBytes("x\n"u8.ToArray());
 
         SaveOutcome outcome = await Writer.SaveAsync(
-            _root, @"C:\Windows\System32\drivers\etc\hosts", any, "y\n", force: false, CancellationToken.None);
+            _root, PlatformPaths.Outside, any, "y\n", force: false, CancellationToken.None);
 
         Assert.False(outcome.Succeeded);
         Assert.Equal(SaveRefusal.OutsideRepository, outcome.Refusal);
@@ -340,9 +355,11 @@ public class WorkingTreeWriterTests : IDisposable
     [Fact]
     public void ASiblingDirectoryWithASharedPrefixIsNotInsideTheRepository()
     {
-        //"C:\repo2" must not pass a StartsWith check against "C:\repo".
-        Assert.Null(WorkingTreeWriter.ResolveInsideRepository(@"C:\dev\repo", @"..\repo2\file.txt"));
-        Assert.NotNull(WorkingTreeWriter.ResolveInsideRepository(@"C:\dev\repo", @"src\file.txt"));
+        //A sibling named "repo2" must not pass a StartsWith check against "repo". Forward slashes in
+        //the relative half on purpose: ResolveInsideRepository maps them onto the platform separator,
+        //so one spelling exercises both platforms -- and a backslash off Windows would be a file name.
+        Assert.Null(WorkingTreeWriter.ResolveInsideRepository(PlatformPaths.Root, "../repo2/file.txt"));
+        Assert.NotNull(WorkingTreeWriter.ResolveInsideRepository(PlatformPaths.Root, "src/file.txt"));
     }
 
     [Fact]

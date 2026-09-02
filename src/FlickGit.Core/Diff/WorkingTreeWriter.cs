@@ -1,5 +1,6 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
+using FlickGit.Repositories;
 
 namespace FlickGit.Diff;
 
@@ -322,8 +323,14 @@ public sealed class WorkingTreeWriter
     /// <summary>
     /// Temp file beside the target, then <c>File.Replace</c>. Same directory so the replace is a
     /// rename on one volume and the temp file inherits the target's ACLs; <c>File.Replace</c> rather
-    /// than delete-then-move because it preserves the destination's identity and attributes, which is
-    /// what keeps IDE watchers and incremental builds from seeing the file as new.
+    /// than delete-then-move because on Windows it preserves the destination's identity and
+    /// attributes, which is what keeps IDE watchers and incremental builds from seeing the file as
+    /// new.
+    ///
+    /// On Unix it is <c>rename(2)</c>, so the destination becomes the temp file's inode and carries
+    /// the temp file's permissions. That is why the mode is copied across first: without it every
+    /// save strips a script's executable bit and reports itself to Git as a 100755 -> 100644 mode
+    /// change, which is the same class of unasked-for whole-file edit as rewriting line endings.
     /// </summary>
     private static async Task WriteAtomicallyAsync(string absolute, byte[] bytes, CancellationToken cancellationToken)
     {
@@ -333,6 +340,11 @@ public sealed class WorkingTreeWriter
         try
         {
             await File.WriteAllBytesAsync(temporary, bytes, cancellationToken).ConfigureAwait(false);
+
+            //Set on the temporary file rather than on the target afterwards, so the mode arrives with the
+            //rename and there is no instant in which the file exists with the wrong permissions.
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(temporary, File.GetUnixFileMode(absolute));
 
             //ignoreMetadataErrors so a failure to copy an audit ACL does not fail the save itself. No backup
             //file: the content the user is replacing is in Git.
@@ -369,7 +381,7 @@ public sealed class WorkingTreeWriter
                 ? root
                 : root + Path.DirectorySeparatorChar;
 
-            return combined.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase)
+            return PathComparison.StartsWith(combined, rootWithSeparator)
                 ? combined
                 : null;
         }
@@ -398,10 +410,7 @@ public sealed class WorkingTreeWriter
              directory is not null;
              directory = directory.Parent)
         {
-            if (string.Equals(
-                    directory.FullName.TrimEnd(Path.DirectorySeparatorChar),
-                    root,
-                    StringComparison.OrdinalIgnoreCase))
+            if (PathComparison.Equal(directory.FullName.TrimEnd(Path.DirectorySeparatorChar), root))
             {
                 //Reached the root with nothing in between. The root's own attributes are not this
                 //method's business: the user pointed Git at it, and a repository that is itself

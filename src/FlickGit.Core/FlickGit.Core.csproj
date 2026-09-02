@@ -69,4 +69,33 @@
 
   </Target>
 
+  <!--
+    The companion rule, and the one the macOS port depends on. The guard above keeps UI out of Core;
+    this one keeps the *operating system* out of it. Core's TFM is net9.0 rather than net9.0-windows
+    precisely so it can be compiled for another platform, and a single DllImport is enough to make
+    that false at run time rather than at build time — which is the worst place to find out.
+
+    Note what this does not claim to catch: Core was clean of Windows *APIs* long before it was clean
+    of Windows *assumptions* — drive letters, backslashes, case-insensitive path comparison. Those
+    live in PathComparison and stay a review matter; this target only closes the mechanical route
+    back in.
+
+    Reads the project's own sources rather than @(Compile), so a generated file that does not exist
+    yet cannot fail the read.
+  -->
+  <Target Name="GuardCoreHasNoWindowsApis" BeforeTargets="CoreCompile">
+
+    <ItemGroup>
+      <_FlickCoreSource Include="$(MSBuildProjectDirectory)/**/*.cs"
+                        Exclude="$(MSBuildProjectDirectory)/obj/**/*.cs;$(MSBuildProjectDirectory)/bin/**/*.cs" />
+      <_FlickWindowsApi Include="@(_FlickCoreSource)"
+                        Condition="$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('%(FullPath)')), '(DllImport|LibraryImport|Microsoft\.Win32)'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(_FlickWindowsApi)' != ''"
+           Code="FLICK0003"
+           Text="FlickGit.Core must not call a Windows API, but these files reference one: @(_FlickWindowsApi->'%(Filename)%(Extension)', ', '). Put it in FlickGit.App behind a constructor-injected interface. See CLAUDE.md, 'Coding Guidelines'." />
+
+  </Target>
+
 </Project>

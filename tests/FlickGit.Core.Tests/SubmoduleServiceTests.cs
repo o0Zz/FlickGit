@@ -131,11 +131,23 @@ public class SubmoduleServiceTests
     /// A target that is not inside the repository is refused before any process starts. Absolute and
     /// climbing-out are one test because they are one guard.
     /// </summary>
+    public static TheoryData<string> OutsidePaths
+    {
+        get
+        {
+            TheoryData<string> data = [PlatformPaths.Outside, "../outside", "libs/../../outside"];
+
+            //Windows only: off it a backslash is a legal character in a file name, so this names one
+            //directory inside the repository rather than climbing out of it.
+            if (OperatingSystem.IsWindows())
+                data.Add(@"..\outside");
+
+            return data;
+        }
+    }
+
     [Theory]
-    [InlineData(@"C:\somewhere\else")]
-    [InlineData(@"..\outside")]
-    [InlineData("../outside")]
-    [InlineData("libs/../../outside")]
+    [MemberData(nameof(OutsidePaths))]
     public async Task Add_refuses_a_path_outside_the_repository(string path)
     {
         var git = new FakeGitRunner();

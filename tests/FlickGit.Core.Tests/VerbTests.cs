@@ -412,7 +412,7 @@ epo");
     /// process that resolves it, which for the resident service is its own install directory. Every
     /// verb was affected; only <c>terminal</c> put the separator back.
     /// </summary>
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData("C:")]
     [InlineData("\"C:\"")]
     [InlineData("C:\\")]
@@ -426,7 +426,7 @@ epo");
     /// <summary>
     /// The same, per entry, for the two verbs whose whole tail is a path list.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void A_selection_verb_normalises_a_drive_root_too()
     {
         Verb verb = Verb.Parse(["add", "C:", @"D:\work"], @"C:\dev\repo");

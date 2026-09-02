@@ -228,6 +228,12 @@ public sealed class WorktreeService(IGitProcessRunner git, RepositoryService rep
     /// The separator is appended before comparing, or <c>C:\repo2</c> would count as inside
     /// <c>C:\repo</c> -- the same trap <c>WorkingTreeWriter.ResolveInsideRepository</c> guards, and
     /// the reason this is not a bare <c>StartsWith</c>.
+    ///
+    /// Case-insensitive on every platform, and deliberately not <c>PathComparison</c>. This one
+    /// answers a question whose <i>yes</i> is a refusal, so comparing case-insensitively can only
+    /// ever refuse a superset -- safe. <c>PathComparison</c> is for the inverse question, where a
+    /// <i>yes</i> grants a write and case-insensitivity would widen what is allowed, and for
+    /// identity, where two spellings on a case-sensitive volume are two different directories.
     /// </summary>
     internal static bool IsInside(string repositoryRoot, string path)
     {
