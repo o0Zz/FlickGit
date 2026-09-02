@@ -29,7 +29,8 @@ public sealed class CommitLauncher(
     RecentRepositories recent,
     CommitWindowHost commitWindow,
     WindowVerbs windows,
-    Notifier notifier,
+    INotifier notifier,
+    IDialogs dialogs,
     ILog log)
 {
     /// <param name="foreground">
@@ -73,7 +74,8 @@ public sealed class CommitLauncher(
             //The trigger fires on a keypress, so a failure here must not take the resident service
             //with it -- and the user gets a notice rather than silence.
             log.Error($"The commit window could not be launched: {ex}");
-            VerbOutput.Direct(notifier).Notice(Strings.Get("error.title"), ex.Message, compact: false);
+            VerbOutput.Direct(notifier, dialogs)
+                .Notice(Strings.Get("error.title"), ex.Message, compact: false);
         }
     }
 

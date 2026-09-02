@@ -2,7 +2,6 @@
 using FlickGit.Actions;
 using FlickGit.App.Localization;
 using FlickGit.App.Resident;
-using FlickGit.App.Views;
 using FlickGit.Cli;
 using FlickGit.Git;
 using FlickGit.Logging;
@@ -28,7 +27,8 @@ namespace FlickGit.App.CommandLine;
 public sealed class ActionRunner(
     IGitProcessRunner git,
     Func<VerbRunner> verbs,
-    Notifier notifier,
+    INotifier notifier,
+    IDialogs dialogs,
     ILog log)
 {
     /// <summary>
@@ -170,7 +170,7 @@ public sealed class ActionRunner(
     }
 
     /// <summary>Asks the user to confirm, and waits.</summary>
-    private static bool Ask(GitAction action, ActionRun run)
+    private bool Ask(GitAction action, ActionRun run)
     {
         //Two different warnings, because they are two different risks: one can discard work, the other
         //runs something FlickGit knows nothing about.
@@ -178,8 +178,7 @@ public sealed class ActionRunner(
             ? Strings.Get("action.confirm.process", action.Label, run.Describe())
             : Strings.Get("action.confirm.destructive", action.Label, run.Describe());
 
-        return ConfirmWindow.Ask(
-            null,
+        return dialogs.Confirm(
             Strings.Get("action.confirm.title"),
             body,
             Strings.Get("action.confirm.yes"),

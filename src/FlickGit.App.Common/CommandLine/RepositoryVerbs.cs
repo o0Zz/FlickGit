@@ -1,7 +1,6 @@
 using System.IO;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
-using FlickGit.App.Views;
 using FlickGit.Branches;
 using FlickGit.Cli;
 using FlickGit.Commits;
@@ -37,7 +36,8 @@ public sealed class RepositoryVerbs(
     TagService tags,
     StashService stashes,
     TrackingService files,
-    UpstreamConsent consent)
+    UpstreamConsent consent,
+    IDialogs dialogs)
 {
     /// <summary>`flick status` — the file list as text.</summary>
     public async Task<VerbResult> StatusAsync(VerbOutput output, RepositoryInfo repository)
@@ -539,5 +539,5 @@ public sealed class RepositoryVerbs(
                 plan.Branch,
                 plan.Upstream,
                 plan.Remote),
-            (title, body, yes, no) => Task.FromResult(ConfirmWindow.Ask(null, title, body, yes, no)));
+            (title, body, yes, no) => Task.FromResult(dialogs.Confirm(title, body, yes, no)));
 }

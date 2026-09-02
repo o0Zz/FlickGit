@@ -40,8 +40,8 @@ public sealed class VerbRunner(
     ActionCatalog catalog,
     ActionRunner actions,
     RepositoryVerbs repositoryVerbs,
-    EnvironmentVerbs environmentVerbs,
-    WindowVerbs windowVerbs,
+    IEnvironmentVerbs environmentVerbs,
+    IWindowVerbs windowVerbs,
     RepositoryService repositories,
     RecentRepositories recent,
     ILog log)

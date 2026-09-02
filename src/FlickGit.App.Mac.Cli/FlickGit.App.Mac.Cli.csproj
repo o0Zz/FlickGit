@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- A console app, and unlike flick.exe on Windows that is the plain choice: there is no context
+         menu here to flash a black window, so nothing to gain by being a GUI-subsystem binary and
+         no console to borrow with AttachConsole. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+
+    <RootNamespace>FlickGit.App.Mac</RootNamespace>
+
+    <!-- The command the user types, exactly as on Windows. -->
+    <AssemblyName>flick</AssemblyName>
+    <Description>FlickGit for macOS: the text verbs over FlickGit.Core and FlickGit.App.Common. No resident service and no windows yet.</Description>
+
+    <!-- One binary doing the work itself, rather than the stub-plus-resident split Windows uses.
+         That split exists to hide WPF startup and there is nothing here to hide yet. The resident
+         service, the socket and the menu bar item arrive together later, and the CLI has to keep
+         working without them regardless: the resident service is an optimisation, never a
+         dependency. -->
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlickGit.Core\FlickGit.Core.csproj" />
+    <ProjectReference Include="..\FlickGit.App.Common\FlickGit.App.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The documented exit codes. Compiled in rather than referenced because they are
+         internal per assembly, which is how both Windows executables already carry them. -->
+    <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same container FlickGit.App uses, at the same weight. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

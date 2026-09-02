@@ -36,7 +36,7 @@ public sealed class EnvironmentVerbs(
     GitExecutable git,
     IGitProcessRunner runner,
     FlickSettings settings,
-    OperationTimings timings)
+    OperationTimings timings) : IEnvironmentVerbs
 {
     /// <summary>
     /// The settings window while it is open, so a second request activates it rather than opening a

@@ -62,7 +62,7 @@ public sealed class WindowVerbs(
     Notifier notifier,
     FlickSettings settings,
     OperationTimings timings,
-    ILog log)
+    ILog log) : IWindowVerbs
 {
     /// <summary>The commit window. Also where `flick status` lands when there is no console.</summary>
     public async Task<VerbResult> CommitAsync(VerbOutput output, RepositoryInfo repository)

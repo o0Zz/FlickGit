@@ -7,19 +7,13 @@ using Microsoft.Win32;
 using FlickGit.Ai;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
+using FlickGit.App.CommandLine;
 using FlickGit.App.Rendering;
 using FlickGit.App.Resident;
 using FlickGit.App.Settings;
 using FlickGit.App.Shell;
 
 namespace FlickGit.App.Views;
-
-public enum SettingsTab
-{
-    General,
-    Help,
-    About,
-}
 
 /// <summary>
 /// The common settings, the help page and the about box, in one small window.

@@ -137,10 +137,25 @@ public sealed class FlickSettings
     /// <summary>Newest first. Behind the tray's Recent menu, and the MRU rank the palette scores by.</summary>
     public List<string> RecentRepositories { get; set; } = [];
 
+    /// <summary>
+    /// Everything FlickGit owns: <c>%LOCALAPPDATA%\FlickGit</c> on Windows,
+    /// <c>~/Library/Application Support/FlickGit</c> on macOS.
+    ///
+    /// Not <c>SpecialFolder.LocalApplicationData</c> off Windows. .NET maps that onto
+    /// <c>~/.local/share</c>, which is the XDG location rather than the Apple one — it would work,
+    /// and it would put the settings, the prompts and the logs somewhere a Mac user does not think
+    /// to look. There is no back-compatibility question here because there is no macOS build that
+    /// ever wrote to the other place.
+    /// </summary>
     [JsonIgnore]
     public static string DirectoryPath =>
         Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            OperatingSystem.IsMacOS()
+                ? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Library",
+                    "Application Support")
+                : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "FlickGit");
 
     [JsonIgnore]
@@ -153,7 +168,7 @@ public sealed class FlickSettings
     /// </summary>
     public static string ActionsFilePath => Path.Combine(DirectoryPath, "actions.json");
 
-    /// <summary><c>%LOCALAPPDATA%\FlickGit\Logs</c>, which is what <c>FileLog</c> is constructed with.</summary>
+    /// <summary>The <c>Logs</c> directory under <see cref="DirectoryPath"/>, which is what <c>FileLog</c> is constructed with.</summary>
     public static string LogsDirectoryPath => Path.Combine(DirectoryPath, "Logs");
 
     /// <summary>

@@ -34,7 +34,8 @@ public sealed class PaletteWindowHost
     public PaletteWindowHost(
         PaletteViewModel viewModel,
         Func<ActionRunner> actions,
-        Notifier notifier,
+        INotifier notifier,
+        IDialogs dialogs,
         OperationTimings timings,
         ILog log)
     {
@@ -49,7 +50,7 @@ public sealed class PaletteWindowHost
         //Straight through to the one runner. The palette deliberately has no other way to reach Git
         //-- CLAUDE.md: it is "not a shortcut around these rules".
         viewModel.ActionRequested += (action, repository, argument) =>
-            _ = actions().RunAsync(action, repository, VerbOutput.Direct(notifier), argument);
+            _ = actions().RunAsync(action, repository, VerbOutput.Direct(notifier, dialogs), argument);
     }
 
     /// <summary>Builds the palette and lays it out, without showing it. See <see cref="AppWindow"/>.</summary>

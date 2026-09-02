@@ -250,7 +250,12 @@ public partial class App : Application
         services.AddSingleton<AiTextService>();
         services.AddSingleton<ResidentService>();
         services.AddSingleton<PipeServer>();
+        //The platform half of FlickGit.App.Common's three seams. The verb layer is compiled as
+        //net9.0 and reaches WPF only through these, so a macOS host substitutes its own three and
+        //reuses the routing rather than reimplementing it.
         services.AddSingleton<Notifier>();
+        services.AddSingleton<INotifier>(provider => provider.GetRequiredService<Notifier>());
+        services.AddSingleton<IDialogs, WindowDialogs>();
         services.AddSingleton<RecentRepositories>();
 
         services.AddSingleton<UpstreamConsent>();
@@ -291,7 +296,9 @@ public partial class App : Application
         services.AddSingleton<ActionRunner>();
         services.AddSingleton<RepositoryVerbs>();
         services.AddSingleton<EnvironmentVerbs>();
+        services.AddSingleton<IEnvironmentVerbs>(provider => provider.GetRequiredService<EnvironmentVerbs>());
         services.AddSingleton<WindowVerbs>();
+        services.AddSingleton<IWindowVerbs>(provider => provider.GetRequiredService<WindowVerbs>());
         services.AddSingleton<VerbRunner>();
 
         //The two cycles in the graph, each broken on one side by a factory rather than a settable
@@ -359,7 +366,10 @@ public partial class App : Application
     /// runs before <see cref="StartResident"/> on the one-shot path and after it on the tray path,
     /// and the singleton is the same object either way.
     /// </summary>
-    private VerbOutput Output() => VerbOutput.Direct(_services!.GetRequiredService<Notifier>());
+    private VerbOutput Output() =>
+        VerbOutput.Direct(
+            _services!.GetRequiredService<INotifier>(),
+            _services!.GetRequiredService<IDialogs>());
 
     private void StartResident()
     {
@@ -467,7 +477,8 @@ public partial class App : Application
             _log.Debug($"Pipe request: {verb.Kind} {verb.Path}");
 
             VerbOutput output = VerbOutput.ForClient(
-                _services!.GetRequiredService<Notifier>(),
+                _services!.GetRequiredService<INotifier>(),
+                _services!.GetRequiredService<IDialogs>(),
                 request.HasConsole);
 
             VerbResult result = await RunAsync(verb, output).ConfigureAwait(true);

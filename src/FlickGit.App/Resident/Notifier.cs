@@ -14,7 +14,7 @@ namespace FlickGit.App.Resident;
 /// A balloon rather than a dialog. CLAUDE.md: "Avoid unnecessary confirmation dialogs. Optimise for
 /// one-click workflows." A modal box after every commit is the opposite of that.
 /// </summary>
-public sealed class Notifier(FlickSettings settings)
+public sealed class Notifier(FlickSettings settings) : INotifier
 {
     /// <summary>
     /// The tray icon, set by the resident service once it exists. Null in a one-shot launch, where

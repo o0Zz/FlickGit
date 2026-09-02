@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net9.0, not net9.0-windows, and that is the whole reason this project exists.
+
+         The verb layer, the string table and the settings model were always free of WPF — they
+         just had no way to prove it while they sat inside a net9.0-windows project that could not
+         be compiled for anything else. Moving them here makes "portable" a build outcome rather
+         than a claim, which is what a macOS front end needs in order to reuse them instead of
+         growing a second copy.
+
+         What separates this from FlickGit.Core: Core is Git, and knows nothing about a user
+         interface or a command line. This is the half of the application that is presentation and
+         orchestration but not *rendering* — it decides what to say and which verb to run, and
+         hands the saying to whichever platform is hosting it. -->
+    <TargetFramework>net9.0</TargetFramework>
+
+    <RootNamespace>FlickGit.App</RootNamespace>
+    <AssemblyName>FlickGit.App.Common</AssemblyName>
+    <!-- Required by LibraryImport in ConsoleOutput: the source generator emits unsafe marshalling
+         code. The two kernel32 entry points it declares are the borrow-the-parent's-console dance,
+         which is Windows-only and guarded by OperatingSystem.IsWindows() — a declaration that is
+         never resolved off Windows costs nothing, and the alternative was an interface around the
+         one facility CLAUDE.md names as an allowed static. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <Description>The platform-independent half of the FlickGit application: verb routing, the repository verbs, the string table and the settings model. No UI dependencies.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlickGit.Core\FlickGit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The command-line grammar and the exit codes, shared as source with both executables for the
+         reason src/Shared states: the AOT stub may not carry a reference, and two hand-maintained
+         copies of a wire format drift. -->
+    <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Interface languages, moved here with Strings.cs because Strings reads them out of its own
+         assembly (typeof(Strings).Assembly) rather than the entry assembly. The wildcard and the
+         explicit LogicalName both matter for the reasons FlickGit.App.csproj gave when it owned
+         them: adding a language is adding a file, and WithCulture=false stops MSBuild building
+         satellite assemblies that would never be found at run time. -->
+    <EmbeddedResource Include="Languages\*.lang">
+      <!-- Must match Strings.ResourcePrefix. -->
+      <LogicalName>FlickGit.Languages.%(Filename)%(Extension)</LogicalName>
+      <WithCulture>false</WithCulture>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!--
+    The same guard FlickGit.Core carries, and here for a sharper reason: Core never had a UI
+    reference to lose, whereas every file in this project was moved out of a WPF assembly. A
+    `using System.Windows;` that follows one of them in would compile on Windows and fail only when
+    the macOS host is built — which is exactly the kind of drift the TFM is chosen to prevent.
+  -->
+  <Target Name="GuardCommonHasNoUiDependencies" BeforeTargets="CoreCompile">
+
+    <ItemGroup>
+      <_FlickRefCandidate Include="@(PackageReference);@(ProjectReference);@(FrameworkReference)" />
+      <_FlickForbiddenUiRef Include="@(_FlickRefCandidate)"
+                            Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(Identity)', '(?i)(System\.Windows\.Forms|System\.Drawing|WinForms|WindowsForms|PresentationFramework|PresentationCore|WindowsBase|AvalonEdit|NotifyIcon|Avalonia|Microsoft\.Maui|Microsoft\.WindowsDesktop)'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(_FlickForbiddenUiRef)' != ''"
+           Code="FLICK0004"
+           Text="FlickGit.App.Common must have zero UI dependencies, but references: @(_FlickForbiddenUiRef, ', '). The rendering half belongs in FlickGit.App or the macOS host. See CLAUDE.md, 'Coding Guidelines'." />
+
+    <Error Condition="'$(UseWindowsForms)' == 'true' or '$(UseWPF)' == 'true'"
+           Code="FLICK0005"
+           Text="FlickGit.App.Common must not set UseWindowsForms or UseWPF." />
+
+  </Target>
+
+</Project>

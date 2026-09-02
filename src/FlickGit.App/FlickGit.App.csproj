@@ -49,6 +49,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FlickGit.Core\FlickGit.Core.csproj" />
+
+    <!-- The platform-independent half of this application. Everything here that is not rendering,
+         Win32 or WPF lives there instead, so a macOS host can reuse it rather than reimplementing
+         it. This project supplies the Windows implementations of the interfaces it declares. -->
+    <ProjectReference Include="..\FlickGit.App.Common\FlickGit.App.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -60,22 +65,6 @@
     <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
   </ItemGroup>
 
-
-  <ItemGroup>
-    <!-- Interface languages, one file each, embedded. A wildcard rather than a list:
-         adding a language is adding a file to Languages/, and Strings finds it by
-         enumerating what is embedded.
-
-         WithCulture=false is load-bearing. Without it, MSBuild reads "en.lang" and
-         "fr.lang" as culture-specific resources and builds them into satellite
-         assemblies in per-culture subdirectories — which would not be found at run
-         time, because Strings reads them as manifest resource streams. -->
-    <EmbeddedResource Include="Languages\*.lang">
-      <!-- Must match Strings.ResourcePrefix. -->
-      <LogicalName>FlickGit.Languages.%(Filename)%(Extension)</LogicalName>
-      <WithCulture>false</WithCulture>
-    </EmbeddedResource>
-  </ItemGroup>
 
   <ItemGroup>
     <!-- Shipped beside the exe rather than embedded: Explorer reads the context-menu

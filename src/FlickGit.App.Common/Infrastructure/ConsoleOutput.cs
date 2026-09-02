@@ -4,7 +4,11 @@ using System.Runtime.InteropServices;
 namespace FlickGit.App.Infrastructure;
 
 /// <summary>
-/// Lets this WinExe write text to whatever is listening, when anything is.
+/// Lets the host write text to whatever is listening, when anything is.
+///
+/// <b>Windows is the whole complication.</b> Off it, a process is handed stdout by whatever started
+/// it — a terminal, a pipe, a file, <c>/dev/null</c> — there is no console to attach to or create,
+/// and every write reaches somebody. Everything below is the Windows path.
 ///
 /// FlickGit.exe is a <c>WinExe</c> on purpose: a console-subsystem app flashes a black window
 /// every time Explorer runs it from a context menu, which is exactly the experience the whole
@@ -98,19 +102,31 @@ public static partial class ConsoleOutput
 
         _attempted = true;
 
+        if (!OperatingSystem.IsWindows())
+        {
+            //Nothing to attach and nothing to fix: stdout already exists and is already UTF-8. Set
+            //before the P/Invokes below rather than around them, because those two declarations
+            //resolve into kernel32 and there is no kernel32 to resolve them in.
+            _usable = true;
+            return;
+        }
+
         //Borrow the parent's console if it has one. Attempted first: when it succeeds, it is
         //also what populates this process's standard handles.
         bool attached = AttachConsole(AttachParentProcess);
 
         _usable = attached || HasRealStandardOutput();
 
-        if (!attached)
+        if (!_usable)
             return;
 
-        //The same code page fix the stub applies to its own console, for the direct-launch path
-        //where there is no stub. Everything written here is UTF-8, and a console left on the ANSI
-        //code page renders "Espanol" and "Francais" -- the two language names `flick language` is
-        //there to show -- as mojibake.
+        //The same code page fix the stub applies to its own console. Everything written here is
+        //UTF-8, and a console left on the ANSI code page renders "Espanol" and "Francais" -- the two
+        //language names `flick language` is there to show -- as mojibake.
+        //
+        //Gated on _usable rather than on `attached`, which is the narrower test it looks like: a
+        //console-subsystem host already owns a console, so AttachConsole fails and the fix was
+        //skipped for the one kind of process that always has a real console to get wrong.
         try
         {
             Console.OutputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);

@@ -1,8 +1,5 @@
 using System.Text;
-using System.Windows;
 using FlickGit.App.Infrastructure;
-using FlickGit.App.Resident;
-using FlickGit.App.Views;
 using FlickGit.Cli;
 
 namespace FlickGit.App.CommandLine;
@@ -26,19 +23,21 @@ public sealed class VerbOutput
 {
     private readonly StringBuilder _output = new();
     private readonly StringBuilder _error = new();
-    private readonly Notifier _notifier;
+    private readonly INotifier _notifier;
+    private readonly IDialogs _dialogs;
     private readonly bool _capture;
 
-    private VerbOutput(Notifier notifier, bool capture, bool hasConsole)
+    private VerbOutput(INotifier notifier, IDialogs dialogs, bool capture, bool hasConsole)
     {
         _notifier = notifier;
+        _dialogs = dialogs;
         _capture = capture;
         HasConsole = hasConsole;
     }
 
     /// <summary>For a verb this process was launched to run. Text goes to its own console.</summary>
-    public static VerbOutput Direct(Notifier notifier) =>
-        new(notifier, capture: false, hasConsole: ConsoleOutput.IsAvailable);
+    public static VerbOutput Direct(INotifier notifier, IDialogs dialogs) =>
+        new(notifier, dialogs, capture: false, hasConsole: ConsoleOutput.IsAvailable);
 
     /// <summary>
     /// For a verb arriving over the pipe. Text is collected for the response instead of printed.
@@ -47,8 +46,8 @@ public sealed class VerbOutput
     /// Whether the <i>stub</i> has somewhere to print. It decides between text and a window exactly
     /// as a direct launch would, because the user cannot tell the two apart and should not have to.
     /// </param>
-    public static VerbOutput ForClient(Notifier notifier, bool clientHasConsole) =>
-        new(notifier, capture: true, hasConsole: clientHasConsole);
+    public static VerbOutput ForClient(INotifier notifier, IDialogs dialogs, bool clientHasConsole) =>
+        new(notifier, dialogs, capture: true, hasConsole: clientHasConsole);
 
     /// <summary>True when a write will reach somebody: a terminal, a pipe, a redirected file.</summary>
     public bool HasConsole { get; }
@@ -131,11 +130,7 @@ public sealed class VerbOutput
     /// also runs the tray icon and the pipe listener.
     /// </summary>
     public void Notice(string title, string message, bool compact) =>
-        //The one notice in the product with no owner -- it answers a verb that may have no window at
-        //all -- so it is also the one that has to say where to put itself. NoticeWindow defaults to
-        //CenterOwner for the owned case, which is every other caller.
-        new NoticeWindow(title, message, compact)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterScreen,
-        }.Show();
+        //The one notice in the product with no owner -- it answers a verb that may have no window
+        //behind it at all -- so placing it is the host's problem rather than this class's.
+        _dialogs.Notice(title, message, compact);
 }
