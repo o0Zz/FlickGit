@@ -25,7 +25,7 @@ public sealed class ConsoleDialogs : IDialogs
         ConsoleOutput.WriteLine(message);
     }
 
-    public bool Confirm(string title, string body, string yes, string no, bool destructive = false)
+    public Task<bool> ConfirmAsync(string title, string body, string yes, string no, bool destructive = false)
     {
         //destructive changes which button a window paints as dangerous. There are no buttons here,
         //and the prompt already defaults to no.
@@ -39,14 +39,15 @@ public sealed class ConsoleDialogs : IDialogs
             //Say why, rather than looking as though it was declined for some other reason.
             ConsoleOutput.WriteError($"{no} — there is no terminal to ask on.");
 
-            return false;
+            return Task.FromResult(false);
         }
 
         ConsoleOutput.WriteLine($"{yes} / {no}? [y/N]");
 
         string? answer = Console.ReadLine()?.Trim();
 
-        return string.Equals(answer, "y", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(answer, "yes", StringComparison.OrdinalIgnoreCase);
+        return Task.FromResult(
+            string.Equals(answer, "y", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(answer, "yes", StringComparison.OrdinalIgnoreCase));
     }
 }

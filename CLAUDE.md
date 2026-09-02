@@ -151,10 +151,22 @@ do not write it.
 FlickGit itself is **Apache 2.0** — `LICENSE` at the root and `src/FlickGit.Setup/License.rtf`, which
 is the MSI's licence page, carry the same text and must not drift apart.
 
-Third-party dependencies must be permissively licensed, and the list is fixed at three:
+Third-party dependencies must be permissively licensed. **On Windows the list is fixed at three:**
 **AvalonEdit** (MIT, editor control), **DiffPlex** (Apache 2.0, line/word diff) and
 **H.NotifyIcon** (MIT, tray icon, avoids WinForms). No Electron-style or web UI layer. A minimal
 `Microsoft.Extensions.DependencyInjection` container is fine; nothing heavier.
+
+**The macOS front end amends that number, deliberately and only there.** `FlickGit.App.Mac` adds
+**Avalonia** (MIT) — `Avalonia`, `Avalonia.Desktop` and `Avalonia.Themes.Fluent`, which are one
+framework rather than three choices — and **Avalonia.AvaloniaEdit** (MIT), the port of AvalonEdit
+that keeps `IBackgroundRenderer`, `AbstractMargin` and `.xshd` while replacing the scrolling
+contract. The rule the number was protecting still holds: one UI toolkit per platform, one diff
+library, and nothing that arrives with a browser in it.
+
+Two things it notably does **not** add. There is no tray-icon package: Avalonia's own `TrayIcon`
+maps onto `NSStatusItem`, so the H.NotifyIcon counterpart the port was expected to need does not
+exist and is not wanted. And there is no second diff library — DiffPlex is in `FlickGit.Core` and
+serves both front ends unchanged.
 
 ---
 
@@ -1307,7 +1319,7 @@ no file at all.
   answer changed. **The API key is the one exception** and applies immediately.
 - Constructed on demand, not pre-warmed. The one window with no latency target.
 - **Help** renders `Help.md` (shipped beside the exe) read-only, through our own ~300-line renderer,
-  because the dependency list is fixed at three. **About** carries the version and
+  rather than taking a Markdown dependency for it. **About** carries the version and
   <https://github.com/o0Zz/FlickGit/>.
 
 ```text

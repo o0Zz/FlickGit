@@ -21,6 +21,14 @@ public interface IDialogs
     /// <summary>
     /// A yes/no question. <paramref name="destructive"/> marks the answer that cannot be undone, so
     /// the host can present it as the dangerous one rather than the default.
+    ///
+    /// <b>Async because Avalonia leaves no choice.</b> WPF's <c>ShowDialog()</c> blocks and returns
+    /// the answer, so this was originally a plain <c>bool</c>; Avalonia has no synchronous
+    /// equivalent, and faking one by pumping a nested message loop is how a modal dialog ends up
+    /// re-entering the very handler that opened it. The Windows implementation loses nothing —
+    /// it marshals to the dispatcher and hands back a completed task — and the callers were already
+    /// asynchronous, one of them wrapping this in <c>Task.FromResult</c> to satisfy a delegate that
+    /// wanted a task in the first place.
     /// </summary>
-    bool Confirm(string title, string body, string yes, string no, bool destructive = false);
+    Task<bool> ConfirmAsync(string title, string body, string yes, string no, bool destructive = false);
 }

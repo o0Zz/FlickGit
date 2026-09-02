@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- WinExe rather than Exe, which reads oddly for a macOS project and is still right: it means
+         "no console subsystem", and on macOS the binary inside an .app bundle must not open one.
+         The CLI is a separate executable (flick) for exactly the reason the Windows split exists. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+
+    <RootNamespace>FlickGit.App.Mac</RootNamespace>
+    <AssemblyName>FlickGit</AssemblyName>
+    <Description>FlickGit for macOS: the Avalonia windows and the resident service. Ships as the binary inside FlickGit.app.</Description>
+
+    <!-- Compiled bindings, so a mistyped binding path is a build error rather than a silently empty
+         control. WPF has no equivalent and the Windows views rely on runtime binding; this is the
+         one place the macOS front end is deliberately stricter than its sibling. -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+
+    <!-- Native AOT is not attempted here, for the reason FlickGit.App gives about WPF: this process
+         pays its startup once and then stays resident, so a faster start buys nothing at the only
+         moment that matters. -->
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlickGit.Core\FlickGit.Core.csproj" />
+    <ProjectReference Include="..\FlickGit.App.Common\FlickGit.App.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The UI toolkit. CLAUDE.md fixed the dependency list at three (AvalonEdit, DiffPlex,
+         H.NotifyIcon) on the assumption of one Windows front end; a second platform amends that, and
+         the amendment is argued in "Technical Direction" rather than left implicit here.
+
+         Note what is *not* here: no tray-icon package. Avalonia has TrayIcon built in and it maps
+         onto NSStatusItem, so the H.NotifyIcon equivalent this port was expected to need does not
+         exist and is not needed. -->
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+
+    <!-- The editor behind both diff panes. A port of AvalonEdit rather than the same library:
+         IBackgroundRenderer, AbstractMargin and .xshd all survive, the scrolling contract does not. -->
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
+
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

@@ -53,7 +53,7 @@ public sealed class ActionRunner(
 
             //Before anything executes: any destructive operation requires explicit user intent, expressed in
             //the moment.
-            if (action.RequiresConfirmation && !Ask(action, run))
+            if (action.RequiresConfirmation && !await AskAsync(action, run).ConfigureAwait(false))
                 return;
 
             if (run is WindowRun window)
@@ -170,7 +170,7 @@ public sealed class ActionRunner(
     }
 
     /// <summary>Asks the user to confirm, and waits.</summary>
-    private bool Ask(GitAction action, ActionRun run)
+    private async Task<bool> AskAsync(GitAction action, ActionRun run)
     {
         //Two different warnings, because they are two different risks: one can discard work, the other
         //runs something FlickGit knows nothing about.
@@ -178,12 +178,12 @@ public sealed class ActionRunner(
             ? Strings.Get("action.confirm.process", action.Label, run.Describe())
             : Strings.Get("action.confirm.destructive", action.Label, run.Describe());
 
-        return dialogs.Confirm(
+        return await dialogs.ConfirmAsync(
             Strings.Get("action.confirm.title"),
             body,
             Strings.Get("action.confirm.yes"),
             Strings.Get("common.cancel"),
-            destructive: true);
+            destructive: true).ConfigureAwait(false);
     }
 
     private void Report(GitAction action, Outcome outcome, VerbOutput output)

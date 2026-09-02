@@ -539,5 +539,5 @@ public sealed class RepositoryVerbs(
                 plan.Branch,
                 plan.Upstream,
                 plan.Remote),
-            (title, body, yes, no) => Task.FromResult(dialogs.Confirm(title, body, yes, no)));
+            (title, body, yes, no) => dialogs.ConfirmAsync(title, body, yes, no));
 }
