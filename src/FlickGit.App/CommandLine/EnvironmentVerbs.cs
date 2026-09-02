@@ -180,7 +180,7 @@ public sealed class EnvironmentVerbs(
         switch (action?.Trim().ToLowerInvariant())
         {
             case "clear":
-                return output.Report(Strings.Get("app.name"), keys.Clear(CredentialStore.AiTarget(provider)), Strings.Get("ai.key.cleared", provider.ToString()));
+                return output.Report(Strings.Get("app.name"), keys.Clear(SecretTargets.AiTarget(provider)), Strings.Get("ai.key.cleared", provider.ToString()));
 
             case "set":
             {
@@ -192,7 +192,7 @@ public sealed class EnvironmentVerbs(
                 if (typed is null)
                     return output.Report(Strings.Get("app.name"), false, Strings.Get("ai.key.cancelled"));
 
-                bool stored = keys.Write(CredentialStore.AiTarget(provider), typed);
+                bool stored = keys.Write(SecretTargets.AiTarget(provider), typed);
 
                 return output.Report(
                     Strings.Get("app.name"),
@@ -203,9 +203,9 @@ public sealed class EnvironmentVerbs(
             case null or "":
                 //A status query never changes anything, and never prints the key.
                 output.Line(Strings.Get(
-                    keys.Has(CredentialStore.AiTarget(provider)) ? "ai.key.stored" : "ai.key.missing",
+                    keys.Has(SecretTargets.AiTarget(provider)) ? "ai.key.stored" : "ai.key.missing",
                     provider.ToString(),
-                    CredentialStore.AiTarget(provider)));
+                    SecretTargets.AiTarget(provider)));
 
                 return VerbResult.Exit(ExitCodes.Success);
 
@@ -246,7 +246,7 @@ public sealed class EnvironmentVerbs(
         }
         else
         {
-            output.Line($"api key      {(ai.HasKey ? $"stored ({CredentialStore.AiTarget(provider)})" : "not set — store one with `flick ai key set`")}");
+            output.Line($"api key      {(ai.HasKey ? $"stored ({SecretTargets.AiTarget(provider)})" : "not set — store one with `flick ai key set`")}");
             output.Line("diffs        the diff of the files being committed is sent to this provider");
         }
         output.Line($"max diff     {ai.Options.MaxDiffBytes / 1024} KB (hard ceiling {DiffPayload.TokenCeilingBytes / 1024} KB of payload)");

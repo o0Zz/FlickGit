@@ -241,6 +241,30 @@ internal static class Program
         services.AddSingleton<PullService>();
 
         services.AddSingleton<LocalEndpoint>();
+
+        //Guarded, and the guard is enforced rather than polite: both classes are
+        //[SupportedOSPlatform("macos")], so CA1416 fails the build if they are constructed on a
+        //path reachable from Windows. This project is net9.0 and does run on Windows -- which is
+        //what let the socket transport be tested at all -- so the analyser is the only thing
+        //between a development run and a dlopen of a library that is not there.
+        if (OperatingSystem.IsMacOS())
+        {
+            services.AddSingleton<IAutostart, LaunchAgentAutostart>();
+            services.AddSingleton<ITrash, FinderTrash>();
+        }
+
+
+        //Guarded, and the guard is enforced rather than polite: both classes are
+        //[SupportedOSPlatform("macos")], so CA1416 fails the build if they are constructed on a path
+        //reachable from Windows. This project is net9.0 and does run on Windows -- that is what let
+        //the socket transport be tested at all -- so the analyser is the only thing standing between
+        //a development run and a dlopen of libobjc that is not there.
+        if (OperatingSystem.IsMacOS())
+        {
+            services.AddSingleton<IAutostart, LaunchAgentAutostart>();
+            services.AddSingleton<ITrash, FinderTrash>();
+        }
+
         services.AddSingleton<UpstreamConsent>();
         services.AddSingleton<RecentRepositories>();
 

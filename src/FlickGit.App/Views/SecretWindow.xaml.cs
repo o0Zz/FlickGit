@@ -55,7 +55,7 @@ public partial class SecretWindow : Window
                 ? Strings.Get("ai.key.prompt.copilot")
                 : Strings.Get("ai.key.prompt", provider.ToString()),
 
-            CredentialStore.AiTarget(provider));
+            SecretTargets.AiTarget(provider));
 
     /// <summary>
     /// Asks for a token that opens pull requests on <paramref name="host"/>.
@@ -74,7 +74,7 @@ public partial class SecretWindow : Window
                 ForgeKind.GitHub => "pr.token.prompt.github",
                 _ => "pr.token.prompt.azure",
             }, host),
-            CredentialStore.ForgeTarget(host));
+            SecretTargets.ForgeTarget(host));
 
     /// <param name="owner">
     /// The window this question belongs to, or null when it comes from a command line with none open.

@@ -64,7 +64,7 @@ public sealed class ForgeCredentials(CredentialStore store, GitCredentialFill he
         //Stored even if it turns out not to work. The alternative is validating it with a request of
         //our own before saving, which is a second round trip to learn what the create is about to
         //say anyway -- and a rejected token is cleared by the next prompt overwriting it.
-        store.Write(CredentialStore.ForgeTarget(forge.Host), typed);
+        store.Write(SecretTargets.ForgeTarget(forge.Host), typed);
 
         return typed;
     }
@@ -81,7 +81,7 @@ public sealed class ForgeCredentials(CredentialStore store, GitCredentialFill he
         ForgeRepository forge,
         CancellationToken cancellationToken)
     {
-        if (store.Read(CredentialStore.ForgeTarget(forge.Host)) is { Length: > 0 } stored)
+        if (store.Read(SecretTargets.ForgeTarget(forge.Host)) is { Length: > 0 } stored)
             return stored;
 
         if (await helper.ReadAsync(repository, forge.ApiBase, cancellationToken).ConfigureAwait(true)

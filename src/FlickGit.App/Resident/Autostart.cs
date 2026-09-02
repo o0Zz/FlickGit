@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using FlickGit.App.Settings;
 using FlickGit.Logging;
 
 namespace FlickGit.App.Resident;
@@ -20,7 +21,7 @@ namespace FlickGit.App.Resident;
 ///
 /// Everything here is per-user and needs no elevation.
 /// </summary>
-public sealed class Autostart(ILog log)
+public sealed class Autostart(ILog log) : IAutostart
 {
     /// <summary>
     /// The task name. Under no folder, so it is visible where a user would look for it rather than

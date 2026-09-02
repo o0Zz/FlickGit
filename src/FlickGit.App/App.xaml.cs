@@ -188,6 +188,7 @@ public partial class App : Application
         services.AddSingleton<FileTextLoader>();
         services.AddSingleton<WorkingTreeWriter>();
         services.AddSingleton<WorkingTreeDeleter>();
+        services.AddSingleton<ITrash>(provider => provider.GetRequiredService<WorkingTreeDeleter>());
         services.AddSingleton<EditorLauncher>();
         services.AddSingleton<RestoreService>();
         services.AddSingleton<TrackingService>();
@@ -196,9 +197,11 @@ public partial class App : Application
         services.AddSingleton<ShellIntegration>();
         services.AddSingleton<OverlayIntegration>();
         services.AddSingleton<Autostart>();
+        services.AddSingleton<IAutostart>(provider => provider.GetRequiredService<Autostart>());
         services.AddSingleton<TriggerService>();
         services.AddSingleton<ExplorerFolderResolver>();
         services.AddSingleton<CredentialStore>();
+        services.AddSingleton<ISecretStore>(provider => provider.GetRequiredService<CredentialStore>());
 
         //Both clients registered whichever forge this machine happens to use: they are two small
         //objects over the shared HttpClient, and a registration that depended on a repository's remote

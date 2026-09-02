@@ -451,7 +451,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        bool stored = _keys.Has(CredentialStore.AiTarget(provider));
+        bool stored = _keys.Has(SecretTargets.AiTarget(provider));
 
         AiKeyClearButton.IsEnabled = stored;
         AiKeyStatus.Text = Strings.Get(stored ? "settings.ai.key.stored" : "settings.ai.key.missing", provider.ToString());
@@ -483,7 +483,7 @@ public partial class SettingsWindow : Window
         if (SecretWindow.AskForApiKey(this, provider) is not { Length: > 0 } typed)
             return;
 
-        Report(_keys.Write(CredentialStore.AiTarget(provider), typed)
+        Report(_keys.Write(SecretTargets.AiTarget(provider), typed)
             ? Strings.Get("ai.key.saved", provider.ToString())
             : Strings.Get("ai.key.failed"));
 
@@ -497,7 +497,7 @@ public partial class SettingsWindow : Window
         if (provider == AiProvider.Disabled)
             return;
 
-        Report(_keys.Clear(CredentialStore.AiTarget(provider))
+        Report(_keys.Clear(SecretTargets.AiTarget(provider))
             ? Strings.Get("ai.key.cleared", provider.ToString())
             : Strings.Get("ai.key.failed"));
 

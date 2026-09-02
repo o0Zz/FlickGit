@@ -7,20 +7,6 @@ using Microsoft.VisualBasic.FileIO;
 namespace FlickGit.App.Infrastructure;
 
 /// <summary>
-/// What a delete did, or why it did not happen.
-///
-/// <paramref name="Message"/> is null on success — and also on the one failure that has already
-/// reported itself: the shell puts up its own error when it cannot remove a file, in Windows' words
-/// about a Windows operation, and a second dialog paraphrasing it would be worse than none.
-/// </summary>
-public sealed record DeleteOutcome(bool Succeeded, string? Message)
-{
-    public static DeleteOutcome Ok() => new(true, null);
-
-    public static DeleteOutcome Refused(string? message) => new(false, message);
-}
-
-/// <summary>
 /// Removes one file from the working tree, for the commit window's file list.
 ///
 /// <b>It goes to the Recycle Bin, and that is the whole reason this is not one line of
@@ -39,7 +25,7 @@ public sealed record DeleteOutcome(bool Succeeded, string? Message)
 /// repository — is Core's own, reused rather than rewritten: two answers to that question is the one
 /// place they could disagree.
 /// </summary>
-public sealed class WorkingTreeDeleter(ILog log)
+public sealed class WorkingTreeDeleter(ILog log) : ITrash
 {
     /// <param name="repositoryRoot">Absolute repository root. Nothing outside it may be deleted.</param>
     /// <param name="relativePath">Repository-relative path, forward or back slashed.</param>

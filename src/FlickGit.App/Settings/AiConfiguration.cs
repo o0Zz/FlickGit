@@ -24,7 +24,7 @@ public sealed class AiConfiguration(FlickSettings settings, CredentialStore keys
     public bool RequiresKey => AiOptions.RequiresKey(Provider);
 
     /// <summary>Whether a key is stored. Always false for a provider that needs none.</summary>
-    public bool HasKey => RequiresKey && keys.Has(CredentialStore.AiTarget(Provider));
+    public bool HasKey => RequiresKey && keys.Has(SecretTargets.AiTarget(Provider));
 
     /// <summary>
     /// Both conditions, and they are the whole of it: <b>a provider with a key stored for it is the
@@ -51,7 +51,7 @@ public sealed class AiConfiguration(FlickSettings settings, CredentialStore keys
     };
 
     /// <summary>The key, read on demand. Never held in a field — see <see cref="CredentialStore"/>.</summary>
-    public string? ReadKey() => RequiresKey ? keys.Read(CredentialStore.AiTarget(Provider)) : null;
+    public string? ReadKey() => RequiresKey ? keys.Read(SecretTargets.AiTarget(Provider)) : null;
 
     private AiProvider Parse(string name)
     {
