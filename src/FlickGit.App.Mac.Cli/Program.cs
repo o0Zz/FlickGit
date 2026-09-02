@@ -1,5 +1,7 @@
-﻿using FlickGit.Actions;
+﻿using System.Runtime.InteropServices;
+using FlickGit.Actions;
 using FlickGit.App.CommandLine;
+using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
 using FlickGit.App.Resident;
 using FlickGit.App.Settings;
@@ -15,6 +17,7 @@ using FlickGit.History;
 using FlickGit.Logging;
 using FlickGit.Merges;
 using FlickGit.Diagnostics;
+using FlickGit.Ipc;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Repositories;
@@ -53,10 +56,19 @@ internal static class Program
 
         Verb verb = Verb.Parse(arguments, Environment.CurrentDirectory);
 
+        //Hand it to a service that is already running, before paying for a container of our own.
+        //Skipped for `tray`, which *is* the service: forwarding it would ask the running instance to
+        //start a second one.
+        if (verb.Kind != VerbKind.Tray && await ForwardAsync(arguments).ConfigureAwait(false) is { } forwarded)
+            return forwarded;
+
         await using ServiceProvider services = BuildServices(settings);
 
         if (settingsError is not null)
             services.GetRequiredService<ILog>().Warn(settingsError);
+
+        if (verb.Kind == VerbKind.Tray)
+            return await ServeAsync(services).ConfigureAwait(false);
 
         VerbOutput output = VerbOutput.Direct(
             services.GetRequiredService<INotifier>(),
@@ -68,6 +80,115 @@ internal static class Program
             .ConfigureAwait(false);
 
         return result.Code;
+    }
+
+    /// <summary>
+    /// The exit code a running service answered with, or null when there is nobody to ask.
+    ///
+    /// Null is the ordinary case and not a failure: no service running, one still starting, one
+    /// wedged past the 250 ms budget. Every one of them means "do it here instead", which is the
+    /// path that has to work anyway.
+    /// </summary>
+    private static async Task<int?> ForwardAsync(string[] arguments)
+    {
+        //Whether this process can print is something only it knows, and the service has no console
+        //of its own -- without this it would answer a terminal and a double-click the same way.
+        var request = new IpcRequest(arguments, Environment.CurrentDirectory, ConsoleOutput.IsAvailable);
+
+        IpcResponse? response = await LocalEndpoint
+            .SendAsync(request, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        if (response is null)
+            return null;
+
+        //Written rather than returned, because the service captured them for exactly this.
+        if (response.Output.Length > 0)
+            ConsoleOutput.WriteLine(response.Output.TrimEnd('\n'));
+
+        if (response.Error.Length > 0)
+            ConsoleOutput.WriteError(response.Error.TrimEnd('\n'));
+
+        return response.ExitCode;
+    }
+
+    /// <summary>
+    /// Runs as the resident service until the system asks it to stop.
+    ///
+    /// <b>No menu bar item yet, and that is a real gap rather than an omission.</b> An NSStatusItem
+    /// needs AppKit, which arrives with the UI toolkit — so for now this is a headless daemon, and
+    /// <c>INotifier.CanNotify</c> is false, which routes every outcome to text exactly as it does for
+    /// a one-shot run. Nothing is lost silently; there is simply nothing to click yet.
+    /// </summary>
+    private static async Task<int> ServeAsync(ServiceProvider services)
+    {
+        var log = services.GetRequiredService<ILog>();
+
+        //Single instance, asked the only way that cannot be wrong: if something answers on the
+        //endpoint, something is already serving it. A lock file would have to be reconciled with the
+        //socket anyway, and a stale one is the failure mode that keeps a service from ever starting.
+        if (await LocalEndpoint.SendAsync(
+                new IpcRequest(["version"], Environment.CurrentDirectory, HasConsole: false),
+                CancellationToken.None).ConfigureAwait(false) is not null)
+        {
+            log.Warn("Another FlickGit service is already listening. This one is exiting.");
+
+            return ExitCodes.Success;
+        }
+
+        using var stopping = new CancellationTokenSource();
+
+        //launchd stops an agent with SIGTERM. Ctrl+C is for running it by hand.
+        using PosixSignalRegistration term =
+            PosixSignalRegistration.Create(PosixSignal.SIGTERM, Stop);
+        using PosixSignalRegistration interrupt =
+            PosixSignalRegistration.Create(PosixSignal.SIGINT, Stop);
+
+        void Stop(PosixSignalContext context)
+        {
+            //Handled here, so the runtime does not take the process down before the socket file is
+            //cleaned up and the current request has answered.
+            context.Cancel = true;
+
+            // ReSharper disable once AccessToDisposedClosure
+            stopping.Cancel();
+        }
+
+        var endpoint = services.GetRequiredService<LocalEndpoint>();
+        var runner = services.GetRequiredService<VerbRunner>();
+        var notifier = services.GetRequiredService<INotifier>();
+        var dialogs = services.GetRequiredService<IDialogs>();
+
+        await endpoint.ServeAsync(
+            async request =>
+            {
+                //The same parser the local path uses, so the two cannot disagree about a verb. The
+                //working directory is the *client's*: <path> defaults to it, and the service's own is
+                //wherever launchd started it.
+                Verb requested = Verb.Parse(request.Arguments, request.WorkingDirectory);
+
+                VerbOutput captured = VerbOutput.ForClient(notifier, dialogs, request.HasConsole);
+
+                try
+                {
+                    VerbResult result = await runner.RunAsync(requested, captured).ConfigureAwait(false);
+
+                    return new IpcResponse(result.Code, captured.Output, captured.Error);
+                }
+                catch (Exception ex)
+                {
+                    //A failed verb must not take the service with it: the next request is somebody
+                    //else's and has nothing to do with this one.
+                    log.Error($"Serving `{requested.Kind}` failed: {ex.Message}");
+
+                    return new IpcResponse(ExitCodes.GitError, captured.Output, ex.Message);
+                }
+            },
+            stopping.Token).ConfigureAwait(false);
+
+        log.Info("The service has stopped.");
+
+        return ExitCodes.Success;
     }
 
     private static ServiceProvider BuildServices(FlickSettings settings)
@@ -119,6 +240,7 @@ internal static class Program
         services.AddSingleton<RemoteService>();
         services.AddSingleton<PullService>();
 
+        services.AddSingleton<LocalEndpoint>();
         services.AddSingleton<UpstreamConsent>();
         services.AddSingleton<RecentRepositories>();
 

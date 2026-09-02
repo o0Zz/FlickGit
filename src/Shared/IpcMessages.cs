@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.Versioning;
 using System.Diagnostics;
 
 //System.IO explicitly: the generated *_wpftmp project the XAML pass compiles this file in does not
@@ -33,6 +34,7 @@ public static class IpcProtocol
     /// must never share one. Per session because a second logged-on session is a different desktop —
     /// activating a window from another session would put it somewhere nobody is looking.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public static string LocalPipeName()
     {
         string sid = WindowsIdentity.GetCurrent().User?.Value ?? "unknown";
@@ -42,7 +44,48 @@ public static class IpcProtocol
     }
 
     /// <summary>The same name with the <c>\\.\pipe\</c> prefix, for logging and for an existence check.</summary>
+    [SupportedOSPlatform("windows")]
     public static string LocalPipePath() => $@"\\.\pipe\{LocalPipeName()}";
+
+    /// <summary>
+    /// The directory holding the Unix socket, which is the endpoint off Windows.
+    ///
+    /// <b>The directory is the security boundary, not the socket file.</b> A Unix socket's own
+    /// permission bits are honoured for <c>connect</c> on Linux and macOS but not everywhere, and
+    /// they are applied after <c>bind</c> has already created the file — so the socket is put inside
+    /// a directory created <c>0700</c> up front, where nobody else can reach it whatever the file
+    /// itself says. Both are set anyway: defence in depth costs one syscall.
+    ///
+    /// Under the temporary directory rather than beside <c>settings.json</c>, for two reasons. It is
+    /// already per-user and <c>0700</c> on macOS (<c>$TMPDIR</c> is <c>/var/folders/…</c>, not
+    /// <c>/tmp</c>), and it is short: <c>sun_path</c> is 104 bytes on macOS, and a socket under
+    /// <c>~/Library/Application Support/FlickGit/</c> spends most of that before it starts.
+    /// </summary>
+    public static string LocalSocketDirectory() =>
+        Path.Combine(Path.GetTempPath(), $"flickgit-{LocalUserId()}");
+
+    /// <summary>The socket file itself. One per user, and there are no sessions to distinguish.</summary>
+    public static string LocalSocketPath() => Path.Combine(LocalSocketDirectory(), "service.sock");
+
+    /// <summary>
+    /// Something stable and per-user for the directory name.
+    ///
+    /// The real user id would be better and needs <c>libc</c>, which this file cannot have: it is
+    /// compiled into the Native AOT stub, which is not allowed a dependency, and into hosts that do
+    /// not all have a <c>getuid</c> to call. The user name is enough for a <i>name</i> — the actual
+    /// guarantee is the <c>0700</c> directory and the peer check the server makes on accept, neither
+    /// of which trusts this string.
+    /// </summary>
+    private static string LocalUserId()
+    {
+        string name = Environment.UserName;
+
+        //A user name can contain a separator on some systems, and this becomes one path segment.
+        foreach (char invalid in Path.GetInvalidFileNameChars())
+            name = name.Replace(invalid, '-');
+
+        return name.Length == 0 ? "user" : name;
+    }
 
     /// <summary>
     /// How long the client waits for the pipe before giving up and launching the app itself.

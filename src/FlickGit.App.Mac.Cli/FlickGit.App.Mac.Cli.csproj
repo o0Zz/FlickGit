@@ -19,6 +19,7 @@
          working without them regardless: the resident service is an optimisation, never a
          dependency. -->
     <PublishAot>false</PublishAot>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,6 +31,11 @@
     <!-- The documented exit codes. Compiled in rather than referenced because they are
          internal per assembly, which is how both Windows executables already carry them. -->
     <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
+
+    <!-- The wire format, shared as source for the reason src\Shared states. Compiled in rather
+         than taken from FlickGit.App.Common, which must not expose a second public IpcProtocol
+         beside the one FlickGit.App already compiles: they would be ambiguous in the Windows host. -->
+    <Compile Include="..\Shared\IpcMessages.cs" Link="Shared\IpcMessages.cs" />
   </ItemGroup>
 
   <ItemGroup>

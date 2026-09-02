@@ -1,6 +1,5 @@
 ﻿using System.Reflection;
 using FlickGit.App.CommandLine;
-using FlickGit.App.Infrastructure;
 using FlickGit.Cli;
 using FlickGit.Models;
 
@@ -19,20 +18,16 @@ namespace FlickGit.App.Mac;
 /// Windows build takes them from — <c>Verb.HelpText</c> is a constant in FlickGit.Core — so the two
 /// hosts cannot drift about the grammar.
 ///
-/// Every refusal goes to the console rather than through <c>VerbOutput</c>, and uniformly, because
-/// most of these signatures have no <c>VerbOutput</c> to report on. The reason that costs nothing
-/// here is that VerbOutput's other two modes do not exist yet in this host: there is no window, and
-/// with no resident service there is no captured-for-the-pipe path either.
+/// Every refusal is raised as a <see cref="HostCapabilityException"/> and reported by whichever
+/// host boundary knows where the output goes. See that type for why it is not simply written here.
 /// </summary>
 public sealed class UnavailableVerbs : IEnvironmentVerbs, IWindowVerbs
 {
-    private static VerbResult Refuse(string verb)
-    {
-        //Not an error the caller made, so it says what it is: a fact about this build.
-        ConsoleOutput.WriteError($"`flick {verb}` is not available in the macOS build yet.");
-
-        return VerbResult.Exit(ExitCodes.ConfigurationError);
-    }
+    /// <summary>
+    /// Always throws. Typed as <see cref="VerbResult"/> so the members below stay expressions rather
+    /// than each growing a body to satisfy the compiler.
+    /// </summary>
+    private static VerbResult Refuse(string verb) => throw new HostCapabilityException(verb);
 
     // ---- IEnvironmentVerbs ---------------------------------------------------------------------
 

@@ -158,6 +158,14 @@ public sealed class VerbRunner(
             output.Fail(Strings.Get("error.gitmissing"), ex.Message);
             return VerbResult.Exit(ExitCodes.ConfigurationError);
         }
+        catch (HostCapabilityException ex)
+        {
+            //Beside GitNotFoundException on purpose: both mean "not available here", both already
+            //carry the sentence that says so, and neither is worth a stack trace in the log.
+            log.Warn(ex.Message);
+            output.Fail(Strings.Get("error.title"), ex.Message);
+            return VerbResult.Exit(ExitCodes.ConfigurationError);
+        }
         catch (Exception ex)
         {
             log.Error($"{verb.Kind} failed: {ex}");
