@@ -222,7 +222,7 @@ public partial class SettingsWindow : Window
 
     private void LoadAbout()
     {
-        AboutVersion.Text = Strings.Get("settings.about.version", App.Version);
+        AboutVersion.Text = Strings.Get("settings.about.version", EnvironmentReports.Version);
         AboutTagline.Text = Strings.Get("settings.about.tagline");
         AboutAuthor.Text = Strings.Get("settings.about.author");
 

@@ -630,8 +630,8 @@ hunk.unstaged = {0} riga/righe tolte dallo stage.
 hunk.failed = La patch non è stata applicata
 
 # --- lingua dell'interfaccia --------------------------------------------------
-language.usage = Uso: flick language [code|auto]   —   auto segue Windows
-language.auto = segue Windows
+language.usage = Uso: flick language [code|auto]   —   auto segue il sistema
+language.auto = segue il sistema
 language.set = Lingua dell'interfaccia: {0}.
 language.restart = Riavviare FlickGit perché abbia effetto: le finestre leggono il proprio testo una volta sola, quando vengono create.
 language.unknown = Non esiste un file di lingua per «{0}». Le lingue incluse in questa copia di FlickGit sono:

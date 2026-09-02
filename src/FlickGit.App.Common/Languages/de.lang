@@ -630,8 +630,8 @@ hunk.unstaged = {0} Zeile(n) zurückgenommen.
 hunk.failed = Der Patch ließ sich nicht anwenden
 
 # --- Sprache der Oberfläche ---------------------------------------------------
-language.usage = Verwendung: flick language [code|auto]   —   auto folgt Windows
-language.auto = folgt Windows
+language.usage = Verwendung: flick language [code|auto]   —   auto folgt dem System
+language.auto = folgt dem System
 language.set = Sprache der Oberfläche: {0}.
 language.restart = FlickGit neu starten, damit es wirkt: die Fenster lesen ihren Text nur einmal, beim Erzeugen.
 language.unknown = Es gibt keine Sprachdatei für „{0}“. In dieser FlickGit-Ausgabe enthalten sind:

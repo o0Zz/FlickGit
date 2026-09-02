@@ -71,9 +71,6 @@ public partial class App : Application
     /// </summary>
     private int _exitCode = ExitCodes.Success;
 
-    public static string Version =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0";
-
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -298,6 +295,10 @@ public partial class App : Application
         services.AddSingleton<PaletteWindowHost>();
         services.AddSingleton<ActionRunner>();
         services.AddSingleton<RepositoryVerbs>();
+        //The half of the environment verbs that reads the same on every platform. Both hosts
+        //delegate to it, so `flick language` cannot list one set of languages on one and another
+        //set on the other.
+        services.AddSingleton<EnvironmentReports>();
         services.AddSingleton<EnvironmentVerbs>();
         services.AddSingleton<IEnvironmentVerbs>(provider => provider.GetRequiredService<EnvironmentVerbs>());
         services.AddSingleton<WindowVerbs>();
@@ -417,7 +418,7 @@ public partial class App : Application
         //success by default -- so without this a successful commit would leave no trace at all.
         services.GetRequiredService<Notifier>().Tray = _trayIcon;
 
-        _log.Info($"FlickGit {Version} resident.");
+        _log.Info($"FlickGit {EnvironmentReports.Version} resident.");
 
         //After the tray and the pipe, so a trigger arriving during the pre-warm is served by the same
         //code path as one arriving an hour later.

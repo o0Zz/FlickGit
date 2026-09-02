@@ -896,8 +896,8 @@ hunk.unstaged = Unstaged {0} line(s).
 hunk.failed = The patch did not apply
 
 # --- interface language -------------------------------------------------------
-language.usage = Usage: flick language [code|auto]   —   auto follows Windows
-language.auto = following Windows
+language.usage = Usage: flick language [code|auto]   —   auto follows the system
+language.auto = following the system
 # {0} the language's own name for itself
 language.set = Interface language set to {0}.
 language.restart = Restart FlickGit for it to take effect: the windows read their text once, when they are built.

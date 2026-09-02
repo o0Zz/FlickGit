@@ -36,7 +36,7 @@ public sealed class EnvironmentVerbs(
     GitExecutable git,
     IGitProcessRunner runner,
     FlickSettings settings,
-    OperationTimings timings) : IEnvironmentVerbs
+    EnvironmentReports reports) : IEnvironmentVerbs
 {
     /// <summary>
     /// The settings window while it is open, so a second request activates it rather than opening a
@@ -44,17 +44,9 @@ public sealed class EnvironmentVerbs(
     /// </summary>
     private SettingsWindow? _settingsWindow;
 
-    public VerbResult Help(VerbOutput output)
-    {
-        output.Line(Verb.HelpText);
-        return VerbResult.Exit(ExitCodes.Success);
-    }
+    public VerbResult Help(VerbOutput output) => reports.Help(output);
 
-    public VerbResult Version(VerbOutput output)
-    {
-        output.Line($"FlickGit {App.Version}");
-        return VerbResult.Exit(ExitCodes.Success);
-    }
+    public VerbResult Version(VerbOutput output) => reports.ReportVersion(output);
 
     /// <summary>`flick install-shell` / `flick uninstall-shell`.</summary>
     public VerbResult ContextMenu(VerbOutput output, bool install)
@@ -116,31 +108,8 @@ public sealed class EnvironmentVerbs(
     /// `flick autostart [on|off]`. A verb as well as the settings checkbox, because a logon task is
     /// something a script and an unattended install both want to set, and neither has a window to tick.
     /// </summary>
-    public VerbResult Autostart(VerbOutput output, string? switchTo)
-    {
-        switch (switchTo?.Trim().ToLowerInvariant())
-        {
-            case "on":
-            {
-                (bool ok, string message) = autostart.Enable();
-                return output.Report(Strings.Get("app.name"), ok, message);
-            }
-
-            case "off":
-            {
-                (bool ok, string message) = autostart.Disable();
-                return output.Report(Strings.Get("app.name"), ok, message);
-            }
-
-            case null or "":
-                output.Line(Strings.Get(autostart.IsEnabled() ? "autostart.enabled" : "autostart.disabled"));
-                return VerbResult.Exit(ExitCodes.Success);
-
-            default:
-                output.Fail(Strings.Get("app.name"), Strings.Get("autostart.usage"));
-                return VerbResult.Exit(ExitCodes.ConfigurationError);
-        }
-    }
+    public VerbResult Autostart(VerbOutput output, string? switchTo) =>
+        reports.Autostart(output, switchTo);
 
     /// <summary>`flick ai`, and `flick ai key [set|clear]`.</summary>
     public async Task<VerbResult> AiAsync(VerbOutput output, string? subcommand, string? action)
@@ -284,74 +253,12 @@ public sealed class EnvironmentVerbs(
     /// reason `flick autostart` does. Both read <see cref="Strings.Available"/> rather than a list of
     /// codes, so neither can offer a language the exe was not built with.
     /// </summary>
-    public VerbResult Language(VerbOutput output, string? code)
-    {
-        string requested = code?.Trim() ?? string.Empty;
-
-        if (requested.Length == 0)
-        {
-            ListLanguages(output);
-            return VerbResult.Exit(ExitCodes.Success);
-        }
-
-        //"auto" is the empty setting spelled out. A user cannot type nothing on a command line.
-        bool automatic = requested.Equals("auto", StringComparison.OrdinalIgnoreCase);
-
-        if (!automatic && !Strings.Has(requested))
-        {
-            output.Fail(Strings.Get("app.name"), Strings.Get("language.unknown", requested));
-            output.Line();
-            ListLanguages(output);
-            return VerbResult.Exit(ExitCodes.ConfigurationError);
-        }
-
-        settings.Language = automatic ? string.Empty : requested.ToLowerInvariant();
-        settings.Save();
-
-        //The applied name, not the requested code: "auto" has to resolve through Windows to say anything
-        //useful.
-        Strings.Use(settings.Language);
-
-        //A struct, so FirstOrDefault cannot answer "not found" with null -- the pattern is what
-        //distinguishes a real row from the default one.
-        string name = Strings.Available.FirstOrDefault(language => language.Code == Strings.CurrentCode)
-            is { Name.Length: > 0 } found
-                ? found.Name
-                : Strings.CurrentCode;
-
-        output.Line(Strings.Get("language.set", name));
-        output.Line(Strings.Get("language.restart"));
-
-        return VerbResult.Exit(ExitCodes.Success);
-    }
-
-    /// <summary>
-    /// The embedded languages, one per line, with the one in use marked. Names as each language writes
-    /// its own, never translated: someone looking for their language in an interface they cannot read
-    /// is looking for "Francais", not "French".
-    /// </summary>
-    private void ListLanguages(VerbOutput output)
-    {
-        bool following = settings.Language.Length == 0;
-
-        foreach (Strings.Language language in Strings.Available)
-        {
-            bool inUse = language.Code == Strings.CurrentCode;
-
-            string marker = inUse ? "*" : " ";
-            string note = inUse && following ? $"  ({Strings.Get("language.auto")})" : string.Empty;
-
-            output.Line($"{marker} {language.Code,-4} {language.Name}{note}");
-        }
-
-        output.Line();
-        output.Line(Strings.Get("language.usage"));
-    }
+    public VerbResult Language(VerbOutput output, string? code) => reports.Language(output, code);
 
     /// <summary>`flick diag doctor` -- what is installed, and where things live.</summary>
     public async Task<VerbResult> DoctorAsync(VerbOutput output)
     {
-        output.Line($"FlickGit {App.Version}");
+        output.Line($"FlickGit {EnvironmentReports.Version}");
         output.Line();
 
         if (!git.IsAvailable)
@@ -523,29 +430,7 @@ public sealed class EnvironmentVerbs(
     }
 
     /// <summary>`flick diag timings` -- recent latency measurements.</summary>
-    public VerbResult Timings(VerbOutput output)
-    {
-        IReadOnlyList<OperationTimings.Summary> summaries = timings.Summarise();
-
-        if (summaries.Count == 0)
-        {
-            //Honest about the limitation rather than printing an empty table: measurements live in the
-            //process that took them, so a one-shot launch has only its own.
-            output.Line("No measurements in this process.");
-            output.Line("Timings accumulate in the resident service — start it with `flick autostart on`.");
-            return VerbResult.Exit(ExitCodes.Success);
-        }
-
-        output.Line($"{"operation",-32} {"n",4} {"median",8} {"max",8}");
-
-        foreach (OperationTimings.Summary summary in summaries)
-        {
-            output.Line(
-                $"{summary.Operation,-32} {summary.Count,4} {summary.MedianMs,8:F1} {summary.MaxMs,8:F1}");
-        }
-
-        return VerbResult.Exit(ExitCodes.Success);
-    }
+    public VerbResult Timings(VerbOutput output) => reports.Timings(output);
 
     /// <param name="tab">Which tab to open on. The tray's About entry is the only caller that picks.</param>
     public VerbResult Settings(VerbOutput output, SettingsTab tab = SettingsTab.General)

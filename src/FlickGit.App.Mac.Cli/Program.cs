@@ -252,18 +252,13 @@ internal static class Program
             services.AddSingleton<IAutostart, LaunchAgentAutostart>();
             services.AddSingleton<ITrash, FinderTrash>();
         }
-
-
-        //Guarded, and the guard is enforced rather than polite: both classes are
-        //[SupportedOSPlatform("macos")], so CA1416 fails the build if they are constructed on a path
-        //reachable from Windows. This project is net9.0 and does run on Windows -- that is what let
-        //the socket transport be tested at all -- so the analyser is the only thing standing between
-        //a development run and a dlopen of libobjc that is not there.
-        if (OperatingSystem.IsMacOS())
+        else
         {
-            services.AddSingleton<IAutostart, LaunchAgentAutostart>();
-            services.AddSingleton<ITrash, FinderTrash>();
+            //A development run on Windows. EnvironmentReports needs an IAutostart whatever platform
+            //this is, and there is no launchd here to give it.
+            services.AddSingleton<IAutostart, UnsupportedAutostart>();
         }
+
 
         services.AddSingleton<UpstreamConsent>();
         services.AddSingleton<RecentRepositories>();
@@ -272,8 +267,9 @@ internal static class Program
         //one is refused by name rather than silently doing nothing.
         services.AddSingleton<INotifier, SilentNotifier>();
         services.AddSingleton<IDialogs, ConsoleDialogs>();
+        services.AddSingleton<EnvironmentReports>();
+        services.AddSingleton<IEnvironmentVerbs, MacEnvironmentVerbs>();
         services.AddSingleton<UnavailableVerbs>();
-        services.AddSingleton<IEnvironmentVerbs>(provider => provider.GetRequiredService<UnavailableVerbs>());
         services.AddSingleton<IWindowVerbs>(provider => provider.GetRequiredService<UnavailableVerbs>());
 
         services.AddSingleton<RepositoryVerbs>();
