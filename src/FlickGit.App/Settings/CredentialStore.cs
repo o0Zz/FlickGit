@@ -26,7 +26,7 @@ namespace FlickGit.App.Settings;
 /// <c>net9.0</c> so that the "no UI, no OS" rule is structural. Callers in Core take a
 /// <c>Func&lt;string?&gt;</c> instead of this type for the same reason.
 /// </summary>
-public sealed partial class CredentialStore(ILog log)
+public sealed partial class CredentialStore(ILog log) : ISecretStore
 {
     private const uint GenericCredential = 1;
 
@@ -35,27 +35,6 @@ public sealed partial class CredentialStore(ILog log)
     /// the user happens to have a domain profile.
     /// </summary>
     private const uint PersistLocalMachine = 2;
-
-    /// <summary>
-    /// One target per AI provider, so switching provider does not throw away the other key.
-    ///
-    /// The <c>FlickGit</c> prefix is what a user searching Credential Manager for this tool will
-    /// find, which is the whole reason to have a naming convention at all.
-    /// </summary>
-    public static string AiTarget(AiProvider provider) => $"FlickGit:{provider.ToString().ToLowerInvariant()}";
-
-    /// <summary>
-    /// One target per forge <b>host</b>, not per service and not per repository.
-    ///
-    /// Per host because that is what a credential is actually scoped to: one token opens pull
-    /// requests on every repository on <c>github.com</c>, and a company with both
-    /// <c>dev.azure.com</c> and an internal GitLab needs two. Per repository would ask the same
-    /// question once per clone; per service would break the moment a second instance appeared.
-    ///
-    /// Lower-cased, because a host name is case-insensitive and Credential Manager's target is not —
-    /// <c>GitHub.com</c> typed into a remote once would otherwise file a second, invisible token.
-    /// </summary>
-    public static string ForgeTarget(string host) => $"FlickGit:forge:{host.ToLowerInvariant()}";
 
     /// <summary>Whether something is stored under <paramref name="target"/>, without reading it.</summary>
     public bool Has(string target) => Read(target) is { Length: > 0 };
