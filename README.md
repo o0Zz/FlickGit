@@ -142,6 +142,10 @@ because the binaries are unsigned.
 
 ## Building
 
+A macOS port is in progress: `flick`, seven Avalonia windows and the Finder Sync extension
+build and run, and [docs/macos-port.md](docs/macos-port.md) is the handover — what works, what
+is missing, what has never been executed on a Mac, and the one thing that needs a Developer ID.
+
 ```powershell
 winget install Microsoft.DotNet.SDK.9
 dotnet build FlickGit.sln
