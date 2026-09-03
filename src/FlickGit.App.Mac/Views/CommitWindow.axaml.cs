@@ -1,6 +1,10 @@
-﻿using Avalonia.Controls;
+﻿using System.ComponentModel;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia;
+using Avalonia.Media;
+using Avalonia.VisualTree;
 using FlickGit.App.CommandLine;
 using FlickGit.App.ViewModels;
 
@@ -24,6 +28,7 @@ namespace FlickGit.App.Mac.Views;
 public sealed partial class CommitWindow : Window
 {
     private readonly CommitViewModel _viewModel;
+    private readonly DiffPane _diff = new();
 
     /// <summary>Parameterless for the Avalonia designer, which constructs the type to preview it.</summary>
     public CommitWindow()
@@ -48,6 +53,13 @@ public sealed partial class CommitWindow : Window
 
         viewModel.FocusMessageRequested += FocusMessage;
 
+        DiffHost.Content = _diff;
+        _diff.SetTypography(new FontFamily(viewModel.DiffFontFamily), viewModel.DiffFontSize);
+
+        //The view model computes the diff off the selection and publishes it as a property; the pane
+        //renders whatever lands. Nothing here decides *what* to show.
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
         FileList.SelectionChanged += OnFileSelectionChanged;
         CloseButton.Click += OnCloseClicked;
 
@@ -68,6 +80,31 @@ public sealed partial class CommitWindow : Window
         _viewModel.SetSelectedFiles(FileList.SelectedItems?.OfType<FileChangeItem>().ToArray() ?? []);
 
     private void OnCloseClicked(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CommitViewModel.CurrentDiff))
+            _diff.Show(_viewModel.CurrentDiff);
+    }
+
+    /// <summary>
+    /// Whether the focused control is inside the diff pane.
+    ///
+    /// <b>Enter is suspended there, per CLAUDE.md</b>, and the reason survives the pane being
+    /// read-only today: that pane is an editor over the user's working tree, where Enter is a
+    /// newline in their file rather than a commit. Wiring the check now rather than when the pane
+    /// becomes editable means the rule cannot be forgotten at the moment it starts to matter.
+    /// </summary>
+    private bool IsInsideDiff(IInputElement? focused)
+    {
+        for (Visual? visual = focused as Visual; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (ReferenceEquals(visual, _diff))
+                return true;
+        }
+
+        return false;
+    }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -92,7 +129,17 @@ public sealed partial class CommitWindow : Window
                 bool anywhere = e.KeyModifiers.HasFlag(KeyModifiers.Control)
                                 || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
 
-                if (!newline && (anywhere || ReferenceEquals(FocusManager?.GetFocusedElement(), MessageBox)))
+                if (!newline
+                    && !anywhere
+                    && !ReferenceEquals(FocusManager?.GetFocusedElement(), MessageBox))
+                {
+                    //Focus is somewhere neither committing nor typing a message. Leave it alone.
+                    break;
+                }
+
+                //Ctrl/Cmd+Enter commits from anywhere -- except the diff pane, which is the one place
+                //Enter belongs to the user's file rather than to this window.
+                if (!newline && !IsInsideDiff(FocusManager?.GetFocusedElement()))
                 {
                     _viewModel.EnterPressed(push: true);
                     e.Handled = true;

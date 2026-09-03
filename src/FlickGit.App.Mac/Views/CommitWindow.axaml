@@ -73,8 +73,7 @@
       <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent" />
 
       <Border Grid.Column="2" BorderThickness="1" BorderBrush="#33888888" CornerRadius="3">
-        <TextBlock Text="The diff pane arrives with the AvaloniaEdit pass."
-                   HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" />
+        <ContentControl Name="DiffHost" />
       </Border>
     </Grid>
 
