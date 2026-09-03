@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using AvaloniaEdit;
 using FlickGit.App.Localization;
@@ -60,6 +61,36 @@ internal sealed class DiffPane : UserControl
     /// </summary>
     public Func<IReadOnlySet<int>, bool, Task<string?>>? StageRequested { get; set; }
 
+    /// <summary>
+    /// The pane's own undo history, holding one <i>file text</i> per structural rebuild.
+    ///
+    /// <b>Two histories, and they are ordered by which one is empty.</b> AvaloniaEdit's own
+    /// <c>UndoStack</c> takes back a keystroke; it cannot take back a rebuild, because assigning
+    /// <c>Text</c> clears it. So a rebuild pushes the pre-rebuild file text here first, and Ctrl+Z
+    /// consults the editor's stack while it has anything and this list only when it does not — which
+    /// makes the newer history always the one that answers.
+    ///
+    /// CLAUDE.md is explicit that the alternative is worse: rebuilding through
+    /// <c>Document.Replace</c> to keep the editor's undo would leave
+    /// <see cref="AlignedDocument"/>'s anchors describing the layout that was just undone, and the
+    /// next save would write alignment padding into the user's source.
+    /// </summary>
+    private readonly List<UndoStep> _undo = [];
+
+    private const int MaxUndoSteps = 32;
+    private const long MaxUndoChars = 8L * 1024 * 1024;
+
+    /// <summary>Set while an undo is rebuilding, so a second Ctrl+Z does not race the first.</summary>
+    private bool _undoing;
+
+    /// <param name="FileText">The file as it stood before the rebuild.</param>
+    /// <param name="CaretFileOffset">
+    /// The caret in the <i>file's</i> coordinates. A document offset would land somewhere else: the
+    /// filler layout either side of a rebuild is different, which is the whole reason a rebuild loses
+    /// the editor's history.
+    /// </param>
+    private readonly record struct UndoStep(string FileText, int CaretFileOffset);
+
     /// <summary>True once the user has typed something that is not yet saved.</summary>
     public bool IsDirty { get; private set; }
 
@@ -83,6 +114,11 @@ internal sealed class DiffPane : UserControl
         _right.TextArea.TextView.ScrollOffsetChanged += (_, _) => Sync(_right, _left);
 
         BuildContextMenu();
+
+        //Tunnelling, so this sees Ctrl+Z before the editor does and can decide which history answers.
+        //A window-level binding would be tidier and wrong: it would fire wherever focus is, so Ctrl+Z
+        //in the commit message box would reach down and undo an edit in a pane nobody is looking at.
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 
         Content = new Grid
         {
@@ -159,26 +195,53 @@ internal sealed class DiffPane : UserControl
             return;
         }
 
-        (string left, string right, IReadOnlyList<int> fillerLines) = DiffDocument.Build(diff.Rows);
-
-        //Rows before text: the renderers read them during the paint the text change triggers, and a
-        //paint against the previous file's rows is a pane briefly coloured by the wrong diff.
-        SetRows(diff.Rows);
-
-        _left.Text = left;
-
-        //Through AlignedDocument, which anchors the filler lines as it loads. Assigning Text here
-        //instead would leave the anchors describing the previous file, and the next save would drop
-        //the wrong lines out of the user's source.
-        _endsWithNewline = diff.Right.EndsWithNewline;
-        _aligned.Load(right, fillerLines);
-
         //IsEditable is the diff's own answer and consults three things this pane should not
         //second-guess: whether both sides came from the object store, whether the render mode is a
         //real side-by-side, and whether the file is binary.
+        _endsWithNewline = diff.Right.EndsWithNewline;
         _right.IsReadOnly = !diff.IsEditable;
 
+        //A new file starts with no history of its own. Keeping the previous file's steps would let
+        //Ctrl+Z replace this document with an unrelated one.
+        _undo.Clear();
+
+        BuildDocuments(diff.Rows, preserveCaret: false);
+
         ScrollToFirstChange(diff.Rows);
+    }
+
+    /// <summary>
+    /// Replaces both documents from a row list, re-anchoring the fillers.
+    ///
+    /// The one place the documents are written, so the ordering rules live in one place with them:
+    /// rows before text, because the renderers read them during the paint the text change triggers
+    /// and a paint against the previous file's rows is a pane briefly coloured by the wrong diff;
+    /// and the right side through <see cref="AlignedDocument"/> rather than <c>Text</c>, because
+    /// assigning <c>Text</c> would leave the anchors describing the previous layout.
+    /// </summary>
+    private void BuildDocuments(IReadOnlyList<DiffRow> rows, bool preserveCaret)
+    {
+        //Captured before the rebuild, in the file's coordinates.
+        int caretFileOffset = preserveCaret ? _aligned.CaretFileOffset : 0;
+        Vector scroll = ((ILogicalScrollable)_right.TextArea.TextView).Offset;
+
+        (string left, string right, IReadOnlyList<int> fillerLines) = DiffDocument.Build(rows);
+
+        SetRows(rows);
+
+        _left.Text = left;
+        _aligned.Load(right, fillerLines);
+
+        //Explicit, rather than left to the Text setter happening to do the same. The two undo
+        //histories are ordered only because a rebuild ends the editor's, so whichever is non-empty is
+        //the newer one — which is the whole rule in OnPreviewKeyDown.
+        _right.Document.UndoStack.ClearAll();
+
+        if (!preserveCaret)
+            return;
+
+        _aligned.RestoreCaret(caretFileOffset);
+        ((ILogicalScrollable)_right.TextArea.TextView).Offset = scroll;
     }
 
     /// <summary>Kept in step with the settings, so the numbers sit on the code's baseline.</summary>
@@ -313,11 +376,13 @@ internal sealed class DiffPane : UserControl
     {
         var stage = new MenuItem { Header = Strings.Get("hunk.stage") };
         var unstage = new MenuItem { Header = Strings.Get("hunk.unstage") };
+        var revert = new MenuItem { Header = Strings.Get("hunk.revert") };
 
         stage.Click += (_, _) => _ = RaiseHunkAsync(_pendingRows, unstage: false);
         unstage.Click += (_, _) => _ = RaiseHunkAsync(_pendingRows, unstage: true);
+        revert.Click += (_, _) => _ = RevertRowsAsync(_pendingRows);
 
-        var menu = new ContextMenu { ItemsSource = new[] { stage, unstage } };
+        var menu = new ContextMenu { ItemsSource = new[] { stage, unstage, revert } };
 
         _left.ContextMenu = menu;
         _right.ContextMenu = menu;
@@ -325,8 +390,8 @@ internal sealed class DiffPane : UserControl
         //The rows are captured when the menu opens rather than when an item is clicked: opening the
         //menu can move focus, and by the time the click arrives the caret may no longer be where the
         //user pointed.
-        _left.ContextRequested += (_, e) => OnContextRequested(_left, e, stage, unstage);
-        _right.ContextRequested += (_, e) => OnContextRequested(_right, e, stage, unstage);
+        _left.ContextRequested += (_, e) => OnContextRequested(_left, e, stage, unstage, revert);
+        _right.ContextRequested += (_, e) => OnContextRequested(_right, e, stage, unstage, revert);
     }
 
     private IReadOnlySet<int> _pendingRows = new HashSet<int>();
@@ -335,7 +400,8 @@ internal sealed class DiffPane : UserControl
         TextEditor editor,
         ContextRequestedEventArgs e,
         MenuItem stage,
-        MenuItem unstage)
+        MenuItem unstage,
+        MenuItem revert)
     {
         _pendingRows = RowsUnder(editor, e);
 
@@ -346,6 +412,137 @@ internal sealed class DiffPane : UserControl
 
         stage.IsEnabled = can;
         unstage.IsEnabled = can;
+
+        //Revert additionally needs a writable pane: it is an edit to the document, where staging
+        //only touches the index.
+        revert.IsEnabled = can && !_right.IsReadOnly;
+    }
+
+    /// <summary>
+    /// Puts the selected rows back the way the left side has them.
+    ///
+    /// <b>An edit, not a Git operation.</b> Nothing is staged, nothing is written and no process
+    /// runs, so Ctrl+Z takes it back and Ctrl+S is still the only thing that reaches the disk. That
+    /// is what makes it safe on one click for something that reads as "discard my work": until the
+    /// user saves, none has been.
+    ///
+    /// The rows are rebuilt from the new text rather than patched in place — a revert changes which
+    /// lines are filler on both sides, and the filler layout <i>is</i> the alignment.
+    /// </summary>
+    private async Task RevertRowsAsync(IReadOnlySet<int> rows)
+    {
+        if (_diff is not { } diff || _right.IsReadOnly || rows.Count == 0)
+            return;
+
+        if (Hunks.RevertRows(_diffRows, rows) is not { } reverted)
+            return;
+
+        //Before the await, because this is the state the revert was computed against. The document's
+        //own text rather than a remembered field: typing since the last rebuild is in the document,
+        //and undo has to give it back.
+        PushUndo(_aligned.ToFileText(_endsWithNewline));
+
+        IReadOnlyList<DiffRow> rebuilt = await Rediff(diff, reverted).ConfigureAwait(true);
+
+        //A different file was clicked while this was computing; these rows are not this document's.
+        if (!ReferenceEquals(_diff, diff))
+            return;
+
+        Rebuild(rebuilt);
+        IsDirty = true;
+    }
+
+    /// <summary>Takes back the most recent structural rebuild.</summary>
+    private async Task UndoAsync()
+    {
+        if (_diff is not { } diff || _undo.Count == 0)
+            return;
+
+        _undoing = true;
+
+        try
+        {
+            UndoStep step = _undo[^1];
+            _undo.RemoveAt(_undo.Count - 1);
+
+            IReadOnlyList<DiffRow> rebuilt = await Rediff(diff, step.FileText).ConfigureAwait(true);
+
+            if (!ReferenceEquals(_diff, diff))
+                return;
+
+            Rebuild(rebuilt);
+            _aligned.RestoreCaret(step.CaretFileOffset);
+
+            //Still dirty unless everything has been taken back: the file on disk has not moved.
+            IsDirty = _undo.Count > 0 || !string.Equals(step.FileText, diff.Right.Text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            _undoing = false;
+        }
+    }
+
+    /// <summary>Re-diffs a new right-hand text against the unchanged base, off the UI thread.</summary>
+    private static Task<IReadOnlyList<DiffRow>> Rediff(SideBySideDiff diff, string fileText) =>
+        Task.Run(() => DiffService.Rediff(
+            diff.Left.Text,
+            fileText,
+            diff.RenderMode == DiffRenderMode.SideBySideWithWordDiff));
+
+    private void Rebuild(IReadOnlyList<DiffRow> rows)
+    {
+        _loading = true;
+
+        try
+        {
+            BuildDocuments(rows, preserveCaret: true);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Called immediately before a rebuild, because a rebuild is the only thing that loses history.
+    /// </summary>
+    private void PushUndo(string fileText)
+    {
+        _undo.Add(new UndoStep(fileText, _aligned.CaretFileOffset));
+
+        long chars = 0;
+
+        foreach (UndoStep step in _undo)
+            chars += step.FileText.Length;
+
+        //One step is always kept whatever it costs: a file large enough to blow the budget on its own
+        //is precisely one where losing an edit hurts.
+        while (_undo.Count > MaxUndoSteps || (_undo.Count > 1 && chars > MaxUndoChars))
+        {
+            chars -= _undo[0].FileText.Length;
+            _undo.RemoveAt(0);
+        }
+    }
+
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Z)
+            return;
+
+        bool undoGesture = e.KeyModifiers.HasFlag(KeyModifiers.Control)
+                           || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+
+        if (!undoGesture || _diff?.IsEditable != true || _right.IsReadOnly)
+            return;
+
+        //Unhandled on purpose: the key carries on to the editor, which is what takes back a keystroke.
+        if (_right.Document.UndoStack.CanUndo || _undo.Count == 0)
+            return;
+
+        e.Handled = true;
+
+        if (!_undoing)
+            _ = UndoAsync();
     }
 
     private async Task RaiseHunkAsync(IReadOnlySet<int> rows, bool unstage)
