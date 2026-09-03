@@ -219,10 +219,29 @@ jobs:
       # The one thing this job shares with the Windows one, and the reason it is worth running here
       # too: FlickGit.Core is the only tested assembly, and until now its tests had only ever been
       # run on Windows. Every path assumption in it was written for a case-insensitive volume.
+      #
+      # The failures are re-emitted as a workflow annotation, and that is deliberate rather than
+      # decorative: a job log needs a token to read, and annotations do not. Without this a red
+      # build says only "exit code 1" to anything but a browser.
       - name: Test FlickGit.Core on macOS
         run: |
+          set +e
           dotnet test tests/FlickGit.Core.Tests/FlickGit.Core.Tests.csproj \
-            -c $CONFIGURATION --nologo
+            -c $CONFIGURATION --nologo --logger "console;verbosity=normal" > test.log 2>&1
+          status=$?
+          set -e
+
+          tail -40 test.log
+
+          if [ $status -ne 0 ]; then
+            # One annotation holding every failure, with newlines encoded the way the workflow
+            # command syntax requires.
+            detail=$(grep -E "^\s*(Failed|Assert\.|Expected|Actual|Error Message)" test.log | head -80)
+            encoded=$(printf '%s' "$detail" | python3 -c "import sys; print(sys.stdin.read().replace('%','%25').replace(chr(13),'').replace(chr(10),'%0A'))")
+            echo "::error title=macOS Core test failures::$encoded"
+          fi
+
+          exit $status
 
       - name: Publish for osx-arm64 and osx-x64
         run: |
