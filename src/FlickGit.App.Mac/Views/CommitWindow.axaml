@@ -64,8 +64,8 @@
         </ListBox>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-          <Button Content="All" Command="{Binding SelectAllCommand}" />
-          <Button Content="None" Command="{Binding SelectNoneCommand}" />
+          <Button Name="SelectAllButton" Command="{Binding SelectAllCommand}" />
+          <Button Name="SelectNoneButton" Command="{Binding SelectNoneCommand}" />
           <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" Opacity="0.7" />
         </StackPanel>
       </Grid>
@@ -88,7 +88,7 @@
                          Text="{Binding BranchInput, Mode=TwoWay}"
                          Margin="8,0" />
         <Button Grid.Column="2"
-                Content="Generate with AI"
+                Name="GenerateButton"
                 Command="{Binding GenerateCommand}"
                 IsVisible="{Binding IsAiConfigured}" />
       </Grid>
@@ -98,8 +98,7 @@
                Text="{Binding Message, Mode=TwoWay}"
                AcceptsReturn="True"
                TextWrapping="Wrap"
-               MinHeight="90"
-               PlaceholderText="Commit message" />
+               MinHeight="90" />
     </Grid>
 
     <!-- Outcome, then the buttons. -->
@@ -113,8 +112,8 @@
         <Button Content="{Binding CommitAndPushText}"
                 Command="{Binding CommitAndPushCommand}"
                 MinWidth="140" />
-        <Button Content="Commit" Command="{Binding CommitCommand}" MinWidth="100" />
-        <Button Content="Close" Name="CloseButton" MinWidth="90" />
+        <Button Name="CommitButton" Command="{Binding CommitCommand}" MinWidth="100" />
+        <Button Name="CloseButton" MinWidth="90" />
       </StackPanel>
     </Grid>
   </Grid>

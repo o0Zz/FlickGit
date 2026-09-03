@@ -1,8 +1,10 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Media;
 using AvaloniaEdit;
+using FlickGit.App.Localization;
 using FlickGit.App.Mac.Rendering;
 using FlickGit.Diff;
 
@@ -45,6 +47,19 @@ internal sealed class DiffPane : UserControl
     /// <summary>Whether the file being shown ends with a newline. Its own property, never inferred.</summary>
     private bool _endsWithNewline;
 
+    /// <summary>The rows currently rendered, which the row-selection arithmetic works over.</summary>
+    private IReadOnlyList<DiffRow> _diffRows = [];
+
+    /// <summary>The diff currently shown, for the one question the pane asks of it: is it editable.</summary>
+    private SideBySideDiff? _diff;
+
+    /// <summary>
+    /// Where a stage or unstage request goes. Wired to <c>CommitViewModel.StageHunkAsync</c>, which
+    /// builds the patch in FlickGit.Core and applies it with <c>git apply --cached</c> — so the index
+    /// moves and the working tree never does. Returns a refusal to show, or null on success.
+    /// </summary>
+    public Func<IReadOnlySet<int>, bool, Task<string?>>? StageRequested { get; set; }
+
     /// <summary>True once the user has typed something that is not yet saved.</summary>
     public bool IsDirty { get; private set; }
 
@@ -66,6 +81,8 @@ internal sealed class DiffPane : UserControl
 
         _left.TextArea.TextView.ScrollOffsetChanged += (_, _) => Sync(_left, _right);
         _right.TextArea.TextView.ScrollOffsetChanged += (_, _) => Sync(_right, _left);
+
+        BuildContextMenu();
 
         Content = new Grid
         {
@@ -119,10 +136,13 @@ internal sealed class DiffPane : UserControl
             _right.Text = string.Empty;
             _aligned.Clear();
             _right.IsReadOnly = true;
+            _diff = null;
             SetRows([]);
 
             return;
         }
+
+        _diff = diff;
 
         //Unified fallback for a file too large to diff line by line. Both panes show the same text
         //rather than pretending to a side-by-side that was never computed.
@@ -176,6 +196,7 @@ internal sealed class DiffPane : UserControl
 
     private void SetRows(IReadOnlyList<DiffRow> rows)
     {
+        _diffRows = rows;
         _leftBackground.SetRows(rows);
         _rightBackground.SetRows(rows);
         _leftNumbers.SetRows(rows);
@@ -279,6 +300,127 @@ internal sealed class DiffPane : UserControl
         double maximum = Math.Max(0, extent - viewport);
 
         return offset >= maximum - 0.5 && targetOffset > offset + 0.5;
+    }
+
+    /// <summary>
+    /// The right-click menu, on <b>both</b> panes and one menu rather than two.
+    ///
+    /// Staging a hunk is the same operation whichever pane it was asked from: the patch is built from
+    /// the rows, and a row is a pair. Two menus would be two places for the enabled state to be
+    /// computed and one of them to be wrong.
+    /// </summary>
+    private void BuildContextMenu()
+    {
+        var stage = new MenuItem { Header = Strings.Get("hunk.stage") };
+        var unstage = new MenuItem { Header = Strings.Get("hunk.unstage") };
+
+        stage.Click += (_, _) => _ = RaiseHunkAsync(_pendingRows, unstage: false);
+        unstage.Click += (_, _) => _ = RaiseHunkAsync(_pendingRows, unstage: true);
+
+        var menu = new ContextMenu { ItemsSource = new[] { stage, unstage } };
+
+        _left.ContextMenu = menu;
+        _right.ContextMenu = menu;
+
+        //The rows are captured when the menu opens rather than when an item is clicked: opening the
+        //menu can move focus, and by the time the click arrives the caret may no longer be where the
+        //user pointed.
+        _left.ContextRequested += (_, e) => OnContextRequested(_left, e, stage, unstage);
+        _right.ContextRequested += (_, e) => OnContextRequested(_right, e, stage, unstage);
+    }
+
+    private IReadOnlySet<int> _pendingRows = new HashSet<int>();
+
+    private void OnContextRequested(
+        TextEditor editor,
+        ContextRequestedEventArgs e,
+        MenuItem stage,
+        MenuItem unstage)
+    {
+        _pendingRows = RowsUnder(editor, e);
+
+        //Nothing to stage from a diff that is not against the working tree, or from a selection with
+        //no changed row in it. Disabled rather than hidden: a menu whose items move around is harder
+        //to use than one whose items grey out.
+        bool can = _diff?.IsEditable == true && _pendingRows.Count > 0;
+
+        stage.IsEnabled = can;
+        unstage.IsEnabled = can;
+    }
+
+    private async Task RaiseHunkAsync(IReadOnlySet<int> rows, bool unstage)
+    {
+        if (StageRequested is null || rows.Count == 0)
+            return;
+
+        await StageRequested(rows, unstage).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// The rows the pointer is over, or the caret's if there is no pointer.
+    ///
+    /// A right-click inside an existing selection means the selection; anywhere else means the one
+    /// row pointed at, which is what makes "right-click the line you mean" work without first
+    /// selecting it. Shift+F10 has no pointer, and then the caret is what it means.
+    /// </summary>
+    private IReadOnlySet<int> RowsUnder(TextEditor editor, ContextRequestedEventArgs e)
+    {
+        if (!e.TryGetPosition(editor, out Point point))
+            return RowsIn(editor);
+
+        if (editor.GetPositionFromPoint(point) is not { } position)
+            return RowsIn(editor);
+
+        if (editor.SelectionLength > 0)
+        {
+            int first = editor.Document.GetLineByOffset(editor.SelectionStart).LineNumber;
+            int last = editor.Document.GetLineByOffset(editor.SelectionStart + editor.SelectionLength).LineNumber;
+
+            if (position.Line >= first && position.Line <= last)
+                return RowsBetween(first, last);
+        }
+
+        return RowsBetween(position.Line, position.Line);
+    }
+
+    private IReadOnlySet<int> RowsIn(TextEditor editor)
+    {
+        int first = editor.TextArea.Caret.Line;
+        int last = first;
+
+        if (editor.SelectionLength > 0)
+        {
+            first = editor.Document.GetLineByOffset(editor.SelectionStart).LineNumber;
+            last = editor.Document.GetLineByOffset(editor.SelectionStart + editor.SelectionLength).LineNumber;
+        }
+
+        return RowsBetween(first, last);
+    }
+
+    /// <summary>
+    /// The row indices covered by a line range, expanded to the whole hunk when it is a single line.
+    ///
+    /// <b>A caret on a context line means the hunk it belongs to.</b> Asking the user to land exactly
+    /// on a changed line would make it a game. The expansion is <c>Hunks.Find</c> and
+    /// <c>Hunks.RowsOf</c> in FlickGit.Core — the same functions the WPF pane calls and the same ones
+    /// the patch generator works from, so what is highlighted and what is staged cannot disagree.
+    /// </summary>
+    private IReadOnlySet<int> RowsBetween(int firstLine, int lastLine)
+    {
+        var rows = new HashSet<int>();
+
+        for (int line = firstLine; line <= lastLine; line++)
+        {
+            int row = line - 1;
+
+            if (row >= 0 && row < _diffRows.Count)
+                rows.Add(row);
+        }
+
+        if (rows.Count == 1 && Hunks.Find(_diffRows).FirstOrDefault(h => h.Covers(rows.First())) is { } hunk)
+            return Hunks.RowsOf(_diffRows, hunk);
+
+        return rows;
     }
 
     private static TextEditor Editor() =>

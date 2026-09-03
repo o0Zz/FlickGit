@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using FlickGit.App.CommandLine;
+using FlickGit.App.Localization;
 using FlickGit.App.ViewModels;
 using FlickGit.Diff;
 
@@ -62,7 +63,22 @@ public sealed partial class CommitWindow : Window
         //dialog to ask with: the user keeps their edit and is simply asked to save it first. Wiring a
         //callback that answered "yes, discard" without asking is how an edit disappears.
 
+        //Every string the window shows comes from the one key = value file per language, per
+        //CLAUDE.md. Set here rather than in the XAML for the reason the WPF window sets its own the
+        //same way: the table is read at construction, and a literal in the markup is a string no
+        //translator can reach.
+        SelectAllButton.Content = Strings.Get("commit.selectall");
+        SelectNoneButton.Content = Strings.Get("commit.selectnone");
+        GenerateButton.Content = Strings.Get("commit.button.generate");
+        CommitButton.Content = Strings.Get("commit.button.commit");
+        CloseButton.Content = Strings.Get("common.close");
+        MessageBox.PlaceholderText = Strings.Get("commit.message.header");
+
         DiffHost.Content = _diff;
+
+        //Straight through to the view model, which builds the patch in FlickGit.Core and applies it
+        //to the index. The pane decides *which rows*; it does not know what a patch is.
+        _diff.StageRequested = viewModel.StageHunkAsync;
         _diff.SetTypography(new FontFamily(viewModel.DiffFontFamily), viewModel.DiffFontSize);
 
         //The view model computes the diff off the selection and publishes it as a property; the pane
