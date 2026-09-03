@@ -168,6 +168,15 @@ public sealed partial class CommitWindow : Window
         switch (e.Key)
         {
             case Key.Escape:
+                //The find bar first, per CLAUDE.md: "esc close the search bar if open, otherwise the
+                //window". CloseSearch reports whether it had anything to close.
+                if (_diff.CloseSearch())
+                {
+                    e.Handled = true;
+
+                    break;
+                }
+
                 //The view model refuses while a commit is actually executing: that window has to stay
                 //to report the outcome.
                 if (_viewModel.EscapePressed())

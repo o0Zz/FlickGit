@@ -3,8 +3,12 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.Media;
 using AvaloniaEdit;
+using AvaloniaEdit.Document;
+using AvaloniaEdit.Rendering;
 using FlickGit.App.Localization;
 using FlickGit.App.Mac.Rendering;
 using FlickGit.Diff;
@@ -33,6 +37,19 @@ internal sealed class DiffPane : UserControl
     private readonly DiffBackgroundRenderer _rightBackground = new(isLeftPane: false);
     private readonly DiffLineNumberMargin _leftNumbers = new(isLeftPane: true);
     private readonly DiffLineNumberMargin _rightNumbers = new(isLeftPane: false);
+    private readonly SearchHighlightRenderer _leftSearch = new();
+    private readonly SearchHighlightRenderer _rightSearch = new();
+    private readonly DiffOverviewStrip _overview = new();
+
+    private readonly TextBox _searchBox = new() { Width = 220, Margin = new Thickness(0, 0, 6, 0) };
+    private readonly TextBlock _searchCount = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 };
+    private readonly Border _searchBar;
+
+    /// <summary>Which pane the search is walking. Only that one is lit.</summary>
+    private TextEditor? _searchPane;
+
+    private IReadOnlyList<ISegment> _matches = [];
+    private int _matchIndex = -1;
 
     /// <summary>The pane a sync is currently writing to, so its own scroll event is not treated as a gesture.</summary>
     private TextEditor? _syncTarget;
@@ -83,6 +100,22 @@ internal sealed class DiffPane : UserControl
     /// <summary>Set while an undo is rebuilding, so a second Ctrl+Z does not race the first.</summary>
     private bool _undoing;
 
+    /// <summary>
+    /// The file text the document currently represents, as of the last rebuild.
+    ///
+    /// Not the same as what the document holds: typing within a line changes the document without a
+    /// rebuild, and this deliberately lags behind until one happens. It is what
+    /// <see cref="PushUndo"/> records, so an undo step lands <i>before</i> the typing burst that
+    /// caused the rebuild rather than after it.
+    /// </summary>
+    private string _currentFileText = string.Empty;
+
+    /// <summary>Restarted on every keystroke, so a burst of typing costs one re-diff.</summary>
+    private readonly DispatcherTimer _rediffTimer =
+        new() { Interval = TimeSpan.FromMilliseconds(200) };
+
+    private CancellationTokenSource? _rediffCancellation;
+
     /// <param name="FileText">The file as it stood before the rebuild.</param>
     /// <param name="CaretFileOffset">
     /// The caret in the <i>file's</i> coordinates. A document offset would land somewhere else: the
@@ -98,14 +131,18 @@ internal sealed class DiffPane : UserControl
     {
         _aligned = new AlignedDocument(_right);
 
-        _right.TextChanged += (_, _) =>
+        _right.TextChanged += (_, _) => OnRightTextChanged();
+
+        _rediffTimer.Tick += (_, _) =>
         {
-            if (!_loading)
-                IsDirty = true;
+            _rediffTimer.Stop();
+            _ = RediffAsync();
         };
 
         _left.TextArea.TextView.BackgroundRenderers.Add(_leftBackground);
         _right.TextArea.TextView.BackgroundRenderers.Add(_rightBackground);
+        _left.TextArea.TextView.BackgroundRenderers.Add(_leftSearch);
+        _right.TextArea.TextView.BackgroundRenderers.Add(_rightSearch);
 
         _left.TextArea.LeftMargins.Add(_leftNumbers);
         _right.TextArea.LeftMargins.Add(_rightNumbers);
@@ -120,14 +157,69 @@ internal sealed class DiffPane : UserControl
         //in the commit message box would reach down and undo an edit in a pane nobody is looking at.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 
-        Content = new Grid
+        _searchBar = BuildSearchBar();
+
+        var panes = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,4,*"),
+            ColumnDefinitions = new ColumnDefinitions("*,4,*,10"),
             Children =
             {
                 Place(_left, column: 0),
                 Place(new GridSplitter { ResizeDirection = GridResizeDirection.Columns }, column: 1),
                 Place(_right, column: 2),
+
+                //Down the right edge, mapping the whole file rather than the visible window.
+                Place(_overview, column: 3),
+            },
+        };
+
+        Content = new Grid
+        {
+            RowDefinitions = new RowDefinitions("Auto,*"),
+            Children =
+            {
+                PlaceRow(_searchBar, row: 0),
+                PlaceRow(panes, row: 1),
+            },
+        };
+    }
+
+    /// <summary>
+    /// The find bar, hidden until Ctrl+F.
+    ///
+    /// In the pane rather than in the window, and it is the pane's own key: a window binding would
+    /// fire wherever focus is, so Ctrl+F in the commit message box would open a search over a diff
+    /// the user is not looking at.
+    /// </summary>
+    private Border BuildSearchBar()
+    {
+        var next = new Button { Content = "▼", MinWidth = 32 };
+        var previous = new Button { Content = "▲", MinWidth = 32 };
+        var close = new Button { Content = "✕", MinWidth = 32 };
+
+        //Glyphs on the buttons, words in the tooltips: the bar has to fit beside a 220px box, and
+        //the keystrokes are what the tooltips are actually there to teach.
+        ToolTip.SetTip(next, Strings.Get("diff.search.next"));
+        ToolTip.SetTip(previous, Strings.Get("diff.search.previous"));
+        ToolTip.SetTip(close, Strings.Get("diff.search.close"));
+
+        _searchBox.PlaceholderText = Strings.Get("diff.search.label");
+
+        next.Click += (_, _) => MoveMatch(1);
+        previous.Click += (_, _) => MoveMatch(-1);
+        close.Click += (_, _) => CloseSearch();
+
+        _searchBox.TextChanged += (_, _) => UpdateMatches(keepPosition: false);
+
+        return new Border
+        {
+            IsVisible = false,
+            Padding = new Thickness(6),
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                Children = { _searchBox, previous, next, _searchCount, close },
             },
         };
     }
@@ -205,6 +297,12 @@ internal sealed class DiffPane : UserControl
         //Ctrl+Z replace this document with an unrelated one.
         _undo.Clear();
 
+        //Anything queued from the previous file's typing would land against this document.
+        _rediffCancellation?.Cancel();
+        _rediffTimer.Stop();
+
+        _currentFileText = diff.Right.Text;
+
         BuildDocuments(diff.Rows, preserveCaret: false);
 
         ScrollToFirstChange(diff.Rows);
@@ -260,6 +358,7 @@ internal sealed class DiffPane : UserControl
     private void SetRows(IReadOnlyList<DiffRow> rows)
     {
         _diffRows = rows;
+        _overview.SetRows(rows);
         _leftBackground.SetRows(rows);
         _rightBackground.SetRows(rows);
         _leftNumbers.SetRows(rows);
@@ -448,8 +547,124 @@ internal sealed class DiffPane : UserControl
         if (!ReferenceEquals(_diff, diff))
             return;
 
+        _currentFileText = reverted;
         Rebuild(rebuilt);
         IsDirty = true;
+    }
+
+    private void OnRightTextChanged()
+    {
+        if (_loading || _right.IsReadOnly)
+            return;
+
+        IsDirty = true;
+
+        //Cancelled and restarted on each keystroke, so a burst of typing costs one re-diff.
+        _rediffCancellation?.Cancel();
+        _rediffTimer.Stop();
+        _rediffTimer.Start();
+    }
+
+    /// <summary>
+    /// Recomputes the diff from the base text against the edited file text.
+    ///
+    /// <b>No Git call.</b> The moment the user types a character, any hunk list produced by
+    /// <c>git diff</c> is stale — which is the whole reason the viewer diffs two in-memory buffers
+    /// rather than parsing Git's output.
+    ///
+    /// <b>The two branches are the interesting part.</b> Typing inside a line leaves the row
+    /// structure identical, and rebuilding the documents for that would flicker and — because a
+    /// rebuild clears the editor's undo stack — fill the pane's own history with entries the user
+    /// never made. So when the filler layout is unchanged, only the rows and the background layer
+    /// are refreshed and the editor's history is left intact. A rebuild happens only when the
+    /// alignment actually moved, and then it records exactly one undo step for the burst that led
+    /// there.
+    /// </summary>
+    private async Task RediffAsync()
+    {
+        if (_diff is not { } diff || _right.IsReadOnly)
+            return;
+
+        var cancellation = new CancellationTokenSource();
+        _rediffCancellation = cancellation;
+
+        string editedText = _aligned.ToFileText(_endsWithNewline);
+
+        try
+        {
+            IReadOnlyList<DiffRow> rows = await Rediff(diff, editedText).ConfigureAwait(true);
+
+            //Superseded by a later keystroke, or a different file was clicked while this computed.
+            if (cancellation.IsCancellationRequested
+                || _rediffCancellation != cancellation
+                || !ReferenceEquals(_diff, diff))
+            {
+                return;
+            }
+
+            if (FillerLayoutMatches(rows))
+            {
+                SetRows(rows);
+                InvalidateDiffLayers();
+
+                //No rebuild, so the editor's own history is intact and there is nothing to record —
+                //but a stale value here would make the next undo step land a typing burst too far
+                //back.
+                _currentFileText = editedText;
+
+                return;
+            }
+
+            //The layout moved, so this is the keystroke that ends the editor's undo history. One step
+            //for the burst that led here, holding the text as it was *before* it.
+            PushUndo(_currentFileText);
+
+            _currentFileText = editedText;
+            Rebuild(rows);
+        }
+        catch (OperationCanceledException)
+        {
+            //A later keystroke won. Nothing to undo and nothing to report.
+        }
+    }
+
+    /// <summary>
+    /// Whether a new row list pads the two panes in exactly the same places as the current one.
+    ///
+    /// The test is the filler layout rather than the row contents, because the filler layout is what
+    /// the documents encode: same padding, same documents, and the colours are the only thing that
+    /// needs to change.
+    /// </summary>
+    private bool FillerLayoutMatches(IReadOnlyList<DiffRow> rows)
+    {
+        if (rows.Count != _diffRows.Count)
+            return false;
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            if (rows[i].Right.IsFiller != _diffRows[i].Right.IsFiller
+                || rows[i].Left.IsFiller != _diffRows[i].Left.IsFiller)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Repaints the diff colours without touching the documents.
+    ///
+    /// The background layer specifically: the renderers draw there, and invalidating the whole
+    /// control would re-measure text that has not moved.
+    /// </summary>
+    private void InvalidateDiffLayers()
+    {
+        _left.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+        _right.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+
+        _leftNumbers.InvalidateVisual();
+        _rightNumbers.InvalidateVisual();
     }
 
     /// <summary>Takes back the most recent structural rebuild.</summary>
@@ -470,6 +685,7 @@ internal sealed class DiffPane : UserControl
             if (!ReferenceEquals(_diff, diff))
                 return;
 
+            _currentFileText = step.FileText;
             Rebuild(rebuilt);
             _aligned.RestoreCaret(step.CaretFileOffset);
 
@@ -524,9 +740,156 @@ internal sealed class DiffPane : UserControl
         }
     }
 
+    /// <summary>
+    /// Opens the find bar on the pane that has focus, or re-focuses it if already open.
+    /// </summary>
+    public void OpenSearch(TextEditor? pane = null)
+    {
+        _searchPane = pane
+                      ?? (ReferenceEquals(TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement(), _left)
+                          ? _left
+                          : _right);
+
+        _searchBar.IsVisible = true;
+        _searchBox.Focus();
+        _searchBox.SelectAll();
+
+        UpdateMatches(keepPosition: false);
+    }
+
+    /// <summary>
+    /// Closes the find bar, and reports whether it was open.
+    ///
+    /// The return value is what lets the window give Esc to the search first and to closing the
+    /// window second, per CLAUDE.md: "esc close the search bar if open, otherwise the window".
+    /// </summary>
+    public bool CloseSearch()
+    {
+        if (!_searchBar.IsVisible)
+            return false;
+
+        _searchBar.IsVisible = false;
+        _matchIndex = -1;
+
+        //Cleared before the pane is forgotten: SetMatches decides which renderer to clear by
+        //comparing against _searchPane, so nulling it first would leave the highlights lit.
+        SetMatches([]);
+        _searchPane = null;
+
+        return true;
+    }
+
+    private void UpdateMatches(bool keepPosition)
+    {
+        if (_searchPane is not { } pane)
+            return;
+
+        string term = _searchBox.Text ?? string.Empty;
+        var matches = new List<ISegment>();
+
+        if (term.Length > 0)
+        {
+            string text = pane.Text;
+
+            for (int at = text.IndexOf(term, StringComparison.OrdinalIgnoreCase);
+                 at >= 0;
+                 at = text.IndexOf(term, at + term.Length, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(new TextSegment { StartOffset = at, Length = term.Length });
+            }
+        }
+
+        SetMatches(matches);
+
+        if (keepPosition)
+        {
+            //Clamped rather than reset: a rebuild that removed the last match must not leave the
+            //index pointing past the end of the list.
+            _matchIndex = Math.Min(_matchIndex, matches.Count - 1);
+            UpdateSearchCount();
+
+            return;
+        }
+
+        if (matches.Count == 0)
+        {
+            _matchIndex = -1;
+            UpdateSearchCount();
+
+            return;
+        }
+
+        //The first match at or after where the user already is, so typing a term goes forward rather
+        //than back to the top of a file they have scrolled down through.
+        int from = pane.SelectionLength > 0 ? pane.SelectionStart : pane.CaretOffset;
+        int index = 0;
+
+        for (int i = 0; i < matches.Count; i++)
+        {
+            if (matches[i].Offset >= from)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        ShowMatch(index);
+    }
+
+    /// <summary>Only the searched pane is lit: the same word in the other one is not on the walk.</summary>
+    private void SetMatches(IReadOnlyList<ISegment> matches)
+    {
+        _matches = matches;
+
+        _leftSearch.SetMatches(ReferenceEquals(_searchPane, _left) ? matches : []);
+        _rightSearch.SetMatches(ReferenceEquals(_searchPane, _right) ? matches : []);
+
+        _left.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+        _right.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+
+        UpdateSearchCount();
+    }
+
+    private void MoveMatch(int delta)
+    {
+        if (_matches.Count == 0)
+            return;
+
+        //Wraps, which is what F3 does everywhere else.
+        int index = (_matchIndex + delta + _matches.Count) % _matches.Count;
+
+        ShowMatch(index);
+    }
+
+    private void ShowMatch(int index)
+    {
+        if (_searchPane is not { } pane || index < 0 || index >= _matches.Count)
+            return;
+
+        _matchIndex = index;
+        ISegment match = _matches[index];
+
+        pane.Select(match.Offset, match.Length);
+        pane.ScrollToLine(pane.Document.GetLineByOffset(match.Offset).LineNumber);
+
+        UpdateSearchCount();
+    }
+
+    private void UpdateSearchCount() =>
+        //The same two strings the WPF pane uses, so the count reads identically on both platforms.
+        _searchCount.Text = _matches.Count == 0
+            ? (_searchBox.Text?.Length > 0 ? Strings.Get("diff.search.nomatches") : string.Empty)
+            : Strings.Get("diff.search.count", _matchIndex + 1, _matches.Count);
+
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || e.Key != Key.Z)
+        if (e.Handled)
+            return;
+
+        if (HandleSearchKey(e))
+            return;
+
+        if (e.Key != Key.Z)
             return;
 
         bool undoGesture = e.KeyModifiers.HasFlag(KeyModifiers.Control)
@@ -543,6 +906,33 @@ internal sealed class DiffPane : UserControl
 
         if (!_undoing)
             _ = UndoAsync();
+    }
+
+    /// <summary>The keys the find bar owns, and true when the key was one of them.</summary>
+    private bool HandleSearchKey(KeyEventArgs e)
+    {
+        bool command = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+
+        switch (e.Key)
+        {
+            case Key.F when command:
+                OpenSearch();
+                e.Handled = true;
+
+                return true;
+
+            case Key.F3:
+                //Shift+F3 goes backwards, which is the convention everywhere this key appears.
+                MoveMatch(e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? -1 : 1);
+                e.Handled = true;
+
+                return true;
+
+            //Esc is not handled here. The commit window intercepts it first -- deliberately, so a
+            //commit in flight can refuse to close -- and calls CloseSearch itself.
+            default:
+                return false;
+        }
     }
 
     private async Task RaiseHunkAsync(IReadOnlySet<int> rows, bool unstage)
@@ -640,6 +1030,14 @@ internal sealed class DiffPane : UserControl
         where T : Control
     {
         control.SetValue(Grid.ColumnProperty, column);
+
+        return control;
+    }
+
+    private static T PlaceRow<T>(T control, int row)
+        where T : Control
+    {
+        control.SetValue(Grid.RowProperty, row);
 
         return control;
     }

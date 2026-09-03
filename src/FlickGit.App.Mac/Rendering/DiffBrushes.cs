@@ -21,4 +21,12 @@ internal static class DiffBrushes
     public static readonly IBrush Neutral = Fixed("#FFF6F6F8");
     public static readonly IBrush Gutter = Fixed("#FFF2F3F7");
     public static readonly IBrush LineNumber = Fixed("#FF8A93A6");
+
+    public static readonly IBrush OverviewInserted = Fixed("#FF4CA45C");
+    public static readonly IBrush OverviewDeleted = Fixed("#FFCC5A61");
+    public static readonly IBrush OverviewModified = Fixed("#FF7A93BE");
+    public static readonly IBrush OverviewBorder = Fixed("#FFDDE0E8");
+
+    public static readonly IBrush SearchMatch = Fixed("#FFFFE082");
+    public static readonly IBrush SearchMatchBorder = Fixed("#FFD9A106");
 }
