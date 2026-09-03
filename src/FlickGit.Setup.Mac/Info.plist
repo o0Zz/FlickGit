@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>FlickGit</string>
+  <key>CFBundleExecutable</key>
+  <string>FlickGit</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.flickgit.app</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>FlickGit</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>__VERSION__</string>
+  <key>CFBundleVersion</key>
+  <string>__VERSION__</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+
+  <!-- No Dock icon and no menu of its own: it is a menu bar item and a set of windows opened on
+       request, which is what LSUIElement means. Without it the resident service would sit in the
+       Dock for the whole session doing nothing visible. -->
+  <key>LSUIElement</key>
+  <true/>
+
+  <!-- The hotkey resolves which folder Finder is showing by asking Finder, which is an Apple event
+       and therefore needs consent. The string is what the user is shown when the system asks. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>FlickGit asks Finder which folder you are looking at, so the commit window opens on that repository.</string>
+
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>

@@ -1,0 +1,17 @@
+# Line endings, for the files where a carriage return is not cosmetic.
+#
+# The repository has deliberately had no .gitattributes: core.autocrlf handles C# fine, and the
+# working tree being CRLF on Windows is what everyone here expects. These four patterns are the
+# exceptions, and each is a build failure rather than a preference:
+#
+#   *.sh      a CR is part of the command, so bash reports `: command not found`
+#   *.swift   swiftc accepts it, but the bundle script that drives swiftc does not
+#   *.plist   plutil and codesign read these; CRLF in a plist is a parse risk for no gain
+#   workflows the YAML holds bash `run:` blocks, so a CR reaches the shell the same way
+#
+# Marked eol=lf rather than -text: they are text and should still diff as text, they just must
+# arrive as LF on every platform, including a Windows checkout with autocrlf=true.
+*.sh text eol=lf
+*.swift text eol=lf
+*.plist text eol=lf
+.github/workflows/*.yml text eol=lf

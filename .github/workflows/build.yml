@@ -171,3 +171,131 @@ jobs:
           files: |
             ${{ env.zip }}
             ${{ env.msi }}
+
+  # ------------------------------------------------------------------------------------------------
+  # macOS.
+  #
+  # This job exists because the macOS half of the product cannot be verified anywhere else: the
+  # Swift Finder Sync extension needs a Swift toolchain, `lipo` and `codesign` are macOS-only, and
+  # the .NET side had until now only ever been cross-compiled rather than run. A hosted runner has
+  # all three, so what was unverifiable becomes a build log.
+  #
+  # It does not sign for distribution. `bundle.sh` falls back to an ad-hoc signature, which is
+  # enough for `codesign --verify` to accept the bundle's structure but not enough for Finder to
+  # load the extension on another machine -- that needs a notarised Developer ID signature, and the
+  # secret for it is deliberately not assumed to exist.
+  # ------------------------------------------------------------------------------------------------
+  macos:
+    runs-on: macos-latest
+
+    env:
+      CONFIGURATION: Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Version
+        id: version
+        run: |
+          describe=$(git describe --tags --long --match 'v*' 2>/dev/null || true)
+
+          if [[ "$describe" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)-g[0-9a-f]+$ ]]; then
+            version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          else
+            version="0.0.0.$(git rev-list --count HEAD)"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version: $version (git describe: ${describe:-none})"
+
+      # The one thing this job shares with the Windows one, and the reason it is worth running here
+      # too: FlickGit.Core is the only tested assembly, and until now its tests had only ever been
+      # run on Windows. Every path assumption in it was written for a case-insensitive volume.
+      - name: Test FlickGit.Core on macOS
+        run: |
+          dotnet test tests/FlickGit.Core.Tests/FlickGit.Core.Tests.csproj \
+            -c $CONFIGURATION --nologo
+
+      - name: Publish for osx-arm64 and osx-x64
+        run: |
+          version=${{ steps.version.outputs.version }}
+
+          for rid in osx-arm64 osx-x64; do
+            for project in FlickGit.App.Mac FlickGit.App.Mac.Cli; do
+              dotnet publish "src/$project/$project.csproj" \
+                -c $CONFIGURATION -r $rid --self-contained false \
+                -p:DebugType=none \
+                -p:Version=$version -p:AssemblyVersion=$version -p:FileVersion=$version \
+                -o "artifacts/$rid" --nologo
+            done
+          done
+
+      # Compiled on its own before the bundle, so a Swift error is reported as a Swift error rather
+      # than as a bundle that failed to assemble.
+      - name: Compile the Finder Sync extension
+        run: |
+          swiftc -target arm64-apple-macos12.0 \
+            -module-name FlickGitFinder \
+            -framework Cocoa -framework FinderSync \
+            -typecheck src/FlickGit.FinderSync/FinderSync.swift
+
+      - name: Assemble FlickGit.app
+        run: |
+          chmod +x src/FlickGit.Setup.Mac/bundle.sh
+          src/FlickGit.Setup.Mac/bundle.sh \
+            ${{ steps.version.outputs.version }} \
+            artifacts/osx-arm64 \
+            artifacts/osx-x64 \
+            artifacts/mac
+
+      # Proof the bundle is what it claims to be: the layout is right, the extension is inside it,
+      # both architectures are present, and the signature covers it.
+      - name: Inspect the bundle
+        run: |
+          APP=artifacts/mac/FlickGit.app
+
+          echo "--- layout"
+          find "$APP" -maxdepth 3 -type d | sort
+
+          echo "--- architectures"
+          lipo -info "$APP/Contents/MacOS/FlickGit" || true
+          lipo -info "$APP/Contents/MacOS/flick" || true
+          lipo -info "$APP/Contents/PlugIns/FlickGitFinder.appex/Contents/MacOS/FlickGitFinder"
+
+          echo "--- signature"
+          codesign -dv --verbose=2 "$APP" 2>&1 | head -20
+
+          echo "--- plists parse"
+          plutil -lint "$APP/Contents/Info.plist"
+          plutil -lint "$APP/Contents/PlugIns/FlickGitFinder.appex/Contents/Info.plist"
+
+      # The CLI actually runs here, which is the first time any of this executes on macOS.
+      - name: Run flick against a real repository
+        run: |
+          FLICK=artifacts/mac/FlickGit.app/Contents/MacOS/flick
+
+          echo "--- version"; "$FLICK" version
+          echo "--- help";    "$FLICK" help | head -5
+          echo "--- status";  "$FLICK" status .
+          echo "--- language"; "$FLICK" language
+
+          echo "--- a path with a space and a non-ASCII character"
+          mkdir -p "/tmp/flick tést/repo" && cd "/tmp/flick tést/repo"
+          git init -q . && git config user.email ci@example.com && git config user.name CI
+          echo hello > a.txt && git add a.txt && git commit -qm "first"
+          "$GITHUB_WORKSPACE/$FLICK" status .
+
+      - name: Upload the app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlickGit-macos
+          path: artifacts/mac/FlickGit.app
+          if-no-files-found: error
