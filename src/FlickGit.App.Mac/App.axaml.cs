@@ -1,6 +1,9 @@
 ﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using FlickGit.App.CommandLine;
+using FlickGit.Cli;
+using FlickGit.Ipc;
 using FlickGit.App.Localization;
 using FlickGit.App.Mac.Views;
 using FlickGit.App.Settings;
@@ -19,6 +22,7 @@ namespace FlickGit.App.Mac;
 public sealed class App : Application
 {
     private ServiceProvider? _services;
+    private readonly CancellationTokenSource _stopping = new();
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -35,14 +39,75 @@ public sealed class App : Application
             if (error is not null)
                 _services.GetRequiredService<ILog>().Warn(error);
 
-            desktop.MainWindow = BuildCommitWindow(desktop.Args ?? []);
+            //<b>Explicit shutdown, and this is the difference between an application and a service.</b>
+            //Avalonia's default is OnLastWindowClose, which for a resident process means closing the
+            //commit window kills the socket server with it — every later `flick` then pays a cold
+            //start with no explanation. Found by running it: the process exited cleanly the moment its
+            //one window went away, and the next verb was answered by the CLI's own refusals.
+            desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
+
+            //The socket first: it is the reason this process exists, and a window is optional.
+            StartServing();
+
+            //A path on the command line means "open the commit window here", which is how the Finder
+            //extension and the hotkey will launch it. Started with none, it is a service with no
+            //window, waiting.
+            if (desktop.Args is { Length: > 0 } arguments)
+                BuildCommitWindow(arguments).Show();
 
             //Disposed with the process rather than with the window: the resident service outlives any
-            //one window, and this is where that will hang once the socket server moves in here.
-            desktop.Exit += (_, _) => _services.Dispose();
+            //one window.
+            desktop.Exit += (_, _) =>
+            {
+                _stopping.Cancel();
+                _services.Dispose();
+            };
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Serves the local socket for the life of the process.
+    ///
+    /// The same handler shape the CLI uses when it plays host: parse with the same parser, run
+    /// through the same <see cref="VerbRunner"/>, capture the output for the client. What differs is
+    /// that a window verb here actually opens a window — <c>MacWindowVerbs</c> rather than the CLI's
+    /// refusals — which is the whole point of the resident process.
+    ///
+    /// Failures are logged and swallowed: a service that stopped listening because one request threw
+    /// would turn every later `flick` into a cold start with no explanation.
+    /// </summary>
+    private void StartServing()
+    {
+        ServiceProvider services = _services!;
+
+        var endpoint = services.GetRequiredService<LocalEndpoint>();
+        var runner = services.GetRequiredService<VerbRunner>();
+        var notifier = services.GetRequiredService<INotifier>();
+        var dialogs = services.GetRequiredService<IDialogs>();
+        var log = services.GetRequiredService<ILog>();
+
+        _ = Task.Run(() => endpoint.ServeAsync(
+            async request =>
+            {
+                Verb verb = Verb.Parse(request.Arguments, request.WorkingDirectory);
+                VerbOutput captured = VerbOutput.ForClient(notifier, dialogs, request.HasConsole);
+
+                try
+                {
+                    VerbResult result = await runner.RunAsync(verb, captured).ConfigureAwait(false);
+
+                    return new IpcResponse(result.Code, captured.Output, captured.Error);
+                }
+                catch (Exception ex)
+                {
+                    log.Error($"Serving `{verb.Kind}` failed: {ex.Message}");
+
+                    return new IpcResponse(ExitCodes.GitError, captured.Output, ex.Message);
+                }
+            },
+            _stopping.Token));
     }
 
     /// <summary>

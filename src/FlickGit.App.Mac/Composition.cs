@@ -139,6 +139,21 @@ internal static class Composition
 
         services.AddSingleton<DiffCache>();
         services.AddSingleton<CommitViewModel>();
+        services.AddSingleton<PaletteViewModel>();
+
+        //The verb layer, so this process can answer what `flick` forwards to it. The same routing
+        //the CLI uses -- one route to Git, so the GUI cannot become a shortcut around the safety
+        //rules that route enforces.
+        services.AddSingleton<EnvironmentReports>();
+        services.AddSingleton<IEnvironmentVerbs, MacEnvironmentVerbs>();
+        services.AddSingleton<IWindowVerbs, MacWindowVerbs>();
+        services.AddSingleton<RepositoryVerbs>();
+        services.AddSingleton<ActionRunner>();
+        services.AddSingleton<VerbRunner>();
+        services.AddSingleton<LocalEndpoint>();
+
+        services.AddSingleton<Func<VerbRunner>>(provider => provider.GetRequiredService<VerbRunner>);
+        services.AddSingleton<Func<ActionRunner>>(provider => provider.GetRequiredService<ActionRunner>);
 
         return services.BuildServiceProvider();
     }

@@ -1,0 +1,76 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:FlickGit.App.ViewModels"
+        x:Class="FlickGit.App.Mac.Views.PaletteWindow"
+        x:DataType="vm:PaletteViewModel"
+        Width="560"
+        SizeToContent="Height"
+        MaxHeight="460"
+        CanResize="False"
+        ShowInTaskbar="False"
+        SystemDecorations="BorderOnly"
+        WindowStartupLocation="CenterScreen">
+
+  <!--
+    The palette. Opens on repositories that have something to do, not on a command list.
+
+    No title bar and no taskbar entry: it is a launcher, and CLAUDE.md's target is 80 ms from
+    hotkey to painted. SizeToContent on the height so a short list is a short window rather than
+    a tall one mostly empty.
+  -->
+
+  <Border BorderThickness="1" BorderBrush="#33888888" CornerRadius="6" Padding="0">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+      <!-- Scope, shown only in action mode. -->
+      <TextBlock Grid.Row="0"
+                 Text="{Binding ScopeText}"
+                 IsVisible="{Binding IsActionMode}"
+                 Margin="12,8,12,0"
+                 Opacity="0.7" />
+
+      <TextBox Grid.Row="1"
+               Name="QueryBox"
+               Text="{Binding Query, Mode=TwoWay}"
+               BorderThickness="0"
+               FontSize="16"
+               Margin="8,6,8,6" />
+
+      <ListBox Grid.Row="2"
+               Name="RowList"
+               ItemsSource="{Binding Rows}"
+               SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+               BorderThickness="0"
+               Margin="4,0">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:PaletteRow">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,3">
+
+              <!-- The dot marks a repository with uncommitted work. -->
+              <TextBlock Grid.Column="0"
+                         Text="●"
+                         IsVisible="{Binding HasWork}"
+                         Margin="0,0,8,0"
+                         Foreground="#FF7A93BE" />
+
+              <TextBlock Grid.Column="1" Text="{Binding Primary}" TextTrimming="CharacterEllipsis" />
+
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="{Binding Detail}" Opacity="0.7" />
+                <TextBlock Text="{Binding Trailing}" Opacity="0.55" />
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- The exact command, shown before Enter. -->
+      <Border Grid.Row="3" Padding="12,6" Background="#11888888">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding Hint}" IsVisible="{Binding HasHint}" Opacity="0.8" />
+          <TextBlock Grid.Column="1" Text="{Binding FooterText}" Opacity="0.6" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

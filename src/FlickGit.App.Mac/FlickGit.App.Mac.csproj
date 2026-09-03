@@ -29,6 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The documented exit codes, compiled in because they are internal per assembly. -->
+    <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The UI toolkit. CLAUDE.md fixed the dependency list at three (AvalonEdit, DiffPlex,
          H.NotifyIcon) on the assumption of one Windows front end; a second platform amends that, and
          the amendment is argued in "Technical Direction" rather than left implicit here.
