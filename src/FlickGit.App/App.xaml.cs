@@ -173,6 +173,7 @@ public partial class App : Application
         services.AddSingleton<CommitFlow>();
         services.AddSingleton<PullService>();
         services.AddSingleton<SwitchService>();
+        services.AddSingleton<PrimaryBranchFlow>();
         services.AddSingleton<WorktreeService>();
         services.AddSingleton<SubmoduleService>();
         services.AddSingleton<PushService>();

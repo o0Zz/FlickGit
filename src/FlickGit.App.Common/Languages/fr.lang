@@ -204,6 +204,16 @@ pull.failed = Le pull ne s'est pas terminé.
 pull.cancelled = Arrêté. Rien n'a été annulé : vérifiez `git status` avant de réessayer, un rebase peut être partiellement appliqué et --autostash peut avoir laissé vos modifications dans le stash.
 pull.submodule.failed = Le pull a réussi, mais les sous-modules ne sont pas à jour.
 
+# ---- retour à la branche principale ----
+back.title = Branche principale — {0}
+back.success = Sur {0}, à jour.
+back.success.stashed = Sur {0}, à jour. Vos modifications ont été remisées puis restaurées.
+back.leftdetached = HEAD était détaché sur {0}. Y revenir avec :\n\ngit switch --detach {0}
+back.switch.failed = Impossible de basculer vers {0}.
+back.stash.failed = La remise, le basculement et la restauration ne se sont pas terminés.
+back.inprogress = Un {0} est en cours. Terminez-le ou abandonnez-le d'abord — FlickGit n'en abandonne aucun à votre place.
+back.stash.ask = Basculer vers {0} écraserait ces fichiers :\n\n{1}\n\nLes remiser, basculer, puis les restaurer ?
+
 # ---- sélecteur de branche ----
 branch.label = Branche
 branch.current = actuelle
@@ -593,6 +603,7 @@ palette.empty.norepos = Aucun dépôt pour l'instant. Committez une fois depuis 
 # --- actions ------------------------------------------------------------------
 action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
+action.back = Retour à la branche principale
 action.push = Push
 action.pr = Pull request…
 action.switch = Branches…

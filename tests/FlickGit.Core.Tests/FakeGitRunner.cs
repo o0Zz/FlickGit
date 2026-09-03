@@ -46,6 +46,22 @@ internal sealed class FakeGitRunner : IGitProcessRunner
     }
 
     /// <summary>
+    /// Answers from a callback that decides the <b>whole</b> result, so a service that legitimately
+    /// issues the same command twice can be told "no" and then "yes".
+    ///
+    /// The one caller is the switch on the way into stash/switch/restore: <c>git switch develop</c>
+    /// is refused over local changes, the stash is consented to, and then the <i>identical</i>
+    /// command has to succeed. <see cref="Returns"/> cannot express that, and neither can matching on
+    /// the arguments — they are the same arguments both times, which is exactly why the sequence is
+    /// worth a test.
+    /// </summary>
+    public FakeGitRunner ReturnsResultFrom(string[] match, Func<FakeGitRunner, GitResult> result)
+    {
+        _rules.Insert(0, new Rule(match, result));
+        return this;
+    }
+
+    /// <summary>
     /// The value that followed <paramref name="option"/> in the most recent matching invocation,
     /// for a fake that has to reflect an argument back.
     /// </summary>

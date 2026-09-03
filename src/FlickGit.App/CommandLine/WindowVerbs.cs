@@ -16,6 +16,7 @@ using FlickGit.Diff;
 using FlickGit.Forges;
 using FlickGit.History;
 using FlickGit.Logging;
+using FlickGit.Merges;
 using FlickGit.Models;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
@@ -45,6 +46,7 @@ public sealed class WindowVerbs(
     BranchService branches,
     WorktreeService worktrees,
     PullService pulls,
+    PrimaryBranchFlow primaryBranch,
     CloneService clones,
     TagService tags,
     StashService stashes,
@@ -238,6 +240,142 @@ public sealed class WindowVerbs(
         }
 
         window.Succeed(Strings.Get("pull.success"));
+        return VerbResult.Stay();
+    }
+
+    /// <summary>
+    /// `flick back` — switch to the primary branch, then pull there. The third root entry.
+    ///
+    /// The same window as <see cref="PullAsync"/>, because it is the same kind of operation: several
+    /// steps, a network step among them, and an outcome worth reading. What it adds is the one
+    /// question — <see cref="PrimaryBranchFlow"/> refuses a switch that local changes block, and only
+    /// then offers the branch picker's own stash path, through the same
+    /// <c>SwitchService.StashSwitchRestoreAsync</c>. It is never taken on the user's behalf.
+    /// </summary>
+    public async Task<VerbResult> BackAsync(RepositoryInfo repository)
+    {
+        var window = new ProgressWindow(Strings.Get("back.title", repository.Name));
+        AppWindow.Present(window);
+
+        var request = new PrimaryBranchRequest
+        {
+            Repository = repository,
+            ConfiguredPrimaryBranch = settings.PrimaryBranch,
+            Progress = new Progress<string>(window.AddStep),
+
+            //Onto the dispatcher, and that is not a formality -- CommitWindow learned it the hard
+            //way and says so. The flow raises this from wherever its own ConfigureAwait(false) left
+            //it, which is a thread-pool thread from the first git.exe call onwards, and constructing
+            //a Window there throws "the calling thread must be STA". ShowDialog pumps its own message
+            //loop, so the flow waits on the dialog rather than the dialog blocking the pump.
+            //
+            //ConfirmWindow directly rather than IDialogs, because IDialogs deliberately takes no
+            //owner: a question about this operation belongs over the window running it.
+            //
+            //Enter does not accept. Not because stashing is destructive -- it discards nothing, and
+            //Git refuses rather than overwriting on the way back -- but because the affirmative
+            //answer moves the user's uncommitted work somewhere they did not put it.
+            Confirm = (question, _) => window.Dispatcher.InvokeAsync(() => ConfirmWindow.Ask(
+                window,
+                Strings.Get("switch.stash"),
+                Strings.Get("back.stash.ask", question.Branch, string.Join('\n', question.BlockingFiles)),
+                Strings.Get("switch.stash"),
+                Strings.Get("common.cancel"))).Task,
+        };
+
+        PrimaryBranchResult result;
+
+        try
+        {
+            result = await primaryBranch.RunAsync(request, window.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            //Nothing is undone, for the reason PullAsync gives: a cancelled `pull --rebase` can leave
+            //a rebase in progress, and FlickGit does not abort one on the user's behalf.
+            window.Cancelled(Strings.Get("pull.cancelled"));
+            return VerbResult.Stay(ExitCodes.UserCancelled);
+        }
+
+        switch (result.Outcome)
+        {
+            case PrimaryBranchOutcome.OperationInProgress:
+                window.Fail(
+                    Strings.Get("back.inprogress", Strings.Get(result.InProgress switch
+                    {
+                        MergeOperation.Merge => "conflict.name.merge",
+                        MergeOperation.Rebase => "conflict.name.rebase",
+                        MergeOperation.CherryPick => "conflict.name.cherrypick",
+                        _ => "conflict.name.revert",
+                    })),
+                    string.Empty,
+                    suggestion: null);
+
+                return VerbResult.Stay(ExitCodes.RefusedForSafety);
+
+            case PrimaryBranchOutcome.SwitchRefused:
+                //The heading, then Git's own file list as the detail -- the split SwitchBranchWindow
+                //already makes, rather than one string with the list folded into it.
+                window.Fail(
+                    Strings.Get("branch.blocked", string.Empty).TrimEnd('\n'),
+                    string.Join('\n', result.Files),
+                    Strings.Get("branch.blocked.hint"));
+
+                return VerbResult.Stay(ExitCodes.RefusedForSafety);
+
+            case PrimaryBranchOutcome.SwitchFailed:
+                window.Fail(
+                    Strings.Get("back.switch.failed", result.Branch),
+                    result.Detail ?? string.Empty,
+                    suggestion: null);
+
+                return VerbResult.Stay(ExitCodes.GitError);
+
+            case PrimaryBranchOutcome.StashSwitchFailed:
+                //The one outcome that must never be reported vaguely: the switch may have happened
+                //and the user's work may be sitting in a stash. The reference is the actionable part.
+                window.Fail(
+                    Strings.Get("back.stash.failed"),
+                    result.Detail ?? string.Empty,
+                    result.StashRef is { Length: > 0 } reference
+                        ? Strings.Get("switch.stashkept", reference)
+                        : null);
+
+                return VerbResult.Stay(ExitCodes.GitError);
+
+            case PrimaryBranchOutcome.PullFailed:
+                window.Fail(
+                    result.StoppedOnConflict ? Strings.Get("pull.conflict") : Strings.Get("pull.failed"),
+                    result.Detail ?? string.Empty,
+                    result.Suggestion);
+
+                return VerbResult.Stay(ExitCodes.GitError);
+        }
+
+        if (result.SubmoduleError is not null)
+        {
+            //The switch and the pull both worked. A stale submodule is a warning on top of that,
+            //never a failure -- reporting it as one would invite undoing a pull that was fine.
+            window.Warn(Strings.Get("pull.submodule.failed"), result.SubmoduleError);
+            return VerbResult.Stay();
+        }
+
+        //A stash that round-tripped and a detached HEAD left behind are the two things the user
+        //cannot find out anywhere else, so those two keep their window whatever the setting says.
+        if (!result.Stashed && result.LeftDetachedAt is null && settings.ClosePullWindowAfterSuccess)
+        {
+            window.Close();
+            return VerbResult.Stay();
+        }
+
+        window.Succeed(
+            (result.Stashed
+                ? Strings.Get("back.success.stashed", result.Branch)
+                : Strings.Get("back.success", result.Branch))
+            + (result.LeftDetachedAt is { Length: > 0 } head
+                ? "\n\n" + Strings.Get("back.leftdetached", head)
+                : string.Empty));
+
         return VerbResult.Stay();
     }
 

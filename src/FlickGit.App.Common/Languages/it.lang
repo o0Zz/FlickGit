@@ -204,6 +204,16 @@ pull.failed = Il pull non è stato completato.
 pull.cancelled = Interrotto. Non è stato annullato nulla: controlla `git status` prima di riprovare, un rebase può essere applicato in parte e --autostash può aver lasciato le tue modifiche nello stash.
 pull.submodule.failed = Il pull è riuscito, ma i sottomoduli non sono aggiornati.
 
+# ---- ritorno al branch principale ----
+back.title = Branch principale — {0}
+back.success = Su {0}, aggiornato.
+back.success.stashed = Su {0}, aggiornato. Le modifiche sono state messe nello stash e ripristinate.
+back.leftdetached = HEAD era scollegato su {0}. Tornarci con:\n\ngit switch --detach {0}
+back.switch.failed = Impossibile passare a {0}.
+back.stash.failed = Stash, passaggio e ripristino non sono stati completati.
+back.inprogress = È in corso un {0}. Completarlo o interromperlo prima — FlickGit non ne interrompe nessuno al posto vostro.
+back.stash.ask = Passare a {0} sovrascriverebbe questi file:\n\n{1}\n\nMetterli nello stash, passare e poi ripristinarli?
+
 # ---- selettore di ramo ----
 branch.label = Ramo
 branch.current = attuale
@@ -593,6 +603,7 @@ palette.empty.norepos = Ancora nessun repository. Fare un commit da Esplora file
 # --- azioni -------------------------------------------------------------------
 action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
+action.back = Torna al branch principale
 action.push = Push
 action.pr = Pull request…
 action.switch = Rami…

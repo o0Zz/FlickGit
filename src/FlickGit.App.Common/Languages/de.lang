@@ -204,6 +204,16 @@ pull.failed = Der Pull wurde nicht abgeschlossen.
 pull.cancelled = Abgebrochen. Es wurde nichts zurückgenommen — prüfen Sie `git status`, bevor Sie es erneut versuchen: ein Rebase kann teilweise angewendet sein, und --autostash kann Ihre Änderungen im Stash zurückgelassen haben.
 pull.submodule.failed = Der Pull hat funktioniert, aber die Submodule sind veraltet.
 
+# ---- zurück zum Hauptbranch ----
+back.title = Hauptbranch — {0}
+back.success = Auf {0}, auf dem aktuellen Stand.
+back.success.stashed = Auf {0}, auf dem aktuellen Stand. Ihre Änderungen wurden gestasht und zurückgeholt.
+back.leftdetached = HEAD war auf {0} losgelöst. Dorthin zurück mit:\n\ngit switch --detach {0}
+back.switch.failed = Wechsel zu {0} nicht möglich.
+back.stash.failed = Stashen, Wechseln und Zurückholen wurde nicht abgeschlossen.
+back.inprogress = Ein {0} läuft noch. Beenden oder abbrechen Sie ihn zuerst — FlickGit bricht keinen für Sie ab.
+back.stash.ask = Der Wechsel zu {0} würde diese Dateien überschreiben:\n\n{1}\n\nStashen, wechseln und danach zurückholen?
+
 # ---- Branch-Auswahl ----
 branch.label = Branch
 branch.current = aktuell
@@ -593,6 +603,7 @@ palette.empty.norepos = Noch keine Repositorys. Einmal aus dem Explorer heraus c
 # --- Aktionen -----------------------------------------------------------------
 action.commit = Commit / Push…
 action.pull-rebase = Pull (Rebase)
+action.back = Zurück zum Hauptbranch
 action.push = Push
 action.pr = Pull Request…
 action.switch = Branches…

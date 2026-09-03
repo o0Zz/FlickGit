@@ -7,11 +7,11 @@ namespace FlickGit.App.CommandLine;
 /// The verbs that open something and stay, behind an interface so <see cref="VerbRunner"/> can route
 /// every verb on a host that has no windows yet.
 ///
-/// Thirteen members rather than one <c>RunAsync(verb)</c>, deliberately. Which verbs are windows is
+/// Fourteen members rather than one <c>RunAsync(verb)</c>, deliberately. Which verbs are windows is
 /// part of the command-line grammar and belongs with the rest of the routing in
 /// <see cref="VerbRunner"/>; collapsing it to a single call would move that knowledge into each host
-/// and let two hosts disagree about it. The cost is thirteen refusals in a host without windows,
-/// which is thirteen one-line methods delegating to one helper.
+/// and let two hosts disagree about it. The cost is fourteen refusals in a host without windows,
+/// which is fourteen one-line methods delegating to one helper.
 /// </summary>
 public interface IWindowVerbs
 {
@@ -26,6 +26,9 @@ public interface IWindowVerbs
     Task<VerbResult> PullRequestAsync(RepositoryInfo repository);
 
     Task<VerbResult> PullAsync(RepositoryInfo repository);
+
+    /// <summary>Switch to the primary branch, then pull there. Beside the pull, because it ends in one.</summary>
+    Task<VerbResult> BackAsync(RepositoryInfo repository);
 
     Task<VerbResult> SwitchPickerAsync(RepositoryInfo repository);
 

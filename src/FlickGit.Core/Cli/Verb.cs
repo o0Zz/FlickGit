@@ -11,6 +11,19 @@ public enum VerbKind
 
     Commit,
     PullRebase,
+
+    /// <summary>
+    /// Switch to the branch this repository treats as primary, then <c>pull --rebase</c> on it — the
+    /// end of a feature branch, in one gesture.
+    ///
+    /// <b>The branch is <c>BranchService.ResolvePrimaryBranchAsync</c>'s answer, and there is no
+    /// token for it.</b> A second positional argument would make this a slower spelling of
+    /// <see cref="Switch"/> with a pull glued on, and the whole point is that the user does not have
+    /// to say where "back" is. <c>flick switch &lt;path&gt; develop</c> is still there for anyone who
+    /// wants to name it.
+    /// </summary>
+    Back,
+
     Push,
     Switch,
     Status,
@@ -209,6 +222,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
         {
             "commit" => VerbKind.Commit,
             "pull-rebase" => VerbKind.PullRebase,
+            "back" => VerbKind.Back,
             "push" => VerbKind.Push,
             "switch" => VerbKind.Switch,
             "tag" => VerbKind.Tag,
@@ -339,6 +353,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
 
           flick commit <path>                 commit window
           flick pull-rebase <path>            pull --rebase --autostash (+ submodules)
+          flick back <path>                   switch to the primary branch, then pull
           flick push <path>
           flick pr <path>                     open a pull request for this branch
           flick switch <path> [branch]        branch picker when omitted

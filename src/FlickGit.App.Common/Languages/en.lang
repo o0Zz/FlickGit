@@ -281,6 +281,27 @@ pull.failed = The pull did not complete.
 pull.cancelled = Stopped. Nothing was undone, so check `git status` before trying again: a rebase may be part-applied, and --autostash may have left your changes in the stash list.
 pull.submodule.failed = The pull succeeded, but the submodules are stale.
 
+# ---- back to the primary branch ----
+# The end of a feature branch, in one gesture: switch to the branch this repository treats as
+# primary, then pull --rebase there. The refusal and the stash path are the branch picker's own,
+# so branch.blocked, branch.blocked.hint, switch.stash and switch.stashkept are reused rather
+# than spelled a second time here.
+# {0} the repository name
+back.title = Primary branch — {0}
+# {0} the branch it resolved
+back.success = On {0}, up to date.
+# Said separately: a stash that round-tripped is the one thing the user cannot see for themselves.
+back.success.stashed = On {0}, up to date. Your changes were stashed and put back.
+# {0} the commit HEAD was detached at
+back.leftdetached = HEAD was detached at {0}. Return to it with:\n\ngit switch --detach {0}
+# {0} the branch it resolved
+back.switch.failed = Could not switch to {0}.
+back.stash.failed = The stash, switch and restore did not complete.
+# {0} merge, rebase, cherry-pick or revert
+back.inprogress = A {0} is in progress. Finish it or abort it first — FlickGit will not abort one for you.
+# {0} the branch, {1} the newline-separated file list Git named
+back.stash.ask = Switching to {0} would overwrite these files:\n\n{1}\n\nStash them, switch, and put them back afterwards?
+
 # ---- branch selector ----
 branch.label = Branch
 # {0} branch name
@@ -689,7 +710,7 @@ repo.remote.confirm = Remove '{0}'?\n\nIts remote-tracking branches go with it, 
 repo.remote.confirm.yes = Remove
 repo.section.defaults = FLICKGIT, FOR THIS REPOSITORY
 repo.primarybranch = Primary branch
-repo.primarybranch.hint = Empty resolves it from origin/HEAD, then main, then master. Only the pull request target reads it.
+repo.primarybranch.hint = Empty resolves it from origin/HEAD, then main, then master. The pull request target and Back to the primary branch both read it.
 repo.upstream.unasked = FlickGit has not asked yet whether a new branch may create an upstream here.
 repo.upstream.allowed = A new branch may create an upstream here.
 repo.upstream.refused = A new branch may not create an upstream here.
@@ -858,6 +879,7 @@ palette.empty.norepos = No repositories yet. Commit from Explorer once and this 
 # menu, the palette and the CLI, so a wording change here changes all three at once.
 action.commit = Commit / Push…
 action.pull-rebase = Pull (rebase)
+action.back = Back to the primary branch
 action.push = Push
 action.pr = Pull request…
 action.switch = Branches…

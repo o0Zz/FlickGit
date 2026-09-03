@@ -35,8 +35,8 @@ the ones with something to do listed first. Type to filter, type a space to swit
 Right-click a folder — the repository root, any folder inside it, or the empty background of a
 folder you are browsing.
 
-**Commit / Push** shows the branch you are on — `Commit / Push (main)…` — and both top-level
-entries disappear on a folder that is not a Git repository.
+**Commit / Push** shows the branch you are on — `Commit / Push (main)…` — and all three
+top-level entries disappear on a folder that is not a Git repository.
 
 The whole block is drawn by `FlickGit.Shell.dll`, which lives beside `flick.exe`. Replacing that
 file needs Explorer restarted, because Explorer keeps it loaded once it has drawn a menu with it —
@@ -46,9 +46,17 @@ immediately either way.
 On Windows 11 the entries live under **Show more options** (Shift+F10). That is a limitation of
 registry context menus, not a setting: the Windows 11 top-level menu needs a signed package.
 
-- **Commit / Push…** and **Pull (rebase)** are entries in the menu itself, at the bottom, one
-  click from the right-click. Pull runs a submodule update afterwards when the repository has a
-  `.gitmodules`.
+- **Pull (rebase)**, **Commit / Push…** and **Back to the primary branch** are entries in the
+  menu itself, at the bottom, one click from the right-click. Pull runs a submodule update
+  afterwards when the repository has a `.gitmodules`.
+- **Back to the primary branch** is how a feature branch ends: it switches to whichever branch
+  this repository treats as primary — `flickgit.primaryBranch`, then your setting, then the
+  remote's own default, then main or master — and pulls there. Already on it, it just pulls. If
+  uncommitted changes block the switch it says which files, and offers to stash them, switch,
+  and put them back afterwards; it never does that without asking. The entry cannot name the
+  branch, because the menu text is written once at install and the answer is per repository —
+  the window it opens names it. Rename it yourself in `actions.json` if all your repositories
+  agree.
 - **FlickGit ▸** holds the rest: Show log…, Branches…, Tags…, Push, Pull request…, Repository
   settings…, Clone…, Open terminal here, and any action you added yourself.
 - Right-click a **file** rather than a folder and the submenu holds **Blame…**, which is all that
@@ -475,6 +483,7 @@ Everything in the menus is also a verb. `<path>` defaults to the current directo
 ```
 flick commit <path>              flick switch <path> [branch]
 flick pull-rebase <path>         flick tag <path> [name]
+flick back <path>                switch to the primary branch, then pull
 flick push <path>                flick status <path>
 flick stash <path> [message]     stash the working tree, or open the window
 flick submodule <path>           add, remove, initialise submodules

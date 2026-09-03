@@ -239,7 +239,8 @@ src/
 │   │                        PromptStore + the three built-in prompts
 │   ├── Forges/              ForgeUrl, PullRequestService, PullRequestFlow, three clients
 │   │                        over one ForgeApi, GitCredentialFill
-│   ├── Branches/            BranchService, SwitchService
+│   ├── Branches/            BranchService, SwitchService, and PrimaryBranchFlow --
+│   │                        switch to the primary branch, then pull. The third root entry
 │   ├── Worktrees/           WorktreeService + GitWorktree. `worktree list --porcelain`,
 │   │                        and the five refusals -- no command here ever carries --force
 │   ├── Stashes/             StashService + GitStash. The list is positional, so every pop
@@ -387,6 +388,7 @@ safety rules.
 flick clone <path> [url]             clone into a subdirectory of <path>
 flick commit <path>                  commit window (branch ComboBox included)
 flick pull-rebase <path>             --autostash, + submodule update when applicable
+flick back <path>                    switch to the primary branch, then pull
 flick push <path>
 flick pr <path>                      open a pull request for this branch
 flick switch <path> [branch]         branch picker when omitted
@@ -711,8 +713,11 @@ Guardrails, checked **before** executing:
 
 **Primary branch resolution**, most specific first: `flickgit.primaryBranch` in the repository's own
 config, the user setting, `symbolic-ref refs/remotes/origin/HEAD`, `main`, `master`. Cache only the
-answer that costs a ref lookup. **Its one reader is the pull-request target** — the commit window
-does not consult it, because there is no longer a warning strip for it to feed.
+answer that costs a ref lookup. **Its two readers are the pull-request target and `flick back`**,
+and they share the one chain rather than each carrying a rule: a menu entry that went back to
+`main` where the pull request targets `develop` would be two answers to one question, and the user
+would only ever see the one that was wrong. The commit window still does not consult it, because
+there is no longer a warning strip for it to feed.
 
 **Branch choice is an editable ComboBox in the commit window**, not a separate action. Default is the
 current branch, and committing without touching it must involve no extra Git work. Free text matching
@@ -789,6 +794,48 @@ is usually part-way through something, and it is Git's own flag rather than a st
 of ours precisely because there is then no window in which a stash exists that nothing is tracking. Show
 the submodule update as a distinct step; a submodule failure does **not** roll back the pull. On
 conflict, show a clear message and **do not automatically abort a rebase**.
+
+## Back to the primary branch
+
+**`flick back` is the third root entry, and the only one that is two operations.** A finished
+feature branch ends the same way every time — go back to where the day starts, and arrive up to
+date — and by hand that is a picker, a filter, a click and then a second entry, for a gesture with
+no decision in it. `PrimaryBranchFlow` in `Branches/` owns the order: **read the status → refuse
+mid-operation → resolve the primary branch → switch, or not → `pull --rebase`**. Three of those
+five are refusals, which is the shape of it.
+
+**The branch is `BranchService.ResolvePrimaryBranchAsync` and nothing else.** A second rule here —
+`origin/HEAD`, or `main` then `master` — would give one repository two default branches free to
+disagree, and the one that disagreed would be the one a menu click used.
+
+**Already on it is success with no Git command at all**, exactly as naming the current branch in the
+commit window's ComboBox is — and the pull still runs, because the entry is *and pull*, not *switch
+and maybe pull*.
+
+**A refused switch is refused, and only then is the stash offered.** The same question the branch
+picker asks, through the same `SwitchService.StashSwitchRestoreAsync`, and never taken on the
+user's behalf: the `Confirm` callback's null default answers no, which is what keeps a headless run
+from stashing a working tree nobody asked it to. If the restore conflicts the flow **stops before
+the pull** — the user is standing on the primary branch with their work in a stash, and rebasing
+onto that is a merge over a tree they have not seen, with `--autostash` finding nothing dirty to
+protect.
+
+**An operation in progress is refused before Git is asked anything.** `RepositoryStatus.Merge`
+arrives with the status, so the check costs nothing, and the refusal names the operation and its own
+`--continue` spelling rather than letting `git switch` answer about HEAD and the index. Nothing here
+aborts a rebase, here as everywhere.
+
+**A detached HEAD is a state this entry leaves rather than one it refuses**, and it is the only way
+out of the one FlickGit itself produces, from the tag window. The switch discards nothing Git would
+not warn about, so the outcome names the commit it left — the only handle on anything committed
+there, and being quieter than Git about it is not an option.
+
+**The menu label does not name the branch, and that is a limit rather than an omission.** The label
+is written into the registry once, at install; the resolution chain's second step is the user's
+`settings.json`, which `FlickGit.Shell` cannot read and a registry copy of which goes stale the
+moment that file is hand-edited. A menu reading *Back to develop* over a click that went to `main`
+is the menu lying about what it does, so the label stays general and the window names the branch.
+Anyone whose repositories all agree can relabel the built-in in `actions.json`, in their own words.
 
 ## Pull requests
 
@@ -1106,7 +1153,8 @@ public sealed record GitAction
 ─────────────────────────────────────────
 Pull (rebase)         ← + submodule update           FlickGit  ▸  Blame…
 Commit / Push…        ← branch in the label                      Add
-FlickGit            ▸                                            Remove from Git
+Back to primary       ← switch, then pull                        Remove from Git
+FlickGit            ▸
       ├── Show log…          ├── Pull request…
       ├── Branches…          ├── Repository settings…
       ├── Tags…              ├── Clone…
@@ -1116,9 +1164,12 @@ FlickGit            ▸                                            Remove from G
                              └── Remove from Git
 ```
 
-Two root entries, because those are the two the user *performs* all day. Everything else is one hover
-away, and there is **no "More" entry**: the root entries *are* the menu and the submenu *is* the
-overflow. On a file the folder entries are absent rather than greyed, and `ActionSurfaces.File` is what
+Three root entries, because those are the three the user *performs* all day — and the third is the
+one that gets them out of the second and back to the first. Pull on arriving, Commit on leaving,
+*Back to primary* on finishing a branch, which is a whole feature branch's beginning and end within
+the root block. It earns its place there for the reason the other two do: it is performed, not
+consulted. Everything else is one hover away, and there is still **no "More" entry**: the root
+entries *are* the menu and the submenu *is* the overflow. On a file the folder entries are absent rather than greyed, and `ActionSurfaces.File` is what
 puts an action there.
 
 **Add and Remove** are `TrackingService`, and both answer in text, so the CLI verbs are the same code
@@ -1289,7 +1340,7 @@ hides.
 # Settings, Text and Persistence
 
 Every string the windows show comes from one `key = value` file per language, embedded in
-`FlickGit.exe`: `src/FlickGit.App/Languages/{en,de,es,fr,it,pt}.lang`. Not `.resx` — satellite
+`FlickGit.exe`: `src/FlickGit.App.Common/Languages/{en,de,es,fr,it,pt}.lang`. Not `.resx` — satellite
 assemblies are per-culture DLLs, and a plain text file is something a translator can send back as a
 diff.
 

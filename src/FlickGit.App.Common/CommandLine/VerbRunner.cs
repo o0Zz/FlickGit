@@ -53,7 +53,7 @@ public sealed class VerbRunner(
     /// `terminal`, which works anywhere.
     /// </summary>
     private static bool NeedsRepository(VerbKind kind) =>
-        kind is VerbKind.Commit or VerbKind.Status or VerbKind.PullRebase
+        kind is VerbKind.Commit or VerbKind.Status or VerbKind.PullRebase or VerbKind.Back
             or VerbKind.Switch or VerbKind.Push or VerbKind.Tag or VerbKind.Log
             or VerbKind.Blame or VerbKind.Add or VerbKind.Remove
             or VerbKind.Repo or VerbKind.PullRequest
@@ -197,6 +197,8 @@ public sealed class VerbRunner(
             VerbKind.Terminal => windowVerbs.Terminal(output, verb.Path),
 
             VerbKind.PullRebase => await windowVerbs.PullAsync(repository!).ConfigureAwait(true),
+
+            VerbKind.Back => await windowVerbs.BackAsync(repository!).ConfigureAwait(true),
             VerbKind.Log => await windowVerbs.LogAsync(repository!).ConfigureAwait(true),
             VerbKind.Repo => windowVerbs.Repo(repository!),
             VerbKind.Submodule => windowVerbs.Submodules(repository!),

@@ -324,8 +324,24 @@ public sealed class ActionCatalog
 
         new("commit", VerbKind.Commit, 20, ActionSurfaces.All, "commit.ico", NeedsRepository: true),
 
+        //25, and a root entry itself: the third thing the user *performs* all day, and the one they
+        //perform between the other two. Pull on arriving, commit on leaving, this on finishing a
+        //branch -- so the three numbers read in the order the day goes, which is the only reason it
+        //sits here rather than in the submenu with the other ref operations.
+        //
+        //Two digits, like 10 and 20. Explorer sorts menu keys as strings, so a three-digit root order
+        //would sort ahead of both of them.
+        //
+        //Its own icon, and the argument below about not borrowing one applies harder here than
+        //anywhere: this sits two rows under Pull (rebase), and wearing pull.ico would make two root
+        //entries the same picture. branch.ico is Branches, further down the submenu.
+        //
+        //ActionSurfaces.All, deliberately not File or Folder: it acts on the whole repository, and
+        //there is nothing it could mean on a clicked file.
+        new("back", VerbKind.Back, 25, ActionSurfaces.All, "back.ico", NeedsRepository: true),
+
         //Everything else, in the submenu. Log first: the most-reached, and still not a root entry because
-        //the two root entries are the two the user *performs* all day.
+        //the three root entries are the three the user *performs* all day.
         new("log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
 
         //Read what is there. File only: blaming a folder is not a thing, which is the example

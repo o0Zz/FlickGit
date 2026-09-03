@@ -8,8 +8,8 @@ namespace FlickGit.App.Mac;
 /// <summary>
 /// Every verb that opens a window, refused by name.
 ///
-/// This host has no windows at all, so the refusal is the same sentence thirteen times and the
-/// interface is implemented in one place rather than thirteen. When the Avalonia host arrives it
+/// This host has no windows at all, so the refusal is the same sentence fourteen times and the
+/// interface is implemented in one place rather than fourteen. When the Avalonia host arrives it
 /// replaces this class outright; until then a window verb says what it is rather than doing nothing.
 ///
 /// The environment verbs used to be refused here too. Half of them turned out to be portable and
@@ -38,6 +38,8 @@ public sealed class UnavailableVerbs : IWindowVerbs
     public Task<VerbResult> PullRequestAsync(RepositoryInfo repository) => Task.FromResult(Refuse("pr"));
 
     public Task<VerbResult> PullAsync(RepositoryInfo repository) => Task.FromResult(Refuse("pull-rebase"));
+
+    public Task<VerbResult> BackAsync(RepositoryInfo repository) => Task.FromResult(Refuse("back"));
 
     public Task<VerbResult> SwitchPickerAsync(RepositoryInfo repository) =>
         Task.FromResult(Refuse("switch"));
