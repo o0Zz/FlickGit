@@ -281,6 +281,14 @@ internal static class Program
         services.AddSingleton<Func<VerbRunner>>(provider => provider.GetRequiredService<VerbRunner>);
         services.AddSingleton<Func<ActionRunner>>(provider => provider.GetRequiredService<ActionRunner>);
 
-        return services.BuildServiceProvider();
+        //<b>Validated eagerly.</b> A missing registration is otherwise a run-time failure at the
+        //moment the graph is first walked -- which for the resident service meant it died on its
+        //first request and every later `flick` silently fell back to the CLI's own refusals. That is
+        //exactly how a whole window looked unwired when the real fault was one absent line.
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true,
+        });
     }
 }

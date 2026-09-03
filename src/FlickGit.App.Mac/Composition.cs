@@ -23,6 +23,7 @@ using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Repositories;
 using FlickGit.Stashes;
+using FlickGit.Submodules;
 using FlickGit.Status;
 using FlickGit.Tags;
 using Microsoft.Extensions.DependencyInjection;
@@ -86,6 +87,7 @@ internal static class Composition
         services.AddSingleton<PullService>();
         services.AddSingleton<TagService>();
         services.AddSingleton<StashService>();
+        services.AddSingleton<SubmoduleService>();
         services.AddSingleton<TrackingService>();
         services.AddSingleton<CommitService>();
         services.AddSingleton<CommitFlow>();
@@ -123,6 +125,7 @@ internal static class Composition
         {
             services.AddSingleton<IAutostart, LaunchAgentAutostart>();
             services.AddSingleton<ITrash, FinderTrash>();
+            services.AddSingleton<ISecretStore, KeychainSecretStore>();
         }
         else
         {
@@ -130,12 +133,11 @@ internal static class Composition
             //is under test there; nothing that needs either of these is reachable from it.
             services.AddSingleton<IAutostart, UnsupportedAutostart>();
             services.AddSingleton<ITrash, UnsupportedTrash>();
-        }
 
-        //Keychain is the one seam still without a macOS implementation, so the AI reads no key here
-        //yet and AiConfiguration.HasKey answers false. That is the same answer a Mac with no key
-        //stored would give, which is why the window can be built and exercised without it.
-        services.AddSingleton<ISecretStore, UnavailableSecretStore>();
+            //No Keychain here either, so AiConfiguration.HasKey answers false -- the same answer a
+            //Mac with no key stored would give, which is what keeps a development run usable.
+            services.AddSingleton<ISecretStore, UnavailableSecretStore>();
+        }
 
         services.AddSingleton<DiffCache>();
         services.AddSingleton<CommitViewModel>();
@@ -155,6 +157,14 @@ internal static class Composition
         services.AddSingleton<Func<VerbRunner>>(provider => provider.GetRequiredService<VerbRunner>);
         services.AddSingleton<Func<ActionRunner>>(provider => provider.GetRequiredService<ActionRunner>);
 
-        return services.BuildServiceProvider();
+        //<b>Validated eagerly.</b> A missing registration is otherwise a run-time failure at the
+        //moment the graph is first walked -- which for the resident service meant it died on its
+        //first request and every later `flick` silently fell back to the CLI's own refusals. That is
+        //exactly how a whole window looked unwired when the real fault was one absent line.
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true,
+        });
     }
 }
