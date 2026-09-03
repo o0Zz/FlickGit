@@ -2,7 +2,7 @@
 using System.Text;
 using FlickGit.Ai;
 using FlickGit.App.Localization;
-using FlickGit.App.Resident;
+using FlickGit.App.CommandLine;
 using FlickGit.App.Settings;
 using FlickGit.Diagnostics;
 using FlickGit.History;
@@ -31,7 +31,7 @@ public sealed class AiTextService(
     AiContextBuilder contexts,
     PromptStore prompts,
     AiConfiguration config,
-    Notifier notifier,
+    INotifier notifier,
     OperationTimings timings,
     ILog log)
 {

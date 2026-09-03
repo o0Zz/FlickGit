@@ -8,10 +8,10 @@ namespace FlickGit.App.Settings;
 /// with what?
 ///
 /// Separate from <see cref="FlickSettings"/> because one of the inputs is not a setting — the key is
-/// in Credential Manager — and separate from the generators because <c>FlickGit.Core</c> knows
+/// in the operating system’s keystore — and separate from the generators because <c>FlickGit.Core</c> knows
 /// nothing about either.
 /// </summary>
-public sealed class AiConfiguration(FlickSettings settings, CredentialStore keys, ILog log)
+public sealed class AiConfiguration(FlickSettings settings, ISecretStore keys, ILog log)
 {
     public AiProvider Provider => Parse(settings.AiProvider);
 

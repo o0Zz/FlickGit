@@ -23,9 +23,9 @@ public sealed class RelayCommand(Action execute, Func<bool>? canExecute = null) 
 /// process, and double-clicking Commit must not run two `git commit` invocations against
 /// one index — the second would either fail confusingly or commit an empty tree.
 ///
-/// Exceptions are routed to <paramref name="onError"/> rather than escaping into WPF's
-/// dispatcher, where an unhandled task exception from an <c>async void</c> handler takes
-/// the whole resident process down and every pre-warmed window with it.
+/// Exceptions are routed to <paramref name="onError"/> rather than escaping into the UI
+/// framework's dispatcher, where an unhandled task exception from an <c>async void</c> handler
+/// takes the whole resident process down and every pre-warmed window with it.
 /// </summary>
 public sealed class AsyncCommand(
     Func<Task> execute,
@@ -33,6 +33,19 @@ public sealed class AsyncCommand(
     Action<Exception>? onError = null) : ICommand
 {
     private bool _running;
+
+    /// <summary>
+    /// The UI thread, captured where the command is built.
+    ///
+    /// <b>A synchronization context rather than a dispatcher</b>, which is what this used to reach
+    /// for: <c>System.Windows.Application.Current.Dispatcher</c> is WPF, and this type now serves an
+    /// Avalonia front end as well. Both frameworks install a context on their UI thread, so
+    /// capturing it here asks neither of them by name.
+    ///
+    /// Null when the command is built off the UI thread, in which case the event is raised inline —
+    /// there is no thread to marshal to and nothing bound to it yet either.
+    /// </summary>
+    private readonly SynchronizationContext? _ui = SynchronizationContext.Current;
 
     public event EventHandler? CanExecuteChanged;
 
@@ -77,7 +90,22 @@ public sealed class AsyncCommand(
         }
     }
 
-    public void RaiseCanExecuteChanged() =>
-        System.Windows.Application.Current?.Dispatcher.Invoke(
-            () => CanExecuteChanged?.Invoke(this, EventArgs.Empty));
+    /// <summary>
+    /// Raises the event on the UI thread.
+    ///
+    /// <c>Post</c>, where the WPF version used <c>Dispatcher.Invoke</c> and blocked until the
+    /// bindings had re-queried. Asynchronous is both sufficient and safer here — what this drives is
+    /// a button's enabled state, which is allowed to settle on the next turn of the loop, and
+    /// <c>Send</c> from a Git continuation back onto a UI thread that is awaiting it is a deadlock.
+    /// </summary>
+    public void RaiseCanExecuteChanged()
+    {
+        if (_ui is null)
+        {
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        _ui.Post(_ => CanExecuteChanged?.Invoke(this, EventArgs.Empty), null);
+    }
 }

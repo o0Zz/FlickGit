@@ -53,7 +53,19 @@ public sealed class EditorLauncher(FlickSettings settings, ILog log)
         if (!File.Exists(absolute))
             return EditOutcome.Refused(Strings.Get("edit.missing", relativePath));
 
-        string editor = settings.ExternalEditor.Length > 0 ? settings.ExternalEditor : "notepad.exe";
+        //The editor the user named, or the platform's own.
+        //
+        //The macOS default needs a leading argument as well as a name. `open -t` means "open in the
+        //registered *text* editor"; bare `open` hands the file to whatever is registered for its
+        //extension, which on a developer's Mac is as likely to be a full IDE taking ten seconds to
+        //start as it is a text editor.
+        string editor = settings.ExternalEditor;
+        string[] leading = [];
+
+        if (editor.Length == 0)
+            (editor, leading) = OperatingSystem.IsWindows()
+                ? ("notepad.exe", Array.Empty<string>())
+                : ("/usr/bin/open", ["-t"]);
 
         try
         {
@@ -71,6 +83,9 @@ public sealed class EditorLauncher(FlickSettings settings, ILog log)
                 //nowhere.
                 UseShellExecute = false,
             };
+
+                foreach (string argument in leading)
+                start.ArgumentList.Add(argument);
 
             start.ArgumentList.Add(absolute);
 

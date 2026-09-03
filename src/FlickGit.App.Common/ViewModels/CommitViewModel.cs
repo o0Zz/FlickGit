@@ -34,7 +34,7 @@ public sealed class CommitViewModel : ObservableObject
     private readonly CommitService _commits;
     private readonly PatchService _patches;
     private readonly WorkingTreeWriter _writer;
-    private readonly WorkingTreeDeleter _deleter;
+    private readonly ITrash _deleter;
     private readonly TrackingService _tracking;
     private readonly EditorLauncher _editors;
     private readonly RestoreService _restore;
@@ -75,7 +75,7 @@ public sealed class CommitViewModel : ObservableObject
         UpstreamConsent consent,
         PatchService patches,
         WorkingTreeWriter writer,
-        WorkingTreeDeleter deleter,
+        ITrash deleter,
         TrackingService tracking,
         EditorLauncher editors,
         RestoreService restore,
