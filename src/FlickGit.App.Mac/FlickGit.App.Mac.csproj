@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FlickGit.Core\FlickGit.Core.csproj" />
     <ProjectReference Include="..\FlickGit.App.Common\FlickGit.App.Common.csproj" />
+    <ProjectReference Include="..\FlickGit.App.Mac.Platform\FlickGit.App.Mac.Platform.csproj" />
   </ItemGroup>
 
   <ItemGroup>

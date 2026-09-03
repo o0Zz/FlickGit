@@ -1,0 +1,122 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:FlickGit.App.ViewModels"
+        x:Class="FlickGit.App.Mac.Views.CommitWindow"
+        x:DataType="vm:CommitViewModel"
+        Title="{Binding Title}"
+        Width="1040" Height="720"
+        MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+
+  <!--
+    Compiled bindings, which is why x:DataType is on the window and on the item template. Every
+    path here is checked against CommitViewModel at build time, so a renamed property is a build
+    error rather than an empty control nobody notices until they look at it. That matters more than
+    usual for this port: it is being written without a Mac to render on.
+
+    The diff pane is a placeholder. It is the one genuine rewrite in the milestone — the two-pane
+    scroll sync goes through IScrollInfo on AvalonEdit's TextView, and Avalonia's ILogicalScrollable
+    is a different contract — so it gets its own pass rather than a hurried approximation here.
+  -->
+
+  <Window.KeyBindings>
+    <KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
+  </Window.KeyBindings>
+
+  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="12">
+
+    <!-- Repository, branch, ahead/behind. -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <TextBlock Grid.Column="0"
+                 Text="{Binding RepositoryName}"
+                 FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <TextBlock Text="{Binding CurrentBranch}" VerticalAlignment="Center" Opacity="0.8" />
+        <TextBlock Text="{Binding AheadBehindText}" VerticalAlignment="Center" Opacity="0.6" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Files, and where the diff pane will go. -->
+    <Grid Grid.Row="1" ColumnDefinitions="380,4,*">
+
+      <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Row="0" Text="{Binding SummaryText}" Margin="0,0,0,6" Opacity="0.8" />
+
+        <ListBox Grid.Row="1"
+                 Name="FileList"
+                 ItemsSource="{Binding Files}"
+                 SelectionMode="Multiple">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:FileChangeItem">
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,1">
+                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" />
+                <TextBlock Grid.Column="1" Text="{Binding StatusCode}"
+                           FontFamily="monospace" Width="26" Opacity="0.8" />
+                <TextBlock Grid.Column="2" Text="{Binding Path}"
+                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Tooltip}" />
+                <TextBlock Grid.Column="3" Text="{Binding Added}"
+                           FontFamily="monospace" Margin="8,0,0,0" Foreground="#2E7D32" />
+                <TextBlock Grid.Column="4" Text="{Binding Removed}"
+                           FontFamily="monospace" Margin="6,0,0,0" Foreground="#C62828" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+          <Button Content="All" Command="{Binding SelectAllCommand}" />
+          <Button Content="None" Command="{Binding SelectNoneCommand}" />
+          <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" Opacity="0.7" />
+        </StackPanel>
+      </Grid>
+
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent" />
+
+      <Border Grid.Column="2" BorderThickness="1" BorderBrush="#33888888" CornerRadius="3">
+        <TextBlock Text="The diff pane arrives with the AvaloniaEdit pass."
+                   HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" />
+      </Border>
+    </Grid>
+
+    <!-- Message, branch, and the AI. -->
+    <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,6">
+        <TextBlock Grid.Column="0" Text="{Binding BranchHint}" VerticalAlignment="Center" Opacity="0.7" />
+        <AutoCompleteBox Grid.Column="1"
+                         Name="BranchBox"
+                         Width="240"
+                         ItemsSource="{Binding Branches}"
+                         Text="{Binding BranchInput, Mode=TwoWay}"
+                         Margin="8,0" />
+        <Button Grid.Column="2"
+                Content="Generate with AI"
+                Command="{Binding GenerateCommand}"
+                IsVisible="{Binding IsAiConfigured}" />
+      </Grid>
+
+      <TextBox Grid.Row="1"
+               Name="MessageBox"
+               Text="{Binding Message, Mode=TwoWay}"
+               AcceptsReturn="True"
+               TextWrapping="Wrap"
+               MinHeight="90"
+               PlaceholderText="Commit message" />
+    </Grid>
+
+    <!-- Outcome, then the buttons. -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+      <TextBlock Grid.Column="0"
+                 Text="{Binding StatusText}"
+                 IsVisible="{Binding HasStatusText}"
+                 VerticalAlignment="Center"
+                 TextWrapping="Wrap" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="{Binding CommitAndPushText}"
+                Command="{Binding CommitAndPushCommand}"
+                MinWidth="140" />
+        <Button Content="Commit" Command="{Binding CommitCommand}" MinWidth="100" />
+        <Button Content="Close" Name="CloseButton" MinWidth="90" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

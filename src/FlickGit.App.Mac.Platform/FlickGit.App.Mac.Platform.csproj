@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+
+    <RootNamespace>FlickGit.App.Mac</RootNamespace>
+    <AssemblyName>FlickGit.App.Mac.Platform</AssemblyName>
+    <Description>The macOS facilities behind FlickGit.App.Common's seams: launchd, the Trash, the local socket. No UI and no command line.</Description>
+
+    <!-- Its own project because these files are neither of the two things that wanted them.
+         FlickGit.App.Common is the platform-*independent* half and must stay so; the GUI and the CLI
+         both need launchd, the Trash and the socket, and neither can reasonably reference the other
+         — a CLI that referenced the GUI would drag a UI toolkit into `flick status`, and the reverse
+         is backwards. One job per project: portable app, macOS facilities, windows, command line. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlickGit.Core\FlickGit.Core.csproj" />
+    <ProjectReference Include="..\FlickGit.App.Common\FlickGit.App.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The wire format, shared as source for the reason src/Shared states. -->
+    <Compile Include="..\Shared\IpcMessages.cs" Link="Shared\IpcMessages.cs" />
+  </ItemGroup>
+
+</Project>

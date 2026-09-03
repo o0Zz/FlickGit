@@ -217,37 +217,11 @@ public partial class App : Application
         //implementation a setting names.
         services.AddSingleton<AiConfiguration>();
         services.AddSingleton<AiContextBuilder>();
-        services.AddSingleton(_ => BuildHttpClient());
-        services.AddSingleton<IAiGenerator>(provider =>
-        {
-            var configuration = provider.GetRequiredService<AiConfiguration>();
-            var http = provider.GetRequiredService<HttpClient>();
-            var logger = provider.GetRequiredService<ILog>();
-
-            //The key arrives as a delegate rather than as the store itself: CredentialStore is Windows-only
-            //and FlickGit.Core deliberately is not.
-            return configuration.Provider switch
-            {
-                AiProvider.Anthropic => new AnthropicGenerator(
-                    http, configuration.Options, configuration.ReadKey, logger),
-
-                AiProvider.OpenAi => new OpenAiGenerator(
-                    http, configuration.Options, configuration.ReadKey, logger),
-
-                //Copilot is the one provider whose stored credential is not what gets sent, so it takes a
-                //CopilotToken rather than the key delegate.
-                AiProvider.Copilot => new CopilotGenerator(
-                    http,
-                    configuration.Options,
-                    new CopilotToken(http, configuration.ReadKey, logger),
-                    logger),
-
-                //The local one. No key delegate at all: there is nobody to authenticate to.
-                AiProvider.Ollama => new OllamaGenerator(http, configuration.Options, logger),
-
-                _ => new DisabledAiGenerator(),
-            };
-        });
+        services.AddSingleton(_ => AiHost.CreateHttpClient());
+        services.AddSingleton<IAiGenerator>(provider => AiHost.For(
+            provider.GetRequiredService<AiConfiguration>(),
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<ILog>()));
         services.AddSingleton<AiTextService>();
         services.AddSingleton<ResidentService>();
         services.AddSingleton<PipeServer>();
@@ -324,22 +298,6 @@ public partial class App : Application
     /// budget is a linked token inside each generator instead, where it can tell "the provider is not
     /// answering" from "the user closed the window".
     /// </summary>
-    private static HttpClient BuildHttpClient() =>
-        new(new SocketsHttpHandler
-        {
-            PooledConnectionLifetime = TimeSpan.FromMinutes(15),
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(10),
-            EnableMultipleHttp2Connections = true,
-        })
-        {
-            Timeout = Timeout.InfiniteTimeSpan,
-            DefaultRequestVersion = HttpVersion.Version20,
-
-            //RequestVersionOrLower, so ALPN negotiates h2 and falls back to 1.1 rather than failing outright
-            //against a proxy that does not speak it.
-            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower,
-        };
-
     private async Task RunLaunchVerbAsync(Verb verb)
     {
         VerbResult result = await RunAsync(verb, Output()).ConfigureAwait(true);
