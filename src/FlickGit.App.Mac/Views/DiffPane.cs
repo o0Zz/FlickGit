@@ -34,8 +34,30 @@ internal sealed class DiffPane : UserControl
     /// <summary>The pane a sync is currently writing to, so its own scroll event is not treated as a gesture.</summary>
     private TextEditor? _syncTarget;
 
+    /// <summary>
+    /// The right pane's document, and the only thing that converts it back into the file.
+    /// </summary>
+    private readonly AlignedDocument _aligned;
+
+    /// <summary>Set while this class is writing the document, so its own change is not "the user typing".</summary>
+    private bool _loading;
+
+    /// <summary>Whether the file being shown ends with a newline. Its own property, never inferred.</summary>
+    private bool _endsWithNewline;
+
+    /// <summary>True once the user has typed something that is not yet saved.</summary>
+    public bool IsDirty { get; private set; }
+
     public DiffPane()
     {
+        _aligned = new AlignedDocument(_right);
+
+        _right.TextChanged += (_, _) =>
+        {
+            if (!_loading)
+                IsDirty = true;
+        };
+
         _left.TextArea.TextView.BackgroundRenderers.Add(_leftBackground);
         _right.TextArea.TextView.BackgroundRenderers.Add(_rightBackground);
 
@@ -62,10 +84,41 @@ internal sealed class DiffPane : UserControl
     /// </summary>
     public void Show(SideBySideDiff? diff)
     {
+        _loading = true;
+
+        try
+        {
+            Render(diff);
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        //A freshly rendered file is by definition unedited, whatever the previous one's state was.
+        IsDirty = false;
+    }
+
+    /// <summary>
+    /// The file's text as the editor now holds it — filler lines removed.
+    ///
+    /// <b>The only value that may ever be written to disk</b>, and it comes out of
+    /// <see cref="AlignedDocument"/> rather than from <c>Text</c>, because the document contains
+    /// alignment padding the file must never see.
+    /// </summary>
+    public string FileText() => _aligned.ToFileText(_endsWithNewline);
+
+    /// <summary>Called after a successful save, so the pane stops claiming to be dirty.</summary>
+    public void MarkSaved() => IsDirty = false;
+
+    private void Render(SideBySideDiff? diff)
+    {
         if (diff is null)
         {
             _left.Text = string.Empty;
             _right.Text = string.Empty;
+            _aligned.Clear();
+            _right.IsReadOnly = true;
             SetRows([]);
 
             return;
@@ -78,20 +131,32 @@ internal sealed class DiffPane : UserControl
             string unified = diff.UnifiedText ?? string.Empty;
 
             SetRows([]);
+            _aligned.Clear();
+            _right.IsReadOnly = true;
             _left.Text = unified;
             _right.Text = unified;
 
             return;
         }
 
-        (string left, string right, _) = DiffDocument.Build(diff.Rows);
+        (string left, string right, IReadOnlyList<int> fillerLines) = DiffDocument.Build(diff.Rows);
 
         //Rows before text: the renderers read them during the paint the text change triggers, and a
         //paint against the previous file's rows is a pane briefly coloured by the wrong diff.
         SetRows(diff.Rows);
 
         _left.Text = left;
-        _right.Text = right;
+
+        //Through AlignedDocument, which anchors the filler lines as it loads. Assigning Text here
+        //instead would leave the anchors describing the previous file, and the next save would drop
+        //the wrong lines out of the user's source.
+        _endsWithNewline = diff.Right.EndsWithNewline;
+        _aligned.Load(right, fillerLines);
+
+        //IsEditable is the diff's own answer and consults three things this pane should not
+        //second-guess: whether both sides came from the object store, whether the render mode is a
+        //real side-by-side, and whether the file is binary.
+        _right.IsReadOnly = !diff.IsEditable;
 
         ScrollToFirstChange(diff.Rows);
     }
@@ -219,6 +284,8 @@ internal sealed class DiffPane : UserControl
     private static TextEditor Editor() =>
         new()
         {
+            //The right pane is re-enabled per diff. The left never is: it is HEAD, and there is
+            //nothing on disk it corresponds to.
             IsReadOnly = true,
             ShowLineNumbers = false,
             WordWrap = false,

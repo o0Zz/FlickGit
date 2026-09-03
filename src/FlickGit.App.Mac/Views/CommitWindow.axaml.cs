@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using FlickGit.App.CommandLine;
 using FlickGit.App.ViewModels;
+using FlickGit.Diff;
 
 namespace FlickGit.App.Mac.Views;
 
@@ -53,6 +54,14 @@ public sealed partial class CommitWindow : Window
 
         viewModel.FocusMessageRequested += FocusMessage;
 
+        //The view model refuses to switch files while an edit is unsaved, and this is how it asks.
+        viewModel.IsEditorDirty = () => _diff.IsDirty;
+
+        //ConfirmDiscardEdit is deliberately left unset. The view model reads `!= true`, so an unset
+        //callback *refuses* the switch — the conservative answer, and the right one until there is a
+        //dialog to ask with: the user keeps their edit and is simply asked to save it first. Wiring a
+        //callback that answered "yes, discard" without asking is how an edit disappears.
+
         DiffHost.Content = _diff;
         _diff.SetTypography(new FontFamily(viewModel.DiffFontFamily), viewModel.DiffFontSize);
 
@@ -81,6 +90,28 @@ public sealed partial class CommitWindow : Window
 
     private void OnCloseClicked(object? sender, RoutedEventArgs e) => Close();
 
+    /// <summary>
+    /// Writes the edited file, through the view model so the encoding, the BOM and the line endings
+    /// are put back the way they were read.
+    ///
+    /// <c>force: false</c>, so an external modification since load is reported rather than
+    /// overwritten. The three-way choice the WPF window offers for that — reload, overwrite, save a
+    /// copy — needs a dialog this window does not have yet, so for now the refusal is shown and the
+    /// user's edit stays in the editor where they can still get at it.
+    /// </summary>
+    private async Task SaveEditedFileAsync()
+    {
+        if (!_diff.IsDirty)
+            return;
+
+        SaveOutcome outcome = await _viewModel
+            .SaveCurrentFileAsync(_diff.FileText(), force: false)
+            .ConfigureAwait(true);
+
+        if (outcome.Succeeded)
+            _diff.MarkSaved();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(CommitViewModel.CurrentDiff))
@@ -108,6 +139,16 @@ public sealed partial class CommitWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        //Ctrl/Cmd+S saves the edited file. Explicit, never automatic -- CLAUDE.md is unconditional
+        //about it, and this is the only keystroke in the window that writes to the working tree.
+        if (e.Key == Key.S && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)))
+        {
+            _ = SaveEditedFileAsync();
+            e.Handled = true;
+
+            return;
+        }
+
         switch (e.Key)
         {
             case Key.Escape:
