@@ -186,7 +186,12 @@ public class HunkPatchTests
         DiffRow[] rows = [Modified(1, "a", 1, "b")];
         FileText file = Text("a\n", LineEndingStyle.Lf);
 
-        string patch = Hunks.ToPatch(@"src\deep\a.txt", rows, new HashSet<int> { 0 }, file, file)!;
+        //The separator the caller would actually pass. On Windows a repository-relative path
+        //arrives with backslashes and has to be rewritten; off Windows a backslash is a legal
+        //character in a file name, so there is nothing to rewrite and rewriting would corrupt it.
+        string given = OperatingSystem.IsWindows() ? @"src\deep\a.txt" : "src/deep/a.txt";
+
+        string patch = Hunks.ToPatch(given, rows, new HashSet<int> { 0 }, file, file)!;
 
         Assert.StartsWith("diff --git a/src/deep/a.txt b/src/deep/a.txt\n", patch);
         Assert.Contains("--- a/src/deep/a.txt\n", patch);

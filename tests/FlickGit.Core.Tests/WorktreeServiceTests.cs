@@ -170,7 +170,7 @@ public class WorktreeServiceTests
 
         WorktreeOutcome outcome = await Create(git).AddAsync(
             Repository,
-            @"C:\dev\repo-main",
+            PlatformPaths.Sibling("-main"),
             WorktreeStart.Existing("main"),
             CancellationToken.None);
 
@@ -191,7 +191,7 @@ public class WorktreeServiceTests
 
         await Create(git).AddAsync(
             Repository,
-            @"C:\dev\repo-gw",
+            PlatformPaths.Sibling("-gw"),
             WorktreeStart.Track("feature/storage-gw", "origin/feature/storage-gw"),
             CancellationToken.None);
 

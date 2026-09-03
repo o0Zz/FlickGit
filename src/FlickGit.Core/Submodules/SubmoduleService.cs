@@ -293,8 +293,20 @@ public sealed class SubmoduleService(IGitProcessRunner git, RepositoryService re
     /// that way whatever the user typed, and the value is compared against
     /// <c>diff --name-only</c> output, which is Git's own spelling.
     /// </summary>
+    /// <summary>
+    /// A declared submodule path, tidied.
+    ///
+    /// <b>Only the trailing separator is trimmed, and that is a fix rather than a style choice.</b>
+    /// <c>Trim('/')</c> also removed a <i>leading</i> one — which on Unix is the very thing that
+    /// makes a path absolute, so <c>/somewhere/else</c> arrived at the containment check as the
+    /// relative <c>somewhere/else</c> and resolved happily inside the repository. The
+    /// OutsideRepository refusal never fired. Windows was unaffected only by accident: there an
+    /// absolute path starts with a drive letter, which has no separator to lose.
+    ///
+    /// Found by running the test suite on macOS for the first time.
+    /// </summary>
     private static string Normalise(string path) =>
-        path.Trim().Replace('\\', '/').Trim('/');
+        path.Trim().Replace('\\', '/').TrimEnd('/');
 
     /// <summary>
     /// <c>.gitmodules</c>, as key/value pairs, reduced to one record per submodule.
