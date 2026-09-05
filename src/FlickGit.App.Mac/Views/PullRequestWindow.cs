@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
@@ -824,7 +824,13 @@ public sealed class PullRequestWindow : Window
     {
         bool command = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
 
-        if (e.Key is Key.Enter or Key.Return && command)
+        //Plain Enter creates too, which is what the footer promises -- but not from the description,
+        //where Enter is the paragraph break the user is in the middle of typing. The chord works from
+        //everywhere including there, which is the whole reason it exists.
+        bool plain = e.KeyModifiers == KeyModifiers.None
+            && !ReferenceEquals(FocusManager?.GetFocusedElement(), _description);
+
+        if (e.Key is Key.Enter or Key.Return && (command || plain))
         {
             //Through the button's own guard: it is disabled until the plan says a request can be
             //proposed, and a chord must not reach past a refusal the click cannot.

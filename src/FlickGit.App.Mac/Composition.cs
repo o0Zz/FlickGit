@@ -1,4 +1,4 @@
-﻿using FlickGit.Actions;
+using FlickGit.Actions;
 using FlickGit.Ai;
 using FlickGit.App.Ai;
 using FlickGit.App.Resident;
@@ -22,6 +22,7 @@ using FlickGit.History;
 using FlickGit.Logging;
 using FlickGit.Merges;
 using FlickGit.Palette;
+using FlickGit.Worktrees;
 using FlickGit.Pulls;
 using FlickGit.Remotes;
 using FlickGit.Repositories;
@@ -92,6 +93,7 @@ internal static class Composition
         services.AddSingleton<TagService>();
         services.AddSingleton<StashService>();
         services.AddSingleton<SubmoduleService>();
+        services.AddSingleton<WorktreeService>();
         services.AddSingleton<TrackingService>();
         services.AddSingleton<CommitService>();
         services.AddSingleton<CommitFlow>();
@@ -143,6 +145,10 @@ internal static class Composition
         {
             services.AddSingleton<IAutostart, LaunchAgentAutostart>();
             services.AddSingleton<ITrash, FinderTrash>();
+
+            //What the commit hotkey acts on. Registered beside the other macOS-only services rather
+            //than unconditionally, because everything it does is an Automation call into Finder.
+            services.AddSingleton<FinderFolder>();
             services.AddSingleton<ISecretStore, KeychainSecretStore>();
         }
         else

@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using FlickGit.App.CommandLine;
@@ -6,6 +6,7 @@ using FlickGit.Cli;
 using FlickGit.Ipc;
 using FlickGit.App.Localization;
 using FlickGit.App.Mac.Views;
+using FlickGit.App.Resident;
 using FlickGit.App.Settings;
 using FlickGit.App.ViewModels;
 using FlickGit.Logging;
@@ -23,6 +24,18 @@ public sealed class App : Application
 {
     private ServiceProvider? _services;
     private readonly CancellationTokenSource _stopping = new();
+
+    /// <summary>
+    /// Kept for the life of the process. A <see cref="Avalonia.Controls.TrayIcon"/> that goes out of
+    /// scope is collected, and the status item disappears from the menu bar with it.
+    /// </summary>
+    private Avalonia.Controls.TrayIcon? _menuBar;
+
+    /// <summary>
+    /// The Carbon hotkeys. Held for the same reason: disposing it unregisters them, and letting it be
+    /// collected would unregister them at a moment nothing chose.
+    /// </summary>
+    private GlobalHotkey? _hotkeys;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -49,6 +62,16 @@ public sealed class App : Application
             //The socket first: it is the reason this process exists, and a window is optional.
             StartServing();
 
+            //Then the two ways in that do not go through the socket at all. Both after the socket, so
+            //a hotkey pressed during startup is served by the same code path as one pressed an hour
+            //later.
+            StartMenuBar(desktop);
+
+            //Guarded at the call site rather than inside: everything StartHotkeys touches is Carbon,
+            //and the platform check has to be somewhere the analyser can see it.
+            if (OperatingSystem.IsMacOS())
+                StartHotkeys();
+
             //A path on the command line means "open the commit window here", which is how the Finder
             //extension and the hotkey will launch it. Started with none, it is a service with no
             //window, waiting.
@@ -60,12 +83,139 @@ public sealed class App : Application
             desktop.Exit += (_, _) =>
             {
                 _stopping.Cancel();
+
+                //Before the container: unregistering the hotkeys and dropping the status item are
+                //both calls into AppKit, and doing them after the log has been disposed would leave a
+                //failure in either with nowhere to be recorded.
+                if (OperatingSystem.IsMacOS())
+                    _hotkeys?.Dispose();
+
+                _menuBar?.Dispose();
+
                 _services.Dispose();
             };
         }
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    /// <summary>
+    /// The menu bar item, and the four things it offers.
+    ///
+    /// <b>It is also where a notification comes from</b>, which is why the notifier is handed the
+    /// item rather than creating one: the commit window closes itself on success by default, so
+    /// without somewhere for an outcome to land a successful commit would leave no trace at all.
+    ///
+    /// Built here rather than in <see cref="Composition"/> for the reason the settings window is
+    /// handed in there: this is the composition root's job, and Exit is a lifetime decision that
+    /// belongs to whoever owns the lifetime.
+    /// </summary>
+    private void StartMenuBar(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        ServiceProvider services = _services!;
+
+        var recent = services.GetRequiredService<RecentRepositories>();
+        var environment = services.GetRequiredService<IEnvironmentVerbs>();
+
+        _menuBar = MenuBar.Create(
+            recent: () => recent.Paths,
+            onOpenRecent: path => _ = RunVerbAsync(new Verb(VerbKind.Commit, path, null)),
+
+            onSettings: () => _ = RunVerbAsync(new Verb(VerbKind.Settings, null, null)),
+
+            //About is a tab of that window rather than a notice of its own, so the version, the help
+            //page and the repository link live in one place.
+            onAbout: () => environment.Settings(Output(), SettingsTab.About),
+
+            //Shutdown rather than closing a window: ShutdownMode is OnExplicitShutdown, which is what
+            //keeps the socket alive when the last window goes away — so this is the only thing in the
+            //product that ends the resident process.
+            onExit: () => desktop.Shutdown(ExitCodes.Success));
+
+        services.GetRequiredService<MenuBarNotifier>().Item = _menuBar;
+    }
+
+    /// <summary>
+    /// The two global hotkeys: Cmd+Alt+G opens the commit window on the folder Finder is showing,
+    /// Cmd+Alt+R opens the palette.
+    ///
+    /// <b>A hotkey that could not be registered is a feature the user does not have, not a reason to
+    /// refuse to start.</b> <see cref="GlobalHotkey.Install"/> answers with a sentence rather than
+    /// throwing, and it is logged: another application holding Cmd+Alt+G is a configuration, and the
+    /// socket, the menu bar and every window still work without it.
+    ///
+    /// <b>The commit hotkey opens nothing when Finder is not in front.</b> That is CLAUDE.md's rule
+    /// rather than a limitation of the resolver — acting on a repository the user is not looking at
+    /// is the one thing a global trigger must never do — which is why there is no fallback to the
+    /// working directory here.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("macos")]
+    private void StartHotkeys()
+    {
+        ServiceProvider services = _services!;
+
+        var log = services.GetRequiredService<ILog>();
+        var finder = services.GetRequiredService<FinderFolder>();
+
+        _hotkeys = new GlobalHotkey(log);
+
+        _hotkeys.CommitRequested += () =>
+        {
+            //Off the run loop immediately. The resolver starts a process and waits on Finder, and
+            //the Carbon handler this is raised from is the loop that delivers every other keystroke.
+            //
+            //`async` rather than returning the inner task: Task.Run over a Func<Task> would hand back
+            //a Task<Task> whose inner failure nobody observes, which is the shape that turns a logged
+            //error into a silent one.
+            _ = Task.Run(async () =>
+            {
+                if (finder.Resolve() is not { Length: > 0 } folder)
+                {
+                    log.Debug("The commit hotkey was pressed with no Finder folder in front of it.");
+
+                    return;
+                }
+
+                await RunVerbAsync(new Verb(VerbKind.Commit, folder, null)).ConfigureAwait(false);
+            });
+        };
+
+        _hotkeys.PaletteRequested += () => _ = RunVerbAsync(new Verb(VerbKind.Palette, null, null));
+
+        if (_hotkeys.Install() is { } failure)
+            log.Warn(failure);
+    }
+
+    /// <summary>
+    /// Runs a verb this process started itself, through the same <see cref="VerbRunner"/> the socket
+    /// uses. One route to Git, so the menu bar and the hotkey cannot become shortcuts around the
+    /// safety rules that route enforces.
+    /// </summary>
+    private async Task RunVerbAsync(Verb verb)
+    {
+        ServiceProvider services = _services!;
+
+        try
+        {
+            await services.GetRequiredService<VerbRunner>().RunAsync(verb, Output()).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            //Swallowed for the reason the socket handler swallows: this is a fire-and-forget click
+            //handler, and an exception escaping it reaches the dispatcher and takes the resident
+            //process with it.
+            services.GetRequiredService<ILog>().Error($"Running `{verb.Kind}` failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Somewhere for a verb this process launched to answer. The notifier travels with it because an
+    /// ordinary outcome is a notification rather than a window — see <c>VerbOutput.Say</c>.
+    /// </summary>
+    private VerbOutput Output() =>
+        VerbOutput.Direct(
+            _services!.GetRequiredService<INotifier>(),
+            _services!.GetRequiredService<IDialogs>());
 
     /// <summary>
     /// Serves the local socket for the life of the process.

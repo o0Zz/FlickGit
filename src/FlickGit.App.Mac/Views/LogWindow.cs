@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -355,6 +355,19 @@ internal sealed class LogWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        //Cmd/Ctrl+S saves the range as a patch -- the same key the commit window's diff pane uses to
+        //write a file, which is the only thing either window writes.
+        if (e.Key == Key.S
+            && (e.KeyModifiers.HasFlag(KeyModifiers.Meta) || e.KeyModifiers.HasFlag(KeyModifiers.Control)))
+        {
+            e.Handled = true;
+
+            if (_patch.IsEnabled)
+                _ = SavePatchAsync();
+
+            return;
+        }
+
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
@@ -564,7 +577,7 @@ internal sealed class LogWindow : Window
         int added = files.Sum(f => f.AddedLines ?? 0);
         int removed = files.Sum(f => f.RemovedLines ?? 0);
 
-        return Strings.Get("log.loaded", files.Count) + "   ·   +" + added + " −" + removed;
+        return Strings.Get("log.totals", files.Count, added, removed);
     }
 
     private static FuncDataTemplate<LogCommit> CommitRowTemplate() =>

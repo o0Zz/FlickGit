@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- WinExe rather than Exe, which reads oddly for a macOS project and is still right: it means
@@ -31,6 +31,13 @@
   <ItemGroup>
     <!-- The documented exit codes, compiled in because they are internal per assembly. -->
     <Compile Include="..\Shared\ExitCodes.cs" Link="Shared\ExitCodes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The menu bar item's image, shared with the Windows build rather than copied: two files
+         would be two things to keep looking the same. Linked, so it is embedded here and still
+         lives in one place on disk. -->
+    <AvaloniaResource Include="../FlickGit.App/Resources/flickgit.ico" Link="Resources/flickgit.ico" />
   </ItemGroup>
 
   <ItemGroup>

@@ -99,9 +99,20 @@ class FinderSync: FIFinderSync {
     override var toolbarItemToolTip: String { "FlickGit" }
     override var toolbarItemImage: NSImage { NSImage(named: NSImage.folderName)! }
 
-    /// The menu, mirroring the Windows projection: the two entries the user *performs* all day at
+    /// The menu, mirroring the Windows projection: the three entries the user *performs* all day at
     /// the top, everything else one level down. Windows 11 allows only one level of submenu and so
     /// does this, which is why the two agree without either being contorted.
+    ///
+    /// **A file gets a different menu from a folder**, exactly as `ActionSurfaces` decides on
+    /// Windows: Blame, Add and Remove from Git are what apply to one file, and none of the
+    /// repository-wide entries is drawn beside them. Add and Remove are absent from a folder
+    /// *background* for the same reason they are there — the root of a repository is where Commit
+    /// already stages everything, and `flick add .` from a terminal is refused by name.
+    ///
+    /// **Fetch (prune) is deliberately not here.** It is a user action from `actions.json`, and the
+    /// Windows menu only carries it because `install-shell` writes a registry projection of the
+    /// catalog. There is no equivalent for a Finder Sync extension to write, so this menu is the
+    /// built-ins and nothing else — see `docs/macos-port.md`, §4a.
     override func menu(for menuKind: FIMenuKind) -> NSMenu {
         let menu = NSMenu(title: "FlickGit")
 
@@ -109,32 +120,72 @@ class FinderSync: FIFinderSync {
 
         let repository = hasGitEntry(target) || isInsideRepository(target)
 
-        if repository {
-            add(menu, "Pull (rebase)", "pull-rebase")
-            add(menu, "Commit / Push…", "commit")
-
-            let more = NSMenu(title: "FlickGit")
-            add(more, "Show log…", "log")
-            add(more, "Branches…", "switch")
-            add(more, "Tags…", "tag")
-            add(more, "Stashes…", "stash")
-            add(more, "Submodules…", "submodule")
-            add(more, "Push", "push")
-            add(more, "Pull request…", "pr")
-            add(more, "Repository settings…", "repo")
-            add(more, "Open terminal here", "terminal")
-            add(more, "Add", "add")
-            add(more, "Remove from Git", "rm")
-
-            let item = NSMenuItem(title: "FlickGit", action: nil, keyEquivalent: "")
-            item.submenu = more
-            menu.addItem(item)
-        } else {
+        guard repository else {
             // Not a repository: clone is the offer, and it is the default rather than `git init`.
             add(menu, "Clone here…", "clone")
+
+            return menu
         }
 
+        // One clicked file. Everything else on this menu is about a repository, and none of it is
+        // what the user meant by right-clicking a source file.
+        if menuKind == .contextualMenuForItems, !isDirectory(target) {
+            let one = NSMenu(title: "FlickGit")
+            add(one, "Blame…", "blame")
+            add(one, "Add", "add")
+            add(one, "Remove from Git", "rm")
+
+            let item = NSMenuItem(title: "FlickGit", action: nil, keyEquivalent: "")
+            item.submenu = one
+            menu.addItem(item)
+
+            return menu
+        }
+
+        // The three root entries, because those are the three the user performs all day — and the
+        // third is the one that gets them out of the second and back to the first.
+        add(menu, "Pull (rebase)", "pull-rebase")
+        add(menu, "Commit / Push…", "commit")
+        add(menu, "Back to the primary branch", "back")
+
+        let more = NSMenu(title: "FlickGit")
+        add(more, "Show log…", "log")
+        add(more, "Branches…", "switch")
+        add(more, "Tags…", "tag")
+        add(more, "Stashes…", "stash")
+        add(more, "Submodules…", "submodule")
+        add(more, "Push", "push")
+        add(more, "Pull request…", "pr")
+        add(more, "Repository settings…", "repo")
+        add(more, "Clone…", "clone")
+        add(more, "Open terminal here", "terminal")
+
+        // Only on a folder the user pointed at, never on the background of one: on a folder these
+        // act on everything below it, and on a repository root that is what Commit already is.
+        if menuKind == .contextualMenuForItems {
+            add(more, "Add", "add")
+            add(more, "Remove from Git", "rm")
+        }
+
+        let item = NSMenuItem(title: "FlickGit", action: nil, keyEquivalent: "")
+        item.submenu = more
+        menu.addItem(item)
+
         return menu
+    }
+
+    /// Whether the clicked item is a folder.
+    ///
+    /// One `stat`, on Finder's own thread, and only when a menu is being built — never on the badge
+    /// path, which is the one with a per-drawn-item budget.
+    private func isDirectory(_ url: URL) -> Bool {
+        var directory: ObjCBool = false
+
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) else {
+            return false
+        }
+
+        return directory.boolValue
     }
 
     /// The clicked folder, or the folder being shown.

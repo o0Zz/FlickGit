@@ -1,4 +1,4 @@
-﻿using Avalonia.Threading;
+using Avalonia.Threading;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Mac.Views;
 using FlickGit.App.ViewModels;
@@ -25,6 +25,7 @@ using FlickGit.Stashes;
 using FlickGit.Submodules;
 using FlickGit.Tags;
 using FlickGit.Repositories;
+using FlickGit.Worktrees;
 
 namespace FlickGit.App.Mac;
 
@@ -58,6 +59,7 @@ public sealed class MacWindowVerbs(
     PullService pulls,
     CloneService clones,
     BlameService blame,
+    WorktreeService worktrees,
     RepositoryConfigService repositoryConfig,
     RemoteService remoteService,
     PullRequestService pullRequests,
@@ -392,20 +394,45 @@ public sealed class MacWindowVerbs(
             return VerbResult.Stay();
         });
 
+    /// <summary>
+    /// The branch picker.
+    ///
+    /// <b>The status is read here rather than in the window.</b> The picker needs to know which
+    /// branch HEAD is on — to label one row "current" and to refuse deleting it — and this layer is
+    /// already the one that resolves repository state, so a second <c>rev-parse</c> inside the window
+    /// would be a process started for a value that was in hand.
+    /// </summary>
     public Task<VerbResult> SwitchPickerAsync(RepositoryInfo repository) =>
-        Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            new SwitchBranchWindow(repository, switches, branches, dialogs).Show();
+            RepositoryStatus state = await status
+                .GetStatusAsync(repository, CancellationToken.None)
+                .ConfigureAwait(true);
+
+            new SwitchBranchWindow(repository, switches, branches, worktrees, state.Branch).Show();
 
             return VerbResult.Stay(ExitCodes.Success);
-        }).GetTask();
+        });
 
-    public VerbResult TagPicker(RepositoryInfo repository) => Open(() => new TagsWindow(repository, tags, dialogs));
+    public VerbResult TagPicker(RepositoryInfo repository) => Open(() => new TagsWindow(repository, tags, switches));
 
-    public VerbResult StashPicker(RepositoryInfo repository) => Open(() => new StashesWindow(repository, stashes, dialogs));
+    public VerbResult StashPicker(RepositoryInfo repository) => Open(() => new StashesWindow(repository, stashes, diffs));
 
+    /// <summary>
+    /// The submodule window, which commits nothing of its own — so its Commit button comes back here
+    /// and opens the one commit surface rather than growing a second one.
+    /// </summary>
     public VerbResult Submodules(RepositoryInfo repository) =>
-        Open(() => new SubmodulesWindow(repository, submodules, dialogs));
+        Open(() =>
+        {
+            var window = new SubmodulesWindow(repository, submodules);
+
+            //Direct rather than the caller's: the submodule verb's own output belongs to the window that
+            //is closing, and the commit window reports for itself from here on.
+            window.CommitRequested += () => _ = CommitAsync(VerbOutput.Direct(notifier, dialogs), repository);
+
+            return window;
+        });
 
     public VerbResult Repo(RepositoryInfo repository) =>
         Open(() => new RepositoryWindow(repository, repositoryConfig, remoteService));

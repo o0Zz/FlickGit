@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -330,12 +330,13 @@ public sealed partial class CommitWindow : Window
     }
 
     /// <summary>
-    /// Settles which rows the menu is about before it is drawn.
+    /// Settles which rows the menu is about, before it is built from them.
     ///
-    /// A ListBox does not select on right-click, and without this the menu would silently target
-    /// whatever was selected before -- which for a Delete is the wrong file, with the correct path
-    /// shown in a confirmation the user is not reading closely. A click inside the selection means
-    /// the selection; anywhere else means the row under the pointer.
+    /// <b>The rule lives in <see cref="PickerList.SelectRowUnderPointer"/></b>, which the four
+    /// pickers keep too: Avalonia's ListBox selects the one row under the pointer on a right-click,
+    /// and that silently collapses a multi-selection the user built up to act on — so a right-click
+    /// inside a five-row selection would offer a menu about one file, with the count in the
+    /// confirmation to match.
     ///
     /// A click that missed every row leaves the previous selection alone, and only suppresses the
     /// menu when there was none: right-clicking the empty space below the list with a file already
@@ -343,31 +344,8 @@ public sealed partial class CommitWindow : Window
     /// </summary>
     private void OnFileListContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (RowUnder(e.Source) is not { } row)
-        {
-            if (FileList.SelectedItem is null)
-                e.Handled = true;
-
-            return;
-        }
-
-        if (FileList.SelectedItems?.Contains(row) == true)
-            return;
-
-        FileList.SelectedItems?.Clear();
-        FileList.SelectedItems?.Add(row);
-    }
-
-    /// <summary>The row a pointer event landed on, or null when it missed every one of them.</summary>
-    private static FileChangeItem? RowUnder(object? source)
-    {
-        for (Visual? visual = source as Visual; visual is not null; visual = visual.GetVisualParent())
-        {
-            if (visual is ListBoxItem { DataContext: FileChangeItem row })
-                return row;
-        }
-
-        return null;
+        if (!PickerList.SelectRowUnderPointer(FileList, e.Source) && FileList.SelectedItem is null)
+            e.Handled = true;
     }
 
     /// <summary>

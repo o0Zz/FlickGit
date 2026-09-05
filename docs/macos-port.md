@@ -65,8 +65,16 @@ never talks to the service directly.
 
 - **`flick` text verbs**: `status`, `log`, `add`, `rm`, `repo`, `version`, `help`, `language`,
   `diag timings`, `autostart`.
-- **Seven Avalonia windows**: commit (with the editable diff pane, hunk staging, revert, find bar,
-  overview strip), palette, log, branch picker, tags, stashes, submodules.
+- **Every window**: commit (with the editable diff pane, hunk staging, revert, find bar, overview
+  strip), palette, log, blame, changelog, clone, repository settings, pull request, settings, and
+  the four pickers — branches, tags, stashes, submodules — at feature parity with the WPF ones. See
+  `docs/features.md` for what that means, window by window.
+- **The menu bar item**: recent repositories, Settings, About, Exit — and notifications, so an
+  ordinary success is a banner rather than a window the user has to dismiss.
+- **The global hotkeys**: Cmd+Alt+G opens the commit window on the folder Finder is showing,
+  Cmd+Alt+R opens the palette.
+- **The Finder menu**: the three root entries, the submenu, and a file-specific menu of Blame, Add
+  and Remove from Git.
 - **The resident service**: socket at `$TMPDIR/flickgit-<user>/service.sock`, mode `0600` in a `0700`
   directory, peer uid checked with `getpeereid`.
 - **Keychain, Trash, launchd, the Carbon hotkey** — all written; see §5 for which of them have
@@ -86,26 +94,25 @@ still refused while the other eleven are not:
 | `install-overlay` / `uninstall-overlay` | `MacEnvironmentVerbs.OverlayAsync` | The badge is an `IShellIconOverlayIdentifier` under `HKLM`, elevation and a fifteen-handler limit. macOS has no counterpart; the Finder extension draws its own badges. |
 | `diag doctor` | `MacEnvironmentVerbs.DoctorAsync` | Most of what the Windows one reports is the registry, the overlay slot limit and the input trigger. A macOS doctor is a different report: git location, the socket, the LaunchAgent, whether the Finder extension is enabled, Automation and Accessibility permissions. |
 
-### 4b. The windows that now exist
+### 4b. Four things that are deliberately not the Windows answer
 
-Thirteen, all of them built against `FlickGit.Core` directly rather than by porting WPF code-behind
-— which is the route this document recommended and it held up: Core already owns every sequence and
-every safety rule, so each window is layout, keyboard and callbacks.
+Not gaps. Each is a place where the platform makes a different mechanism right, and the difference
+is worth stating so nobody "fixes" it back.
 
-Commit, diff pane, log, blame, changelog, clone, repository, pull request, settings, secret,
-progress, message, and the three pickers (branches, tags, stashes, submodules) that were already
-here. Two rendering ports came with them — `BlameMargin` and `BlameBackgroundRenderer` — and
-`MarkdownFlow` became `MarkdownView`: a stack of controls rather than a `FlowDocument`, since
-Avalonia has no block model, no list marker style and no `Hyperlink`. The parsing is the same code.
-
-Four things moved into `FlickGit.App.Common` on the way, because each was portable and only lived on
-the Windows side because that is where the class happened to be: `ForgeCredentials`, `ShellOpen`, the
-`ai` verb (into `EnvironmentReports`), and the question all three of them ask — `ISecretPrompt`,
-whose two implementations are the only genuinely platform-specific part.
-
-**Nothing here has been rendered on a Mac.** It has been rendered offscreen through
-`RenderTargetBitmap` on Windows, which exercises layout and text but not the native window chrome,
-the menu bar, or a Retina backing scale.
+- **The Settings window has no Finder-menu checkbox and no badge checkbox.** Both are the verbs
+  above: the extension is enabled in System Settings, and there is no `HKLM` half to elevate for.
+- **The Finder menu does not carry user actions.** No *Fetch (prune)*, and no other `actions.json`
+  entry: the Windows menu only has them because `install-shell` writes a projection of the catalog
+  into the registry. A Finder Sync extension has nothing to write and reads no configuration —
+  `flick run <id>` and the palette are how a user action is reached here.
+- **Notifications go through `osascript display notification`.** `UNUserNotificationCenter` needs a
+  signed bundle and an authorisation prompt; `NSUserNotification`, which needed neither, was removed
+  in macOS 11. The banner works today and is attributed to the script runner rather than to FlickGit
+  until §4c is done, at which point `MenuBarNotifier.Deliver` is the one method to replace.
+- **No window is pre-warmed.** Pre-warming is the Windows host's answer to a 120 ms budget it has
+  measured; nothing here has been measured on real hardware, and a pre-warmed window that has to be
+  provably re-initialisable is a correctness cost to pay once there is a number saying it is needed.
+  `MacWindowVerbs` says so at the top.
 
 ### 4c. Notarisation — the one hard gate
 
@@ -146,7 +153,20 @@ every window, serves the socket, and answers `flick`. But:
 - `LaunchAgentAutostart` — the plist is built with `XDocument` because an executable path containing
   `&` would otherwise produce a plist launchd refuses to parse. `KeepAlive` is deliberately `false`.
 - `GlobalHotkey` — Carbon `RegisterEventHotKey`. Chosen over an `NSEvent` global monitor because the
-  monitor needs Accessibility consent and this needs none.
+  monitor needs Accessibility consent and this needs none. Now wired: `App.StartHotkeys`.
+- `FinderFolder` — the AppleScript that answers "which folder is Finder showing", and therefore the
+  whole of what Cmd+Alt+G acts on. **It asks Finder rather than System Events**, so the user is
+  prompted for one Automation target instead of two; the first press of a session carries that
+  prompt, which is why the timeout is five seconds rather than tight against the 120 ms budget.
+  Declining the prompt is a configuration, not a fault: the hotkey then opens nothing, which is the
+  same outcome as pressing it with no Finder window in front.
+- **The notification banner.** `osascript display notification`, started and abandoned. Worth
+  checking twice: that a banner appears at all, and that a commit subject containing a double quote
+  or a backslash arrives intact — `MenuBarNotifier.Quote` is the only escaping between a commit
+  message and an AppleScript string literal.
+- **The menu bar item.** Avalonia's `TrayIcon` onto `NSStatusItem`, with the `.ico` decoded by Skia
+  for its image. If the image is the thing that fails, `MenuBar.LoadIcon` swallows it and the item
+  is still there with its menu — that fallback has never been exercised either.
 - **The `getpeereid` peer check.** Windows has AF_UNIX but no `getpeereid`, so on a non-macOS host
   `LocalEndpoint.IsSameUser` logs that it did not check and returns true. The security model of the
   local endpoint is therefore **written and unproven**. It matters: a request on that socket can
@@ -174,13 +194,27 @@ momentum, and whether the find bar is usable with a trackpad.
    `git status` showing **no** mode change. Both were bugs; both are fixed; neither has been observed
    working.
 4. Delete an untracked file from the commit window and confirm Finder offers "Put Back".
-5. `flick ai key set` — the first exercise of the Keychain interop.
-6. `flick autostart on`, log out and back in.
+5. **Press Cmd+Alt+G with a Finder window in front**, answer the Automation prompt, and confirm the
+   commit window opens on *that* folder. Then press it with Finder behind something else and confirm
+   nothing opens at all — that refusal is the rule, not a bug.
+6. **Click the menu bar item**: the recent list, Settings, About, Exit. Then commit something and
+   watch for the banner.
+7. **Right-click a file in Finder**, and then a folder, and then a folder's background — three
+   different menus, and the file one must be Blame/Add/Remove and nothing else.
+8. `flick ai key set` — the first exercise of the Keychain interop.
+9. `flick autostart on`, log out and back in.
 
 ## 6. Gotchas that cost time here
 
 - **No editable `ComboBox` in Avalonia.** The branch picker uses `AutoCompleteBox`.
 - **`TextBox.Watermark` is obsolete** in Avalonia 12; it is `PlaceholderText`.
+- **A `ListBox` context menu needs `ContextRequested`, not the selection.** Avalonia *does* select on
+  right-click, and that is not enough: it selects the one row under the pointer, silently collapsing
+  a multi-selection the user built up to act on. `PickerList.SelectRowUnderPointer` restores the
+  Windows rule — a click inside the selection means the selection, anywhere else means the row.
+- **A platform guard has to be somewhere the analyser can see it.** `CA1416` is an error here, and an
+  `OperatingSystem.IsMacOS()` check at the top of a method does not cover a lambda declared inside
+  it. `App.StartHotkeys` is annotated and guarded at its call site instead.
 - **`Dispatcher.UIThread.InvokeAsync`** returns `DispatcherOperation<T>` for a synchronous lambda —
   `.GetTask()` — and unwraps to `Task<T>` for an async one.
 - **`IDialogs.ConfirmAsync` is async because Avalonia leaves no choice.** WPF's `ShowDialog()` blocks;
