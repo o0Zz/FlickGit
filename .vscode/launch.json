@@ -1,12 +1,25 @@
 {
   "version": "0.2.0",
+
+  // Two hosts, one repository. Every entry is prefixed with the host it starts, because the two
+  // build different executables from the same Core and answer the same verbs:
+  //
+  //   Windows:  src/FlickGit.App        -> FlickGit.exe   (WPF, net9.0-windows)
+  //   macOS:    src/FlickGit.App.Mac    -> FlickGit.exe   (Avalonia, plain net9.0)
+  //
+  // The macOS entries run on Windows, and that is the point of them. FlickGit.App.Mac targets
+  // net9.0 rather than net9.0-macos and Composition.cs has an explicit non-macOS branch -- launchd,
+  // the Trash and the Keychain fall back to their "unsupported" implementations, and everything
+  // above them is the same code that will run on a Mac. What you cannot see this way is the native
+  // window chrome, the menu bar and a Retina backing scale.
+
   "configurations": [
     {
       // The resident app with no verb: tray icon only, no window. This is what runs at logon.
-      "name": "FlickGit (tray)",
+      "name": "Windows: FlickGit (tray)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
+      "preLaunchTask": "build (Windows host)",
       "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
       "args": [],
       "cwd": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows",
@@ -14,13 +27,12 @@
       "stopAtEntry": false
     },
     {
-      // The commit window against this repository -- the Phase 1 path worth stepping through.
-      // Change the second argument to point somewhere else; it is the same argument Explorer
-      // supplies as %V.
-      "name": "FlickGit commit (this repo)",
+      // The commit window against this repository -- the path worth stepping through. Change the
+      // second argument to point somewhere else; it is the same argument Explorer supplies as %V.
+      "name": "Windows: commit (this repo)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
+      "preLaunchTask": "build (Windows host)",
       "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
       "args": ["commit", "${workspaceFolder}"],
       "cwd": "${workspaceFolder}",
@@ -28,12 +40,14 @@
       "stopAtEntry": false
     },
     {
-      "name": "FlickGit pull-rebase (this repo)",
+      // Any window verb, on the WPF host. The picker is the same list the macOS entry offers, so
+      // the two can be compared side by side without editing a file.
+      "name": "Windows: any verb (this repo)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
+      "preLaunchTask": "build (Windows host)",
       "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
-      "args": ["pull-rebase", "${workspaceFolder}"],
+      "args": ["${input:verb}", "${workspaceFolder}"],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole",
       "stopAtEntry": false
@@ -42,10 +56,10 @@
       // `diag doctor` writes to the console. FlickGit.exe is a WinExe, so it borrows the
       // parent's console with AttachConsole -- "integratedTerminal" is what gives it one to
       // borrow, and "internalConsole" would show nothing.
-      "name": "FlickGit diag doctor",
+      "name": "Windows: diag doctor",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
+      "preLaunchTask": "build (Windows host)",
       "program": "${workspaceFolder}\\src\\FlickGit.App\\bin\\Debug\\net9.0-windows\\FlickGit.exe",
       "args": ["diag", "doctor"],
       "cwd": "${workspaceFolder}",
@@ -56,15 +70,118 @@
       // The CLI stub. Debugging it under Debug configuration debugs the managed build, not the
       // AOT one -- AOT only exists after a publish, and a published AOT binary is debugged
       // with a native debugger rather than this launcher.
-      "name": "flick stub (commit, this repo)",
+      "name": "Windows: flick stub (commit, this repo)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
+      "preLaunchTask": "build (Windows host)",
       "program": "${workspaceFolder}\\src\\FlickGit.Cli\\bin\\Debug\\net9.0-windows\\flick.exe",
       "args": ["commit", "${workspaceFolder}"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "stopAtEntry": false
+    },
+
+    {
+      // The Avalonia commit window on this repository. <b>Start here.</b> One argument, a path, is
+      // what Program.Main understands as "open the commit window there" -- it is the shape the
+      // Finder extension and the hotkey will use.
+      //
+      // The process also starts serving the socket, so it stays up after the window closes. That is
+      // deliberate (ShutdownMode.OnExplicitShutdown) and is what lets the flick entry below drive it.
+      "name": "macOS: commit (this repo)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build (macOS host)",
+      "program": "${workspaceFolder}\\src\\FlickGit.App.Mac\\bin\\Debug\\net9.0\\FlickGit.exe",
+      "args": ["${workspaceFolder}"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      // The resident host with no window: it builds its DI graph, starts the socket and waits.
+      // Useful on its own as a startup check -- the container validates eagerly, so a missing
+      // registration fails here rather than on the first request.
+      //
+      // Leave this running and use "macOS: flick <verb>" to open windows against it.
+      "name": "macOS: FlickGit host (resident, no window)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build (macOS host)",
+      "program": "${workspaceFolder}\\src\\FlickGit.App.Mac\\bin\\Debug\\net9.0\\FlickGit.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}\\src\\FlickGit.App.Mac\\bin\\Debug\\net9.0",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      // The macOS `flick`, which is a real forwarding client rather than a stub: it sends the verb
+      // over the AF_UNIX socket and prints what the host answers.
+      //
+      // <b>Start one of the two entries above first.</b> With a host listening, a window verb opens
+      // an Avalonia window in that process -- which is the whole development loop, and the reason
+      // this is worth having on Windows at all. With nothing listening, flick runs the verb in its
+      // own process instead, so the text verbs (status, log's siblings, version, ai) still answer
+      // and the window verbs say they need a host.
+      //
+      // Windows has AF_UNIX, which is why this transport can be exercised here. What it cannot
+      // exercise is the peer check: getpeereid is macOS-only, so LocalEndpoint logs that it did not
+      // check and accepts. See docs/macos-port.md §5.
+      "name": "macOS: flick <verb> (this repo)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build (macOS host)",
+      "program": "${workspaceFolder}\\src\\FlickGit.App.Mac.Cli\\bin\\Debug\\net9.0\\flick.exe",
+      "args": ["${input:verb}", "${workspaceFolder}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      // `flick blame` takes a file rather than a folder, so it gets its own entry instead of a
+      // second meaning for the picker above.
+      "name": "macOS: flick blame (a file)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build (macOS host)",
+      "program": "${workspaceFolder}\\src\\FlickGit.App.Mac.Cli\\bin\\Debug\\net9.0\\flick.exe",
+      "args": ["blame", "${input:file}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ],
+
+  "inputs": [
+    {
+      // The verbs that take a repository path and nothing else. `blame` is absent because it takes
+      // a file, and `clone` because it opens on a folder that is *not* a repository -- both would
+      // be a picker entry that fails on the default argument.
+      "id": "verb",
+      "type": "pickString",
+      "description": "Which verb?",
+      "default": "commit",
+      "options": [
+        "commit",
+        "log",
+        "switch",
+        "tag",
+        "stash",
+        "submodule",
+        "repo",
+        "pr",
+        "pull-rebase",
+        "back",
+        "status",
+        "settings",
+        "palette"
+      ]
+    },
+    {
+      "id": "file",
+      "type": "promptString",
+      "description": "Which file? (a path inside this repository)",
+      "default": "${workspaceFolder}\\CLAUDE.md"
     }
   ]
 }

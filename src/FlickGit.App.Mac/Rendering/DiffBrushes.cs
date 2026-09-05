@@ -27,6 +27,17 @@ internal static class DiffBrushes
     public static readonly IBrush OverviewModified = Fixed("#FF7A93BE");
     public static readonly IBrush OverviewBorder = Fixed("#FFDDE0E8");
 
+    /// <summary>The abbreviated hash in the blame gutter. The accent, so the eye lands on it first.</summary>
+    public static readonly IBrush BlameSha = Fixed("#FF3A6EA5");
+
+    /// <summary>
+    /// Every line the selected commit is responsible for.
+    ///
+    /// Deliberately fainter than any diff colour: it answers "where else did this commit touch the
+    /// file" while the code stays the thing being read.
+    /// </summary>
+    public static readonly IBrush BlameSelected = Fixed("#FFEAF1FA");
+
     public static readonly IBrush SearchMatch = Fixed("#FFFFE082");
     public static readonly IBrush SearchMatchBorder = Fixed("#FFD9A106");
 }

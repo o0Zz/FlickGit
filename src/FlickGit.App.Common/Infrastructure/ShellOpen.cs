@@ -1,9 +1,9 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace FlickGit.App.Infrastructure;
 
 /// <summary>
-/// Hands a folder or a URL to the Windows shell, so whatever the user has registered for it opens.
+/// Hands a folder or a URL to the operating system, so whatever the user has registered for it opens.
 ///
 /// <b>Four copies of this existed.</b> Two <c>OpenFolder</c> methods, in
 /// <c>SubmodulesWindow</c> and <c>SwitchBranchWindow</c>, identical down to the comment explaining
@@ -12,15 +12,19 @@ namespace FlickGit.App.Infrastructure;
 /// reported. What differed between them was never the shell call -- it was which string the window
 /// puts on screen afterwards, which is the window's business and stays there.
 ///
+/// <b>One class for both platforms.</b> <c>UseShellExecute</c> is what does the work on each:
+/// Windows consults its association table, and .NET on macOS runs <c>open</c> — the same hand-off,
+/// spelled the same way, so there is nothing here for a per-platform implementation to differ about.
+///
 /// <b>Why this is a static.</b> Hard Requirement 3 turns behaviour-bearing statics into injected
 /// services, and this one starts a process. It is the same named exception <see cref="ConsoleOutput"/>
 /// is: the thinnest possible wrapper over a process-global OS facility -- the shell's file
 /// association table -- of which there is exactly one, forever, and nothing to substitute.
 /// </summary>
-internal static class ShellOpen
+public static class ShellOpen
 {
     /// <summary>
-    /// Opens <paramref name="path"/> in Explorer.
+    /// Opens <paramref name="path"/> in the file manager.
     ///
     /// <c>UseShellExecute</c> is the whole mechanism and it is required rather than incidental:
     /// without it this is an attempt to <i>execute</i> the directory.

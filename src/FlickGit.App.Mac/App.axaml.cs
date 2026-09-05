@@ -137,10 +137,12 @@ public sealed class App : Application
         if (repository is not null)
         {
             //Reset before Show: the view model is built once and re-populated per repository, which is
-            //what lets the window be pre-warmed later.
-            viewModel.Reset(repository);
+            //what lets the window be pre-warmed later. Through the window rather than straight at the
+            //view model, because the diff pane has to be cleared in the same breath -- otherwise the
+            //new repository opens with the previous one's file still rendered in it.
+            window.Reset(repository);
 
-            _ = viewModel.RefreshAsync();
+            _ = window.RefreshAsync();
         }
 
         return window;

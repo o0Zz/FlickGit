@@ -5,15 +5,18 @@ using FlickGit.App.Resident;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
+using FlickGit.App.Mac.Views;
 using FlickGit.App.Settings;
 using FlickGit.App.ViewModels;
 using FlickGit.Blame;
 using FlickGit.Branches;
 using FlickGit.Commits;
+using FlickGit.Clone;
 using FlickGit.Config;
 using FlickGit.Diagnostics;
 using FlickGit.Diff;
 using FlickGit.Files;
+using FlickGit.Forges;
 using FlickGit.Git;
 using FlickGit.History;
 using FlickGit.Logging;
@@ -82,6 +85,7 @@ internal static class Composition
         services.AddSingleton<RepositoryConfigService>();
         services.AddSingleton<BranchService>();
         services.AddSingleton<SwitchService>();
+        services.AddSingleton<PrimaryBranchFlow>();
         services.AddSingleton<PushService>();
         services.AddSingleton<RemoteService>();
         services.AddSingleton<PullService>();
@@ -117,6 +121,20 @@ internal static class Composition
         services.AddSingleton<AiTextService>();
 
         //The platform seams.
+        services.AddSingleton<CloneService>();
+
+        //Both clients registered whichever forge this machine happens to use: they are two small
+        //objects over the shared HttpClient, and a registration that depended on a repository's
+        //remote could not be a singleton at all.
+        services.AddSingleton<IPullRequestClient, GitHubClient>();
+        services.AddSingleton<IPullRequestClient, AzureDevOpsClient>();
+        services.AddSingleton<PullRequestClients>();
+        services.AddSingleton<PullRequestService>();
+        services.AddSingleton<PullRequestFlow>();
+        services.AddSingleton<GitCredentialFill>();
+        services.AddSingleton<ISecretPrompt, AvaloniaSecretPrompt>();
+        services.AddSingleton<ForgeCredentials>();
+
         services.AddSingleton<MenuBarNotifier>();
         services.AddSingleton<INotifier>(provider => provider.GetRequiredService<MenuBarNotifier>());
         services.AddSingleton<IDialogs, AvaloniaDialogs>();
@@ -147,7 +165,39 @@ internal static class Composition
         //the CLI uses -- one route to Git, so the GUI cannot become a shortcut around the safety
         //rules that route enforces.
         services.AddSingleton<EnvironmentReports>();
-        services.AddSingleton<IEnvironmentVerbs, MacEnvironmentVerbs>();
+        //The settings window is handed in rather than referenced: FlickGit.App.Mac.Platform has no UI
+        //toolkit, which is the whole reason the launchd and socket code lives there.
+        //
+        //One window, reused while it is open. A second Settings request has to reach the one already
+        //on screen, or the user ends up with two of them disagreeing about what the checkboxes say.
+        services.AddSingleton<IEnvironmentVerbs>(provider =>
+        {
+            SettingsWindow? open = null;
+
+            return new MacEnvironmentVerbs(provider.GetRequiredService<EnvironmentReports>())
+            {
+                OpenSettings = tab => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (open is null)
+                    {
+                        open = new SettingsWindow(
+                            settings,
+                            provider.GetRequiredService<IAutostart>(),
+                            provider.GetRequiredService<ISecretStore>(),
+                            provider.GetRequiredService<ISecretPrompt>());
+
+                        open.Closed += (_, _) => open = null;
+                        open.Show();
+                    }
+                    else
+                    {
+                        open.Activate();
+                    }
+
+                    open.Select(tab);
+                }),
+            };
+        });
         services.AddSingleton<IWindowVerbs, MacWindowVerbs>();
         services.AddSingleton<RepositoryVerbs>();
         services.AddSingleton<ActionRunner>();

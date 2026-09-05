@@ -22,6 +22,77 @@
       },
       "problemMatcher": "$msCompile"
     },
+
+    // One host rather than the solution, because a launch only needs the one it starts and the
+    // other is half the build. Each host is two projects -- the app and the command that talks to
+    // it -- and `dotnet build` takes one project per invocation, hence dependsOn rather than two
+    // arguments. Sequence, not parallel: they share FlickGit.Core, and two builds writing one
+    // obj\ directory is a race that fails intermittently and reads as a locked file.
+    //
+    // The project reference graph pulls FlickGit.Core and FlickGit.App.Common in, so a change to
+    // either is still picked up.
+    {
+      "label": "build (Windows host)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["build: FlickGit.App", "build: FlickGit.Cli"],
+      "problemMatcher": []
+    },
+    {
+      "label": "build (macOS host)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["build: FlickGit.App.Mac", "build: FlickGit.App.Mac.Cli"],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "build: FlickGit.App",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}\\src\\FlickGit.App\\FlickGit.App.csproj",
+        "-v:m",
+        "-nologo"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build: FlickGit.Cli",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}\\src\\FlickGit.Cli\\FlickGit.Cli.csproj",
+        "-v:m",
+        "-nologo"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build: FlickGit.App.Mac",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}\\src\\FlickGit.App.Mac\\FlickGit.App.Mac.csproj",
+        "-v:m",
+        "-nologo"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build: FlickGit.App.Mac.Cli",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}\\src\\FlickGit.App.Mac.Cli\\FlickGit.App.Mac.Cli.csproj",
+        "-v:m",
+        "-nologo"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+
     {
       "label": "build (Release)",
       "type": "process",
@@ -63,6 +134,24 @@
       "type": "shell",
       "command": "dotnet publish src/FlickGit.App/FlickGit.App.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o artifacts/FlickGit ; dotnet publish src/FlickGit.Cli/FlickGit.Cli.csproj -c Release -r win-x64 -o artifacts/FlickGit",
       "problemMatcher": "$msCompile"
+    },
+    {
+      // Stops whichever macOS host is still listening on the socket.
+      //
+      // Worth a task because it is the one thing that goes wrong in this loop: the Avalonia host
+      // uses ShutdownMode.OnExplicitShutdown, so closing its window leaves the process serving --
+      // which is correct for a resident service and means the next build cannot replace its own
+      // binary. The error reads as a locked file rather than as a running process, which is the
+      // part that costs a minute the first time.
+      "label": "stop macOS host",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Get-Process -Name FlickGit -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*FlickGit.App.Mac*' } | Stop-Process -Force; 'stopped'"
+      ],
+      "problemMatcher": []
     },
     {
       "label": "regenerate icons",

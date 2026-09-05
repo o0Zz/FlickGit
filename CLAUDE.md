@@ -1,5 +1,5 @@
 # CLAUDE.md — FlickGit
-
+test
 ## What we are building
 
 A native Windows Git productivity tool in C#, integrated into Windows Explorer. Fast Git workflows

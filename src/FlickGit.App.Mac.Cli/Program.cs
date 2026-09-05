@@ -1,5 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using FlickGit.Actions;
+using FlickGit.Ai;
+using FlickGit.App.Ai;
 using FlickGit.App.CommandLine;
 using FlickGit.App.Infrastructure;
 using FlickGit.App.Localization;
@@ -240,6 +242,22 @@ internal static class Program
         services.AddSingleton<RemoteService>();
         services.AddSingleton<PullService>();
 
+        services.AddSingleton(provider => new PromptStore(
+            FlickSettings.DirectoryPath,
+            provider.GetRequiredService<ILog>()));
+
+        //The AI, because `flick ai` reports on it and `flick ai key set` stores its key -- both of
+        //which this process answers when no host is listening. The same registrations the GUI host
+        //makes, so the two cannot disagree about which provider is configured.
+        services.AddSingleton<AiConfiguration>();
+        services.AddSingleton<AiContextBuilder>();
+        services.AddSingleton(_ => AiHost.CreateHttpClient());
+        services.AddSingleton(provider => AiHost.For(
+            provider.GetRequiredService<AiConfiguration>(),
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<ILog>()));
+        services.AddSingleton<AiTextService>();
+
         services.AddSingleton<LocalEndpoint>();
 
         //Guarded, and the guard is enforced rather than polite: both classes are
@@ -251,12 +269,17 @@ internal static class Program
         {
             services.AddSingleton<IAutostart, LaunchAgentAutostart>();
             services.AddSingleton<ITrash, FinderTrash>();
+            services.AddSingleton<ISecretStore, KeychainSecretStore>();
         }
         else
         {
             //A development run on Windows. EnvironmentReports needs an IAutostart whatever platform
             //this is, and there is no launchd here to give it.
             services.AddSingleton<IAutostart, UnsupportedAutostart>();
+
+            //No Keychain either, so AiConfiguration.HasKey answers false -- the same answer a Mac
+            //with no key stored would give, which is what keeps a development run usable.
+            services.AddSingleton<ISecretStore, UnavailableSecretStore>();
         }
 
 
@@ -267,6 +290,11 @@ internal static class Program
         //one is refused by name rather than silently doing nothing.
         services.AddSingleton<INotifier, SilentNotifier>();
         services.AddSingleton<IDialogs, ConsoleDialogs>();
+
+        //The third seam, and the one that is a real implementation here rather than a refusal: a
+        //secret typed at a prompt with the echo off has neither of the problems a secret on a
+        //command line has. See ConsoleSecretPrompt.
+        services.AddSingleton<ISecretPrompt, ConsoleSecretPrompt>();
         services.AddSingleton<EnvironmentReports>();
         services.AddSingleton<IEnvironmentVerbs, MacEnvironmentVerbs>();
         services.AddSingleton<UnavailableVerbs>();

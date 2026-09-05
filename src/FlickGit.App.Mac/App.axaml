@@ -1,7 +1,21 @@
-<Application xmlns="https://github.com/avaloniaui"
+﻿<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="FlickGit.App.Mac.App">
   <Application.Styles>
     <FluentTheme />
+
+    <!--
+      AvaloniaEdit's own theme, and it is not optional. The TextEditor control ships with no
+      ControlTemplate of its own: without this include both diff panes construct, lay out, receive
+      their documents and draw absolutely nothing — an empty white rectangle where the diff should
+      be, with no exception and no warning to say why. Found by running it against this repository,
+      where the pane stayed blank while the view model was handing it 1,607 rows.
+
+      Fluent rather than Simple, to match the FluentTheme above.
+    -->
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+
+    <!-- Last, so the product's own palette wins over Fluent's defaults. -->
+    <StyleInclude Source="avares://FlickGit/Theme.axaml" />
   </Application.Styles>
 </Application>

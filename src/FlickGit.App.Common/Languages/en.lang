@@ -1,4 +1,4 @@
-# FlickGit — English. The master file: every other language falls back to this one key
+﻿# FlickGit — English. The master file: every other language falls back to this one key
 # by key, so a line missing elsewhere shows in English rather than showing its key.
 #
 # Format: one "key = value" per line, # for a comment, \n for a line break.
@@ -932,11 +932,13 @@ settings.tab.general = Settings
 settings.tab.help = Help
 settings.tab.about = About
 
+settings.section.startup = Startup
 settings.section.explorer = Explorer
 settings.contextmenu = Show FlickGit in the Explorer context menu
 settings.contextmenu.hint = Windows 11 keeps it under "Show more options" (Shift+F10).
-settings.autostart = Start FlickGit with Windows
+settings.autostart = Start FlickGit at login
 settings.autostart.hint = A logon task, 45 seconds after sign-in, so startup is not slowed down.
+settings.autostart.hint.mac = A launchd agent, started as soon as you sign in.
 settings.overlay = Badge repository folders in Explorer
 settings.overlay.hint = Needs administrator once, and takes effect after Explorer restarts.
 
@@ -947,6 +949,7 @@ settings.notify = Show a notification after a successful commit
 settings.section.editor = Editor
 settings.editor.browse = Browse…
 settings.editor.hint = The program the Edit item in the commit window opens a file with. Leave it empty for Notepad.
+settings.editor.hint.mac = The program the Edit item in the commit window opens a file with. Leave it empty for the text editor macOS is set to use.
 settings.editor.filter = Programs (*.exe)|*.exe|All files (*.*)|*.*
 
 settings.section.pull = Pull

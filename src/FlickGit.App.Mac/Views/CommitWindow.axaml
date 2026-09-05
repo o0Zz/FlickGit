@@ -1,11 +1,11 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:FlickGit.App.ViewModels"
         x:Class="FlickGit.App.Mac.Views.CommitWindow"
         x:DataType="vm:CommitViewModel"
         Title="{Binding Title}"
-        Width="1040" Height="720"
-        MinWidth="720" MinHeight="480"
+        Width="1180" Height="720"
+        MinWidth="760" MinHeight="480"
         WindowStartupLocation="CenterScreen">
 
   <!--
@@ -14,107 +14,318 @@
     error rather than an empty control nobody notices until they look at it. That matters more than
     usual for this port: it is being written without a Mac to render on.
 
-    The diff pane is a placeholder. It is the one genuine rewrite in the milestone — the two-pane
-    scroll sync goes through IScrollInfo on AvalonEdit's TextView, and Avalonia's ILogicalScrollable
-    is a different contract — so it gets its own pass rather than a hurried approximation here.
+    The layout is the Windows window's, row for row, because it is the same product. Where Avalonia
+    has no counterpart the difference is argued at the control rather than left to be discovered:
+    the branch box is the one place that happens.
   -->
 
-  <Window.KeyBindings>
-    <KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
-  </Window.KeyBindings>
+  <Grid RowDefinitions="Auto,Auto,*,4,104,Auto">
 
-  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="12">
+    <!-- Header: repository, branch, ahead/behind. The repository name is shown even though the user
+         chose it, because the same window is opened from the Finder extension, from the CLI and
+         from the hotkey, which resolved the folder on the user's behalf. -->
+    <Border Grid.Row="0"
+            Background="{StaticResource SurfaceAlt}"
+            BorderBrush="{StaticResource Border}"
+            BorderThickness="0,0,0,1"
+            Padding="14,10">
+      <Grid ColumnDefinitions="*,Auto,Auto">
 
-    <!-- Repository, branch, ahead/behind. -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
-      <TextBlock Grid.Column="0"
-                 Text="{Binding RepositoryName}"
-                 FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-        <TextBlock Text="{Binding CurrentBranch}" VerticalAlignment="Center" Opacity="0.8" />
-        <TextBlock Text="{Binding AheadBehindText}" VerticalAlignment="Center" Opacity="0.6" />
-      </StackPanel>
-    </Grid>
+        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+          <TextBlock Text="{Binding RepositoryName}" Classes="title" />
+          <TextBlock Text="{Binding SummaryText}" Classes="muted small" />
+        </StackPanel>
 
-    <!-- Files, and where the diff pane will go. -->
-    <Grid Grid.Row="1" ColumnDefinitions="380,4,*">
+        <!-- The branch selector. CLAUDE.md: there is no separate "commit in new branch" action,
+             because this is it. Free text that is not an existing branch is a new branch name, and
+             the hint beside it says which of the three things Enter will do before it is pressed.
 
+             <b>An AutoCompleteBox rather than a ComboBox, and that is forced.</b> Avalonia's
+             ComboBox has no IsEditable — it is a picker, full stop — so the editable combo the WPF
+             window uses does not exist here. AutoCompleteBox is the control that does what this
+             needs: a text box that offers the known branches, where a value matching none of them
+             is simply what the user typed. Its list filters as they type, which the WPF one does
+             not, and that is the better behaviour rather than a compromise. -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+          <TextBlock Name="BranchLabel" Classes="section" VerticalAlignment="Center" Margin="0,0,6,0" />
+
+          <AutoCompleteBox Name="BranchBox"
+                           MinWidth="220"
+                           MaxWidth="320"
+                           FilterMode="Contains"
+                           ItemsSource="{Binding Branches}"
+                           Text="{Binding BranchInput, Mode=TwoWay}"
+                           FontFamily="{StaticResource MonoFont}" />
+
+          <!-- Foreground and weight are set from the code-behind rather than declared here: they
+               depend on BranchResolution.Intent, and Avalonia's answer to a WPF DataTrigger is a
+               converter or a style class — either of which would be more machinery than the two
+               lines that set them. -->
+          <TextBlock Name="BranchHint"
+                     Text="{Binding BranchHint}"
+                     Classes="muted small"
+                     VerticalAlignment="Center"
+                     Margin="8,0,0,0"
+                     MinWidth="120" />
+        </StackPanel>
+
+        <TextBlock Grid.Column="2"
+                   Text="{Binding AheadBehindText}"
+                   Classes="muted mono"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- The resolution bar. Shown only while the repository is part-way through a merge, rebase,
+         cherry-pick or revert, which is the one state where the way forward is not the Commit
+         button at the bottom of this window.
+
+         Two lines rather than one, and the second is load-bearing: "ours" and "theirs" are reversed
+         during a rebase, so the buttons keep Git's words and this says what they mean right now. -->
+    <Border Grid.Row="1"
+            IsVisible="{Binding IsMergeInProgress}"
+            Background="{StaticResource WarnBackground}"
+            BorderBrush="{StaticResource WarnBorder}"
+            BorderThickness="0,0,0,1"
+            Padding="14,8">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+          <TextBlock Text="{Binding MergeHeadline}" TextWrapping="Wrap" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding MergeSideExplanation}"
+                     TextWrapping="Wrap"
+                     Classes="muted small"
+                     Margin="0,3,0,0" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    VerticalAlignment="Center"
+                    Margin="12,0,0,0">
+          <!-- Not the default button: Enter belongs to the message box, and a key that committed in
+               one state and continued a rebase in another is the ambiguity this window cannot
+               afford. -->
+          <Button Name="ContinueMergeButton" Classes="primary" Command="{Binding ContinueMergeCommand}" />
+          <Button Content="{Binding AbortMergeText}" Command="{Binding AbortMergeCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="360,4,*">
+
+      <!-- File list -->
       <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
-        <TextBlock Grid.Row="0" Text="{Binding SummaryText}" Margin="0,0,0,6" Opacity="0.8" />
 
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,0,1,1"
+                Padding="10,6">
+          <Grid>
+            <TextBlock Name="FilesHeader" Classes="section" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding SelectionText}"
+                       Classes="muted small"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+
+        <!-- Multiple, which is Avalonia's spelling of WPF's Extended: a bare click replaces the
+             selection, Ctrl+click adds, Shift+click ranges. Toggle is the mode where a bare click
+             adds, and a bare click has to mean "just this one".
+
+             SelectedItem stays bound because it is the *anchor* row — what the diff pane shows and
+             what a save is about. SelectedItems is not bindable, so the rest of the selection is
+             pushed to the view model from SelectionChanged. -->
         <ListBox Grid.Row="1"
                  Name="FileList"
                  ItemsSource="{Binding Files}"
-                 SelectionMode="Multiple">
+                 SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                 SelectionMode="Multiple"
+                 Background="{StaticResource Surface}"
+                 BorderBrush="{StaticResource Border}"
+                 BorderThickness="0,0,1,0">
+
+          <!-- On the ListBox rather than on each row, so its DataContext is the view model. A menu
+               declared per row would be looking at a FileChangeItem, which owns no commands. Which
+               rows it acts on is settled in ContextRequested before the menu is drawn, and each
+               item is labelled there with how many it would touch. -->
+          <ListBox.ContextMenu>
+            <ContextMenu Name="FileMenu">
+              <!-- The three conflict items, above everything else because while a conflict is on
+                   screen they are what the window is for. Hidden unless the selection holds a
+                   conflicted row, so the ordinary menu is the menu it has always been.
+
+                   Use ours and Use theirs hide individually as well: a conflict where one side
+                   deleted the path has no version to take on that side, and Git would answer a
+                   button press with "does not have our version". -->
+              <MenuItem Name="TakeOursMenuItem" Command="{Binding TakeOursCommand}" />
+              <MenuItem Name="TakeTheirsMenuItem" Command="{Binding TakeTheirsCommand}" />
+              <MenuItem Name="MarkResolvedMenuItem" Command="{Binding MarkResolvedCommand}" />
+              <Separator Name="ConflictSeparator" />
+
+              <!-- Edit and Add first, together above the separator, because they are the two items
+                   here that destroy nothing: one hands the file to an editor, the other stages it —
+                   which the working tree never feels and an unstage takes straight back out. That
+                   is also why neither has an ellipsis: nothing is asked. -->
+              <MenuItem Name="EditFileMenuItem" Command="{Binding EditFileCommand}" />
+              <MenuItem Name="AddFileMenuItem" Command="{Binding AddFileCommand}" />
+              <Separator />
+
+              <!-- Revert above Delete, and separated from it. They are the two destructive things
+                   this window does and they are not the same destructive thing: Revert puts a
+                   tracked file back the way HEAD has it, Delete takes it out of the index or sends
+                   an untracked file to the Trash. -->
+              <MenuItem Name="RevertFileMenuItem" Command="{Binding RevertFileCommand}" />
+              <Separator />
+
+              <!-- The gesture is spelt out because the key is the list's own handler rather than a
+                   command with a gesture, so nothing fills this in. It is also the only place the
+                   key is discoverable. -->
+              <MenuItem Name="DeleteFileMenuItem"
+                        InputGesture="Delete"
+                        Command="{Binding DeleteFileCommand}" />
+            </ContextMenu>
+          </ListBox.ContextMenu>
+
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:FileChangeItem">
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,1">
-                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Margin="0,0,6,0" />
-                <TextBlock Grid.Column="1" Text="{Binding StatusCode}"
-                           FontFamily="monospace" Width="26" Opacity="0.8" />
-                <TextBlock Grid.Column="2" Text="{Binding Path}"
-                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Tooltip}" />
-                <TextBlock Grid.Column="3" Text="{Binding Added}"
-                           FontFamily="monospace" Margin="8,0,0,0" Foreground="#2E7D32" />
-                <TextBlock Grid.Column="4" Text="{Binding Removed}"
-                           FontFamily="monospace" Margin="6,0,0,0" Foreground="#C62828" />
+              <Grid ColumnDefinitions="Auto,18,*,Auto,Auto" ToolTip.Tip="{Binding Tooltip}">
+
+                <!-- The tick box is the commit's contents. Untracked files arrive unticked, which
+                     CLAUDE.md calls the single most valuable safety default in the product. -->
+                <CheckBox Grid.Column="0"
+                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                          VerticalAlignment="Center"
+                          Margin="0,0,6,0" />
+
+                <TextBlock Grid.Column="1"
+                           Name="StatusCell"
+                           Text="{Binding StatusCode}"
+                           Classes="mono"
+                           FontWeight="Bold"
+                           VerticalAlignment="Center" />
+
+                <!-- Directory muted, file name plain. On a list of forty paths sharing a prefix, the
+                     last segment is the only part being read. -->
+                <TextBlock Grid.Column="2"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis">
+                  <Run Text="{Binding Directory}" Foreground="{StaticResource TextMuted}" />
+                  <Run Text="{Binding FileName}" />
+                </TextBlock>
+
+                <TextBlock Grid.Column="3"
+                           Text="{Binding Added}"
+                           Classes="mono small"
+                           Foreground="#FF1F7A33"
+                           MinWidth="34"
+                           TextAlignment="Right"
+                           VerticalAlignment="Center"
+                           Margin="8,0,4,0" />
+
+                <TextBlock Grid.Column="4"
+                           Text="{Binding Removed}"
+                           Classes="mono small"
+                           Foreground="{StaticResource DangerText}"
+                           MinWidth="34"
+                           TextAlignment="Right"
+                           VerticalAlignment="Center" />
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-          <Button Name="SelectAllButton" Command="{Binding SelectAllCommand}" />
-          <Button Name="SelectNoneButton" Command="{Binding SelectNoneCommand}" />
-          <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" Opacity="0.7" />
+        <Border Grid.Row="2"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,1,1,0"
+                Padding="8,5">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Name="SelectAllButton" Classes="strip" MinWidth="46" Command="{Binding SelectAllCommand}" />
+            <Button Name="SelectNoneButton" Classes="strip" Command="{Binding SelectNoneCommand}" />
+            <Button Name="RefreshButton" Classes="strip" MinWidth="66" Command="{Binding RefreshCommand}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{StaticResource Border}" />
+
+      <ContentControl Grid.Column="2" Name="DiffHost" />
+    </Grid>
+
+    <!-- The rule between the diff and the message is draggable, like every other division in the
+         window. A long body is read by taking the space from the file list and the diff pane, which
+         share the row above. -->
+    <GridSplitter Grid.Row="3" ResizeDirection="Rows" Background="{StaticResource Border}" />
+
+    <!-- Commit message -->
+    <Border Grid.Row="4" Padding="14,10">
+      <Grid RowDefinitions="Auto,*">
+
+        <!-- The header and the Generate button share a row: CLAUDE.md's mock-up puts the button
+             beside the message rather than in the button strip, where it would read as a third
+             thing that commits. -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,5">
+          <TextBlock Name="MessageHeader" Classes="section" VerticalAlignment="Center" />
+
+          <!-- Hidden rather than disabled when no provider, key or consent is configured: there is
+               nothing the user can do about that from here, and Settings is where it is fixed. -->
+          <Button Grid.Column="1"
+                  Name="GenerateButton"
+                  Classes="strip"
+                  Margin="8,0,0,0"
+                  IsVisible="{Binding IsAiConfigured}"
+                  Command="{Binding GenerateCommand}" />
+        </Grid>
+
+        <TextBox Grid.Row="1"
+                 Name="MessageBox"
+                 Classes="mono"
+                 Text="{Binding Message, Mode=TwoWay}"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="5"
+            Background="{StaticResource SurfaceAlt}"
+            BorderBrush="{StaticResource Border}"
+            BorderThickness="0,1,0,0"
+            Padding="14,10">
+      <Grid ColumnDefinitions="*,Auto">
+
+        <!-- The outcome when there is one, the keyboard map until then. Enter committing rather than
+             inserting a newline is the one thing about this window nobody can guess, so it says so
+             where there is otherwise nothing to read. -->
+        <Panel Grid.Column="0" Margin="0,0,12,0">
+          <TextBlock Text="{Binding StatusText}"
+                     IsVisible="{Binding HasStatusText}"
+                     Classes="muted"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+
+          <TextBlock Name="HintText"
+                     IsVisible="{Binding !HasStatusText}"
+                     Classes="muted"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+        </Panel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <!-- Deliberately not IsDefault. Enter is handled in OnKeyDown, which has two rules a
+               default button cannot express: it is suspended while the diff pane holds focus, and it
+               queues behind a generation that has not landed. A default button beside that handler
+               would be a second, blunter answer to the same key. -->
+          <Button Name="CommitPushButton"
+                  Classes="primary"
+                  MinWidth="140"
+                  Content="{Binding CommitAndPushText}"
+                  Command="{Binding CommitAndPushCommand}" />
+          <Button Name="CommitButton" MinWidth="100" Command="{Binding CommitCommand}" />
+          <Button Name="CloseButton" MinWidth="90" />
         </StackPanel>
       </Grid>
-
-      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent" />
-
-      <Border Grid.Column="2" BorderThickness="1" BorderBrush="#33888888" CornerRadius="3">
-        <ContentControl Name="DiffHost" />
-      </Border>
-    </Grid>
-
-    <!-- Message, branch, and the AI. -->
-    <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
-      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,6">
-        <TextBlock Grid.Column="0" Text="{Binding BranchHint}" VerticalAlignment="Center" Opacity="0.7" />
-        <AutoCompleteBox Grid.Column="1"
-                         Name="BranchBox"
-                         Width="240"
-                         ItemsSource="{Binding Branches}"
-                         Text="{Binding BranchInput, Mode=TwoWay}"
-                         Margin="8,0" />
-        <Button Grid.Column="2"
-                Name="GenerateButton"
-                Command="{Binding GenerateCommand}"
-                IsVisible="{Binding IsAiConfigured}" />
-      </Grid>
-
-      <TextBox Grid.Row="1"
-               Name="MessageBox"
-               Text="{Binding Message, Mode=TwoWay}"
-               AcceptsReturn="True"
-               TextWrapping="Wrap"
-               MinHeight="90" />
-    </Grid>
-
-    <!-- Outcome, then the buttons. -->
-    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
-      <TextBlock Grid.Column="0"
-                 Text="{Binding StatusText}"
-                 IsVisible="{Binding HasStatusText}"
-                 VerticalAlignment="Center"
-                 TextWrapping="Wrap" />
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-        <Button Content="{Binding CommitAndPushText}"
-                Command="{Binding CommitAndPushCommand}"
-                MinWidth="140" />
-        <Button Name="CommitButton" Command="{Binding CommitCommand}" MinWidth="100" />
-        <Button Name="CloseButton" MinWidth="90" />
-      </StackPanel>
-    </Grid>
+    </Border>
   </Grid>
 </Window>

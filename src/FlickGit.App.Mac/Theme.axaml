@@ -1,0 +1,194 @@
+﻿<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    The Windows palette, verbatim.
+
+    <b>The same nine colours as App.xaml, and that is the point of the file.</b> The two front ends
+    are one product, and a macOS build that picked its own greys would be a second answer to what a
+    muted label looks like. The values were already chosen to read on both a light and a dark
+    desktop rather than switching between two sets, which is what lets them cross a platform
+    unchanged.
+
+    <b>Styles rather than a plain ResourceDictionary</b>, because Avalonia keeps the two apart:
+    resources go in Styles.Resources and selectors go beside them, where WPF would put a Style with
+    an x:Key in the same dictionary. Included from App.axaml after FluentTheme, so these setters win.
+
+    <b>Fluent's control templates are kept.</b> Only colours, padding and the corner radius are
+    restated — the Windows app hand-rolls a Button template because WPF's default is a grey lozenge
+    from another decade, and Avalonia's Fluent button needs no such rescue. Re-templating it here
+    would be a second place for the hover and disabled states to be got subtly differently.
+  -->
+  <Styles.Resources>
+
+    <SolidColorBrush x:Key="Surface"       Color="#FFFBFBFD" />
+    <SolidColorBrush x:Key="SurfaceAlt"    Color="#FFF2F3F7" />
+    <SolidColorBrush x:Key="SurfaceSunken" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Border"        Color="#FFD8DCE6" />
+    <SolidColorBrush x:Key="BorderStrong"  Color="#FFB9C0CE" />
+    <SolidColorBrush x:Key="Text"          Color="#FF1B1F2A" />
+    <SolidColorBrush x:Key="TextMuted"     Color="#FF6B7280" />
+    <SolidColorBrush x:Key="Accent"        Color="#FF3A6EA5" />
+    <SolidColorBrush x:Key="AccentText"    Color="#FFFFFFFF" />
+
+    <SolidColorBrush x:Key="WarnBackground" Color="#FFFFF4D6" />
+    <SolidColorBrush x:Key="WarnBorder"     Color="#FFE3C25A" />
+    <SolidColorBrush x:Key="DangerText"     Color="#FFB4232C" />
+
+    <!-- Added faces, not a different choice: a stack resolves to the first face the machine has, so
+         Windows still lands on Segoe UI and Cascadia Mono while macOS falls through to its own. One
+         list rather than a per-platform value is what keeps the two builds from drifting. -->
+    <FontFamily x:Key="UiFont">Segoe UI, SF Pro Text, Helvetica Neue, sans-serif</FontFamily>
+    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, SF Mono, Menlo, Courier New, monospace</FontFamily>
+
+  </Styles.Resources>
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource Surface}" />
+    <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
+    <Setter Property="FontSize" Value="12.5" />
+  </Style>
+
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+  </Style>
+
+  <!-- The three text roles the Windows views name as styles. Classes rather than keyed styles,
+       because that is Avalonia's spelling of the same thing. -->
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+  </Style>
+
+  <Style Selector="TextBlock.small">
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+
+  <Style Selector="TextBlock.section">
+    <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="TextBlock.title">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+  </Style>
+
+  <Style Selector="TextBlock.danger">
+    <Setter Property="Foreground" Value="{StaticResource DangerText}" />
+  </Style>
+
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{StaticResource SurfaceAlt}" />
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrong}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Padding" Value="14,6" />
+    <Setter Property="MinWidth" Value="88" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+
+  <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceAlt}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+    <Setter Property="TextElement.Foreground" Value="{StaticResource Text}" />
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+    <Setter Property="Cursor" Value="Arrow" />
+  </Style>
+
+  <!-- The button a window's Enter would press, where it has one. -->
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource Accent}" />
+    <Setter Property="Foreground" Value="{StaticResource AccentText}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Accent}" />
+    <Setter Property="TextElement.Foreground" Value="{StaticResource AccentText}" />
+  </Style>
+
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Accent}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+    <Setter Property="TextElement.Foreground" Value="{StaticResource AccentText}" />
+  </Style>
+
+  <!-- The affirmative of a question that destroys something. Only the label is coloured, for the
+       reason App.xaml gives: the accent belongs to the *default* button, which on those questions is
+       the refusal. -->
+  <Style Selector="Button.danger">
+    <Setter Property="Foreground" Value="{StaticResource DangerText}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="TextElement.Foreground" Value="{StaticResource DangerText}" />
+  </Style>
+
+  <!-- A glyph button in a strip: the 88px default is a bar of arrows as wide as the search box. -->
+  <Style Selector="Button.compact">
+    <Setter Property="MinWidth" Value="28" />
+    <Setter Property="Padding" Value="6,2" />
+  </Style>
+
+  <Style Selector="Button.strip">
+    <Setter Property="MinWidth" Value="52" />
+    <Setter Property="Padding" Value="8,3" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="6,4" />
+  </Style>
+
+  <Style Selector="TextBox.mono">
+    <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+  </Style>
+
+  <!-- Rows sit tight in these lists: a commit window showing eight files instead of fourteen is a
+       scroll the Windows build does not ask for.
+
+       The minimum has to be cleared on the template's presenter as well as on the item. Fluent puts
+       a touch-sized MinHeight there, and a value on the child is not something the parent's setter
+       can reach. -->
+  <Style Selector="ListBoxItem">
+    <Setter Property="Padding" Value="4,1" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <Style Selector="ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="4,1" />
+  </Style>
+
+  <!-- The tick box is what actually sets a file row's height, not the row.
+
+       Fluent sizes a CheckBox for a fingertip: a 32px minimum plus its own padding, which turned
+       the commit window's file list into thirteen rows where the Windows one shows twenty in the
+       same space. The minimum is also what the template sizes the box glyph from, so this is one
+       number doing two jobs: 16 gives a 28px row with a box that still reads as a box, and zero
+       gives a 19px row with no glyph at all — a list of files with nothing to tick.
+
+       The row remains the click target either way, so nothing here is harder to hit. What goes is
+       the empty space around it. -->
+  <Style Selector="CheckBox">
+    <Setter Property="MinHeight" Value="16" />
+    <Setter Property="Padding" Value="6,0,0,0" />
+  </Style>
+
+</Styles>

@@ -1,4 +1,4 @@
-# FlickGit — Italiano. Traduzione di en.lang, che resta il file principale: una riga
+﻿# FlickGit — Italiano. Traduzione di en.lang, che resta il file principale: una riga
 # mancante qui viene mostrata in inglese anziché mostrare la sua chiave.
 #
 # Formato: una coppia "chiave = valore" per riga, # per un commento, \n per un a capo.
@@ -653,10 +653,11 @@ settings.tab.general = Impostazioni
 settings.tab.help = Guida
 settings.tab.about = Informazioni
 
+settings.section.startup = Avvio
 settings.section.explorer = Esplora file
 settings.contextmenu = Mostra FlickGit nel menu contestuale di Esplora file
 settings.contextmenu.hint = Windows 11 lo tiene sotto «Mostra altre opzioni» (Maiusc+F10).
-settings.autostart = Avvia FlickGit con Windows
+settings.autostart = Avvia FlickGit all'accesso
 settings.autostart.hint = Un'attività all'accesso, 45 secondi dopo il login, per non rallentare l'avvio.
 settings.overlay = Contrassegna le cartelle dei repository in Esplora file
 settings.overlay.hint = Richiede i diritti di amministratore una volta e ha effetto dopo il riavvio di Esplora file.
@@ -668,6 +669,7 @@ settings.notify = Mostra una notifica dopo un commit riuscito
 settings.section.editor = Editor
 settings.editor.browse = Sfoglia…
 settings.editor.hint = Il programma con cui la voce Modifica della finestra di commit apre un file. Lascia vuoto per il Blocco note.
+settings.editor.hint.mac = Il programma con cui la voce Modifica della finestra di commit apre un file. Lascia vuoto per l'editor di testo impostato in macOS.
 settings.editor.filter = Programmi (*.exe)|*.exe|Tutti i file (*.*)|*.*
 
 settings.section.pull = Pull

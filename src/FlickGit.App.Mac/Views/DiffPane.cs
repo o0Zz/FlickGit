@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.Media;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
+using AvaloniaEdit.Highlighting;
 using AvaloniaEdit.Rendering;
 using FlickGit.App.Localization;
 using FlickGit.App.Mac.Rendering;
@@ -18,15 +19,17 @@ namespace FlickGit.App.Mac.Views;
 /// <summary>
 /// The side-by-side diff, on AvaloniaEdit.
 ///
-/// <b>Read-only for now.</b> The editable right pane, line and hunk staging, the find bar and the
-/// overview strip are the rest of this milestone; what is here is the half the commit window cannot
-/// do without — two panes that agree about which line is which.
-///
 /// The alignment is not this control's work. <c>DiffService.BuildRows</c> pairs the two sides in
 /// FlickGit.Core and <c>DiffDocument.Build</c> turns those rows into the two padded documents, one
 /// document line per row, filler rows included. That is what lets the panes be scrolled together by
 /// offset rather than by line number, and it is why <see cref="DiffBackgroundRenderer"/> can index
 /// its rows by document line.
+///
+/// <b>The chrome is not decoration.</b> The mode header is the user's only signal about whether an
+/// edit in the right pane reaches the commit, the staged strip is CLAUDE.md's answer to the
+/// staged-versus-worktree trap, and the two footer labels are what say which pane is theirs to type
+/// in. Each of those is a rule the pane is required to state, so they are built here in code beside
+/// the logic that drives them rather than left to the window that hosts it.
 /// </summary>
 internal sealed class DiffPane : UserControl
 {
@@ -41,12 +44,119 @@ internal sealed class DiffPane : UserControl
     private readonly SearchHighlightRenderer _rightSearch = new();
     private readonly DiffOverviewStrip _overview = new();
 
-    private readonly TextBox _searchBox = new() { Width = 220, Margin = new Thickness(0, 0, 6, 0) };
-    private readonly TextBlock _searchCount = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 };
+    /// <summary>The comparison being shown. Permanently visible, never a tooltip.</summary>
+    private readonly TextBlock _modeText = new()
+    {
+        Classes = { "section" },
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    private readonly TextBlock _noticeText = new()
+    {
+        Classes = { "muted", "small" },
+        VerticalAlignment = VerticalAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        Margin = new Thickness(10, 0),
+        TextTrimming = TextTrimming.CharacterEllipsis,
+    };
+
+    private readonly TextBlock _dirtyText = new()
+    {
+        Classes = { "small", "danger" },
+        FontWeight = FontWeight.SemiBold,
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(0, 0, 8, 0),
+        IsVisible = false,
+    };
+
+    private readonly TextBlock _savedText = new()
+    {
+        Classes = { "muted", "small" },
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(0, 0, 8, 0),
+        IsVisible = false,
+    };
+
+    private readonly Button _stageButton = new() { Classes = { "strip" }, MinWidth = 86, IsEnabled = false };
+    private readonly Button _unstageButton = new() { Classes = { "strip" }, MinWidth = 94, IsEnabled = false };
+    private readonly Button _revertButton = new() { Classes = { "strip" }, MinWidth = 94, IsEnabled = false };
+    private readonly Button _saveButton = new() { Classes = { "strip" }, MinWidth = 56, IsEnabled = false };
+
+    private readonly StackPanel _editingBar;
+
+    private readonly TextBlock _stagedStripText = new()
+    {
+        VerticalAlignment = VerticalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        FontSize = 11.5,
+        Margin = new Thickness(0, 0, 12, 0),
+    };
+
+    private readonly Button _restageButton = new() { Classes = { "strip" }, MinWidth = 70 };
+    private readonly Border _stagedStrip;
+
+    /// <summary>
+    /// Covers the panes when there is nothing to show them. A cover rather than a replacement,
+    /// because the two editors are the expensive part of this control and switching files must not
+    /// rebuild them.
+    /// </summary>
+    private readonly TextBlock _placeholderText = new()
+    {
+        Classes = { "muted" },
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        TextAlignment = TextAlignment.Center,
+        MaxWidth = 360,
+    };
+
+    private readonly Border _placeholder;
+
+    private readonly TextBlock _leftLabel = new() { Classes = { "muted", "small" } };
+
+    private readonly TextBlock _rightLabel = new()
+    {
+        Classes = { "muted", "small" },
+        HorizontalAlignment = HorizontalAlignment.Right,
+    };
+
+    private readonly TextBox _searchBox = new()
+    {
+        Classes = { "mono" },
+        Width = 220,
+        Margin = new Thickness(0, 0, 6, 0),
+    };
+
+    private readonly TextBlock _searchSide = new()
+    {
+        Classes = { "muted", "small" },
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(4, 0),
+    };
+
+    private readonly TextBlock _searchCount = new()
+    {
+        Classes = { "muted", "small" },
+        VerticalAlignment = VerticalAlignment.Center,
+
+        //So counting up from "1 of 12" to "12 of 12" does not walk the close button sideways under
+        //the pointer.
+        MinWidth = 64,
+        TextAlignment = TextAlignment.Right,
+    };
+
     private readonly Border _searchBar;
 
     /// <summary>Which pane the search is walking. Only that one is lit.</summary>
     private TextEditor? _searchPane;
+
+    /// <summary>
+    /// The pane a <c>Ctrl+F</c> would search: whichever one last had the keyboard.
+    ///
+    /// Tracked rather than asked for at the time, because by then the search box has the focus and
+    /// the answer would always be neither.
+    /// </summary>
+    private TextEditor? _lastFocusedEditor;
 
     private IReadOnlyList<ISegment> _matches = [];
     private int _matchIndex = -1;
@@ -65,6 +175,9 @@ internal sealed class DiffPane : UserControl
     /// <summary>Whether the file being shown ends with a newline. Its own property, never inferred.</summary>
     private bool _endsWithNewline;
 
+    /// <summary>An untracked file has no index entry, so there is nothing for a patch to apply to.</summary>
+    private bool _untracked;
+
     /// <summary>The rows currently rendered, which the row-selection arithmetic works over.</summary>
     private IReadOnlyList<DiffRow> _diffRows = [];
 
@@ -72,11 +185,22 @@ internal sealed class DiffPane : UserControl
     private SideBySideDiff? _diff;
 
     /// <summary>
-    /// Where a stage or unstage request goes. Wired to <c>CommitViewModel.StageHunkAsync</c>, which
+    /// Where a stage or unstage request goes. The window applies it through the view model, which
     /// builds the patch in FlickGit.Core and applies it with <c>git apply --cached</c> — so the index
-    /// moves and the working tree never does. Returns a refusal to show, or null on success.
+    /// moves and the working tree never does. The pane decides <i>which rows</i>; it does not know
+    /// what a patch is, and it does not know what to do when one is refused.
     /// </summary>
-    public Func<IReadOnlySet<int>, bool, Task<string?>>? StageRequested { get; set; }
+    public Func<IReadOnlySet<int>, bool, Task>? HunkStageRequested { get; set; }
+
+    /// <summary>
+    /// Where Ctrl+S and the Save button go. The text travels rather than a path: the encoding, the
+    /// BOM and the line endings are the window's to put back, and this is the only value that may
+    /// ever be written.
+    /// </summary>
+    public Func<string, Task>? SaveRequested { get; set; }
+
+    /// <summary>Where the staged strip's one-click restage goes.</summary>
+    public Func<Task>? RestageRequested { get; set; }
 
     /// <summary>
     /// The pane's own undo history, holding one <i>file text</i> per structural rebuild.
@@ -124,8 +248,23 @@ internal sealed class DiffPane : UserControl
     /// </param>
     private readonly record struct UndoStep(string FileText, int CaretFileOffset);
 
+    private bool _isDirty;
+
     /// <summary>True once the user has typed something that is not yet saved.</summary>
-    public bool IsDirty { get; private set; }
+    public bool IsDirty
+    {
+        get => _isDirty;
+        private set
+        {
+            if (_isDirty == value)
+                return;
+
+            _isDirty = value;
+
+            _dirtyText.IsVisible = value;
+            _saveButton.IsEnabled = value;
+        }
+    }
 
     public DiffPane()
     {
@@ -141,6 +280,9 @@ internal sealed class DiffPane : UserControl
 
         _left.TextArea.TextView.BackgroundRenderers.Add(_leftBackground);
         _right.TextArea.TextView.BackgroundRenderers.Add(_rightBackground);
+
+        //Added after the diff renderers: a match sits inside a row the diff has already tinted, so it
+        //has to be painted over it.
         _left.TextArea.TextView.BackgroundRenderers.Add(_leftSearch);
         _right.TextArea.TextView.BackgroundRenderers.Add(_rightSearch);
 
@@ -150,6 +292,24 @@ internal sealed class DiffPane : UserControl
         _left.TextArea.TextView.ScrollOffsetChanged += (_, _) => Sync(_left, _right);
         _right.TextArea.TextView.ScrollOffsetChanged += (_, _) => Sync(_right, _left);
 
+        _left.TextArea.GotFocus += (_, _) => _lastFocusedEditor = _left;
+        _right.TextArea.GotFocus += (_, _) => _lastFocusedEditor = _right;
+
+        //The left pane is HEAD and has no caret to place. Hidden rather than disabled, because a
+        //blinking bar in a document nobody can type into reads as a bug.
+        _left.TextArea.Caret.CaretBrush = Brushes.Transparent;
+
+        _left.Options.EnableHyperlinks = false;
+        _right.Options.EnableHyperlinks = false;
+
+        //Two editor conveniences that must not be on: both would insert characters the user did not
+        //type into a file this tool is about to write.
+        _right.Options.ConvertTabsToSpaces = false;
+        _right.Options.CutCopyWholeLine = false;
+
+        _right.TextArea.Caret.PositionChanged += (_, _) => UpdateHunkButtons();
+        _right.TextArea.SelectionChanged += (_, _) => UpdateHunkButtons();
+
         BuildContextMenu();
 
         //Tunnelling, so this sees Ctrl+Z before the editor does and can decide which history answers.
@@ -157,32 +317,150 @@ internal sealed class DiffPane : UserControl
         //in the commit message box would reach down and undo an edit in a pane nobody is looking at.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 
+        _editingBar = BuildEditingBar();
         _searchBar = BuildSearchBar();
+        _stagedStrip = BuildStagedStrip();
+        _placeholder = BuildPlaceholder();
+
+        var header = new Border
+        {
+            Background = Brush("SurfaceAlt"),
+            BorderBrush = Brush("Border"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(10, 6),
+            Child = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
+                Children =
+                {
+                    Place(_modeText, column: 0),
+                    Place(_noticeText, column: 1),
+                    Place(_editingBar, column: 2),
+                },
+            },
+        };
 
         var panes = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,4,*,10"),
+            ColumnDefinitions = new ColumnDefinitions("*,4,*,11"),
             Children =
             {
                 Place(_left, column: 0),
-                Place(new GridSplitter { ResizeDirection = GridResizeDirection.Columns }, column: 1),
+
+                //The join, and the whole reason the split is not a fixed 50/50: dragging it gives the
+                //right pane room by taking it from the left, which is the only way to see a long line
+                //without scrolling.
+                Place(
+                    new GridSplitter
+                    {
+                        ResizeDirection = GridResizeDirection.Columns,
+                        Background = Brush("Border"),
+                    },
+                    column: 1),
+
                 Place(_right, column: 2),
 
                 //Down the right edge, mapping the whole file rather than the visible window.
                 Place(_overview, column: 3),
+
+                //Last, and spanning everything, so it covers the panes rather than sitting beside them.
+                Place(_placeholder, column: 0),
             },
+        };
+
+        _placeholder.SetValue(Grid.ColumnSpanProperty, 4);
+
+        var footer = new Border
+        {
+            Background = Brush("SurfaceAlt"),
+            BorderBrush = Brush("Border"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(10, 4),
+            Child = new Grid { Children = { _leftLabel, _rightLabel } },
         };
 
         Content = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,*"),
+            Background = Brush("SurfaceSunken"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*,Auto"),
             Children =
             {
-                PlaceRow(_searchBar, row: 0),
-                PlaceRow(panes, row: 1),
+                PlaceRow(header, row: 0),
+                PlaceRow(_searchBar, row: 1),
+                PlaceRow(_stagedStrip, row: 2),
+                PlaceRow(panes, row: 3),
+                PlaceRow(footer, row: 4),
+            },
+        };
+
+        //Every string the pane shows comes from the one key = value file per language. Set here
+        //rather than inline for the reason the WPF pane sets its own the same way: a literal in a
+        //layout expression is a string no translator can reach.
+        _stageButton.Content = Strings.Get("hunk.stage");
+        _unstageButton.Content = Strings.Get("hunk.unstage");
+        _revertButton.Content = Strings.Get("hunk.revert");
+        _saveButton.Content = Strings.Get("edit.save.button");
+        ToolTip.SetTip(_saveButton, Strings.Get("edit.save"));
+        _restageButton.Content = Strings.Get("edit.restage");
+        _dirtyText.Text = Strings.Get("edit.dirty");
+        _savedText.Text = Strings.Get("edit.saved");
+        _stagedStripText.Text = Strings.Get("edit.staged.notice");
+        _leftLabel.Text = Strings.Get("diff.left.readonly");
+        _rightLabel.Text = Strings.Get("diff.right.readonly");
+        _placeholderText.Text = Strings.Get("diff.select.prompt");
+    }
+
+    /// <summary>
+    /// The editing bar. Hidden entirely when the pane is read-only, so a file that cannot be edited
+    /// does not offer a Save button that would do nothing.
+    /// </summary>
+    private StackPanel BuildEditingBar()
+    {
+        _stageButton.Click += (_, _) => _ = RaiseHunkAsync(SelectedRows(), unstage: false);
+        _unstageButton.Click += (_, _) => _ = RaiseHunkAsync(SelectedRows(), unstage: true);
+        _revertButton.Click += (_, _) => _ = RevertRowsAsync(SelectedRows());
+        _saveButton.Click += (_, _) => RequestSave();
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            IsVisible = false,
+            Children = { _dirtyText, _savedText, _stageButton, _unstageButton, _revertButton, _saveButton },
+        };
+    }
+
+    /// <summary>
+    /// The staged-file strip, with the one-click restage CLAUDE.md asks for.
+    ///
+    /// A file already staged and then edited is edited in the <i>working tree</i>, so the change will
+    /// not be in the commit even though the diff looks complete. This is the only thing that says so.
+    /// </summary>
+    private Border BuildStagedStrip()
+    {
+        _restageButton.Click += (_, _) => _ = RaiseRestageAsync();
+
+        return new Border
+        {
+            IsVisible = false,
+            Background = Brush("WarnBackground"),
+            BorderBrush = Brush("WarnBorder"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(10, 5),
+            Child = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+                Children = { Place(_stagedStripText, column: 0), Place(_restageButton, column: 1) },
             },
         };
     }
+
+    private Border BuildPlaceholder() =>
+        new()
+        {
+            Background = Brush("SurfaceSunken"),
+            Child = _placeholderText,
+        };
 
     /// <summary>
     /// The find bar, hidden until Ctrl+F.
@@ -193,9 +471,9 @@ internal sealed class DiffPane : UserControl
     /// </summary>
     private Border BuildSearchBar()
     {
-        var next = new Button { Content = "▼", MinWidth = 32 };
-        var previous = new Button { Content = "▲", MinWidth = 32 };
-        var close = new Button { Content = "✕", MinWidth = 32 };
+        var next = new Button { Content = "▼", Classes = { "compact" } };
+        var previous = new Button { Content = "▲", Classes = { "compact" } };
+        var close = new Button { Content = "✕", Classes = { "compact" } };
 
         //Glyphs on the buttons, words in the tooltips: the bar has to fit beside a 220px box, and
         //the keystrokes are what the tooltips are actually there to teach.
@@ -214,34 +492,124 @@ internal sealed class DiffPane : UserControl
         return new Border
         {
             IsVisible = false,
-            Padding = new Thickness(6),
+            Background = Brush("SurfaceAlt"),
+            BorderBrush = Brush("Border"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(10, 5),
             Child = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 4,
-                Children = { _searchBox, previous, next, _searchCount, close },
+
+                //The side text is between the box and the arrows: the two documents are aligned row
+                //for row, so a match in one pane and the same word in the other are indistinguishable
+                //without it.
+                Children = { _searchBox, _searchSide, previous, next, _searchCount, close },
             },
         };
     }
 
     /// <summary>
-    /// Renders a diff, or clears the panes when there is nothing selected.
+    /// Renders a diff, or covers the panes when there is nothing to show.
     /// </summary>
-    public void Show(SideBySideDiff? diff)
+    /// <param name="isLoading">
+    /// A cold diff is in flight. The panes are covered rather than cleared, so the previous file does
+    /// not flash away and back.
+    /// </param>
+    /// <param name="fileIsStaged">
+    /// Whether the index already holds a version of this path — what the staged strip is about.
+    /// </param>
+    /// <param name="isUntracked">
+    /// Whether Git has ever seen the file. An untracked file is in neither HEAD nor the index, so
+    /// there is no old side for a hunk patch to apply against.
+    /// </param>
+    public void Show(SideBySideDiff? diff, bool isLoading, bool fileIsStaged = false, bool isUntracked = false)
     {
+        _untracked = isUntracked;
+
+        _rediffTimer.Stop();
+        _rediffCancellation?.Cancel();
+
+        //The history belongs to the file that was shown before. A snapshot of another file's text
+        //must never be applied to this one.
+        _undo.Clear();
+        _currentFileText = string.Empty;
+
+        //The term survives a file change — chasing one word through several files is the reason not
+        //to close the bar here — but the position in the old file does not.
+        _matchIndex = -1;
+
+        _diff = diff;
+        IsDirty = false;
+        _savedText.IsVisible = false;
+
+        if (isLoading)
+        {
+            _placeholderText.Text = Strings.Get("diff.loading");
+            _placeholder.IsVisible = true;
+
+            return;
+        }
+
+        if (diff is null)
+        {
+            _placeholderText.Text = Strings.Get("diff.select.prompt");
+            _placeholder.IsVisible = true;
+            _modeText.Text = string.Empty;
+            _noticeText.Text = string.Empty;
+            _stagedStrip.IsVisible = false;
+
+            SetEditable(editable: false);
+            SetRows([]);
+
+            //No file, nothing to search. The bar would otherwise sit over two editors the placeholder
+            //has covered, counting matches in a document nobody can see.
+            CloseSearch();
+
+            return;
+        }
+
+        //A historical diff labels its range; everything else is the working tree against HEAD, which
+        //is the only comparison the product computes. A "Working tree" label over two blobs out of
+        //the object store would not merely be unhelpful, it would be false — which is the whole
+        //reason this reads the range first.
+        _modeText.Text = diff.Range is { } range ? range.Label : Strings.Get("diff.mode.head");
+        _noticeText.Text = diff.Notice ?? string.Empty;
+
+        IHighlightingDefinition? highlighting = HighlightingManager.Instance
+            .GetDefinitionByExtension(System.IO.Path.GetExtension(diff.Path));
+
+        _left.SyntaxHighlighting = highlighting;
+        _right.SyntaxHighlighting = highlighting;
+
         _loading = true;
 
         try
         {
-            Render(diff);
+            switch (diff.RenderMode)
+            {
+                case DiffRenderMode.Binary:
+                    ShowBinary(diff);
+
+                    break;
+
+                case DiffRenderMode.UnifiedReadOnly:
+                    ShowUnified(diff);
+
+                    break;
+
+                default:
+                    ShowSideBySide(diff, fileIsStaged);
+
+                    break;
+            }
         }
         finally
         {
             _loading = false;
         }
 
-        //A freshly rendered file is by definition unedited, whatever the previous one's state was.
-        IsDirty = false;
+        UpdateHunkButtons();
     }
 
     /// <summary>
@@ -253,59 +621,123 @@ internal sealed class DiffPane : UserControl
     /// </summary>
     public string FileText() => _aligned.ToFileText(_endsWithNewline);
 
-    /// <summary>Called after a successful save, so the pane stops claiming to be dirty.</summary>
-    public void MarkSaved() => IsDirty = false;
-
-    private void Render(SideBySideDiff? diff)
+    /// <summary>
+    /// Asks the host to write the edit. The pane never writes: the encoding, the BOM and the line
+    /// endings are the view model's to put back.
+    /// </summary>
+    public void RequestSave()
     {
-        if (diff is null)
-        {
-            _left.Text = string.Empty;
-            _right.Text = string.Empty;
-            _aligned.Clear();
-            _right.IsReadOnly = true;
-            _diff = null;
-            SetRows([]);
-
+        if (!IsDirty || SaveRequested is null)
             return;
-        }
 
-        _diff = diff;
+        _ = SaveRequested(FileText());
+    }
 
-        //Unified fallback for a file too large to diff line by line. Both panes show the same text
-        //rather than pretending to a side-by-side that was never computed.
-        if (diff.RenderMode == DiffRenderMode.UnifiedReadOnly)
-        {
-            string unified = diff.UnifiedText ?? string.Empty;
+    /// <summary>Called after a successful save, so the pane stops claiming to be dirty.</summary>
+    public void MarkSaved(SideBySideDiff refreshed)
+    {
+        _diff = refreshed;
+        IsDirty = false;
+        _savedText.IsVisible = true;
 
-            SetRows([]);
-            _aligned.Clear();
-            _right.IsReadOnly = true;
-            _left.Text = unified;
-            _right.Text = unified;
+        UpdateHunkButtons();
+    }
 
+    /// <summary>
+    /// Updates the staged strip and the hunk buttons without rebuilding anything.
+    ///
+    /// <c>git apply --cached</c> touches the index and not the working tree, so the document, caret
+    /// and scroll position are still correct — and a full <see cref="Show"/> would reset the caret,
+    /// disabling the buttons the user is in the middle of using to stage the next hunk.
+    /// </summary>
+    public void MarkIndexChanged(bool fileIsStaged)
+    {
+        if (_diff is null)
             return;
-        }
 
+        _stagedStrip.IsVisible = fileIsStaged && _diff.IsEditable;
+
+        UpdateHunkButtons();
+    }
+
+    private void ShowBinary(SideBySideDiff diff)
+    {
+        _placeholderText.Text = diff.Notice ?? Strings.Get("files.tooltip.binary");
+        _placeholder.IsVisible = true;
+        _stagedStrip.IsVisible = false;
+
+        SetEditable(editable: false);
+        SetRows([]);
+        CloseSearch();
+    }
+
+    /// <summary>
+    /// Unified fallback for a file too large to diff line by line. Both panes show the same text
+    /// rather than pretending to a side-by-side that was never computed.
+    /// </summary>
+    private void ShowUnified(SideBySideDiff diff)
+    {
+        string unified = diff.UnifiedText ?? string.Empty;
+
+        SetRows([]);
+
+        _left.Text = unified;
+        _aligned.Clear();
+        _right.Text = unified;
+
+        //A patch is what this text is, whatever the file's own extension says.
+        IHighlightingDefinition? patch = HighlightingManager.Instance.GetDefinition("Patch");
+
+        _left.SyntaxHighlighting = patch;
+        _right.SyntaxHighlighting = patch;
+
+        SetEditable(editable: false);
+
+        _placeholder.IsVisible = false;
+        _stagedStrip.IsVisible = false;
+
+        //Both documents were just replaced, so the recorded offsets belong to the file before this one.
+        UpdateMatches(keepPosition: true);
+    }
+
+    private void ShowSideBySide(SideBySideDiff diff, bool fileIsStaged)
+    {
         //IsEditable is the diff's own answer and consults three things this pane should not
         //second-guess: whether both sides came from the object store, whether the render mode is a
         //real side-by-side, and whether the file is binary.
         _endsWithNewline = diff.Right.EndsWithNewline;
-        _right.IsReadOnly = !diff.IsEditable;
-
-        //A new file starts with no history of its own. Keeping the previous file's steps would let
-        //Ctrl+Z replace this document with an unrelated one.
-        _undo.Clear();
-
-        //Anything queued from the previous file's typing would land against this document.
-        _rediffCancellation?.Cancel();
-        _rediffTimer.Stop();
-
         _currentFileText = diff.Right.Text;
 
         BuildDocuments(diff.Rows, preserveCaret: false);
 
+        SetEditable(diff.IsEditable);
+
+        //Not the top. A change three hundred lines down would open on a screenful of unchanged text,
+        //and the user would have to hunt for the thing they clicked the file to see.
         ScrollToFirstChange(diff.Rows);
+
+        //CLAUDE.md, "The staged-versus-worktree trap": the right pane is the working tree, so an edit
+        //here is not in the commit until the file is restaged.
+        _stagedStrip.IsVisible = fileIsStaged && diff.IsEditable;
+
+        _placeholder.IsVisible = false;
+    }
+
+    /// <summary>
+    /// Puts the pane into or out of editing, which is one decision with four consequences — so it is
+    /// one method rather than four lines repeated at each call site.
+    /// </summary>
+    private void SetEditable(bool editable)
+    {
+        _right.IsReadOnly = !editable;
+        _right.TextArea.Caret.CaretBrush = editable ? Brush("Text") : Brushes.Transparent;
+
+        _editingBar.IsVisible = editable;
+        _saveButton.IsEnabled = false;
+
+        _rightLabel.Text = editable
+            ? Strings.Get("edit.right.editable")
+            : Strings.Get("diff.right.readonly");
     }
 
     /// <summary>
@@ -473,15 +905,20 @@ internal sealed class DiffPane : UserControl
     /// </summary>
     private void BuildContextMenu()
     {
+        var revert = new MenuItem { Header = Strings.Get("hunk.revert") };
         var stage = new MenuItem { Header = Strings.Get("hunk.stage") };
         var unstage = new MenuItem { Header = Strings.Get("hunk.unstage") };
-        var revert = new MenuItem { Header = Strings.Get("hunk.revert") };
 
+        revert.Click += (_, _) => _ = RevertRowsAsync(_pendingRows);
         stage.Click += (_, _) => _ = RaiseHunkAsync(_pendingRows, unstage: false);
         unstage.Click += (_, _) => _ = RaiseHunkAsync(_pendingRows, unstage: true);
-        revert.Click += (_, _) => _ = RevertRowsAsync(_pendingRows);
 
-        var menu = new ContextMenu { ItemsSource = new[] { stage, unstage, revert } };
+        //Revert first and separated, the way the WPF menu orders them: it edits the document, where
+        //the pair below it describe the document to Git.
+        var menu = new ContextMenu
+        {
+            ItemsSource = new Control[] { revert, new Separator(), stage, unstage },
+        };
 
         _left.ContextMenu = menu;
         _right.ContextMenu = menu;
@@ -502,20 +939,95 @@ internal sealed class DiffPane : UserControl
         MenuItem unstage,
         MenuItem revert)
     {
+        if (_diff?.IsEditable != true)
+        {
+            //Nothing here applies to a historical diff. Suppressed rather than shown with three dead
+            //items.
+            e.Handled = true;
+
+            return;
+        }
+
         _pendingRows = RowsUnder(editor, e);
 
-        //Nothing to stage from a diff that is not against the working tree, or from a selection with
-        //no changed row in it. Disabled rather than hidden: a menu whose items move around is harder
-        //to use than one whose items grey out.
-        bool can = _diff?.IsEditable == true && _pendingRows.Count > 0;
+        //Disabled rather than hidden, and the refusal is the tooltip: a menu whose items move around
+        //is harder to use than one whose items grey out and say why.
+        string? cannotStage = WhyCannotStage(_pendingRows);
+        string? cannotRevert = WhyCannotRevert(_pendingRows);
 
-        stage.IsEnabled = can;
-        unstage.IsEnabled = can;
+        stage.IsEnabled = cannotStage is null;
+        unstage.IsEnabled = cannotStage is null;
+        ToolTip.SetTip(stage, cannotStage);
+        ToolTip.SetTip(unstage, cannotStage);
 
-        //Revert additionally needs a writable pane: it is an edit to the document, where staging
-        //only touches the index.
-        revert.IsEnabled = can && !_right.IsReadOnly;
+        //Revert additionally needs a writable pane: it is an edit to the document, where staging only
+        //touches the index.
+        revert.IsEnabled = cannotRevert is null && !_right.IsReadOnly;
+        ToolTip.SetTip(revert, cannotRevert);
     }
+
+    /// <summary>
+    /// Why the selected rows cannot be staged, or null when they can.
+    ///
+    /// A sentence rather than a bool, because every one of these is a state the user can get out of
+    /// and a greyed-out button that does not say how is a dead end.
+    /// </summary>
+    private string? WhyCannotStage(IReadOnlySet<int> rows)
+    {
+        if (_diff is null || !_diff.IsEditable)
+            return null;
+
+        //The row-to-line equivalence holds only for an unmodified document. Staging from a dirty one
+        //would build a patch describing lines that are not what is on disk.
+        if (IsDirty)
+            return Strings.Get("hunk.savefirst");
+
+        //An untracked file is in neither HEAD nor the index, so there is no old side to patch against.
+        if (_untracked)
+            return Strings.Get("hunk.untracked");
+
+        //Not merely "is anything selected": a caret parked on a context line outside every hunk
+        //selects a row that stages nothing.
+        return rows.Any(row => Hunks.IsChange(_diffRows[row]))
+            ? null
+            : Strings.Get("hunk.nothing");
+    }
+
+    /// <summary>
+    /// Reverting needs only the third of staging's three conditions. It edits the document rather
+    /// than describing it to Git, and an untracked file's empty left side makes "revert to nothing" a
+    /// legitimate thing to ask for.
+    /// </summary>
+    private string? WhyCannotRevert(IReadOnlySet<int> rows)
+    {
+        if (_diff is null || !_diff.IsEditable)
+            return null;
+
+        return rows.Any(row => Hunks.IsChange(_diffRows[row]))
+            ? null
+            : Strings.Get("hunk.nothing");
+    }
+
+    private void UpdateHunkButtons()
+    {
+        bool editable = _diff?.IsEditable == true;
+        IReadOnlySet<int> rows = SelectedRows();
+
+        string? refusal = editable ? WhyCannotStage(rows) : null;
+        bool can = editable && refusal is null;
+
+        _stageButton.IsEnabled = can;
+        _unstageButton.IsEnabled = can;
+        ToolTip.SetTip(_stageButton, refusal);
+        ToolTip.SetTip(_unstageButton, refusal);
+
+        string? revertRefusal = editable ? WhyCannotRevert(rows) : null;
+
+        _revertButton.IsEnabled = editable && revertRefusal is null;
+        ToolTip.SetTip(_revertButton, revertRefusal);
+    }
+
+    private IReadOnlySet<int> SelectedRows() => RowsIn(_right);
 
     /// <summary>
     /// Puts the selected rows back the way the left side has them.
@@ -550,6 +1062,8 @@ internal sealed class DiffPane : UserControl
         _currentFileText = reverted;
         Rebuild(rebuilt);
         IsDirty = true;
+
+        UpdateHunkButtons();
     }
 
     private void OnRightTextChanged()
@@ -559,10 +1073,15 @@ internal sealed class DiffPane : UserControl
 
         IsDirty = true;
 
+        //A save is what clears this, not the next keystroke.
+        _savedText.IsVisible = false;
+
         //Cancelled and restarted on each keystroke, so a burst of typing costs one re-diff.
         _rediffCancellation?.Cancel();
         _rediffTimer.Stop();
         _rediffTimer.Start();
+
+        UpdateHunkButtons();
     }
 
     /// <summary>
@@ -745,10 +1264,14 @@ internal sealed class DiffPane : UserControl
     /// </summary>
     public void OpenSearch(TextEditor? pane = null)
     {
-        _searchPane = pane
-                      ?? (ReferenceEquals(TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement(), _left)
-                          ? _left
-                          : _right);
+        //Nothing to search behind the placeholder.
+        if (_placeholder.IsVisible)
+            return;
+
+        _searchPane = pane ?? _lastFocusedEditor ?? _right;
+
+        _searchSide.Text = Strings.Get(
+            ReferenceEquals(_searchPane, _left) ? "diff.search.left" : "diff.search.right");
 
         _searchBar.IsVisible = true;
         _searchBox.Focus();
@@ -937,10 +1460,18 @@ internal sealed class DiffPane : UserControl
 
     private async Task RaiseHunkAsync(IReadOnlySet<int> rows, bool unstage)
     {
-        if (StageRequested is null || rows.Count == 0)
+        if (HunkStageRequested is null || rows.Count == 0)
             return;
 
-        await StageRequested(rows, unstage).ConfigureAwait(true);
+        await HunkStageRequested(rows, unstage).ConfigureAwait(true);
+    }
+
+    private async Task RaiseRestageAsync()
+    {
+        if (RestageRequested is null)
+            return;
+
+        await RestageRequested().ConfigureAwait(true);
     }
 
     /// <summary>
@@ -1018,6 +1549,8 @@ internal sealed class DiffPane : UserControl
             IsReadOnly = true,
             ShowLineNumbers = false,
             WordWrap = false,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
 
             //Both panes always show both scrollbars, so the two viewports are the same height
             //whatever each document's longest line is. Letting them come and go is what makes one
@@ -1025,6 +1558,17 @@ internal sealed class DiffPane : UserControl
             HorizontalScrollBarVisibility = ScrollBarVisibility.Visible,
             VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
         };
+
+    /// <summary>
+    /// One of the palette's brushes, by key.
+    ///
+    /// A lookup rather than a literal, so this control cannot become a second answer to what the
+    /// product's grey is — the same reason the WPF pane writes <c>{StaticResource SurfaceAlt}</c>
+    /// rather than a hex value. Application.Current is the only scope that has them: this control is
+    /// built in its constructor, before it is attached to any window whose resources could be asked.
+    /// </summary>
+    private static IBrush Brush(string key) =>
+        Application.Current?.FindResource(key) as IBrush ?? Brushes.Transparent;
 
     private static T Place<T>(T control, int column)
         where T : Control

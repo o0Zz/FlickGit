@@ -466,7 +466,7 @@ public partial class PullRequestWindow : Window
                 forge,
                 draft,
                 force => Dispatcher.InvokeAsync(() =>
-                    _credentials.AcquireAsync(_repository, forge, force, this, CancellationToken.None)).Task.Unwrap(),
+                    _credentials.AcquireAsync(_repository, forge, force, CancellationToken.None)).Task.Unwrap(),
                 AskUpstreamAsync,
                 new Progress<PullRequestStep>(Report),
                 CancellationToken.None).ConfigureAwait(true);

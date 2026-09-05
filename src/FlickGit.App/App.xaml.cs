@@ -201,6 +201,10 @@ public partial class App : Application
         services.AddSingleton<CredentialStore>();
         services.AddSingleton<ISecretStore>(provider => provider.GetRequiredService<CredentialStore>());
 
+        //How a secret is asked for, which is the one Windows-shaped part of the two flows that need
+        //one: `flick ai key set` and the forge-token chain both live in FlickGit.App.Common now.
+        services.AddSingleton<ISecretPrompt, WindowSecretPrompt>();
+
         //Both clients registered whichever forge this machine happens to use: they are two small
         //objects over the shared HttpClient, and a registration that depended on a repository's remote
         //could not be a singleton at all.

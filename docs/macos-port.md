@@ -1,4 +1,4 @@
-# The macOS port — state, and what to do next
+﻿# The macOS port — state, and what to do next
 
 Written for whoever picks this up **on a Mac with Xcode**. Everything below was built and verified
 from Windows, which is the whole reason this document exists: a large amount of it compiles, and a
@@ -74,39 +74,38 @@ never talks to the service directly.
 
 ## 4. What is missing — the work list
 
-### 4a. Nine verb surfaces still refused
+### 4a. Three verb surfaces still refused
 
 Each raises `HostCapabilityException`, which `VerbRunner` turns into exit code 4 and a sentence
-naming the verb. Grep for it to find them:
+naming the verb. Grep for it to find them. **None of the three is a port**, which is why they are
+still refused while the other eleven are not:
 
-| Verb | Where to implement | Notes |
+| Verb | Where | Why it is not a port |
 |---|---|---|
-| `blame` | `MacWindowVerbs.BlameAsync` | Needs a `BlameMargin` port — see `src/FlickGit.App/Rendering/BlameMargin.cs`. The WPF one draws a four-column gutter with `DrawingContext`; `AbstractMargin` survives in AvaloniaEdit, so this is the same port `DiffLineNumberMargin` already had. |
-| `pr` | `MacWindowVerbs.PullRequestAsync` | `PullRequestFlow` in Core owns the sequence. The window is a summary plus two text boxes. |
-| `pull-rebase` | `MacWindowVerbs.PullAsync` | A progress window over `PullService`. |
-| `back` | `MacWindowVerbs.BackAsync` | Added on the Windows side after the macOS host existed; see `src/FlickGit.App/CommandLine/WindowVerbs.cs`. |
-| `repo` | `MacWindowVerbs.Repo` | `RepositoryConfigService` + `RemoteService`. Remember `RemoteService.SaveAsync` owns the rename-before-set-url order. |
-| `clone` | `MacWindowVerbs.Clone` | `CloneService`. Parse `--progress` off stderr for a determinate bar; cancellation must kill the process tree **and** delete only a directory this operation created. |
-| `settings` | `MacEnvironmentVerbs.Settings` | Also needs `MarkdownFlow` — see below. |
-| `ai` | `MacEnvironmentVerbs.AiAsync` | `KeychainSecretStore` is written and registered; what is missing is the window that asks for a key. |
-| `diag doctor` | `MacEnvironmentVerbs.DoctorAsync` | **Not a port.** Most of what the Windows one reports is the registry, the overlay slot limit and the input trigger. A macOS doctor is a different report: git location, the socket, the LaunchAgent, whether the Finder extension is enabled, Automation and Accessibility permissions. |
+| `install-shell` / `uninstall-shell` | `MacEnvironmentVerbs.ContextMenu` | The Windows verb writes a registry projection of the Action Catalog. The Finder menu is a Finder Sync extension inside the app bundle, enabled by the user in System Settings — there is no equivalent for a verb to write. |
+| `install-overlay` / `uninstall-overlay` | `MacEnvironmentVerbs.OverlayAsync` | The badge is an `IShellIconOverlayIdentifier` under `HKLM`, elevation and a fifteen-handler limit. macOS has no counterpart; the Finder extension draws its own badges. |
+| `diag doctor` | `MacEnvironmentVerbs.DoctorAsync` | Most of what the Windows one reports is the registry, the overlay slot limit and the input trigger. A macOS doctor is a different report: git location, the socket, the LaunchAgent, whether the Finder extension is enabled, Automation and Accessibility permissions. |
 
-**`MarkdownFlow`** (`src/FlickGit.App/Rendering/MarkdownFlow.cs`, 422 lines) has no Avalonia
-equivalent — there is no `FlowDocument`. Its only consumer is the settings window's Help tab, which
-is why it is listed with `settings` rather than on its own.
+### 4b. The windows that now exist
 
-### 4b. Two windows have no view model, and that is the shape of the remaining work
+Thirteen, all of them built against `FlickGit.Core` directly rather than by porting WPF code-behind
+— which is the route this document recommended and it held up: Core already owns every sequence and
+every safety rule, so each window is layout, keyboard and callbacks.
 
-Commit and palette were the easy ones: `CommitViewModel` (2,032 lines) and `PaletteViewModel` were
-already framework-free and moved to `App.Common` unchanged, so those windows are bindings over
-existing logic. **None of the nine above has a view model.** Their Windows logic lives in WPF
-code-behind (`LogWindow.xaml.cs` is 664 lines, `SwitchBranchWindow.xaml.cs` is 822), so each is a
-port of *behaviour*.
+Commit, diff pane, log, blame, changelog, clone, repository, pull request, settings, secret,
+progress, message, and the three pickers (branches, tags, stashes, submodules) that were already
+here. Two rendering ports came with them — `BlameMargin` and `BlameBackgroundRenderer` — and
+`MarkdownFlow` became `MarkdownView`: a stack of controls rather than a `FlowDocument`, since
+Avalonia has no block model, no list marker style and no `Hyperlink`. The parsing is the same code.
 
-The macOS ones written so far did not port that code-behind — they were written thin, directly over
-the Core services, because Core already holds every sequence and every safety rule. That is the
-cheaper and safer route and is the recommended one: read the WPF window for the *rules*, then write
-the Avalonia window against `FlickGit.Core`.
+Four things moved into `FlickGit.App.Common` on the way, because each was portable and only lived on
+the Windows side because that is where the class happened to be: `ForgeCredentials`, `ShellOpen`, the
+`ai` verb (into `EnvironmentReports`), and the question all three of them ask — `ISecretPrompt`,
+whose two implementations are the only genuinely platform-specific part.
+
+**Nothing here has been rendered on a Mac.** It has been rendered offscreen through
+`RenderTargetBitmap` on Windows, which exercises layout and text but not the native window chrome,
+the menu bar, or a Retina backing scale.
 
 ### 4c. Notarisation — the one hard gate
 
@@ -154,11 +153,17 @@ every window, serves the socket, and answers `flick`. But:
   start a process through a user-defined action.
 - The `0700`/`0600` modes, likewise skipped off macOS by `Restrict`.
 
-**Never rendered:**
+**Never rendered on a Mac:**
 
-Every pixel. Compiled bindings mean a binding *path* is a build error (`AVLN2000`), and every window
-has been *instantiated* without throwing — but nothing about layout, spacing, colours, scroll feel or
-whether the find bar is usable has been seen by anyone.
+Every pixel. Compiled bindings mean a binding *path* is a build error (`AVLN2000`); every window has
+been instantiated, measured and arranged without throwing; and each has been rendered offscreen on
+Windows through `RenderTargetBitmap` and looked at, which is how the file rows turned out to be a
+third taller than the Windows ones and how the pull-request window's delete-branch box turned out to
+appear unlabelled on the refusal path.
+
+What that does **not** cover is everything the native window supplies: the title bar and the traffic
+lights, the menu bar, Retina backing scale, the system font actually resolving, scroll feel and
+momentum, and whether the find bar is usable with a trackpad.
 
 ### The first hour on a Mac, in order
 

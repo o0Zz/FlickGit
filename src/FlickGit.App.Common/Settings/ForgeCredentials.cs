@@ -1,6 +1,4 @@
-using System.Windows;
-using FlickGit.App.Views;
-using FlickGit.Forges;
+﻿using FlickGit.Forges;
 using FlickGit.Logging;
 using FlickGit.Models;
 
@@ -24,12 +22,22 @@ namespace FlickGit.App.Settings;
 /// Windows' own UI, and where step one will find it next time.</description></item>
 /// </list>
 ///
+/// <b>In FlickGit.App.Common rather than in the Windows host.</b> Nothing about this chain is a
+/// platform: the store is <see cref="ISecretStore"/>, the helper is Git's own, and the one thing
+/// that genuinely was a window went behind <see cref="ISecretPrompt"/>. Left where it was, the
+/// macOS host would have needed a second copy of a three-step order whose whole value is that there
+/// is one of it.
+///
 /// Nothing here refreshes, validates or inspects a token. That is the rule <c>Clone</c> already sets
 /// about credentials, and the service is the only thing that can actually answer whether one works —
 /// which is why <c>PullRequestFlow</c> asks again with <c>forcePrompt</c> when it gets a 401 rather
 /// than anything here trying to be clever in advance.
 /// </summary>
-public sealed class ForgeCredentials(CredentialStore store, GitCredentialFill helper, ILog log)
+public sealed class ForgeCredentials(
+    ISecretStore store,
+    GitCredentialFill helper,
+    ISecretPrompt prompt,
+    ILog log)
 {
     /// <summary>
     /// A token for <paramref name="forge"/>, or null when the user declined to supply one.
@@ -38,16 +46,10 @@ public sealed class ForgeCredentials(CredentialStore store, GitCredentialFill he
     /// Skip both stored sources and ask. Passed after a service has refused a credential: whatever
     /// is on the machine has just been shown not to work, so offering it again would loop.
     /// </param>
-    /// <param name="owner">
-    /// The window the question belongs to, so the prompt cannot open behind it. Null from a surface with
-    /// no window. This class already reaches for SecretWindow, so carrying the owner makes an existing
-    /// dependency honest rather than adding one.
-    /// </param>
     public async Task<string?> AcquireAsync(
         RepositoryInfo repository,
         ForgeRepository forge,
         bool forcePrompt,
-        Window? owner,
         CancellationToken cancellationToken)
     {
         if (!forcePrompt
@@ -56,10 +58,13 @@ public sealed class ForgeCredentials(CredentialStore store, GitCredentialFill he
             return found;
         }
 
-        //A window, not a console prompt and never a command-line argument -- the same argument
-        //SecretWindow carries for the AI key, and it applies unchanged to a forge token.
-        if (SecretWindow.AskForForgeToken(owner, forge.Kind, forge.Host) is not { Length: > 0 } typed)
+        //A window, not a console prompt and never a command-line argument -- the same argument the AI
+        //key's prompt carries, and it applies unchanged to a forge token.
+        if (await prompt.AskForForgeTokenAsync(forge.Kind, forge.Host).ConfigureAwait(true)
+            is not { Length: > 0 } typed)
+        {
             return null;
+        }
 
         //Stored even if it turns out not to work. The alternative is validating it with a request of
         //our own before saving, which is a second round trip to learn what the create is about to

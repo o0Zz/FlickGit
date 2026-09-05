@@ -1,4 +1,4 @@
-# ⚡ FlickGit
+﻿# ⚡ FlickGit
 
 ### Press one key, press Enter, it's committed and pushed — and the AI wrote the message.
 
@@ -142,7 +142,7 @@ because the binaries are unsigned.
 
 ## Building
 
-A macOS port is in progress: `flick`, seven Avalonia windows and the Finder Sync extension
+A macOS port is in progress: `flick`, thirteen Avalonia windows and the Finder Sync extension
 build and run, and [docs/macos-port.md](docs/macos-port.md) is the handover — what works, what
 is missing, what has never been executed on a Mac, and the one thing that needs a Developer ID.
 
