@@ -80,6 +80,11 @@ class FinderSync: FIFinderSync {
             for: url)
     }
 
+    /// Whether the item is a folder — the badge's first test, and the menu's.
+    ///
+    /// `resourceValues` rather than a `stat` of our own because Finder hands these URLs over with
+    /// their resource values often already populated, which is the closest thing here to the
+    /// Windows overlay reading the directory bit out of the attributes it was given.
     private func isDirectory(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
     }
@@ -176,20 +181,6 @@ class FinderSync: FIFinderSync {
         menu.addItem(item)
 
         return menu
-    }
-
-    /// Whether the clicked item is a folder.
-    ///
-    /// One `stat`, on Finder's own thread, and only when a menu is being built — never on the badge
-    /// path, which is the one with a per-drawn-item budget.
-    private func isDirectory(_ url: URL) -> Bool {
-        var directory: ObjCBool = false
-
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) else {
-            return false
-        }
-
-        return directory.boolValue
     }
 
     /// The clicked folder, or the folder being shown.
