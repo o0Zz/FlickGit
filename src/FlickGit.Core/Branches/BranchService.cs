@@ -176,14 +176,12 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     }
 
     /// <summary>
-    /// Splits a remote-tracking name such as <c>origin/feature/x</c> into its remote and its branch.
+    /// Reads the configured remotes and splits a remote-tracking name such as
+    /// <c>origin/feature/x</c> into its remote and its branch.
     ///
-    /// <b>Against the configured remotes, not at the first slash.</b> A branch may contain slashes, so
-    /// <c>origin/feature/x</c> is remote <c>origin</c> branch <c>feature/x</c> only because
-    /// <c>origin</c> is a configured remote. The longest match wins.
-    ///
-    /// Null when no configured remote prefixes the name, which is what stops a deletion being pushed
-    /// at a remote that does not exist.
+    /// The matching itself is <see cref="RemoteBranch.Match"/>, which the push guardrails share --
+    /// they have already read <c>git remote</c> for their own reasons, so what is common is the
+    /// rule, not the process.
     /// </summary>
     public async Task<RemoteBranch?> ResolveRemoteBranchAsync(
         RepositoryInfo repository,
@@ -195,15 +193,9 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         if (!result.Succeeded)
             return null;
 
-        string name = remoteTrackingName.Trim();
-
-        return result.StdOut
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(remote => remote.Trim())
-            .Where(remote => remote.Length > 0 && name.StartsWith(remote + "/", StringComparison.Ordinal))
-            .OrderByDescending(remote => remote.Length)
-            .Select(remote => new RemoteBranch(remote, name[(remote.Length + 1)..]))
-            .FirstOrDefault();
+        return RemoteBranch.Match(
+            result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries),
+            remoteTrackingName);
     }
 
     private async Task<bool> BranchExistsAsync(
@@ -254,8 +246,6 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
         return null;
     }
 }
-
-public sealed record RemoteBranch(string Remote, string Branch);
 
 /// <param name="NotMerged">
 /// Git refused because the branch holds commits that are nowhere else. The one refusal with a

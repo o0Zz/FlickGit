@@ -212,8 +212,14 @@ public class PushServiceTests
     }
 
     [Fact]
-    public async Task ExecutingAnOrdinaryPlanPushesWithNoExtraArguments()
+    public async Task ExecutingAnOrdinaryPlanPushesOneRefspecAndNothingElse()
     {
+        //A safety rule, not a formatting preference: a bare `git push` obeys the user's
+        //`push.default`, and `matching` pushes every local branch that has a same-named branch on
+        //the remote. That is what shipped -- a Commit & Push on a feature branch also pushed a
+        //stale local `develop` and was then reported as refused because the remote rejected it.
+        //An explicit refspec overrides `push.default` and `remote.<name>.push` alike, so the exact
+        //argument list is the assertion.
         var git = new FakeGitRunner().Returns(["remote"], stdout: "origin\n").Returns(["push"]);
         PushService service = Create(git);
 
@@ -221,9 +227,7 @@ public class PushServiceTests
         await service.ExecuteAsync(Repository, plan, CancellationToken.None);
 
         string[] args = Assert.Single(git.Invocations, i => i.Args.Contains("push")).Args;
-        Assert.DoesNotContain("-u", args);
-        Assert.DoesNotContain("--force", args);
-        Assert.DoesNotContain("--force-with-lease", args);
+        Assert.Equal(["push", "origin", "HEAD:refs/heads/feature/x"], args);
     }
 
     [Fact]

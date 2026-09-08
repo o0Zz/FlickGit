@@ -1,3 +1,4 @@
+using FlickGit.Branches;
 using FlickGit.Git;
 using FlickGit.Models;
 using FlickGit.Repositories;
@@ -121,10 +122,39 @@ public sealed class PushService(IGitProcessRunner git, RepositoryService reposit
             };
         }
 
+        //Where the push goes, resolved here rather than left to `git push` to work out. A bare push
+        //obeys the user's `push.default`, and `matching` -- still a common setting, and Git's own
+        //default before 2.0 -- pushes *every* local branch that has a same-named branch on the
+        //remote. That shipped: a Commit & Push on a feature branch also pushed a stale local
+        //`develop`, which the remote rejected as non-fast-forward, so the commit's own push was
+        //reported as refused over a branch the user was not on. An explicit refspec overrides
+        //`push.default` and `remote.<name>.push` alike, so the push reaches exactly the branch this
+        //plan names and nothing else.
+        RemoteBranch? upstream = RemoteBranch.Match(remoteNames, status.Upstream);
+
+        if (upstream is null)
+        {
+            //No configured remote prefixes the upstream -- `branch.<name>.remote = .` is the usual
+            //way to get here, a branch tracking another local branch. Refused rather than falling
+            //back to a bare push, which is the behaviour being removed.
+            return new PushPlan(
+                PushAction.Refuse,
+                $"{status.Branch} tracks {status.Upstream}, which does not name any of this " +
+                $"repository's remotes ({string.Join(", ", remoteNames)}).\n\n" +
+                "Nothing has been pushed. Point the branch at a remote first, for example with:\n\n" +
+                $"git branch --set-upstream-to=origin/{status.Branch} {status.Branch}")
+            {
+                Branch = status.Branch,
+                Upstream = status.Upstream,
+            };
+        }
+
         return new PushPlan(PushAction.Push, null)
         {
             Branch = status.Branch,
             Upstream = status.Upstream,
+            Remote = upstream.Remote,
+            UpstreamBranch = upstream.Branch,
         };
     }
 
@@ -160,7 +190,13 @@ public sealed class PushService(IGitProcessRunner git, RepositoryService reposit
             //checked out, so a branch created moments ago by the commit surface needs no second
             //lookup, and a branch name that looks like a path cannot be misread as one.
             ? ["push", "-u", plan.Remote ?? "origin", "HEAD"]
-            : ["push"];
+
+            //One refspec, always -- see PlanAsync: a bare `git push` inherits `push.default`, and
+            //`matching` would carry every same-named branch along with it. The source is HEAD for
+            //the reason above; the destination is fully qualified, so a tag of the same name cannot
+            //be what gets updated, and a branch tracking a differently-named upstream still lands
+            //where it tracks.
+            : ["push", plan.Remote!, $"HEAD:refs/heads/{plan.UpstreamBranch}"];
 
         GitResult result = await git.RunAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
         repositories.Invalidate(repository.Root);
@@ -205,6 +241,14 @@ public sealed record PushPlan(PushAction Action, string? Reason)
     public string? Branch { get; init; }
     public string? Upstream { get; init; }
     public string? Remote { get; init; }
+
+    /// <summary>
+    /// The branch <b>on the remote</b> that <see cref="Upstream"/> names, with the remote stripped
+    /// off -- <c>develop</c> out of <c>origin/develop</c>. Set for <see cref="PushAction.Push"/>,
+    /// where it is half of the refspec that keeps the push to one branch.
+    /// </summary>
+    public string? UpstreamBranch { get; init; }
+
     public bool HasDiverged { get; init; }
 }
 
