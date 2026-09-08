@@ -7,13 +7,17 @@ using FlickGit.Logging;
 namespace FlickGit.App.Mac;
 
 /// <summary>
-/// Puts an untracked file in the Trash, through <c>NSFileManager</c>.
+/// Puts a file or a folder in the Trash, through <c>NSFileManager</c>.
 ///
 /// <b>Not a move to <c>~/.Trash</c>.</b> That is what makes the difference between a file the user
 /// can put back and a file that is merely somewhere else: "Put Back" is driven by metadata Finder
 /// records when <c>trashItemAtURL:</c> does the move, and a plain rename does not write it. This is
 /// the only route by which FlickGit removes a file Git has never seen, so the undo has to be the one
 /// the user already knows.
+///
+/// <c>trashItemAtURL:</c> takes a directory as readily as a file, so the folder half of the menu's
+/// Delete needs no branch here — unlike Windows, where the bin is reached through two different
+/// entry points.
 ///
 /// The two refusals are the Windows implementation's, unchanged and for the same reasons: nothing
 /// outside the resolved repository root, and never through a symlink — following one would delete
@@ -29,7 +33,12 @@ public sealed partial class FinderTrash(ILog log) : ITrash
         if (absolute is null)
             return DeleteOutcome.Refused($"{relativePath} is outside {repositoryRoot} and will not be deleted.");
 
-        var info = new FileInfo(absolute);
+        //FileSystemInfo, because a FileInfo over a directory reports Exists false -- which here
+        //would answer "already gone" about a folder that is plainly there, and succeed having done
+        //nothing.
+        FileSystemInfo info = Directory.Exists(absolute)
+            ? new DirectoryInfo(absolute)
+            : new FileInfo(absolute);
 
         if (!info.Exists)
             //Already gone. Nothing to report: the state the caller wanted is the state on disk.
@@ -67,7 +76,8 @@ public sealed partial class FinderTrash(ILog log) : ITrash
     ///
     /// <b>Unverified.</b> Written without a Mac to run it on. The shapes follow from the selectors,
     /// but this is the one file in the port whose correctness has not been observed, so it is worth
-    /// exercising deliberately -- delete an untracked file, then check Finder offers Put Back.
+    /// exercising deliberately -- delete an untracked file, then check Finder offers Put Back, and
+    /// again on a folder.
     /// </summary>
     private static bool Trash(string absolute)
     {

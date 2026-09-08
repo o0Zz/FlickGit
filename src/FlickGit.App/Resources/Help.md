@@ -449,9 +449,10 @@ is how you get past the reformat that touched every line to the change that actu
 Nothing here changes the repository. You can also reach it from the log window: right-click a file
 there to blame it at the commit you are reading rather than at the working tree.
 
-## Add and Remove a file
+## Add, Remove and Delete a file
 
-The other two entries on a **file**'s FlickGit menu, beside Blame.
+The other three entries on a **file**'s FlickGit menu, beside Blame. They are also the three drawn on
+a **folder** you right-click, where each acts on everything below it.
 
 **Add** stages the file, which for one Git has never seen is what starts tracking it. Nothing is
 committed, so the file simply turns up ticked in the commit window. There is nothing to confirm and
@@ -462,19 +463,32 @@ the deletion turns up in the commit window as a `D` row waiting to be committed,
 comes back in the list as untracked. Nothing is deleted anywhere, so nothing is asked — and **Add** on
 the same file puts it straight back.
 
-If you want the file *gone* rather than untracked, that is Explorer's own Delete, or **Del** in the
-commit window's file list.
-
 A file Git has never seen has nothing to remove, and says so rather than doing anything.
 
-**Both entries act on everything you selected.** Select five files and Add stages all five; select a
+**Delete** is the one that takes the file off your disk, and it does two things in one gesture: the
+file goes to the **Recycle Bin**, and whatever Git was tracking under it comes out of the index — so
+the removal is already a `D` row waiting to be committed rather than something to notice later.
+
+The index comes out **first**, and that order is the safety of it. Dropping an index entry cannot touch
+your working tree, and Git refuses the one case it could get wrong — a staged version that differs from
+both your copy and the last commit — so a path Git will not take stops the whole thing with every file
+still exactly where it was. Nothing is forced, and it is never `git rm` that removes the file: the bin
+is.
+
+**Delete asks nothing**, for the same reason Explorer's own Delete does not. A confirmation is there to
+protect what cannot be recovered, and the Recycle Bin is where this comes back from. A file Git has
+never seen is deleted too — it simply leaves nothing to commit.
+
+Two things it refuses outright: anything that resolves outside this repository, and any symlink or
+junction, since following one would delete whatever it points at somewhere you never named.
+
+**All three act on everything you selected.** Select five files and Add stages all five; select a
 mixture of files and folders and Remove takes the lot out of the index in one command, folders
 included — everything under a folder stops being tracked and every file stays where it is. Anything in
-the selection Git is not tracking is left alone and counted in the message. If Git refuses — which it
-does only for a file whose staged version differs from both your copy and the last commit — or if
-something in the selection is not inside this repository, **none of them is touched**, so you never end
-up with half a removal you cannot reason about. A selection too large to fit on one command line is
-refused by name rather than trimmed: use the commit window's file list for those.
+the selection Git is not tracking is left alone by Remove and counted in the message. If Git refuses,
+or if something in the selection is not inside this repository, **none of them is touched**, so you
+never end up with half a removal you cannot reason about. A selection too large to fit on one command
+line is refused by name rather than trimmed: use the commit window's file list for those.
 
 ## Command line
 
@@ -491,7 +505,8 @@ flick pr <path>                  open a pull request for this branch
 flick log <path>                 commit history + combined diffs
 flick blame <file>               who wrote each line
 flick add <file>...              stage the files or folders named
-flick rm <file>...               delete them, staged; asks first
+flick rm <file>...               stop tracking them; the files stay on disk
+flick delete <file>...           recycle them and stage the deletions
 flick repo <path>                identity, remotes and this repository's defaults
 flick palette                    flick clone <path> [url]
 flick settings                   flick terminal <path>

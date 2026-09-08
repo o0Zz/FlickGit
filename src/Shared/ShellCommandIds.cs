@@ -151,8 +151,8 @@ internal static class ShellCommandIds
     /// root.
     ///
     /// Its own value rather than a narrowing of <see cref="ValueOnFolders"/>, because the two answer
-    /// different clicks and an item may want either. Add and Remove carry this one: each acts on
-    /// everything below the folder, which must not be reachable from a right-click that named no
+    /// different clicks and an item may want either. Add, Remove and Delete carry this one: each acts
+    /// on everything below the folder, which must not be reachable from a right-click that named no
     /// folder in particular.
     /// </summary>
     public const string ValueOnClickedFolders = "FlickGit.OnClickedFolders";
@@ -160,10 +160,10 @@ internal static class ShellCommandIds
     /// <summary>
     /// The item acts on the <b>whole selection</b> rather than on the item under the pointer.
     ///
-    /// Add and Remove, and only those two: they are the entries whose operand is a set, and the CLI
-    /// verbs behind them are the only two that read more than one positional path. Everything else —
-    /// Commit, Blame, Log — keeps being handed the first item, which is what it has always been given
-    /// and what its verb still expects in the slot after the path.
+    /// Add, Remove and Delete, and only those three: they are the entries whose operand is a set, and
+    /// the CLI verbs behind them are the only three that read more than one positional path.
+    /// Everything else — Commit, Blame, Log — keeps being handed the first item, which is what it has
+    /// always been given and what its verb still expects in the slot after the path.
     ///
     /// It travels as a registry value rather than as a verb name the handler knows, for the reason
     /// every other flag here does: the DLL holds no interface text and no verb spellings of its own,

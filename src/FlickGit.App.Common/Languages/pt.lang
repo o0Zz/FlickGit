@@ -117,6 +117,8 @@ revert.partial = {0} ficheiros foram revertidos antes deste.
 file.added = {0} preparado
 file.removed = {0} removido do Git — o ficheiro continua no disco
 file.untracked = O Git não segue {0}, por isso não há nada para remover.
+file.deleted = {0} enviado para a Reciclagem, com a eliminação preparada
+file.deleted.untracked = {0} enviado para a Reciclagem. O Git não o seguia, por isso não há nada a confirmar.
 # {0} o caminho tal como foi dado, {1} raiz do repositório
 file.outside = {0} está fora de {1} e não será tocado.
 # {0} caminho relativo ao repositório
@@ -126,8 +128,10 @@ file.outside = {0} está fora de {1} e não será tocado.
 # {0} caminho relativo ao repositório, {1} quantos ficheiros seguidos foram removidos
 folder.removed = Tudo o que está em {0} foi removido do Git — os ficheiros continuam no disco
 folder.untracked = O Git não segue nada dentro de {0}, por isso não há nada para remover.
+folder.deleted = {0} e tudo o que está lá dentro enviados para a Reciclagem, com as eliminações preparadas
+folder.deleted.untracked = {0} e tudo o que está lá dentro enviados para a Reciclagem. O Git não seguia nada disso, por isso não há nada a confirmar.
 # {0} o caminho tal como foi dado
-folder.isroot = {0} é a raiz do repositório. É «Confirmar» que prepara um repositório inteiro — «Adicionar» e «Remover» atuam sobre uma pasta lá dentro.
+folder.isroot = {0} é a raiz do repositório. É «Confirmar» que prepara um repositório inteiro — «Adicionar», «Remover do Git» e «Eliminar do disco» atuam sobre um ficheiro ou uma pasta lá dentro.
 # {0} caminho, {1} ficheiros no total, {2} quantos são novos para o Git
 # {0} caminho, {1} ficheiros seguidos, {2} ficheiros que o Git nunca viu
 # {0} caminho relativo ao repositório
@@ -139,6 +143,11 @@ selection.untracked = O Git não segue nenhum dos {0} itens selecionados, por is
 # {0} how many were skipped because Git has nothing under them
 selection.remove.skipped = Outros {0} ficaram como estavam: o Git não os segue.
 selection.remove.skipped.one = Outro ficou como estava: o Git não o segue.
+selection.deleted = {0} itens enviados para a Reciclagem, com as eliminações preparadas
+selection.deleted.untracked = {0} itens enviados para a Reciclagem. O Git não os seguia, por isso não há nada a confirmar.
+selection.deleted.mixed = {0} itens enviados para a Reciclagem · {1} das eliminações estão preparadas
+delete.stopped.deleted = {0} deles já estavam na Reciclagem.
+delete.stopped.staged = {0} estão preparados como eliminados mas continuam no disco. «Adicionar» repõe o índice.
 selection.toomany = Estão {0} itens selecionados — mais do que uma linha de comandos consegue transportar. Abra a janela de commit e trate deles a partir da lista de ficheiros.
 
 # ---- visualizador de diferenças ----
@@ -613,6 +622,7 @@ action.log = Mostrar histórico…
 action.blame = Blame…
 action.add = Adicionar
 action.rm = Remover do Git
+action.delete = Eliminar do disco
 action.repo = Definições do repositório…
 action.submodule = Submódulos…
 action.clone = Clonar…

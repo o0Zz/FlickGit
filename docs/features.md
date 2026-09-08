@@ -11,9 +11,9 @@ something the user can see, click or press.
 |---|---|
 | `Ctrl+Alt+G` | Commit window on the folder Explorer is showing. No Explorer folder behind it → nothing opens. |
 | `Ctrl+Alt+R` | Repository palette. |
-| Explorer right-click on a folder / background / drive | *Pull (rebase)*, *Commit / Push…*, *Back to the primary branch*, then a **FlickGit ▸** submenu: Show log…, Branches…, Tags…, Submodules…, Stashes…, Push, Pull request…, Repository settings…, Clone…, Fetch (prune), Open terminal here, Add, Remove from Git. |
-| Explorer right-click on a **file** | **FlickGit ▸** Blame…, Add, Remove from Git. |
-| Explorer right-click on a **folder inside a repository** | Add / Remove from Git act on everything below it. |
+| Explorer right-click on a folder / background / drive | *Pull (rebase)*, *Commit / Push…*, *Back to the primary branch*, then a **FlickGit ▸** submenu: Show log…, Branches…, Tags…, Submodules…, Stashes…, Push, Pull request…, Repository settings…, Clone…, Fetch (prune), Open terminal here, Add, Remove from Git, Delete. |
+| Explorer right-click on a **file** | **FlickGit ▸** Blame…, Add, Remove from Git, Delete. |
+| Explorer right-click on a **folder inside a repository** | Add / Remove from Git / Delete act on everything below it. |
 | Tray icon (left **or** right click) | Recent repositories ▸, Settings, About, Exit. |
 | `flick <verb>` from a terminal | The same code path as the menu. |
 

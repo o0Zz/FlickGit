@@ -39,8 +39,8 @@ public enum VerbKind
     /// discards nothing. It is also the way back from <see cref="Remove"/>, which leaves the file on
     /// disk for this to pick up again.
     ///
-    /// <b>The two verbs that take a path list.</b> Explorer hands over every item that was selected,
-    /// and acting on the first one and silently dropping the rest is what this used to do.
+    /// <b>The three verbs that take a path list.</b> Explorer hands over every item that was
+    /// selected, and acting on the first one and silently dropping the rest is what this used to do.
     /// </summary>
     Add,
 
@@ -52,12 +52,33 @@ public enum VerbKind
     /// <b>It destroys nothing, so it asks nothing.</b> Each path becomes a staged deletion beside the
     /// untracked file it left behind, and <see cref="Add"/> on the same path is the way back.
     ///
-    /// Spelled <c>rm</c> rather than <c>remove</c> or <c>delete</c>, because it is <i>exactly</i>
-    /// <c>git rm</c> and a second word for it would be a second thing to remember. What it is not is a
-    /// delete: a path Git has nothing under is reported rather than removed, because Explorer's own
-    /// Delete is the thing that removes a file.
+    /// Spelled <c>rm</c> rather than <c>remove</c>, because it is <i>exactly</i> <c>git rm</c> and a
+    /// second word for it would be a second thing to remember. What it is not is a delete: a path Git
+    /// has nothing under is reported rather than removed, and <see cref="Delete"/> is the verb that
+    /// takes the file off the disk.
     /// </summary>
     Remove,
+
+    /// <summary>
+    /// <b>The file goes, and the deletion is staged.</b> The selection is sent to the Recycle Bin, and
+    /// whatever Git was tracking under it comes out of the index in the same gesture — so the removal
+    /// is a <c>D</c> row ready to commit rather than something to notice later.
+    ///
+    /// <b>The index comes out first, and the order is the safety.</b> <c>git rm --cached</c> is
+    /// all-or-nothing over its pathspecs and cannot touch the working tree, so a path Git refuses
+    /// stops the whole gesture with every file still on disk. Reversed, the file would already be
+    /// gone by the time Git said no.
+    ///
+    /// <b>It is still <c>--cached</c>, and never <c>-f</c>.</b> Git is not the thing that deletes here
+    /// — the bin is — which is what keeps CLAUDE.md's rule intact: no removal FlickGit issues can
+    /// reach the working tree, and what does reach it is recoverable by a gesture the user already
+    /// knows. That is also why this asks nothing, exactly as <c>Del</c> in the commit window's file
+    /// list does not.
+    ///
+    /// <b>The third verb that takes a path list</b>, for the reason <see cref="Add"/> gives: Explorer
+    /// hands over every item that was selected.
+    /// </summary>
+    Delete,
 
     Clone,
 
@@ -140,8 +161,8 @@ public enum VerbKind
 }
 
 /// <param name="Path">
-/// The repository or folder it applies to. Defaults to the working directory. For the two verbs that
-/// take a selection this is its first entry, so repository resolution has one path to work from
+/// The repository or folder it applies to. Defaults to the working directory. For the three verbs
+/// that take a selection this is its first entry, so repository resolution has one path to work from
 /// whatever the verb.
 /// </param>
 /// <param name="Argument">The optional second token: a branch for `switch`, a URL for `clone`.</param>
@@ -153,10 +174,10 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
     /// <summary>
     /// Every path the verb applies to.
     ///
-    /// <b>For all but two verbs that is exactly <see cref="Path"/></b>, which is why the default is
+    /// <b>For all but three verbs that is exactly <see cref="Path"/></b>, which is why the default is
     /// derived rather than written out at a dozen construction sites: <c>commit</c> and <c>blame</c>
     /// and the rest apply to one thing, and a list there would be a second spelling of the same fact.
-    /// <c>add</c> and <c>rm</c> set it, because Explorer hands them a selection.
+    /// <c>add</c>, <c>rm</c> and <c>delete</c> set it, because Explorer hands them a selection.
     ///
     /// Empty means the selection was <i>refused</i> rather than absent — see the <c>--too-many</c>
     /// spelling in <c>Parse</c>. It never means "so use the working directory": that default is
@@ -171,7 +192,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
 
     /// <summary>
     /// Parses <c>flick &lt;verb&gt; [path] [argument]</c>, or <c>flick &lt;verb&gt; &lt;path&gt;...</c>
-    /// for the two that take a selection. Hand-rolled: a command-line library would be another assembly
+    /// for the three that take a selection. Hand-rolled: a command-line library would be another assembly
     /// to load before the first window appears, and the grammar is one verb plus its positional
     /// arguments.
     /// </summary>
@@ -233,6 +254,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
             "blame" => VerbKind.Blame,
             "add" => VerbKind.Add,
             "rm" => VerbKind.Remove,
+            "delete" => VerbKind.Delete,
             "repo" => VerbKind.Repo,
             "terminal" => VerbKind.Terminal,
             "clone" => VerbKind.Clone,
@@ -255,11 +277,11 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
         if (kind is null)
             return new Verb(VerbKind.Help, null, null, $"Unknown command '{head}'.");
 
-        //`add` and `rm` act on a selection, so every trailing token is a path. Every other verb keeps
-        //`args[2]` for its own second token -- a branch for `switch`, a name for `tag`, a message for
-        //`stash` -- which is why this is a switch on the kind and not a rule about trailing arguments.
-        //Made general, `flick tag . v1.0` would read the tag name as a second path.
-        if (kind.Value is VerbKind.Add or VerbKind.Remove)
+        //`add`, `rm` and `delete` act on a selection, so every trailing token is a path. Every other
+        //verb keeps `args[2]` for its own second token -- a branch for `switch`, a name for `tag`, a
+        //message for `stash` -- which is why this is a switch on the kind and not a rule about
+        //trailing arguments. Made general, `flick tag . v1.0` would read the tag name as a second path.
+        if (kind.Value is VerbKind.Add or VerbKind.Remove or VerbKind.Delete)
             return Selection(kind.Value, args, fallbackPath);
 
         string? path = args.Count > 1 ? args[1] : null;
@@ -274,8 +296,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
     }
 
     /// <summary>
-    /// <c>flick add &lt;path&gt;...</c> and <c>flick rm &lt;path&gt;...</c>, whose whole tail is a path
-    /// list.
+    /// <c>flick add &lt;path&gt;...</c>, <c>flick rm &lt;path&gt;...</c> and
+    /// <c>flick delete &lt;path&gt;...</c>, whose whole tail is a path list.
     ///
     /// <b><c>--too-many</c> is the shell handler saying the selection would not fit on a command
     /// line</b>, and it arrives carrying the count and no paths at all. A truncated list is the one
@@ -363,7 +385,8 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick log <path>                    commit history; multi-select for a combined diff
           flick blame <file>                  who last touched each line, and what was there before
           flick add <path>...                 stage files or folders, tracking what is new
-          flick rm <path>...                  delete files or folders and stage the deletions; asks first
+          flick rm <path>...                  stop tracking files or folders; they stay on disk
+          flick delete <path>...              recycle files or folders and stage the deletions
           flick repo <path>                   the identity it commits as, its remotes, its defaults
           flick submodule <path>              submodules: add, remove, initialise
           flick terminal <path>               open a terminal there

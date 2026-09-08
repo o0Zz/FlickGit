@@ -16,8 +16,8 @@ using FlickGit.Tags;
 namespace FlickGit.App.CommandLine;
 
 /// <summary>
-/// The verbs that answer with text about a repository: status, switch, tag, push, and the two that
-/// act on one file.
+/// The verbs that answer with text about a repository: status, switch, tag, push, and the three that
+/// act on a selection of files.
 ///
 /// Text rather than a window is the product's distinction, not this file's: the CLI stub waits for
 /// exactly these and forwards their exit code, and refuses to wait for the ones that open something.
@@ -36,6 +36,7 @@ public sealed class RepositoryVerbs(
     TagService tags,
     StashService stashes,
     TrackingService files,
+    ITrash trash,
     UpstreamConsent consent,
     IDialogs dialogs)
 {
@@ -403,6 +404,143 @@ public sealed class RepositoryVerbs(
         return VerbResult.Exit(ExitCodes.Success);
     }
 
+    /// <summary>
+    /// `flick delete &lt;path&gt;...` — the menu's Delete on whatever was selected: <b>the file goes,
+    /// and the deletion is staged</b>.
+    ///
+    /// This is the one entry on the file menu that takes something off the disk, and the difference
+    /// between it and <see cref="RemoveAsync"/> is exactly that. Remove answers "stop tracking this,
+    /// keep my file"; this answers "get rid of this", which for a tracked path is two facts — the file
+    /// is gone, and Git has been told so.
+    ///
+    /// <b>The index comes out first, and the order is the whole safety of it.</b>
+    /// <c>git rm --cached</c> is all-or-nothing over its pathspecs and cannot reach the working tree,
+    /// so a path Git refuses — the one state it refuses unforced, where the staged version differs
+    /// from both HEAD and the copy on disk — stops the gesture with every file still exactly where it
+    /// was. Reversed, the file would already be in the bin by the time Git said no.
+    ///
+    /// <b>It is the bin that deletes, never Git.</b> The vector still carries <c>--cached</c> and
+    /// still carries no <c>-f</c>, so CLAUDE.md's rule holds unchanged: no removal FlickGit issues can
+    /// reach the working tree. What reaches it is <see cref="ITrash"/>, whose undo is a gesture the
+    /// user already knows.
+    ///
+    /// <b>So it asks nothing</b>, exactly as <c>Del</c> in the commit window's file list does not, and
+    /// exactly as Explorer's own Delete does not. A confirmation exists to protect what cannot be
+    /// recovered, and the Recycle Bin is what makes this recoverable.
+    ///
+    /// <b>An untracked path is deleted too, and runs no Git command at all.</b> Unlike a removal there
+    /// is nothing for it to be skipped out of: the user asked for the file to go, and Git having never
+    /// seen it changes only whether there is anything to commit afterwards.
+    /// </summary>
+    public async Task<VerbResult> DeleteAsync(
+        VerbOutput output,
+        RepositoryInfo repository,
+        IReadOnlyList<string> paths)
+    {
+        string title = Strings.Get("action.delete");
+
+        if (TargetsIn(output, title, repository, paths) is not { } targets)
+            return VerbResult.Exit(ExitCodes.NotARepository);
+
+        //Which of them Git holds anything under, so the one index command carries exactly those. A
+        //path with nothing in the index is not skipped the way a removal skips it -- it is still
+        //deleted -- it simply has no index entry to drop.
+        var tracked = new List<TargetPath>(targets.Count);
+
+        foreach (TargetPath target in targets)
+        {
+            if (await files
+                    .TrackedCountAsync(repository, target.Relative, CancellationToken.None)
+                    .ConfigureAwait(true) > 0)
+            {
+                tracked.Add(target);
+            }
+        }
+
+        //The index, before anything leaves the disk. See the summary: this is the half that can refuse
+        //without having done anything, so it goes first.
+        if (tracked.Count > 0)
+        {
+            TrackingResult result = await files
+                .UntrackAsync(repository, [.. tracked.Select(t => t.Relative)], CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (!result.Succeeded)
+            {
+                output.Fail(title, result.Error ?? string.Empty);
+                return VerbResult.Exit(ExitCodes.GitError);
+            }
+        }
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            DeleteOutcome outcome = trash.Delete(repository.Root, targets[i].Relative);
+
+            if (outcome.Succeeded)
+                continue;
+
+            //Stopped part-way. Everything still on disk whose index entry was already dropped is a
+            //staged deletion over a file that is still there, which is a state the user has to be told
+            //about -- `flick add` on those paths is the way back.
+            int stranded = targets.Skip(i).Count(tracked.Contains);
+
+            if (Stopped(outcome.Message, i, stranded) is { } reason)
+                output.Fail(title, reason);
+
+            return VerbResult.Exit(ExitCodes.RefusedForSafety);
+        }
+
+        //The repository, not the verb: see AddAsync.
+        output.Say(repository.Name, Deleted(targets, tracked.Count));
+        return VerbResult.Exit(ExitCodes.Success);
+    }
+
+    /// <summary>
+    /// What the delete did, in the words the batch earns.
+    ///
+    /// Three shapes rather than one total, because the two halves of the gesture did different things
+    /// and a single number covering both could only report it by naming neither: everything selected
+    /// was deleted, and only what Git was tracking has a deletion to commit.
+    /// </summary>
+    private static string Deleted(IReadOnlyList<TargetPath> targets, int staged) =>
+        staged == targets.Count
+            ? targets.Count == 1
+                ? Strings.Get(targets[0].IsFolder ? "folder.deleted" : "file.deleted", targets[0].Relative)
+                : Strings.Get("selection.deleted", targets.Count)
+        : staged == 0
+            ? targets.Count == 1
+                ? Strings.Get(
+                    targets[0].IsFolder ? "folder.deleted.untracked" : "file.deleted.untracked",
+                    targets[0].Relative)
+                : Strings.Get("selection.deleted.untracked", targets.Count)
+        : Strings.Get("selection.deleted.mixed", targets.Count, staged);
+
+    /// <summary>
+    /// What to say when the bin stopped part-way, or null when there is nothing of ours to add.
+    ///
+    /// A null <paramref name="message"/> is the shell having already put up its own error, in the
+    /// system's words about a system operation — so the sentences here are only the two facts it
+    /// cannot know: how much of the selection had already gone, and how many index entries are now
+    /// describing a deletion of a file that is still on disk.
+    /// </summary>
+    private static string? Stopped(string? message, int deleted, int stranded)
+    {
+        const string Separator = "\n\n";
+
+        List<string> parts = [];
+
+        if (message is { Length: > 0 })
+            parts.Add(message);
+
+        if (deleted > 0)
+            parts.Add(Strings.Get("delete.stopped.deleted", deleted));
+
+        if (stranded > 0)
+            parts.Add(Strings.Get("delete.stopped.staged", stranded));
+
+        return parts.Count == 0 ? null : string.Join(Separator, parts);
+    }
+
     /// <summary>What the removal did, in the words the batch earns.</summary>
     private static string Removed(IReadOnlyList<TargetPath> tracked) =>
         tracked.Count == 1
@@ -465,14 +603,12 @@ public sealed class RepositoryVerbs(
 
 
     /// <param name="Relative">The repository-relative, forward-slashed path Git speaks.</param>
-    /// <param name="IsFolder">
-    /// Everything below it is in scope, so it is counted and confirmed before anything runs.
-    /// </param>
+    /// <param name="IsFolder">Everything below it is in scope, which is what the wording says.</param>
     private sealed record TargetPath(string Relative, bool IsFolder);
 
     /// <summary>
-    /// The clicked path, as Git speaks it — or null after saying why Add and Remove will not act
-    /// on it.
+    /// The clicked path, as Git speaks it — or null after saying why Add, Remove and Delete will not
+    /// act on it.
     ///
     /// Two refusals, and the first is the one a terminal reaches: <c>flick add</c> with no path
     /// defaults to the working directory, so <c>flick add</c> typed at a repository root is one
@@ -488,8 +624,8 @@ public sealed class RepositoryVerbs(
     /// question: a path that resolves outside the root is either a bug or an attack, and this is not
     /// the layer that guesses which.
     ///
-    /// A directory is no longer one of them. It sets <c>IsFolder</c>, and the caller does the
-    /// counting and the asking that earns it.
+    /// A directory is no longer one of them. It sets <c>IsFolder</c>, and the caller says so in the
+    /// wording it reports.
     /// </summary>
     private static TargetPath? PathIn(
         VerbOutput output,

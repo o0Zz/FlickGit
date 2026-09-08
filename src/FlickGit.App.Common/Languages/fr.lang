@@ -117,6 +117,8 @@ revert.partial = {0} fichiers ont été rétablis avant celui-ci.
 file.added = {0} indexé
 file.removed = {0} retiré de Git — le fichier est toujours sur le disque
 file.untracked = Git ne suit pas {0} : il n'y a rien à retirer.
+file.deleted = {0} mis à la Corbeille, suppression indexée
+file.deleted.untracked = {0} mis à la Corbeille. Git ne le suivait pas : il n'y a rien à valider.
 # {0} le chemin tel qu'il a été donné, {1} racine du dépôt
 file.outside = {0} est en dehors de {1} et ne sera pas touché.
 # {0} chemin relatif au dépôt
@@ -126,8 +128,10 @@ file.outside = {0} est en dehors de {1} et ne sera pas touché.
 # {0} chemin relatif au dépôt, {1} nombre de fichiers suivis supprimés
 folder.removed = Tout le contenu de {0} a été retiré de Git — les fichiers sont toujours sur le disque
 folder.untracked = Git ne suit rien sous {0} : il n'y a rien à retirer.
+folder.deleted = {0} et tout son contenu mis à la Corbeille, suppressions indexées
+folder.deleted.untracked = {0} et tout son contenu mis à la Corbeille. Git n'en suivait rien : il n'y a rien à valider.
 # {0} le chemin tel qu'il a été donné
-folder.isroot = {0} est la racine du dépôt. C'est « Valider » qui indexe un dépôt entier — « Ajouter » et « Supprimer » agissent sur un dossier à l'intérieur.
+folder.isroot = {0} est la racine du dépôt. C'est « Valider » qui indexe un dépôt entier — « Ajouter », « Retirer de Git » et « Supprimer du disque » agissent sur un fichier ou un dossier à l'intérieur.
 # {0} chemin, {1} fichiers au total, {2} dont Git n'a jamais vus
 # {0} chemin, {1} fichiers suivis, {2} fichiers que Git n'a jamais vus
 # {0} chemin relatif au dépôt
@@ -139,6 +143,11 @@ selection.untracked = Git ne suit aucun des {0} éléments sélectionnés : il n
 # {0} how many were skipped because Git has nothing under them
 selection.remove.skipped = {0} autres ont été laissés tels quels : Git ne les suit pas.
 selection.remove.skipped.one = Un autre a été laissé tel quel : Git ne le suit pas.
+selection.deleted = {0} éléments mis à la Corbeille, suppressions indexées
+selection.deleted.untracked = {0} éléments mis à la Corbeille. Git ne les suivait pas : il n'y a rien à valider.
+selection.deleted.mixed = {0} éléments mis à la Corbeille · {1} des suppressions sont indexées
+delete.stopped.deleted = {0} d'entre eux étaient déjà à la Corbeille.
+delete.stopped.staged = {0} sont indexés comme supprimés mais sont toujours sur le disque. « Ajouter » rétablit l'index.
 selection.toomany = {0} éléments sont sélectionnés — plus qu'une ligne de commande ne peut en porter. Ouvrez la fenêtre de commit et traitez-les depuis la liste des fichiers.
 
 # ---- visionneuse de diff ----
@@ -613,6 +622,7 @@ action.log = Afficher le journal…
 action.blame = Blame…
 action.add = Ajouter
 action.rm = Retirer de Git
+action.delete = Supprimer du disque
 action.repo = Paramètres du dépôt…
 action.submodule = Sous-modules…
 action.clone = Cloner…

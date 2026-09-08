@@ -165,30 +165,37 @@ revert.partial = {0} files were reverted before this one.
 
 # ---- the Explorer file menu ----
 # Right-click a *file*, beside Blame. `add` stages it, which for a file Git has never seen is what
-# starts tracking it; `rm` takes it out of the index and leaves it on disk. Neither asks: neither
-# deletes anything.
+# starts tracking it; `rm` takes it out of the index and leaves it on disk; `delete` sends it to the
+# Recycle Bin and stages the deletion. None of the three asks -- the first two destroy nothing, and
+# the third is undone from the bin.
 # {0} repository-relative path
 file.added = Staged {0}
 file.removed = Removed {0} from Git — the file is still on disk
 file.untracked = Git is not tracking {0}, so there is nothing for it to remove.
+# `delete` is the third entry, and the only one that takes the file off the disk. It goes to the
+# Recycle Bin and the index entry is dropped in the same gesture, so the deletion arrives staged.
+file.deleted = Deleted {0} to the Recycle Bin, and staged the deletion
+file.deleted.untracked = Deleted {0} to the Recycle Bin. Git was not tracking it, so there is nothing to commit.
 # {0} the path as it was given, {1} repository root
 file.outside = {0} is outside {1} and will not be touched.
 
 # ---- the Explorer folder menu ----
-# The same Add and Remove, on a folder the user pointed at. Both act on everything below it, and
-# neither asks: `add` stages what is under the folder and `rm` untracks it with `git rm -r --cached`,
-# which cannot reach the working tree. The folder itself is never deleted.
+# The same three, on a folder the user pointed at. All act on everything below it: `add` stages what
+# is under the folder, `rm` untracks it with `git rm -r --cached`, which cannot reach the working
+# tree, and `delete` sends the folder to the Recycle Bin after dropping those index entries.
 # {0} repository-relative path
 folder.removed = Removed everything under {0} from Git — the files are still on disk
 folder.untracked = Git is not tracking anything under {0}, so there is nothing for it to remove.
+folder.deleted = Deleted {0} and everything under it to the Recycle Bin, and staged the deletions
+folder.deleted.untracked = Deleted {0} and everything under it to the Recycle Bin. Git was not tracking any of it, so there is nothing to commit.
 # {0} the path as it was given. Reached from a terminal, never from the menu: the entries are not
 # drawn on a repository root.
-folder.isroot = {0} is the repository root. Commit is what stages a whole repository — Add and Remove act on a folder inside it.
+folder.isroot = {0} is the repository root. Commit is the entry for a whole repository — Add, Remove and Delete act on a file or a folder inside it.
 
 # ---- the Explorer menu on more than one selected item ----
-# Add and Remove act on the whole selection, in one Git command each. A selection of one keeps the
-# file.* and folder.* wording above: it is the same operation, and "1 items" would be a regression in
-# the common case.
+# Add, Remove and Delete act on the whole selection, in one Git command each. A selection of one
+# keeps the file.* and folder.* wording above: it is the same operation, and "1 items" would be a
+# regression in the common case.
 # {0} how many items were staged
 selection.added = Staged {0} items.
 # {0} how many items were removed from the index
@@ -201,6 +208,19 @@ selection.untracked = Git is not tracking any of the {0} selected items, so ther
 # {0} how many were skipped because Git has nothing under them
 selection.remove.skipped = {0} more were left alone: Git is not tracking them.
 selection.remove.skipped.one = One more was left alone: Git is not tracking it.
+# Delete acts on everything selected, so there is nothing to skip -- what varies is only how much of
+# it Git was tracking, and therefore how much of it there is to commit.
+# {0} how many items were deleted
+selection.deleted = Deleted {0} items to the Recycle Bin, and staged the deletions
+selection.deleted.untracked = Deleted {0} items to the Recycle Bin. Git was not tracking them, so there is nothing to commit.
+# {0} how many items were deleted, {1} how many of those deletions are staged
+selection.deleted.mixed = Deleted {0} items to the Recycle Bin · {1} of the deletions are staged
+# Said after the bin stopped part-way, beneath whatever the shell already reported.
+# {0} how many had already gone to the Recycle Bin
+delete.stopped.deleted = {0} of them had already gone to the Recycle Bin.
+# The state a half-finished delete leaves: the index entry is gone but the file is not.
+# {0} how many paths are staged as deleted while still on disk
+delete.stopped.staged = {0} are staged as deleted but are still on disk. Press Add on them to put the index back.
 # The selection was longer than one command line can carry, so the handler sent the count instead of
 # a shortened list -- nothing was staged and nothing was removed. {0} how many were selected
 selection.toomany = {0} items are selected — more than one command line can carry. Open the commit window and stage or delete them from the file list.
@@ -888,6 +908,7 @@ action.log = Show log…
 action.blame = Blame…
 action.add = Add
 action.rm = Remove from Git
+action.delete = Delete
 action.repo = Repository settings…
 action.submodule = Submodules…
 action.stash = Stashes…

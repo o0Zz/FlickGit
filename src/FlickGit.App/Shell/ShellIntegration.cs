@@ -289,9 +289,9 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
             action.Surfaces.HasFlag(ActionSurfaces.Menu) ? "1" : "0",
             RegistryValueKind.String);
 
-        //Narrower than OnFolders, and not implied by it: a folder the user pointed at. Add and Remove
-        //are the two that act on everything below it, so they are the two that must not be reachable
-        //from a background, a drive or the repository root.
+        //Narrower than OnFolders, and not implied by it: a folder the user pointed at. Add, Remove
+        //and Delete are the three that act on everything below it, so they are the three that must not
+        //be reachable from a background, a drive or the repository root.
         item.SetValue(
             ShellCommandIds.ValueOnClickedFolders,
             action.Surfaces.HasFlag(ActionSurfaces.Folder) ? "1" : "0",
@@ -299,12 +299,12 @@ public sealed class ShellIntegration(ActionCatalog catalog, ILog log)
 
         //Whether the handler hands over everything that was selected or only the item under the
         //pointer. Keyed off the verb rather than off a surface flag, because it is a fact about the
-        //verb's own grammar -- `add` and `rm` are the two that read more than one positional path,
-        //and handing a selection to a verb whose second slot means a branch or a tag name would turn
-        //the second file into an argument.
+        //verb's own grammar -- `add`, `rm` and `delete` are the three that read more than one
+        //positional path, and handing a selection to a verb whose second slot means a branch or a tag
+        //name would turn the second file into an argument.
         item.SetValue(
             ShellCommandIds.ValueOnSelection,
-            action.Cli is "add" or "rm" ? "1" : "0",
+            action.Cli is "add" or "rm" or "delete" ? "1" : "0",
             RegistryValueKind.String);
 
         //Only the Commit entry. On Pull it would read as "pull *into* this branch" -- true, and saying

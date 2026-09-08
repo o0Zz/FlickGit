@@ -134,6 +134,7 @@ class FinderSync: FIFinderSync {
             add(one, "Blame…", "blame")
             add(one, "Add", "add")
             add(one, "Remove from Git", "rm")
+            add(one, "Delete from disk", "delete")
 
             let item = NSMenuItem(title: "FlickGit", action: nil, keyEquivalent: "")
             item.submenu = one
@@ -162,9 +163,12 @@ class FinderSync: FIFinderSync {
 
         // Only on a folder the user pointed at, never on the background of one: on a folder these
         // act on everything below it, and on a repository root that is what Commit already is.
+        // `delete` is the one that takes the folder off the disk -- to the Trash, so the undo is
+        // Finder's own Put Back, which is why it asks nothing either.
         if menuKind == .contextualMenuForItems {
             add(more, "Add", "add")
             add(more, "Remove from Git", "rm")
+            add(more, "Delete from disk", "delete")
         }
 
         let item = NSMenuItem(title: "FlickGit", action: nil, keyEquivalent: "")

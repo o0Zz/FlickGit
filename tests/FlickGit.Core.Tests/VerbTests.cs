@@ -313,16 +313,19 @@ epo");
     }
 
     /// <summary>
-    /// `add` and `rm` take every trailing token as a path, because Explorer hands them a selection.
+    /// `add`, `rm` and `delete` take every trailing token as a path, because Explorer hands them a
+    /// selection.
     ///
     /// In scope under "the command-line grammar". Acting on the first token and silently dropping the
     /// rest is the bug this exists to pin: it reported success, so nothing anywhere said that six of
-    /// the seven files the user selected had been left alone.
+    /// the seven files the user selected had been left alone. It matters most for `delete`, where the
+    /// six left alone would be six files the user asked to be rid of and still has.
     /// </summary>
     [Theory]
     [InlineData("add")]
     [InlineData("rm")]
-    public void Add_and_rm_take_every_trailing_token_as_a_path(string spelling)
+    [InlineData("delete")]
+    public void Selection_verbs_take_every_trailing_token_as_a_path(string spelling)
     {
         Verb verb = Verb.Parse(
             [spelling, @"C:\dev\repo\a.cs", @"C:\dev\repo\notes with a space.md", @"C:\dev\repo\naïve"],
@@ -342,7 +345,7 @@ epo");
     }
 
     /// <summary>
-    /// Only those two read more than one positional path.
+    /// Only those three read more than one positional path.
     ///
     /// In scope under "the command-line grammar", and the assertion that pins the reason the path list
     /// is a switch on the kind rather than a rule about trailing arguments: `tag`, `stash`, `switch`
@@ -354,7 +357,7 @@ epo");
     [InlineData("stash", "wip: pooling")]
     [InlineData("switch", "feature/storage-gw")]
     [InlineData("clone", "https://example.com/x.git")]
-    public void Only_add_and_rm_read_more_than_one_positional_path(string spelling, string second)
+    public void Only_the_selection_verbs_read_more_than_one_positional_path(string spelling, string second)
     {
         Verb verb = Verb.Parse([spelling, @"C:\dev\repo", second], @"C:\dev");
 
@@ -386,7 +389,27 @@ epo");
     }
 
     /// <summary>
-    /// With no path given at all, the two selection verbs still default to the working directory.
+    /// The same refusal on `delete`, which is the verb it exists for.
+    ///
+    /// In scope under "the safety rules". A truncated Add stages too little and a truncated Remove
+    /// untracks too little; a truncated Delete <b>deletes the wrong files</b> — the first four hundred
+    /// of five hundred, chosen by whatever order Explorer handed them over in. The empty list is what
+    /// makes that impossible, and `VerbRunner` refuses it by name before a repository is resolved.
+    /// </summary>
+    [Fact]
+    public void A_delete_too_large_for_one_command_line_carries_no_path_at_all()
+    {
+        Verb verb = Verb.Parse(["delete", "--too-many", "742"], @"C:\dev\repo");
+
+        Assert.Equal(VerbKind.Delete, verb.Kind);
+        Assert.Null(verb.Error);
+        Assert.Empty(verb.Paths);
+        Assert.Null(verb.Path);
+        Assert.Equal("742", verb.Argument);
+    }
+
+    /// <summary>
+    /// With no path given at all, the three selection verbs still default to the working directory.
     ///
     /// In scope under "the command-line grammar": CLAUDE.md says `&lt;path&gt;` defaults to the current
     /// directory for every verb, and the path list must not have quietly taken that away. It is also

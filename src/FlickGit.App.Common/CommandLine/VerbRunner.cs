@@ -55,7 +55,7 @@ public sealed class VerbRunner(
     private static bool NeedsRepository(VerbKind kind) =>
         kind is VerbKind.Commit or VerbKind.Status or VerbKind.PullRebase or VerbKind.Back
             or VerbKind.Switch or VerbKind.Push or VerbKind.Tag or VerbKind.Log
-            or VerbKind.Blame or VerbKind.Add or VerbKind.Remove
+            or VerbKind.Blame or VerbKind.Add or VerbKind.Remove or VerbKind.Delete
             or VerbKind.Repo or VerbKind.PullRequest
             or VerbKind.Submodule or VerbKind.Stash;
 
@@ -128,10 +128,15 @@ public sealed class VerbRunner(
             //Exit 5 rather than 4. Nothing was acted on, and refusing rather than truncating is the
             //safety property itself -- a removal carrying the first four hundred of five hundred
             //selected files is a removal the user never asked for.
-            if (verb.Kind is VerbKind.Add or VerbKind.Remove && verb.Paths.Count == 0)
+            if (verb.Kind is VerbKind.Add or VerbKind.Remove or VerbKind.Delete && verb.Paths.Count == 0)
             {
                 output.Fail(
-                    Strings.Get(verb.Kind is VerbKind.Add ? "action.add" : "action.rm"),
+                    Strings.Get(verb.Kind switch
+                    {
+                        VerbKind.Add => "action.add",
+                        VerbKind.Remove => "action.rm",
+                        _ => "action.delete",
+                    }),
                     Strings.Get("selection.toomany", verb.Argument ?? "?"));
 
                 return VerbResult.Exit(ExitCodes.RefusedForSafety);
@@ -213,6 +218,7 @@ public sealed class VerbRunner(
             //which is why they are the repository verbs' and not the window verbs'.
             VerbKind.Add => await repositoryVerbs.AddAsync(output, repository!, verb.Paths).ConfigureAwait(true),
             VerbKind.Remove => await repositoryVerbs.RemoveAsync(output, repository!, verb.Paths).ConfigureAwait(true),
+            VerbKind.Delete => await repositoryVerbs.DeleteAsync(output, repository!, verb.Paths).ConfigureAwait(true),
 
             //`status` is text, always. It used to open the commit window when there was no console to
             //print into, which is every click -- so the catalog's entry for it was the root Commit

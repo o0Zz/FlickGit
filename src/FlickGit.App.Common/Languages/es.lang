@@ -117,6 +117,8 @@ revert.partial = Se revirtieron {0} archivos antes de este.
 file.added = {0} preparado
 file.removed = {0} quitado de Git — el archivo sigue en el disco
 file.untracked = Git no sigue {0}, así que no hay nada que quitar.
+file.deleted = {0} enviado a la Papelera de reciclaje, con la eliminación preparada
+file.deleted.untracked = {0} enviado a la Papelera de reciclaje. Git no lo seguía, así que no hay nada que confirmar.
 # {0} la ruta tal como se dio, {1} raíz del repositorio
 file.outside = {0} está fuera de {1} y no se tocará.
 # {0} ruta relativa al repositorio
@@ -126,8 +128,10 @@ file.outside = {0} está fuera de {1} y no se tocará.
 # {0} ruta relativa al repositorio, {1} cuántos archivos seguidos se eliminaron
 folder.removed = Todo lo que hay bajo {0} se ha quitado de Git — los archivos siguen en el disco
 folder.untracked = Git no sigue nada bajo {0}, así que no hay nada que quitar.
+folder.deleted = {0} y todo su contenido enviados a la Papelera de reciclaje, con las eliminaciones preparadas
+folder.deleted.untracked = {0} y todo su contenido enviados a la Papelera de reciclaje. Git no seguía nada de ello, así que no hay nada que confirmar.
 # {0} la ruta tal como se dio
-folder.isroot = {0} es la raíz del repositorio. «Confirmar» es lo que prepara un repositorio entero — «Añadir» y «Eliminar» actúan sobre una carpeta dentro de él.
+folder.isroot = {0} es la raíz del repositorio. «Confirmar» es lo que prepara un repositorio entero — «Añadir», «Quitar de Git» y «Eliminar del disco» actúan sobre un archivo o una carpeta dentro de él.
 # {0} ruta, {1} archivos en total, {2} cuántos son nuevos para Git
 # {0} ruta, {1} archivos seguidos, {2} archivos que Git nunca ha visto
 # {0} ruta relativa al repositorio
@@ -139,6 +143,11 @@ selection.untracked = Git no sigue ninguno de los {0} elementos seleccionados, a
 # {0} how many were skipped because Git has nothing under them
 selection.remove.skipped = Otros {0} se han dejado como estaban: Git no los sigue.
 selection.remove.skipped.one = Otro se ha dejado como estaba: Git no lo sigue.
+selection.deleted = {0} elementos enviados a la Papelera de reciclaje, con las eliminaciones preparadas
+selection.deleted.untracked = {0} elementos enviados a la Papelera de reciclaje. Git no los seguía, así que no hay nada que confirmar.
+selection.deleted.mixed = {0} elementos enviados a la Papelera de reciclaje · {1} de las eliminaciones están preparadas
+delete.stopped.deleted = {0} de ellos ya estaban en la Papelera de reciclaje.
+delete.stopped.staged = {0} están preparados como eliminados pero siguen en el disco. «Añadir» restaura el índice.
 selection.toomany = Hay {0} elementos seleccionados — más de los que puede llevar una línea de comandos. Abre la ventana de commit y tratálos desde la lista de archivos.
 
 # ---- visor de diferencias ----
@@ -613,6 +622,7 @@ action.log = Mostrar historial…
 action.blame = Blame…
 action.add = Añadir
 action.rm = Quitar de Git
+action.delete = Eliminar del disco
 action.repo = Configuración del repositorio…
 action.submodule = Submódulos…
 action.clone = Clonar…

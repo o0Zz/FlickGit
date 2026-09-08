@@ -395,21 +395,31 @@ public sealed class ActionCatalog
         //No repository requirement: a terminal in a folder is useful whatever the folder is.
         new("terminal", VerbKind.Terminal, 160, ActionSurfaces.All, "terminal.ico", InMore: true),
 
-        //The two operations that put a path under Git's control or take it out again -- on a clicked
-        //file, and on a clicked folder. Last, and `rm` last of the two: these are the only entries in
-        //the submenu that act on something smaller than the repository.
+        //The three operations that put a path under Git's control, take it out again, or take it off
+        //the disk -- on a clicked file, and on a clicked folder. Last, and in that order: these are
+        //the only entries in the submenu that act on something smaller than the repository, and they
+        //read from the one that destroys nothing to the one that removes the file.
         //
-        //Neither deletes anything: `add` stages, and `rm` is `git rm --cached`, which takes the path
-        //out of the index and leaves every file where it is. `Folder` rather than `Menu` is still what
-        //keeps both off the folder background, the drive and the repository root -- one click on a
-        //directory reaches everything under it, and Commit is already the entry that stages a whole
-        //repository. See TrackingService for the rest of it.
+        //`Folder` rather than `Menu` is what keeps all three off the folder background, the drive and
+        //the repository root -- one click on a directory reaches everything under it, and Commit is
+        //already the entry that acts on a whole repository. See TrackingService for the rest of it.
         //
         //One entry each carrying both surfaces, not two entries: a built-in's id *is* its CLI verb,
         //so `add` can only be spelled once.
         new("add", VerbKind.Add, 170, ActionSurfaces.File | ActionSurfaces.Folder, "add.ico",
             InMore: true, NeedsRepository: true),
         new("rm", VerbKind.Remove, 180, ActionSurfaces.File | ActionSurfaces.Folder, "remove.ico",
+            InMore: true, NeedsRepository: true),
+
+        //The one entry on this menu that takes a file off the disk, and the last row for that reason.
+        //It is the Recycle Bin that removes it -- `git rm --cached` only drops the index entry, so
+        //the deletion arrives staged -- which is what makes it undoable by a gesture the user already
+        //knows and therefore what lets it ask nothing, exactly as Del does in the commit window.
+        //
+        //Its own icon, and the argument the Back entry makes applies here: this sits directly under
+        //Remove from Git, and wearing remove.ico would draw two adjacent rows as the same picture --
+        //the reading this menu can least afford, given one of them leaves every file where it is.
+        new("delete", VerbKind.Delete, 190, ActionSurfaces.File | ActionSurfaces.Folder, "delete.ico",
             InMore: true, NeedsRepository: true),
     ];
 

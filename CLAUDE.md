@@ -400,6 +400,7 @@ flick log <path>                     commit history; multi-select for a combined
 flick blame <file>                   who last touched each line, and what came before
 flick add <path>...                  stage files or folders, tracking what is new
 flick rm <path>...                   stop tracking files or folders; the files stay on disk
+flick delete <path>...               recycle files or folders and stage the deletions
 flick repo <path>                    identity, remotes and this repository's defaults
 flick terminal <path>                open a terminal there
 flick run <id> [path]                run a catalog action by id
@@ -1154,14 +1155,15 @@ public sealed record GitAction
 Pull (rebase)         ← + submodule update           FlickGit  ▸  Blame…
 Commit / Push…        ← branch in the label                      Add
 Back to primary       ← switch, then pull                        Remove from Git
-FlickGit            ▸
+FlickGit            ▸                                            Delete
       ├── Show log…          ├── Pull request…
       ├── Branches…          ├── Repository settings…
       ├── Tags…              ├── Clone…
       ├── Submodules…        ├── Fetch (prune)
       ├── Stashes…           ├── Open terminal here
       └── Push               ├── Add
-                             └── Remove from Git
+                             ├── Remove from Git
+                             └── Delete
 ```
 
 Three root entries, because those are the three the user *performs* all day — and the third is the
@@ -1172,24 +1174,45 @@ consulted. Everything else is one hover away, and there is still **no "More" ent
 entries *are* the menu and the submenu *is* the overflow. On a file the folder entries are absent rather than greyed, and `ActionSurfaces.File` is what
 puts an action there.
 
-**Add and Remove** are `TrackingService`, and both answer in text, so the CLI verbs are the same code
-path. They are the only entries that act on something smaller than the repository, which is why they
-sit last in the submenu and `rm` last of the two.
+**Add, Remove and Delete** are the only entries that act on something smaller than the repository,
+which is why they sit last in the submenu, in that order: from the one that destroys nothing to the one
+that takes the file off the disk. All three answer in text, so the CLI verbs are the same code path.
 
-**Neither of them deletes anything, and that is what settles every question about them.** Add stages;
+**Add and Remove delete nothing, and that is what settles every question about them.** Add stages;
 Remove is `git rm --cached`, which takes the paths out of the index and leaves every file exactly where
 it is. **So neither asks** — a confirmation exists to protect state that cannot be recovered, and here
-`flick add` on the same path is the way back. The gate, the counts and the one question went with the
-destructive step they were guarding.
+`flick add` on the same path is the way back.
 
-**They are also the only two that act on the whole selection**, and the only two whose verb reads more
-than one positional path — `ShellCommandIds.ValueOnSelection` is what says so, and every other entry
-is still handed the item under the pointer, because the token after its path means a branch or a tag
-name rather than a second path. One `git add`/`git rm --cached` carries the batch. A selection longer
-than one command line can carry is **refused with its count, never truncated** — `Launcher` measures
-the line and sends `--too-many <n>` instead, because a removal carrying the first four hundred of five
-hundred selected files is a removal nobody asked for. Both **report through a notification rather than
-a window**: the outcome of a batch is not a decision, and it must not cost a click — see
+**Delete is the one that does, and it is two facts in one gesture**: the selection goes to the Recycle
+Bin, and whatever Git was tracking under it comes out of the index — so the removal arrives as a `D`
+row ready to commit rather than as something to notice later. It is what Remove is *not*, which is why
+they are two entries rather than one with a modifier: "stop tracking this, keep my file" and "get rid
+of this" are different answers, and a menu that made the user infer which one they were pressing would
+be the wrong shape.
+
+**The index comes out first, and the order is the whole safety of it.** `git rm --cached` is
+all-or-nothing over its pathspecs and cannot reach the working tree, so a path Git refuses unforced —
+a staged version differing from both HEAD and the copy on disk — stops the gesture with every file
+still exactly where it was. Reversed, the file would already be in the bin by the time Git said no.
+**It is never Git that deletes**: the vector still carries `--cached` and still carries no `-f`, and
+what reaches the working tree is `ITrash`. So the rule holds unchanged — no removal FlickGit issues can
+reach the working tree — while what does reach it is recoverable by a gesture the user already knows.
+
+**So Delete asks nothing either**, exactly as `Del` in the commit window's file list does not and
+exactly as Explorer's own Delete does not: the bin is what a confirmation would otherwise have to stand
+in for. Its two refusals are `WorkingTreeDeleter`'s own and come before anything runs — nothing outside
+the resolved root, and no symlink or junction, since following one deletes whatever it points at
+somewhere nobody named. An untracked path is deleted too rather than skipped: Git having never seen it
+changes only whether there is anything to commit afterwards.
+
+**All three act on the whole selection**, and they are the only three whose verb reads more than one
+positional path — `ShellCommandIds.ValueOnSelection` is what says so, and every other entry is still
+handed the item under the pointer, because the token after its path means a branch or a tag name rather
+than a second path. One `git add`/`git rm --cached` carries the batch. A selection longer than one
+command line can carry is **refused with its count, never truncated** — `Launcher` measures the line
+and sends `--too-many <n>` instead, because a removal carrying the first four hundred of five hundred
+selected files is a removal nobody asked for. All three **report through a notification rather than a
+window**: the outcome of a batch is not a decision, and it must not cost a click — see
 **Notifications**.
 
 Remove keeps three rules. **Nothing is forced** — without `-f`, Git still refuses the one state where
@@ -1199,12 +1222,14 @@ is all-or-nothing over its pathspecs and Explorer's own Delete is what removes a
 **the pathspec cannot glob** — every command passes `:(literal)<path>`, or `a[1].txt` would match
 `a1.txt`.
 
-**On a folder both act on everything below it, and two things pay for that.** First, the surface:
+**On a folder all three act on everything below it, and two things pay for that.** First, the surface:
 `ActionSurfaces.Folder` is *not* `Menu`, so the entries are drawn on a folder the user pointed at and
 never on a folder background, a drive, or the repository root — where Commit is already the entry that
 stages everything, and where `flick add .` from a terminal is refused by name. Second, `-r` appears on
 exactly one argument vector and never without `--cached` beside it, which cannot reach the working
-tree. A test asserts there is no second.
+tree. A test asserts there is no second. Delete's folder half is the bin's own recursion —
+`DeleteDirectory` rather than `DeleteFile`, one undoable item — and no Git flag of ours is involved in
+it at all.
 
 ---
 
@@ -1455,6 +1480,10 @@ regardless of surface. **Force-push is never offered from any surface.**
 
 The one place that asks Git to discard uncommitted work is **Revert file**, which names a single path
 after `--` and sends the copy on disk to the Recycle Bin first.
+
+**Delete** removes a file from the working tree without being one of them: it is the Recycle Bin that
+removes it and `git rm --cached` that records it, in that order, so no Git command in the product ever
+reaches the working tree and nothing it does is unrecoverable.
 
 ---
 
