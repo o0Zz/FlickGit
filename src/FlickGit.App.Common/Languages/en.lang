@@ -64,6 +64,9 @@ console.starting = Starting…
 console.failed = The console could not be started.
 console.toggle = Console (Ctrl+`)
 
+console.maximise = Hide the commit area, so the console has the window
+console.restore = Show the commit area again
+
 # ---- file list columns ----
 
 # {0} staged added, {1} staged removed, {2} worktree added, {3} worktree removed

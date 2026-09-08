@@ -845,6 +845,16 @@ exactly, measured, so the `AttachConsole` and `CONOUT$` route — with its proce
 its shrink-then-grow ordering — is absent because it is not needed. Debounced at 100 ms, like the diff
 pane's re-diff.
 
+**Windows only, and not portable as built.** `FlickGit.App.Mac` does not have this pane and is not
+waiting for a port of it. Every mechanism here is Win32 with no macOS counterpart, and one of them
+decides the matter: **AppKit cannot embed another application's window**, so the whole strategy — let
+the OS draw a real terminal and put it inside ours — has no macOS version. Terminal.app cannot be
+reparented, and Avalonia's `NativeControlHost` embeds an `NSView` we create in-process, which is a
+different thing entirely. The only route there is `forkpty(3)` plus a VT parser and a cell renderer of
+our own: the same work ConPTY would have been here, without the cheap first cut that let this one prove
+itself before being paid for. **Nothing in `FlickGit.App.Common` was touched for the pane**, so the
+shared `CommitViewModel` and the mac window are unaffected; the five `console.*` strings ship in the mac
+binary unused, because the language files are shared by construction.
 **What it does not have.** No settings: the shell is a named constant, the height is a constant, and the
 splitter is not persisted, exactly as the two above it are not. No CLI verb — this is a pane in a
 window, not an operation. No theming: conhost brings its own font and palette and will look foreign,

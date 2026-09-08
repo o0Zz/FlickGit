@@ -132,6 +132,7 @@ public partial class ConsolePane : UserControl
     public void ReleaseFocus()
     {
         Host.ReleaseEscape();
+        _session?.Blur();
         IsConsoleFocused = false;
     }
 
@@ -159,9 +160,20 @@ public partial class ConsolePane : UserControl
         EscapeRequested?.Invoke();
     }
 
-    private void OnResizeSettled(object? sender, EventArgs e)
+    private void OnResizeSettled(object? sender, EventArgs e) => ResizeNow();
+
+    /// <summary>
+    /// Resizes the console to the pane's current size at once, skipping the debounce.
+    ///
+    /// For a change that is a jump rather than a drag — folding the commit area away — where waiting
+    /// 100 ms would show the shell at its old size in a pane that is already the height of the window.
+    /// The layout pass first, because the row heights were assigned a moment ago and the container has
+    /// not been arranged at its new size yet.
+    /// </summary>
+    public void ResizeNow()
     {
         _resizeDebounce.Stop();
+        UpdateLayout();
 
         (int width, int height) = Host.ClientSize;
         _session?.Resize(width, height);

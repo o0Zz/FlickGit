@@ -60,6 +60,9 @@ console.starting = Wird gestartet…
 console.failed = Die Konsole konnte nicht gestartet werden.
 console.toggle = Konsole (Strg+`)
 
+console.maximise = Commit-Bereich ausblenden, damit die Konsole das Fenster bekommt
+console.restore = Commit-Bereich wieder einblenden
+
 # ---- Dateiliste ----
 files.tooltip.split = Bereitgestellt +{0} -{1} · Arbeitsverzeichnis +{2} -{3}
 files.tooltip.untracked = Unversioniert — von Git nicht gezählt; Zeilen von der Festplatte gezählt.

@@ -12,9 +12,12 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />                <!-- 0 header -->
             <RowDefinition Height="Auto" />                <!-- 1 resolution bar -->
-            <RowDefinition Height="*" MinHeight="160" />   <!-- 2 files | diff -->
-            <RowDefinition Height="4" />                   <!-- 3 splitter -->
-            <RowDefinition Height="104" MinHeight="76" />  <!-- 4 commit message -->
+            <RowDefinition x:Name="FilesRow"
+                           Height="*" MinHeight="160" />   <!-- 2 files | diff -->
+            <RowDefinition x:Name="MessageSplitterRow"
+                           Height="4" />                   <!-- 3 splitter -->
+            <RowDefinition x:Name="MessageRow"
+                           Height="104" MinHeight="76" />  <!-- 4 commit message -->
             <RowDefinition x:Name="ConsoleSplitterRow"
                            Height="0" />                   <!-- 5 console splitter -->
             <RowDefinition x:Name="ConsoleRow"
@@ -365,7 +368,8 @@
              list and the diff pane, which share the row above. Not persisted and not a
              setting: the resident service keeps one pre-warmed window, so the drag lasts
              the session. -->
-        <GridSplitter Grid.Row="3"
+        <GridSplitter x:Name="MessageSplitter"
+                      Grid.Row="3"
                       Height="4"
                       HorizontalAlignment="Stretch"
                       Background="{StaticResource Border}"
@@ -460,15 +464,29 @@
                         Padding="9,1"
                         FontSize="11"
                         Content="^" />
+
+                <!-- Folds the file list, the diff and the message away so the console has the whole
+                     window. Only reachable while the console is open, because with it shut there is
+                     nothing underneath for the space to go to. -->
+                <Button x:Name="ConsoleMaximiseButton"
+                        Click="OnToggleConsoleMaximised"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Margin="34,0,0,0"
+                        MinWidth="0"
+                        Padding="9,1"
+                        FontSize="11"
+                        Visibility="Collapsed"
+                        Content="&#x25A1;" />
                 <TextBlock Text="{Binding StatusText}"
                            VerticalAlignment="Center"
-                           Margin="40,0,12,0"
+                           Margin="74,0,12,0"
                            TextTrimming="CharacterEllipsis"
                            Style="{StaticResource Muted}" />
 
                 <TextBlock x:Name="HintText"
                            VerticalAlignment="Center"
-                           Margin="40,0,12,0"
+                           Margin="74,0,12,0"
                            TextTrimming="CharacterEllipsis">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">

@@ -66,6 +66,9 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     private nint _process;
     private nint _thread;
 
+    /// <summary>The console's UI thread while our input queues are joined, or 0.</summary>
+    private uint _attachedThread;
+
     /// <summary>The reparented console window, or 0 when nothing is running.</summary>
     public nint WindowHandle { get; private set; }
 
@@ -285,8 +288,14 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     /// Moves keyboard focus into the console.
     ///
     /// The console belongs to another process with its own input queue, so a plain <c>SetFocus</c> from
-    /// here is refused. Attaching the two input queues for the duration is what makes it legal --
-    /// reference counted, so nesting it is harmless.
+    /// here is refused: a thread may only focus a window on its own queue.
+    ///
+    /// <b>The attach is held, not wrapped around the call.</b> Detaching splits the queues again and
+    /// each thread's focus reverts to its own window, so a detach in a <c>finally</c> undoes the very
+    /// <c>SetFocus</c> it looks like it is protecting. The symptom is specific and was seen: the console
+    /// takes the keyboard the first time and refuses it every time after, because from then on our
+    /// thread is asking to focus a window it does not share a queue with. It stays attached until
+    /// <see cref="Blur"/>.
     /// </summary>
     public void Focus()
     {
@@ -296,15 +305,35 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         uint target = GetWindowThreadProcessId(WindowHandle, out _);
         uint self = GetCurrentThreadId();
 
-        AttachThreadInput(self, target, true);
-        try
+        if (_attachedThread == 0 && target != self)
         {
-            SetFocus(WindowHandle);
+            if (AttachThreadInput(self, target, true))
+                _attachedThread = target;
+            else
+                _log.Debug($"Console pane: AttachThreadInput failed (Windows error {Marshal.GetLastWin32Error()}).");
         }
-        finally
-        {
-            AttachThreadInput(self, target, false);
-        }
+
+        SetFocus(WindowHandle);
+
+        nint focused = GetFocus();
+        if (focused != WindowHandle)
+            _log.Debug($"Console pane: focus did not take -- it is 0x{focused:X}, wanted 0x{WindowHandle:X}.");
+    }
+
+    /// <summary>
+    /// Gives the keyboard back and splits the input queues again.
+    ///
+    /// The queues are not left joined for the life of the window on purpose: while they are, a wedged
+    /// conhost can wedge the WPF UI thread with it, and this process's whole premise is a window that
+    /// paints in 120 ms.
+    /// </summary>
+    public void Blur()
+    {
+        if (_attachedThread == 0)
+            return;
+
+        AttachThreadInput(GetCurrentThreadId(), _attachedThread, false);
+        _attachedThread = 0;
     }
 
     /// <summary>
@@ -313,6 +342,9 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     /// </summary>
     public void Stop()
     {
+        //Before the window goes away, or our thread stays joined to a queue that no longer exists.
+        Blur();
+
         if (_job != 0)
         {
             CloseHandle(_job);
@@ -524,4 +556,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
 
     [LibraryImport("user32.dll", SetLastError = true)]
     private static partial nint SetFocus(nint handle);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetFocus();
 }

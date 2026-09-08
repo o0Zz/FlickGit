@@ -60,6 +60,9 @@ console.starting = Iniciando…
 console.failed = No se pudo iniciar la consola.
 console.toggle = Consola (Ctrl+`)
 
+console.maximise = Ocultar el área de commit para que la consola ocupe la ventana
+console.restore = Volver a mostrar el área de commit
+
 # ---- lista de archivos ----
 files.tooltip.split = Preparado +{0} -{1} · Copia de trabajo +{2} -{3}
 files.tooltip.untracked = Sin seguimiento: Git no lo cuenta; las líneas se cuentan desde el disco.

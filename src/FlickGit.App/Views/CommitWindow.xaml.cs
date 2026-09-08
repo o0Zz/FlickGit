@@ -42,9 +42,11 @@ public partial class CommitWindow : Window
     /// </summary>
     public ILog? Log { get; init; }
 
-    /// <summary>How tall the console opens. A constant rather than a setting, and not persisted --
-    /// the drag lasts the session, exactly as the two splitters above it do.</summary>
-    private const double ConsoleOpenHeight = 220;
+    /// <summary>
+    /// Whether the file list, the diff and the message are folded away so the console has the window.
+    /// Not persisted, like the splitter positions: the state lasts the session.
+    /// </summary>
+    private bool _consoleMaximised;
 
     public CommitWindow()
     {
@@ -70,6 +72,7 @@ public partial class CommitWindow : Window
         //A tooltip rather than another item in the footer hint: the chevron is the discoverable
         //affordance, and the hint line is already at the width it can carry.
         ConsoleToggleButton.ToolTip = Strings.Get("console.toggle");
+        ConsoleMaximiseButton.ToolTip = Strings.Get("console.maximise");
 
         DataContextChanged += OnDataContextChanged;
 
@@ -573,11 +576,16 @@ public partial class CommitWindow : Window
             return;
 
         ConsoleSplitterRow.Height = new GridLength(4);
-        ConsoleRow.Height = new GridLength(ConsoleOpenHeight);
+        //A star rather than a fixed strip, so opening the console splits the flexible space with the
+        //file list and the diff instead of carving a fixed 220 px out of them. The splitter below the
+        //message can only trade against that message row, which is 28 px of travel -- so a generous
+        //default and the maximise button are what actually make the pane a usable size.
+        ConsoleRow.Height = new GridLength(1, GridUnitType.Star);
         ConsoleRow.MinHeight = 80;
         ConsoleSplitter.Visibility = Visibility.Visible;
         Console.Visibility = Visibility.Visible;
         ConsoleToggleButton.Content = "\u2304";
+        ConsoleMaximiseButton.Visibility = Visibility.Visible;
 
         Console.Log ??= Log;
 
@@ -598,6 +606,12 @@ public partial class CommitWindow : Window
     /// </summary>
     private void CollapseConsole()
     {
+        //Restored first. Folding the console away while the commit area is still hidden would leave a
+        //window with a header, a footer and nothing in between.
+        if (_consoleMaximised)
+            RestoreCommitArea();
+
+        ConsoleMaximiseButton.Visibility = Visibility.Collapsed;
         ConsoleSplitterRow.Height = new GridLength(0);
         ConsoleRow.Height = new GridLength(0);
         ConsoleRow.MinHeight = 0;
@@ -605,6 +619,62 @@ public partial class CommitWindow : Window
         ConsoleToggleButton.Content = "^";
 
         Console.ReleaseFocus();
+    }
+
+    private void OnToggleConsoleMaximised(object sender, RoutedEventArgs e)
+    {
+        if (_consoleMaximised)
+            RestoreCommitArea();
+        else
+            HideCommitArea();
+
+        //The console changed size by a lot, and the debounce only runs off SizeChanged, which a row
+        //going to zero does not always raise on the pane itself.
+        Console.ResizeNow();
+        Console.FocusConsole();
+    }
+
+    /// <summary>
+    /// Folds the file list, the diff and the message away, leaving the header, the console and the
+    /// footer.
+    ///
+    /// The footer stays because the commit buttons are in it: this is a bigger console, not a different
+    /// window, and it must not become a state the user has to undo before they can commit. The header
+    /// stays because it names the repository and the branch the shell is sitting in.
+    /// </summary>
+    private void HideCommitArea()
+    {
+        FilesRow.MinHeight = 0;
+        FilesRow.Height = new GridLength(0);
+        MessageSplitterRow.Height = new GridLength(0);
+        MessageSplitter.Visibility = Visibility.Collapsed;
+        MessageRow.MinHeight = 0;
+        MessageRow.Height = new GridLength(0);
+
+        //Nothing above it left to drag against.
+        ConsoleSplitterRow.Height = new GridLength(0);
+        ConsoleSplitter.Visibility = Visibility.Collapsed;
+
+        ConsoleMaximiseButton.Content = "\u25A3";
+        ConsoleMaximiseButton.ToolTip = Strings.Get("console.restore");
+        _consoleMaximised = true;
+    }
+
+    private void RestoreCommitArea()
+    {
+        FilesRow.Height = new GridLength(1, GridUnitType.Star);
+        FilesRow.MinHeight = 160;
+        MessageSplitterRow.Height = new GridLength(4);
+        MessageSplitter.Visibility = Visibility.Visible;
+        MessageRow.Height = new GridLength(104);
+        MessageRow.MinHeight = 76;
+
+        ConsoleSplitterRow.Height = new GridLength(4);
+        ConsoleSplitter.Visibility = Visibility.Visible;
+
+        ConsoleMaximiseButton.Content = "\u25A1";
+        ConsoleMaximiseButton.ToolTip = Strings.Get("console.maximise");
+        _consoleMaximised = false;
     }
 
     protected override void OnDeactivated(EventArgs e)
