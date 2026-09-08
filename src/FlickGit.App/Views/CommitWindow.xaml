@@ -15,7 +15,11 @@
             <RowDefinition Height="*" MinHeight="160" />   <!-- 2 files | diff -->
             <RowDefinition Height="4" />                   <!-- 3 splitter -->
             <RowDefinition Height="104" MinHeight="76" />  <!-- 4 commit message -->
-            <RowDefinition Height="Auto" />                <!-- 5 footer -->
+            <RowDefinition x:Name="ConsoleSplitterRow"
+                           Height="0" />                   <!-- 5 console splitter -->
+            <RowDefinition x:Name="ConsoleRow"
+                           Height="0" MinHeight="0" />     <!-- 6 console -->
+            <RowDefinition Height="Auto" />                <!-- 7 footer -->
         </Grid.RowDefinitions>
 
         <!-- Header: repository, branch, ahead/behind. The repository name is shown even
@@ -421,7 +425,22 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="5"
+        <!-- The console pane. Both rows are zero until the user asks for it, so a window that never
+             opens one is exactly the window that existed before, which matters because this one is
+             pre-warmed at logon for every user. Collapsed by height rather than by Visibility: a
+             hosted HWND is destroyed when its element unloads, and that would orphan the console. -->
+        <GridSplitter x:Name="ConsoleSplitter"
+                      Grid.Row="5"
+                      Height="4"
+                      Visibility="Collapsed"
+                      HorizontalAlignment="Stretch"
+                      Background="{StaticResource Border}"
+                      ResizeBehavior="PreviousAndNext" />
+
+        <views:ConsolePane x:Name="Console"
+                           Grid.Row="6"
+                           Visibility="Collapsed" />
+        <Border Grid.Row="7"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"
@@ -430,15 +449,26 @@
                 <!-- The outcome when there is one, the keyboard map until then. Enter committing
                      rather than inserting a newline is the one thing about this window nobody can
                      guess, so it says so where there is otherwise nothing to read. -->
+                <!-- The console toggle. A plain Button rather than a ToggleButton, which has no style
+                     in App.xaml and would need one for no gain; MinWidth is overridden because the
+                     shared Button style is sized for the commit buttons beside it. -->
+                <Button x:Name="ConsoleToggleButton"
+                        Click="OnToggleConsole"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        MinWidth="0"
+                        Padding="9,1"
+                        FontSize="11"
+                        Content="^" />
                 <TextBlock Text="{Binding StatusText}"
                            VerticalAlignment="Center"
-                           Margin="0,0,12,0"
+                           Margin="40,0,12,0"
                            TextTrimming="CharacterEllipsis"
                            Style="{StaticResource Muted}" />
 
                 <TextBlock x:Name="HintText"
                            VerticalAlignment="Center"
-                           Margin="0,0,12,0"
+                           Margin="40,0,12,0"
                            TextTrimming="CharacterEllipsis">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">

@@ -19,6 +19,11 @@ Pressing Enter before the message has arrived is fine — the commit is queued a
 moment it lands. **Esc** closes the window at any point up until the commit actually starts
 running, and whatever the AI was doing is abandoned with it.
 
+**Ctrl+`** opens a real PowerShell across the bottom of the window, already in the repository, for the
+things Git cannot do for you — `claude`, a one-off rebase, a build. The same key brings you back out,
+and it has to be that key rather than Esc or Tab: while the console has the keyboard, FlickGit is sent
+no keystrokes at all. The shell closes when the window does.
+
 **Shift+Enter** is a newline, for a commit body. **Ctrl+S** saves an edit in the diff pane, and
 Enter there is an ordinary newline in your file rather than a commit. **F5** re-reads the
 repository, the same as the Refresh button.

@@ -76,5 +76,9 @@ public sealed class CommitWindowHost(CommitViewModel viewModel, OperationTimings
             //Resident: closing hides it, so the next right-click reuses it. One-shot: closing really
             //closes, so the process can exit.
             KeepAlive = keepAlive,
+
+            //The console pane is constructed by XAML and cannot be injected, so the log reaches
+            //it through the window.
+            Log = log,
         };
 }

@@ -207,6 +207,9 @@ src/
 │   ├── Resident/            Pipe server, tray, notifier, window hosts. AppWindow is the
 │   │                        pre-warm and the show sequence.
 │   ├── Trigger/             Global hotkey and Explorer folder resolution.
+│   ├── Terminal/            ConsoleSession: a real PowerShell in a conhost window,
+│   │                        reparented into the commit window. The job object is both
+│   │                        its kill switch and how it recognises its own window.
 │   ├── Ai/                  AiTextService: failure counter and streaming state machine.
 │   │                        Here rather than Core because it reads settings and the
 │   │                        credential store.
@@ -488,7 +491,11 @@ Reached from the context menu, the global hotkey and the CLI.
 │ Commit message                                                             │
 │ feat: add PgBouncer connection pooling                [ Generate with AI ] │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ [ Commit & Push ]   [ Commit ]                              [ Close ]      │
+│ PowerShell                     Ctrl+` to leave · closes with this window   │
+│ PS C:\dev\d360-portal> claude                                              │
+│ ✻ Welcome to Claude Code                                                   │
+├────────────────────────────────────────────────────────────────────────────┤
+│ ^  [ Commit & Push ]   [ Commit ]                           [ Close ]      │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -500,14 +507,18 @@ assigned in `CommitViewModel.Reset`**. No state may leak between two uses.
 Ctrl+S save the edit  Ctrl+Z undo it    Ctrl+F find    F3/⇧F3 next/previous
 F5 re-read status     esc close the search bar if open, otherwise the window
 Del delete the selected files, in the file list only
+Ctrl+` open the console pane and go to it, and from inside it come back
 ```
 
 - The caret is in the message box from the moment the window is populated. Enter commits rather than
   inserting a newline, and the footer says so whenever there is no outcome to report in its place.
 - **Enter is suspended while the diff pane has keyboard focus** — that pane is an editor over the
   user's working tree, where Enter is a newline in their file.
-- **Esc closes, always**, cancelling a running generation on the way out. The single exception is a
-  commit *already executing*, where the window must stay to report the outcome.
+- **Esc closes, always**, cancelling a running generation on the way out. Two exceptions. A commit
+  *already executing*, where the window must stay to report the outcome. And the console pane, where
+  Esc is a key in the user's shell — but that one needs no code, because a reparented console is
+  another process's window and WPF is never sent the keystroke at all. The rule is unchanged for
+  every surface that is actually WPF.
 - **Queued Enter:** Enter pressed before the AI message arrives queues the commit, and it fires the
   instant the message lands. If generation *fails* while queued, cancel the queue and focus the
   message box. **Never commit an empty or placeholder message.**
@@ -782,6 +793,62 @@ an unmerged path, so those rows are offered only what can honestly work and the 
 command, the way a stopped rebase is already pointed at `git rebase --continue`. **No merge editor, no
 `mergetool`, no `rebase --skip`** (it drops a commit), and no CLI verb — `flick status` reports the state
 and Git's own commands are the terminal's way through.
+
+## The console pane
+
+A small `^` in the footer unfolds a **real PowerShell** across the bottom of the commit window, rooted
+at the repository. It exists for the things Git cannot do for the user — running `claude`, a one-off
+`rebase -i`, a build — without the trip out to another window and the trip back, which is the cost this
+product exists to remove. `flick terminal` still opens a separate terminal and is unchanged.
+
+**It is a real console, not an emulator, and that decides everything else.** A TUI needs an alternate
+screen buffer, cursor addressing and true colour, so a pane piping redirected stdout into a text box
+could not host one — with redirected stdio a shell is not attached to a console at all. The two
+mechanisms that work are ConPTY, where we would own a VT parser and a cell renderer forever, and
+reparenting a console Windows already drew. **This is the second**, and `ConsoleSession` is kept a clean
+seam so the first can replace it if the pane earns that.
+
+**Three things were measured on Windows 11 rather than assumed**, and each is a way this would
+otherwise be wrong:
+
+- **The launch names conhost explicitly.** The default terminal is Windows Terminal, so a bare
+  `powershell.exe` hands its console off and the window that appears belongs to a `WindowsTerminal.exe`
+  holding the user's other tabs — reparenting *that* would drag their terminals into the commit window.
+  `conhost.exe powershell.exe` never reaches the handoff.
+- **The window is found by job membership, never by process id.** Its owner is sometimes conhost and
+  sometimes the shell, and `ParentProcessId` is unvalidated — a reused pid pointed an early version of
+  this at a stranger's console. `IsProcessInJob` is the only question that cannot be fooled.
+- **So the process starts suspended.** A shell spawning before `AssignProcessToJobObject` would be
+  outside the job, which makes it both unkillable and invisible to the finder.
+
+**The job object is the lifetime guarantee, and it is not optional.** The MSI runs
+`taskkill /F /IM FlickGit.exe` on every install, so no orderly shutdown can be relied on;
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` makes the kernel end the shell whenever this process ends, however
+it ends. Without it an invisible `powershell.exe` would hold a directory handle on the user's
+repository, which is enough to make a later switch fail for a reason nobody can see.
+
+**The shell dies with the window and starts only when asked.** Nothing launches during the logon
+pre-warm — the only path to a running shell is the toggle — and `CommitWindow.Reset` stops the session,
+because a shell still rooted at the previous repository is leaked state of the most literal kind.
+**Collapsing is not closing:** the rows go to zero height and the session keeps running, by height
+rather than by `Visibility`, since unloading a hosted HWND destroys the window the console lives in.
+
+**Getting out needs a global hotkey, and that is the one genuinely awkward part.** While the console has
+focus its own window procedure receives the keyboard and WPF is sent nothing — which is what makes every
+collision with Enter, Esc, Del, F5 and Ctrl+S disappear without a line of code, and equally means no
+`KeyBinding` can be the way back. So **Ctrl+`** is an ordinary binding going in and a `RegisterHotKey`
+coming out, claimed only while the console holds focus and dropped whenever FlickGit is not the active
+application. Tab cannot cross the boundary in either direction and is refused rather than left dangling.
+
+**Resizing is one `SetWindowPos`.** conhost re-lays-out its rows and columns from the window size
+exactly, measured, so the `AttachConsole` and `CONOUT$` route — with its process-global attach state and
+its shrink-then-grow ordering — is absent because it is not needed. Debounced at 100 ms, like the diff
+pane's re-diff.
+
+**What it does not have.** No settings: the shell is a named constant, the height is a constant, and the
+splitter is not persisted, exactly as the two above it are not. No CLI verb — this is a pane in a
+window, not an operation. No theming: conhost brings its own font and palette and will look foreign,
+which is the accepted price of not writing a renderer.
 
 ## Pull --rebase
 
@@ -1549,6 +1616,7 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | Trigger → commit window painted            | 120 ms | 250 ms     |
 | Palette painted after hotkey               | 80 ms  | 150 ms     |
 | Commit window visible (service warm)       | 120 ms | 250 ms     |
+| Console pane, toggle to shell prompt       | 300 ms | 800 ms     |
 | Commit window visible (cold fallback)      | 900 ms | 1500 ms    |
 | Status + numstat merge                     | 60 ms  | 150 ms     |
 | Click → rendered diff (prefetched)         | 80 ms  | 200 ms     |

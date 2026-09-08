@@ -1,0 +1,169 @@
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
+using FlickGit.App.Localization;
+using FlickGit.App.Terminal;
+using FlickGit.Logging;
+
+namespace FlickGit.App.Views;
+
+/// <summary>
+/// A real PowerShell at the bottom of the commit window, for the things Git cannot do for the user —
+/// running <c>claude</c>, a one-off rebase, a build — without the trip out to another window and back.
+///
+/// This half is presentation and lifetime: the strip, the debounce, and which of the two focus
+/// directions is which. <see cref="ConsoleSession"/> owns the process and the Win32.
+///
+/// <b>Nothing here starts a shell until the user expands the pane.</b> The resident service pre-warms
+/// the commit window at logon, measuring and arranging it without ever showing it, so a pane that
+/// launched anything during layout would cost every user a PowerShell at every login. The only path to
+/// <see cref="StartAsync"/> is the toggle.
+/// </summary>
+public partial class ConsolePane : UserControl
+{
+    /// <summary>
+    /// Matches the diff pane's re-diff debounce. WPF raises SizeChanged on every layout pass, so a
+    /// splitter drag is a continuous stream of them, and a cross-process SetWindowPos per frame is
+    /// visible as a stutter.
+    /// </summary>
+    private static readonly TimeSpan ResizeDelay = TimeSpan.FromMilliseconds(100);
+
+    private readonly DispatcherTimer _resizeDebounce;
+
+    private ConsoleSession? _session;
+
+    /// <summary>
+    /// The log, handed down by the window rather than injected: this control is constructed by XAML.
+    /// The same route <see cref="CommitWindow.KeepAlive"/> takes.
+    /// </summary>
+    public ILog? Log { get; set; }
+
+    /// <summary>True while keystrokes are going to the shell rather than to WPF.</summary>
+    public bool IsConsoleFocused { get; private set; }
+
+    public bool IsRunning => _session?.IsRunning == true;
+
+    /// <summary>The user asked to come back to WPF. The window decides where the caret lands.</summary>
+    public event Action? EscapeRequested;
+
+    public ConsolePane()
+    {
+        InitializeComponent();
+
+        HeaderText.Text = Strings.Get("console.header");
+        StatusText.Text = Strings.Get("console.hint");
+
+        _resizeDebounce = new DispatcherTimer { Interval = ResizeDelay };
+        _resizeDebounce.Tick += OnResizeSettled;
+
+        Host.ClickedIn += OnClickedIn;
+        Host.EscapeRequested += OnEscapePressed;
+
+        SizeChanged += (_, _) =>
+        {
+            _resizeDebounce.Stop();
+            _resizeDebounce.Start();
+        };
+    }
+
+    /// <summary>Starts a shell rooted at <paramref name="workingDirectory"/>, if one is not already running.</summary>
+    public async Task StartAsync(string workingDirectory)
+    {
+        if (IsRunning)
+            return;
+
+        _session ??= new ConsoleSession(Log ?? NullLog.Instance);
+
+        Say(Strings.Get("console.starting"), failed: false);
+
+        string? failure = await _session.StartAsync(Host.Container, workingDirectory).ConfigureAwait(true);
+
+        if (failure is null)
+        {
+            Say(Strings.Get("console.hint"), failed: false);
+            _session.Resize(Host.ClientSize.Width, Host.ClientSize.Height);
+            return;
+        }
+
+        Say(failure, failed: true);
+    }
+
+    /// <summary>
+    /// The strip's right-hand text. A failure is coloured by setting the brush and an ordinary message
+    /// by clearing it again, so the Muted style stays the one source of the normal colour.
+    /// </summary>
+    private void Say(string text, bool failed)
+    {
+        StatusText.Text = text;
+
+        if (failed)
+            StatusText.Foreground = (Brush)FindResource("DangerText");
+        else
+            StatusText.ClearValue(TextBlock.ForegroundProperty);
+    }
+
+    /// <summary>
+    /// Ends the session. Called when the window is reused for another repository and when it closes —
+    /// a shell still rooted at the previous repository would be leaked state, and on Windows an open
+    /// directory handle is enough to make a later branch switch fail.
+    /// </summary>
+    public void Stop()
+    {
+        _resizeDebounce.Stop();
+        ReleaseFocus();
+
+        _session?.Stop();
+
+        Say(Strings.Get("console.hint"), failed: false);
+    }
+
+    /// <summary>Puts the caret in the shell, and arms the one gesture that can bring it back.</summary>
+    public void FocusConsole()
+    {
+        if (!IsRunning)
+            return;
+
+        _session!.Focus();
+        IsConsoleFocused = true;
+        Host.ClaimEscape();
+    }
+
+    /// <summary>Gives up the escape hotkey and the "console has focus" state, without moving the caret.</summary>
+    public void ReleaseFocus()
+    {
+        Host.ReleaseEscape();
+        IsConsoleFocused = false;
+    }
+
+    /// <summary>
+    /// Drops the escape hotkey while FlickGit is not the active application, and takes it back
+    /// afterwards.
+    ///
+    /// <see cref="RegisterHotKey"/> is machine-wide: left claimed, FlickGit would hold Ctrl+` away from
+    /// whatever the user switched to. The focus state itself is untouched, because the console still
+    /// has the caret and will still need a way out when they come back.
+    /// </summary>
+    public void SuspendEscape() => Host.ReleaseEscape();
+
+    public void ResumeEscape()
+    {
+        if (IsConsoleFocused)
+            Host.ClaimEscape();
+    }
+
+    private void OnClickedIn() => FocusConsole();
+
+    private void OnEscapePressed()
+    {
+        ReleaseFocus();
+        EscapeRequested?.Invoke();
+    }
+
+    private void OnResizeSettled(object? sender, EventArgs e)
+    {
+        _resizeDebounce.Stop();
+
+        (int width, int height) = Host.ClientSize;
+        _session?.Resize(width, height);
+    }
+}

@@ -1,0 +1,42 @@
+<UserControl x:Class="FlickGit.App.Views.ConsolePane"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:FlickGit.App.Views">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- 0 header strip -->
+            <RowDefinition Height="*" />      <!-- 1 the console itself -->
+        </Grid.RowDefinitions>
+
+        <!-- The strip carries the two things about this pane nobody can guess: that Ctrl+` is the way
+             back out, because while the console has focus WPF receives no keys at all and there is no
+             other escape; and that the shell dies with the window. Both would otherwise only be
+             discovered by losing something. -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Border}"
+                BorderThickness="0,1,0,1"
+                Padding="14,4">
+            <Grid>
+                <TextBlock x:Name="HeaderText"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource SectionLabel}" />
+
+                <TextBlock x:Name="StatusText"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="11"
+                           Style="{StaticResource Muted}" />
+            </Grid>
+        </Border>
+
+        <!-- No sibling in this cell, deliberately. A hosted HWND paints over anything WPF draws in its
+             rectangle, so a "starting..." overlay here would be invisible; that text lives in the strip
+             above instead. The host also has to be laid out before a console can be parented into it,
+             which rules out collapsing it while the shell starts. -->
+        <views:ConsoleHost x:Name="Host" Grid.Row="1" />
+    </Grid>
+</UserControl>

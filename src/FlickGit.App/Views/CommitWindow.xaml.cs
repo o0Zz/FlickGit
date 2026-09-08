@@ -7,6 +7,7 @@ using FlickGit.App.Localization;
 using FlickGit.App.ViewModels;
 using FlickGit.Commits;
 using FlickGit.Diff;
+using FlickGit.Logging;
 
 namespace FlickGit.App.Views;
 
@@ -35,6 +36,16 @@ public partial class CommitWindow : Window
     /// </summary>
     public bool KeepAlive { get; init; }
 
+    /// <summary>
+    /// Handed to the console pane, which is constructed by XAML and so cannot be injected. The same
+    /// route KeepAlive takes, for the same reason.
+    /// </summary>
+    public ILog? Log { get; init; }
+
+    /// <summary>How tall the console opens. A constant rather than a setting, and not persisted --
+    /// the drag lasts the session, exactly as the two splitters above it do.</summary>
+    private const double ConsoleOpenHeight = 220;
+
     public CommitWindow()
     {
         InitializeComponent();
@@ -55,6 +66,10 @@ public partial class CommitWindow : Window
         ContinueMergeButton.Content = Strings.Get("conflict.continue");
         HintText.Text = Strings.Get("commit.hint");
         CloseButton.Content = Strings.Get("common.close");
+
+        //A tooltip rather than another item in the footer hint: the chevron is the discoverable
+        //affordance, and the hint line is already at the width it can carry.
+        ConsoleToggleButton.ToolTip = Strings.Get("console.toggle");
 
         DataContextChanged += OnDataContextChanged;
 
@@ -78,6 +93,19 @@ public partial class CommitWindow : Window
             Key = Key.F5,
             Command = new Infrastructure.RelayCommand(() => _viewModel?.RefreshCommand.Execute(null)),
         });
+
+        //Ctrl+` opens the console and puts the caret in it. The way *out* cannot be a KeyBinding: while
+        //the console has focus its window procedure receives the keyboard and WPF is sent nothing at
+        //all, so the pane claims the same gesture as a real hotkey for exactly as long as it holds
+        //focus. One gesture, two mechanisms, because the boundary genuinely has two sides.
+        InputBindings.Add(new KeyBinding
+        {
+            Key = Key.Oem3,
+            Modifiers = ModifierKeys.Control,
+            Command = new Infrastructure.RelayCommand(() => _ = OpenOrFocusConsoleAsync()),
+        });
+
+        Console.EscapeRequested += FocusMessage;
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -151,6 +179,13 @@ public partial class CommitWindow : Window
             return;
 
         Diff.Show(null, isLoading: false);
+
+        //A shell still rooted at the previous repository is leaked state of the most literal kind, and
+        //on Windows an open directory handle there is enough to make a later switch or branch delete
+        //fail for a reason the user cannot see.
+        Console.Stop();
+        CollapseConsole();
+
         _viewModel.Reset(repository);
     }
 
@@ -306,6 +341,11 @@ public partial class CommitWindow : Window
     /// </summary>
     private void FocusMessage()
     {
+        //Not while the user is typing in the console. The caret is in another process's window, and
+        //taking it back mid-command would lose whatever they had half-written.
+        if (Console.IsConsoleFocused)
+            return;
+
         MessageBox.Focus();
         MessageBox.CaretIndex = MessageBox.Text.Length;
     }
@@ -505,6 +545,80 @@ public partial class CommitWindow : Window
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
+    private async void OnToggleConsole(object sender, RoutedEventArgs e)
+    {
+        if (IsConsoleOpen)
+            CollapseConsole();
+        else
+            await OpenConsoleAsync().ConfigureAwait(true);
+    }
+
+    private bool IsConsoleOpen => ConsoleRow.Height.Value > 0;
+
+    /// <summary>Ctrl+`: opens the pane if it is shut, and otherwise just goes there.</summary>
+    private async Task OpenOrFocusConsoleAsync()
+    {
+        if (IsConsoleOpen)
+        {
+            Console.FocusConsole();
+            return;
+        }
+
+        await OpenConsoleAsync().ConfigureAwait(true);
+    }
+
+    private async Task OpenConsoleAsync()
+    {
+        if (_viewModel?.Repository is not { } repository)
+            return;
+
+        ConsoleSplitterRow.Height = new GridLength(4);
+        ConsoleRow.Height = new GridLength(ConsoleOpenHeight);
+        ConsoleRow.MinHeight = 80;
+        ConsoleSplitter.Visibility = Visibility.Visible;
+        Console.Visibility = Visibility.Visible;
+        ConsoleToggleButton.Content = "\u2304";
+
+        Console.Log ??= Log;
+
+        //The pane's container window has to exist and have a size before a console can be parented
+        //into it, and it was Collapsed until the line above.
+        UpdateLayout();
+
+        await Console.StartAsync(repository.Root).ConfigureAwait(true);
+        Console.FocusConsole();
+    }
+
+    /// <summary>
+    /// Hides the pane without ending the session -- collapsing is not closing, and a build running in
+    /// there should survive being folded away.
+    ///
+    /// By height, never by Visibility: a hosted HWND is destroyed when its element unloads, which would
+    /// leave the console parented to a window that no longer exists.
+    /// </summary>
+    private void CollapseConsole()
+    {
+        ConsoleSplitterRow.Height = new GridLength(0);
+        ConsoleRow.Height = new GridLength(0);
+        ConsoleRow.MinHeight = 0;
+        ConsoleSplitter.Visibility = Visibility.Collapsed;
+        ConsoleToggleButton.Content = "^";
+
+        Console.ReleaseFocus();
+    }
+
+    protected override void OnDeactivated(EventArgs e)
+    {
+        Console.SuspendEscape();
+        base.OnDeactivated(e);
+    }
+
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        Console.ResumeEscape();
+    }
+
     protected override void OnClosing(CancelEventArgs e)
     {
         //An unsaved edit blocks the close, whether it is a real close or a hide. Losing a working-tree
@@ -534,6 +648,11 @@ public partial class CommitWindow : Window
                 return;
             }
         }
+
+        //Before the branch, so it covers the resident hide and the one-shot close alike. The job object
+        //behind this is what makes it hold even when nothing here runs -- the MSI force-kills FlickGit
+        //on every upgrade.
+        Console.Stop();
 
         if (KeepAlive)
         {

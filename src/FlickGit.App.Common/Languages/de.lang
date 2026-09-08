@@ -50,6 +50,16 @@ commit.committing = Commit läuft…
 # The keyboard map, shown in the footer until there is an outcome to report in its place.
 commit.hint = ⏎ / ^⏎ Commit und Push   ⇧⏎ neue Zeile   ^S speichern   F5 aktualisieren   Esc schließen
 
+# ---- Konsolenbereich ----
+
+console.header = PowerShell
+# Die beiden Dinge, die man diesem Bereich nicht ansieht. Strg+` deshalb, weil die Konsole
+# während sie den Fokus hat die gesamte Tastatur erhält und FlickGit nichts davon sieht.
+console.hint = Strg+` zum Verlassen · wird mit diesem Fenster geschlossen
+console.starting = Wird gestartet…
+console.failed = Die Konsole konnte nicht gestartet werden.
+console.toggle = Konsole (Strg+`)
+
 # ---- Dateiliste ----
 files.tooltip.split = Bereitgestellt +{0} -{1} · Arbeitsverzeichnis +{2} -{3}
 files.tooltip.untracked = Unversioniert — von Git nicht gezählt; Zeilen von der Festplatte gezählt.
