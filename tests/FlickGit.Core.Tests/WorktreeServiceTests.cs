@@ -178,7 +178,7 @@ public class WorktreeServiceTests
 
         string[] args = Assert.Single(git.Invocations).Args;
 
-        Assert.Equal(["worktree", "add", @"C:\dev\repo-main", "main"], args);
+        Assert.Equal(["worktree", "add", PlatformPaths.Sibling("-main"), "main"], args);
         Assert.DoesNotContain("--force", args);
     }
 
@@ -196,7 +196,10 @@ public class WorktreeServiceTests
             CancellationToken.None);
 
         Assert.Equal(
-            ["worktree", "add", "--track", "-b", "feature/storage-gw", @"C:\dev\repo-gw", "origin/feature/storage-gw"],
+            [
+                "worktree", "add", "--track", "-b", "feature/storage-gw", PlatformPaths.Sibling("-gw"),
+                "origin/feature/storage-gw",
+            ],
             Assert.Single(git.Invocations).Args);
     }
 
