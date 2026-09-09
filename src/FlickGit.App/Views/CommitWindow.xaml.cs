@@ -109,6 +109,19 @@ public partial class CommitWindow : Window
         });
 
         Console.EscapeRequested += FocusMessage;
+
+        //Whether the console holds the keyboard has to be an *observation*, not something this window
+        //remembers. Ctrl+` is one gesture over two mechanisms -- a KeyBinding going in, a RegisterHotKey
+        //coming out -- and only one of them is armed at a time. So a state that still says "the console
+        //has focus" after the caret has come back to WPF arms the wrong half: Ctrl+` fires the hotkey and
+        //takes the user *out* of a console they are not in, which looks like the key doing nothing at all
+        //and needs a second press to get back in.
+        //
+        //Every route out other than the hotkey lands here -- a click in the file list, the diff or the
+        //message box, Tab, a collapsed element handing focus on, an activation that restores WPF's own
+        //focus. WPF raises this only when an element of this window really has the Win32 focus, which is
+        //exactly the moment the console does not, so the pane can stop guessing.
+        GotKeyboardFocus += (_, _) => Console.ReleaseFocus();
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
