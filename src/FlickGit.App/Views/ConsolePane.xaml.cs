@@ -121,8 +121,12 @@ public partial class ConsolePane : UserControl
     public void FocusConsole()
     {
         if (!IsRunning)
+        {
+            (Log ?? NullLog.Instance).Debug("Console pane: FocusConsole ignored -- no shell is running.");
             return;
+        }
 
+        (Log ?? NullLog.Instance).Debug("Console pane: FocusConsole.");
         _session!.Focus();
         IsConsoleFocused = true;
         Host.ClaimEscape();
@@ -131,6 +135,9 @@ public partial class ConsolePane : UserControl
     /// <summary>Gives up the escape hotkey and the "console has focus" state, without moving the caret.</summary>
     public void ReleaseFocus()
     {
+        if (IsConsoleFocused)
+            (Log ?? NullLog.Instance).Debug("Console pane: releasing the console's claim on the keyboard.");
+
         Host.ReleaseEscape();
         _session?.Blur();
         IsConsoleFocused = false;
@@ -152,10 +159,15 @@ public partial class ConsolePane : UserControl
             Host.ClaimEscape();
     }
 
-    private void OnClickedIn() => FocusConsole();
+    private void OnClickedIn()
+    {
+        (Log ?? NullLog.Instance).Debug("Console pane: WM_PARENTNOTIFY -- a click landed in the console.");
+        FocusConsole();
+    }
 
     private void OnEscapePressed()
     {
+        (Log ?? NullLog.Instance).Debug("Console pane: WM_HOTKEY -- Ctrl+` taking the caret out of the console.");
         ReleaseFocus();
         EscapeRequested?.Invoke();
     }

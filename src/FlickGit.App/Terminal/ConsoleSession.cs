@@ -308,9 +308,18 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         if (_attachedThread == 0 && target != self)
         {
             if (AttachThreadInput(self, target, true))
+            {
                 _attachedThread = target;
+                _log.Debug($"Console pane: joined our input queue to console thread {target}.");
+            }
             else
+            {
                 _log.Debug($"Console pane: AttachThreadInput failed (Windows error {Marshal.GetLastWin32Error()}).");
+            }
+        }
+        else
+        {
+            _log.Debug($"Console pane: already joined to thread {_attachedThread} (console thread {target}, ours {self}).");
         }
 
         SetFocus(WindowHandle);
@@ -318,6 +327,8 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         nint focused = GetFocus();
         if (focused != WindowHandle)
             _log.Debug($"Console pane: focus did not take -- it is 0x{focused:X}, wanted 0x{WindowHandle:X}.");
+        else
+            _log.Debug($"Console pane: focus is on the console (0x{focused:X}).");
     }
 
     /// <summary>
