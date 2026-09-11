@@ -576,7 +576,6 @@ public partial class CommitWindow : Window
     /// <summary>Ctrl+`: opens the pane if it is shut, and otherwise just goes there.</summary>
     private async Task OpenOrFocusConsoleAsync()
     {
-        Log?.Debug($"Console pane: Ctrl+` KeyBinding (pane open: {IsConsoleOpen}).");
         if (IsConsoleOpen)
         {
             Console.FocusConsole();

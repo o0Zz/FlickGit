@@ -330,12 +330,9 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
             return;
 
         SetFocus(WindowHandle);
-        int error = Marshal.GetLastWin32Error();
 
-        nint keyboardFocus = QueueFocus(GetForegroundWindow());
-        _log.Debug(
-            $"Console pane: after SetFocus -- GetFocus=0x{GetFocus():X} (wanted 0x{WindowHandle:X}, " +
-            $"error {error}), foreground=0x{GetForegroundWindow():X}, that queue's focus=0x{keyboardFocus:X}.");
+        if (GetFocus() != WindowHandle)
+            _log.Debug($"Console pane: SetFocus was refused (Windows error {Marshal.GetLastWin32Error()}).");
     }
 
     /// <summary>
@@ -366,7 +363,6 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
             {
                 _windowThread = thread;
                 _attachedThread = thread;
-                _log.Debug($"Console pane: the console window is owned by thread {thread}.");
                 return true;
             }
 
@@ -395,14 +391,6 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
             foreach (ProcessThread thread in host.Threads)
                 yield return (uint)thread.Id;
         }
-    }
-    /// <summary>The window the foreground queue currently routes keystrokes to -- what the user's
-    /// typing actually reaches, as opposed to GetFocus which answers only about our own queue.</summary>
-    private static nint QueueFocus(nint foreground)
-    {
-        var info = new GuiThreadInfo { Size = Marshal.SizeOf<GuiThreadInfo>() };
-        uint thread = GetWindowThreadProcessId(foreground, out _);
-        return GetGUIThreadInfo(thread, ref info) ? info.Focus : 0;
     }
 
     /// <summary>
@@ -510,15 +498,6 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
 
     private const uint GaRoot = 2;
     private const uint GwOwner = 4;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct GuiThreadInfo
-    {
-        public int Size;
-        public int Flags;
-        public nint Active, Focus, Capture, MenuOwner, MoveSize, Caret;
-        public int CaretLeft, CaretTop, CaretRight, CaretBottom;
-    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct StartupInfo
@@ -655,11 +634,4 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
 
     [LibraryImport("user32.dll")]
     private static partial nint GetFocus();
-
-    [LibraryImport("user32.dll")]
-    private static partial nint GetForegroundWindow();
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
 }

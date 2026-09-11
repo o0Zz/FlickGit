@@ -11,8 +11,8 @@ namespace FlickGit.App.Views;
 /// A real PowerShell at the bottom of the commit window, for the things Git cannot do for the user —
 /// running <c>claude</c>, a one-off rebase, a build — without the trip out to another window and back.
 ///
-/// This half is presentation and lifetime: the strip, the debounce, and which of the two focus
-/// directions is which. <see cref="ConsoleSession"/> owns the process and the Win32.
+/// This half is presentation, lifetime and the WPF side of focus: the strip, the debounce, and
+/// arming the escape gesture. <see cref="ConsoleSession"/> owns the process and the Win32.
 ///
 /// <b>Nothing here starts a shell until the user expands the pane.</b> The resident service pre-warms
 /// the commit window at logon, measuring and arranging it without ever showing it, so a pane that
@@ -133,10 +133,7 @@ public partial class ConsolePane : UserControl
     public void FocusConsole()
     {
         if (!IsRunning)
-        {
-            (Log ?? NullLog.Instance).Debug("Console pane: FocusConsole ignored -- no shell is running.");
             return;
-        }
 
         // Raises WM_SETFOCUS, and so TakeKeyboard -- but not when the host already holds WPF focus,
         // which is why the call below is not left to the event. Both paths are idempotent.
@@ -180,9 +177,6 @@ public partial class ConsolePane : UserControl
     /// <summary>Gives up the escape hotkey and the "console has focus" state, without moving the caret.</summary>
     public void ReleaseFocus()
     {
-        if (IsConsoleFocused)
-            (Log ?? NullLog.Instance).Debug("Console pane: releasing the console's claim on the keyboard.");
-
         Host.ReleaseEscape();
         _session?.Blur();
         IsConsoleFocused = false;
@@ -204,15 +198,10 @@ public partial class ConsolePane : UserControl
             Host.ClaimEscape();
     }
 
-    private void OnClickedIn()
-    {
-        (Log ?? NullLog.Instance).Debug("Console pane: WM_PARENTNOTIFY -- a click landed in the console.");
-        FocusConsole();
-    }
+    private void OnClickedIn() => FocusConsole();
 
     private void OnEscapePressed()
     {
-        (Log ?? NullLog.Instance).Debug("Console pane: WM_HOTKEY -- Ctrl+` taking the caret out of the console.");
         ReleaseFocus();
         EscapeRequested?.Invoke();
     }
