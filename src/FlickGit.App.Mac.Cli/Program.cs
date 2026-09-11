@@ -280,6 +280,11 @@ internal static class Program
             //No Keychain either, so AiConfiguration.HasKey answers false -- the same answer a Mac
             //with no key stored would give, which is what keeps a development run usable.
             services.AddSingleton<ISecretStore, UnavailableSecretStore>();
+
+            //RepositoryVerbs takes an ITrash, and ValidateOnBuild walks every registered
+            //constructor -- so without this the provider throws at BuildServiceProvider and not
+            //one verb runs.
+            services.AddSingleton<ITrash, UnsupportedTrash>();
         }
 
 

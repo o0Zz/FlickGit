@@ -2,6 +2,7 @@ using System.Diagnostics;
 using FlickGit.Diagnostics;
 using FlickGit.Git;
 using FlickGit.Models;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Blame;
 
@@ -40,7 +41,7 @@ public sealed class BlameService(IGitProcessRunner git, OperationTimings? timing
 
         //-- so a path that looks like a revision is still a path.
         args.Add("--");
-        args.Add(relativePath);
+        args.Add(Literal(relativePath));
 
         //No --no-color, unlike every other command in the product: the porcelain format carries no
         //colour whatever `color.ui` says, and Hard Requirement 2 rules out a flag that does nothing.

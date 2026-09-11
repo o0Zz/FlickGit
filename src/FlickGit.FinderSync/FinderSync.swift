@@ -237,9 +237,12 @@ class FinderSync: FIFinderSync {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: flickPath)
 
-        // add and rm are the only two verbs that take more than one path; everything else is handed
-        // the item under the pointer, because the token after its path means a branch or a tag name.
-        process.arguments = (verb == "add" || verb == "rm") ? [verb] + paths : [verb, paths[0]]
+        // add, rm and delete are the three verbs that take more than one path -- the same three
+        // Verb.Parse reads as a selection, and the same three the Windows menu marks. Everything
+        // else is handed the item under the pointer, because the token after its path means a
+        // branch or a tag name.
+        let takesSelection = verb == "add" || verb == "rm" || verb == "delete"
+        process.arguments = takesSelection ? [verb] + paths : [verb, paths[0]]
 
         do {
             try process.run()

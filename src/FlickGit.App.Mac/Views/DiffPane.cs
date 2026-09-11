@@ -33,6 +33,9 @@ namespace FlickGit.App.Mac.Views;
 /// </summary>
 internal sealed class DiffPane : UserControl
 {
+    /// <summary>Context kept above the first change, so it opens with something to read against.</summary>
+    private const int ContextLinesAboveFirstChange = 3;
+
     private readonly TextEditor _left = Editor();
     private readonly TextEditor _right = Editor();
 
@@ -800,22 +803,31 @@ internal sealed class DiffPane : UserControl
     /// <summary>
     /// Opens on the first change with three lines of context above it, per CLAUDE.md — a diff that
     /// opens at line 1 of a thousand-line file has told the reader nothing.
+    ///
+    /// The row comes from <see cref="Hunks.FirstChangeRow"/> rather than from a test of its own.
+    /// This asked <c>Kind != Unchanged</c>, which a <c>Filler</c> row passes — so a file whose
+    /// first change was an insertion at the top opened on padding.
     /// </summary>
     private void ScrollToFirstChange(IReadOnlyList<DiffRow> rows)
     {
-        for (int index = 0; index < rows.Count; index++)
+        int first = Hunks.FirstChangeRow(rows);
+
+        if (first < 0)
         {
-            if (rows[index].Kind == DiffLineKind.Unchanged)
-                continue;
-
-            //+1 for the 1-based document line, then back up for the context.
-            int line = Math.Max(1, index + 1 - 3);
-
-            _right.ScrollToLine(line);
-            _right.TextArea.Caret.Line = index + 1;
+            //Nothing changed, so the top is the honest place to be. Without this the pane kept
+            //whatever offset the previous file left it at.
+            _left.ScrollToLine(1);
+            _right.ScrollToLine(1);
+            _right.TextArea.Caret.Line = 1;
 
             return;
         }
+
+        //+1 for the 1-based document line, then back up for the context.
+        int line = Math.Max(1, first + 1 - ContextLinesAboveFirstChange);
+
+        _right.ScrollToLine(line);
+        _right.TextArea.Caret.Line = first + 1;
     }
 
     /// <summary>

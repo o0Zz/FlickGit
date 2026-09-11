@@ -40,10 +40,21 @@ public sealed class LocalEndpoint(ILog log)
         Directory.CreateDirectory(directory);
         Restrict(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
-        //A socket file left behind by a killed process makes bind fail with EADDRINUSE, and there is
-        //nothing to inherit from it: the listener is gone with the process that owned it. Deleting a
-        //live service's socket is not a risk worth guarding, because the single-instance check has
-        //already refused to start a second one.
+        //Asked the only way that cannot be wrong: if something answers on the endpoint, something is
+        //already serving it. This guard used to live in the CLI host alone, so launching the app
+        //twice unlinked the live listener below -- the first process then served a socket nobody
+        //could reach, and every later `flick` paid a cold start with nothing to explain it.
+        if (await SendAsync(
+                new IpcRequest(["version"], Environment.CurrentDirectory, HasConsole: false),
+                cancellationToken).ConfigureAwait(false) is not null)
+        {
+            log.Warn($"Another FlickGit service is already listening on {path}. Not serving.");
+            return;
+        }
+
+        //A socket file left behind by a killed process makes bind fail with EADDRINUSE, and there
+        //is nothing to inherit from it: the listener is gone with the process that owned it. The
+        //probe above is what makes deleting it safe.
         if (File.Exists(path))
             File.Delete(path);
 

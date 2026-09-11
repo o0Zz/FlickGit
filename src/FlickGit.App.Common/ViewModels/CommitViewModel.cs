@@ -217,7 +217,7 @@ public sealed class CommitViewModel : ObservableObject
 
     public string Title => Strings.Get("commit.title", _repository.Name);
 
-    public RepositoryStatus? CurrentStatus => _currentStatus;
+    private RepositoryStatus? CurrentStatus => _currentStatus;
 
     public string CurrentBranch => _currentStatus?.Branch ?? string.Empty;
 
@@ -329,7 +329,7 @@ public sealed class CommitViewModel : ObservableObject
     /// The tick state lives on the status's own <c>GitFileChange</c> instances -- which is what
     /// <c>FileChangeItem</c> writes -- so this is the same question wherever it is asked from.
     /// </summary>
-    public bool CanCommit =>
+    private bool CanCommit =>
         _stage is not (CommitStage.Queued or CommitStage.Committing)
         && !_isBusy
         && _currentStatus is not null
@@ -344,7 +344,7 @@ public sealed class CommitViewModel : ObservableObject
         //exists to remove.
         && !_currentStatus.Merge.InProgress;
 
-    public bool CanGenerate =>
+    private bool CanGenerate =>
         _messages.IsUsable
         && _stage is not (CommitStage.Queued or CommitStage.Committing)
         && _currentStatus is not null
@@ -511,7 +511,7 @@ public sealed class CommitViewModel : ObservableObject
 
     public int EditableCount => Editable.Count;
 
-    public bool CanDeleteFile => !_isBusy && Deletable.Count > 0;
+    private bool CanDeleteFile => !_isBusy && Deletable.Count > 0;
 
     /// <summary>
     /// Whether every row Del would touch is one Git has never seen — so the click sends files to the
@@ -524,11 +524,11 @@ public sealed class CommitViewModel : ObservableObject
     /// </summary>
     public bool DeleteBinsOnly => Deletable is { Count: > 0 } rows && rows.TrueForAll(f => f.IsUntracked);
 
-    public bool CanRevertFile => !_isBusy && Revertable.Count > 0;
+    private bool CanRevertFile => !_isBusy && Revertable.Count > 0;
 
-    public bool CanAddFile => !_isBusy && Addable.Count > 0;
+    private bool CanAddFile => !_isBusy && Addable.Count > 0;
 
-    public bool CanEditFile => !_isBusy && Editable.Count > 0;
+    private bool CanEditFile => !_isBusy && Editable.Count > 0;
 
     public int ConflictedCount => Conflicted.Count;
 
@@ -536,11 +536,11 @@ public sealed class CommitViewModel : ObservableObject
 
     public int ResolvableTheirsCount => ResolvableTheirs.Count;
 
-    public bool CanTakeOurs => !_isBusy && ResolvableOurs.Count > 0;
+    private bool CanTakeOurs => !_isBusy && ResolvableOurs.Count > 0;
 
-    public bool CanTakeTheirs => !_isBusy && ResolvableTheirs.Count > 0;
+    private bool CanTakeTheirs => !_isBusy && ResolvableTheirs.Count > 0;
 
-    public bool CanMarkResolved => !_isBusy && Conflicted.Count > 0;
+    private bool CanMarkResolved => !_isBusy && Conflicted.Count > 0;
 
     /// <summary>
     /// Continue is offered only when nothing is left to resolve.
@@ -549,11 +549,11 @@ public sealed class CommitViewModel : ObservableObject
     /// <see cref="ConflictService.ContinueAsync"/> re-reads the repository and refuses on its own —
     /// which is what covers the case of a terminal creating a conflict while this window sat open.
     /// </summary>
-    public bool CanContinueMerge =>
+    private bool CanContinueMerge =>
         !_isBusy && _currentStatus is { Merge.InProgress: true, HasConflicts: false };
 
     /// <summary>Abort stays available while conflicts remain — abandoning is the point of it.</summary>
-    public bool CanAbortMerge => !_isBusy && Merge.InProgress;
+    private bool CanAbortMerge => !_isBusy && Merge.InProgress;
 
     /// <summary>
     /// False hides the button rather than showing a permanently dead one -- with no key stored there
@@ -683,7 +683,6 @@ public sealed class CommitViewModel : ObservableObject
         Raise(nameof(Repository));
         Raise(nameof(RepositoryName));
         Raise(nameof(Title));
-        Raise(nameof(CurrentStatus));
         Raise(nameof(CurrentBranch));
         Raise(nameof(SummaryText));
         Raise(nameof(SelectedFile));
@@ -720,7 +719,7 @@ public sealed class CommitViewModel : ObservableObject
     /// The branch list and the primary-branch warning are started and not awaited: both are worth
     /// having, and worth nothing if waiting for them delays the window.
     /// </summary>
-    public void Adopt(RepositoryStatus status)
+    private void Adopt(RepositoryStatus status)
     {
         //Every cached diff was computed against the tree as it was before this status was read, and
         //the cache is keyed by path, not content -- so a file edited outside the window, or a HEAD
@@ -777,7 +776,6 @@ public sealed class CommitViewModel : ObservableObject
         else
             BranchResolution = BranchResolution.Resolve(_branchInput, status.Branch, Branches);
 
-        Raise(nameof(CurrentStatus));
         Raise(nameof(CurrentBranch));
         Raise(nameof(SummaryText));
         Raise(nameof(AheadBehindText));
@@ -1772,7 +1770,6 @@ public sealed class CommitViewModel : ObservableObject
             //The counts only. A full Adopt here is what this method exists to avoid.
             _currentStatus = refreshed;
 
-            Raise(nameof(CurrentStatus));
             Raise(nameof(SummaryText));
             RaiseCommandStates();
         }
@@ -1930,37 +1927,30 @@ public sealed class CommitViewModel : ObservableObject
             await RefreshAsync().ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Commands only, plus the one property either window actually binds.
+    ///
+    /// The <c>Can*</c> members are the commands' own <c>CanExecute</c> predicates and the counts
+    /// are read imperatively when a context menu opens, so neither has a binding to notify -- a
+    /// <c>Raise</c> for them was a dispatcher post nothing was listening for. Verified against both
+    /// front ends: neither CommitWindow.xaml nor CommitWindow.axaml binds any of them.
+    /// </summary>
     private void RaiseCommandStates()
     {
-        Raise(nameof(CanCommit));
-        Raise(nameof(CanGenerate));
-        Raise(nameof(CanDeleteFile));
-        Raise(nameof(DeleteBinsOnly));
         DeleteFileCommand.RaiseCanExecuteChanged();
-        Raise(nameof(CanRevertFile));
         RevertFileCommand.RaiseCanExecuteChanged();
-        Raise(nameof(CanAddFile));
         AddFileCommand.RaiseCanExecuteChanged();
-        Raise(nameof(CanEditFile));
         EditFileCommand.RaiseCanExecuteChanged();
-        Raise(nameof(ConflictedCount));
-        Raise(nameof(ResolvableOursCount));
-        Raise(nameof(ResolvableTheirsCount));
-        Raise(nameof(CanTakeOurs));
         TakeOursCommand.RaiseCanExecuteChanged();
-        Raise(nameof(CanTakeTheirs));
         TakeTheirsCommand.RaiseCanExecuteChanged();
-        Raise(nameof(CanMarkResolved));
         MarkResolvedCommand.RaiseCanExecuteChanged();
-        Raise(nameof(CanContinueMerge));
         ContinueMergeCommand.RaiseCanExecuteChanged();
-        Raise(nameof(CanAbortMerge));
         AbortMergeCommand.RaiseCanExecuteChanged();
-        Raise(nameof(IsAiConfigured));
         CommitCommand.RaiseCanExecuteChanged();
         CommitAndPushCommand.RaiseCanExecuteChanged();
         RefreshCommand.RaiseCanExecuteChanged();
         GenerateCommand.RaiseCanExecuteChanged();
+        Raise(nameof(IsAiConfigured));
     }
 
     private void RaiseError(string title, string message) => ErrorRaised?.Invoke(title, message);

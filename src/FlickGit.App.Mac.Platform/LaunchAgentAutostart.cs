@@ -28,6 +28,13 @@ public sealed class LaunchAgentAutostart(ILog log) : IAutostart
     /// </summary>
     private const string Label = "com.flickgit.agent";
 
+    /// <summary>
+    /// How long launchctl gets to answer. It is a local call that returns immediately in every
+    /// ordinary case; the bound exists so that the one that does not cannot hang the settings
+    /// window, which is what an unbounded WaitForExit on this thread would do.
+    /// </summary>
+    private const int LaunchctlTimeout = 10_000;
+
     private static string PlistPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         "Library",
@@ -143,8 +150,20 @@ public sealed class LaunchAgentAutostart(ILog log) : IAutostart
             if (process is null)
                 return (false, "launchctl could not be started.");
 
-            string error = process.StandardError.ReadToEnd().Trim();
-            process.WaitForExit();
+            //Both pipes, concurrently, and a bound on the wait. stdout was redirected and then
+            //never read at all, so a launchctl with more to say than one pipe buffer would hold
+            //blocked here forever -- and the settings window with it.
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+
+            if (!process.WaitForExit(LaunchctlTimeout))
+            {
+                process.Kill(entireProcessTree: true);
+                return (false, "launchctl did not answer within ten seconds.");
+            }
+
+            string error = errorTask.GetAwaiter().GetResult().Trim();
+            _ = outputTask.GetAwaiter().GetResult();
 
             //launchctl exits 0 on success and reports the reason on stderr otherwise. Its own words,
             //per CLAUDE.md on error handling -- a paraphrase would lose the errno it names.

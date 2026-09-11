@@ -227,7 +227,6 @@ public partial class App : Application
             provider.GetRequiredService<HttpClient>(),
             provider.GetRequiredService<ILog>()));
         services.AddSingleton<AiTextService>();
-        services.AddSingleton<ResidentService>();
         services.AddSingleton<PipeServer>();
         //The platform half of FlickGit.App.Common's three seams. The verb layer is compiled as
         //net9.0 and reaches WPF only through these, so a macOS host substitutes its own three and

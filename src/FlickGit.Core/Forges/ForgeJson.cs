@@ -2,14 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace FlickGit.Forges;
 
-// The three request bodies.
+// The two request bodies.
 //
 // Requests are source-generated because FlickGit.Core sets IsAotCompatible, so a reflection-based
 // JsonSerializer.Serialize is an IL2026/IL3050 warning and this repository treats warnings as
-// errors. *Responses* are read with JsonDocument instead, deliberately: the three services disagree
-// about the shape of an error — GitLab's `message` is a string, an array of strings or an object of
-// arrays depending on what went wrong — and a DTO per variant would be a dozen types to express
-// "find me a sentence to show the user".
+// errors. *Responses* are read with JsonDocument instead, deliberately: the two services disagree
+// about the shape of an error — GitHub puts the useful half in an `errors` array and Azure DevOps
+// in a `message` — and a DTO per variant would be a dozen types to express "find me a sentence to
+// show the user".
 //
 // Every property carries an explicit [JsonPropertyName]. The naming policy would get most of them
 // right, and "source_branch" and "sourceRefName" are not camelCase of anything.
@@ -23,14 +23,6 @@ internal sealed record GitHubCreateRequest(
     [property: JsonPropertyName("head")] string Head,
     [property: JsonPropertyName("base")] string Base,
     [property: JsonPropertyName("draft")] bool Draft);
-
-/// <param name="RemoveSourceBranch">GitLab's spelling of "delete the branch when this merges".</param>
-internal sealed record GitLabCreateRequest(
-    [property: JsonPropertyName("source_branch")] string SourceBranch,
-    [property: JsonPropertyName("target_branch")] string TargetBranch,
-    [property: JsonPropertyName("title")] string Title,
-    [property: JsonPropertyName("description")] string Description,
-    [property: JsonPropertyName("remove_source_branch")] bool RemoveSourceBranch);
 
 /// <param name="SourceRefName">Fully qualified: <c>refs/heads/feature/x</c>, never the short name.</param>
 /// <param name="CompletionOptions">
@@ -50,6 +42,5 @@ internal sealed record AzureCompletionOptions(
 
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(GitHubCreateRequest))]
-[JsonSerializable(typeof(GitLabCreateRequest))]
 [JsonSerializable(typeof(AzureCreateRequest))]
 internal sealed partial class ForgeJson : JsonSerializerContext;

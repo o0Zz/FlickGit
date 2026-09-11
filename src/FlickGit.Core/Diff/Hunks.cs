@@ -207,6 +207,27 @@ public static class Hunks
         && (row.Left.LineNumber is not null || row.Right.LineNumber is not null);
 
     /// <summary>
+    /// The index of the first row a reader opened the file to see, or -1 when nothing changed.
+    ///
+    /// Beside <see cref="IsChange"/> and public for the same reason. Both viewers scroll to this
+    /// row, and the mac pane answering it with its own <c>Kind is not Unchanged</c> was already
+    /// wrong: a <c>Filler</c> row passes that test and fails <see cref="IsChange"/>, so a file
+    /// whose first change is an insertion at the top opened on padding rather than on the change.
+    /// </summary>
+    public static int FirstChangeRow(IReadOnlyList<DiffRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        for (int row = 0; row < rows.Count; row++)
+        {
+            if (IsChange(rows[row]))
+                return row;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
     /// The right-hand text with the selected changes put back the way the left side has them.
     ///
     /// <b>It returns text, not a file operation.</b> The caller puts it in the editor, so

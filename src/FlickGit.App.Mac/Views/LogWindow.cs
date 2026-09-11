@@ -96,6 +96,18 @@ internal sealed class LogWindow : Window
     private CommitRange? _current;
     private IReadOnlyList<GitFileChange> _changed = [];
 
+    /// <summary>The range whose file list is on screen, so a selection landing back on it is free.</summary>
+    private CommitRange? _shown;
+
+    /// <summary>
+    /// The token kills the Git process; the generation guards the repaint. Both are needed, because
+    /// a cancelled process can still finish before its cancellation is observed -- and arrowing down
+    /// the commit list starts one `git diff` per keypress.
+    /// </summary>
+    private CancellationTokenSource? _inFlight;
+
+    private int _generation;
+
     /// <summary>Set once Git says there is nothing after the page just read.</summary>
     private bool _endOfHistory;
 
@@ -470,8 +482,15 @@ internal sealed class LogWindow : Window
             _patch.IsEnabled = false;
             _changelog.IsEnabled = false;
 
+            _shown = null;
+            _changed = [];
+
             return;
         }
+
+        //A shift-arrow that widened and narrowed back lands on a range already on screen.
+        if (_shown is { } current && current.BaseSpec == range.BaseSpec && current.TipSpec == range.TipSpec)
+            return;
 
         //The same three spellings the WPF window uses, with the gap sentence appended rather than
         //interpolated. ImplicitCount is computed in CommitRange, where it is tested, so the count and
@@ -488,9 +507,40 @@ internal sealed class LogWindow : Window
 
         Describe(range);
 
-        _changed = await _history
-            .GetFilesAsync(_repository, range.BaseSpec, range.TipSpec, CancellationToken.None)
-            .ConfigureAwait(true);
+        int mine = ++_generation;
+
+        _inFlight?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        _inFlight = cancellation;
+
+        IReadOnlyList<GitFileChange> files;
+
+        try
+        {
+            files = await _history
+                .GetFilesAsync(_repository, range.BaseSpec, range.TipSpec, cancellation.Token)
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            //This window is reached from a fire-and-forget task in a process whose ShutdownMode is
+            //OnExplicitShutdown, so an escaping exception has nothing to catch it.
+            _log.Warn($"Range file list failed for {range.Label}: {ex.Message}");
+            MessageWindow.Notice(Strings.Get("log.failed"), ex.Message);
+
+            return;
+        }
+
+        //A slower read that has already been superseded must not paint over the newer one.
+        if (mine != _generation)
+            return;
+
+        _shown = range;
+        _changed = files;
 
         _files.ItemsSource = _changed;
         _footer.Text = Summary(_changed);

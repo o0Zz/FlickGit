@@ -96,7 +96,8 @@ public sealed class StatusService(
         IReadOnlyDictionary<string, NumstatEntry> stagedCounts =
             ParseCountsOrEmpty(await stagedTask.ConfigureAwait(false));
 
-        List<GitFileChange> files = Merge(repository, parsed.Files, worktreeCounts, stagedCounts);
+        List<GitFileChange> files =
+            Merge(repository, parsed.Files, worktreeCounts, stagedCounts, cancellationToken);
 
         timings?.Record("status+numstat merge", System.Diagnostics.Stopwatch.GetElapsedTime(startedAt));
 
@@ -133,7 +134,8 @@ public sealed class StatusService(
         RepositoryInfo repository,
         IReadOnlyList<GitFileChange> statusFiles,
         IReadOnlyDictionary<string, NumstatEntry> worktreeCounts,
-        IReadOnlyDictionary<string, NumstatEntry> stagedCounts)
+        IReadOnlyDictionary<string, NumstatEntry> stagedCounts,
+        CancellationToken cancellationToken)
     {
         var merged = new List<GitFileChange>(statusFiles.Count);
 
@@ -149,7 +151,8 @@ public sealed class StatusService(
             bool looksLikeSecret = SecretDetector.LooksLikeSecretPath(file.Path);
 
             merged.Add(file.IsUntracked
-                ? WithUntrackedCounts(repository, file, looksLikeSecret, measurable.Contains(file.Path))
+                ? WithUntrackedCounts(
+                    repository, file, looksLikeSecret, measurable.Contains(file.Path), cancellationToken)
                 : WithTrackedCounts(file, worktree, staged, looksLikeSecret));
         }
 
@@ -253,10 +256,13 @@ public sealed class StatusService(
         RepositoryInfo repository,
         GitFileChange file,
         bool looksLikeSecret,
-        bool measure)
+        bool measure,
+        CancellationToken cancellationToken)
     {
         UntrackedFileMeasurer.Measurement measurement = measure
-            ? untracked.Measure(Path.Combine(repository.Root, file.Path.Replace('/', Path.DirectorySeparatorChar)))
+            ? untracked.Measure(
+                Path.Combine(repository.Root, file.Path.Replace('/', Path.DirectorySeparatorChar)),
+                cancellationToken)
             : default;
 
         return new GitFileChange

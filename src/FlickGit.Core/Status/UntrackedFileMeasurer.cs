@@ -21,8 +21,16 @@ public sealed class UntrackedFileMeasurer
     private const int SniffBytes = 8 * 1024;
 
     /// <param name="absolutePath">Full path to the untracked file.</param>
-    public Measurement Measure(string absolutePath)
+    /// <param name="cancellationToken">
+    /// Checked before the file is opened and once per chunk while it is read. This runs up to
+    /// <see cref="StatusService"/>'s ceiling of times per status, synchronously, on the path with
+    /// a 60 ms budget -- so an F5 or a closed window that abandoned the Task used to leave every
+    /// remaining read running.
+    /// </param>
+    public Measurement Measure(string absolutePath, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var file = new FileInfo(absolutePath);
@@ -58,7 +66,7 @@ public sealed class UntrackedFileMeasurer
             if (buffer.AsSpan(0, read).IndexOf((byte)0) >= 0)
                 return new Measurement(null, null, true, file.Length);
 
-            int lines = CountLines(buffer, read, stream);
+            int lines = CountLines(buffer, read, stream, cancellationToken);
 
             //Added = every line, removed = nothing. This is a file that did not exist,
             //which is exactly what "+156 -0" says.
@@ -73,7 +81,11 @@ public sealed class UntrackedFileMeasurer
         }
     }
 
-    private static int CountLines(byte[] firstChunk, int firstChunkLength, FileStream stream)
+    private static int CountLines(
+        byte[] firstChunk,
+        int firstChunkLength,
+        FileStream stream,
+        CancellationToken cancellationToken)
     {
         int lines = 0;
         bool sawAnyByte = false;
@@ -96,7 +108,10 @@ public sealed class UntrackedFileMeasurer
         byte[] buffer = new byte[64 * 1024];
         int read;
         while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             CountChunk(buffer.AsSpan(0, read));
+        }
 
         //A file whose last line has no trailing newline still contains that line. Git
         //counts it too (and marks it "\ No newline at end of file" in a diff), so not

@@ -5,6 +5,7 @@ using DiffPlex.Model;
 using FlickGit.Git;
 using FlickGit.History;
 using FlickGit.Models;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Diff;
 
@@ -265,20 +266,20 @@ public sealed class DiffService(IGitProcessRunner git, FileTextLoader files)
     /// one view that shows a file this size would be a diff missing half its content.
     /// </summary>
     private static IReadOnlyList<string> UnifiedArgs(GitFileChange file) =>
-        ["diff", "HEAD", .. GitDiffFlags.ReadSafe, "--", file.Path];
+        ["diff", "HEAD", .. GitDiffFlags.ReadSafe, "--", Literal(file.Path)];
 
     private static IReadOnlyList<string> RangeUnifiedArgs(GitFileChange file, DiffRange range)
     {
         List<string> args =
         [
             "diff", .. GitDiffFlags.ReadSafe, "-M",
-            range.BaseSpec, range.TipSpec, "--", file.Path,
+            range.BaseSpec, range.TipSpec, "--", Literal(file.Path),
         ];
 
         //A rename needs both pathspecs or `git diff -M` has nothing to pair, and the file would come
         //back as an unrelated add.
         if (file.OldPath is { Length: > 0 } old)
-            args.Add(old);
+            args.Add(Literal(old));
 
         return args;
     }

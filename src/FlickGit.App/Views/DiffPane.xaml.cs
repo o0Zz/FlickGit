@@ -441,6 +441,12 @@ public partial class DiffPane : UserControl
         _diff = diff;
         IsDirty = false;
 
+        //Cleared here rather than in ShowSideBySide, because every early return below is a way
+        //out of this method that used to leave it standing: CommitWindow.Reset shows a null diff,
+        //so "Saved" from the previous repository survived into the next use of the pre-warmed
+        //window.
+        SavedText.Visibility = Visibility.Collapsed;
+
         if (isLoading)
         {
             PlaceholderText.Text = Strings.Get("diff.loading");
@@ -560,7 +566,6 @@ public partial class DiffPane : UserControl
         //here is not in the commit until the file is restaged.
         StagedStripText.Text = Strings.Get("edit.staged.notice");
         StagedStrip.Visibility = fileIsStaged && diff.IsEditable ? Visibility.Visible : Visibility.Collapsed;
-        SavedText.Visibility = Visibility.Collapsed;
 
         Placeholder.Visibility = Visibility.Collapsed;
     }
@@ -1177,16 +1182,7 @@ public partial class DiffPane : UserControl
     /// </summary>
     private void ScrollToFirstChange(IReadOnlyList<DiffRow> rows)
     {
-        int first = -1;
-
-        for (int row = 0; row < rows.Count; row++)
-        {
-            if (Hunks.IsChange(rows[row]))
-            {
-                first = row;
-                break;
-            }
-        }
+        int first = Hunks.FirstChangeRow(rows);
 
         if (first < 0)
         {

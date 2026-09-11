@@ -81,32 +81,38 @@ public sealed partial class FinderTrash(ILog log) : ITrash
     /// </summary>
     private static bool Trash(string absolute)
     {
-        IntPtr url = CFStringUrl(absolute);
-
-        if (url == IntPtr.Zero)
-            return false;
-
-        IntPtr manager = SendGet(GetClass("NSFileManager"), Selector("defaultManager"));
-
-        return SendTrash(
-            manager,
-            Selector("trashItemAtURL:resultingItemURL:error:"),
-            url,
-            IntPtr.Zero,
-            IntPtr.Zero);
-    }
-
-    /// <summary>An <c>NSURL</c> for a file path, via <c>NSString</c>.</summary>
-    private static IntPtr CFStringUrl(string absolute)
-    {
+        //The NSString is owned by us -- it came from alloc/initWithUTF8String:, which returns a
+        //+1 reference, unlike the NSURL, which is autoreleased. Released once the URL exists,
+        //because fileURLWithPath: has copied what it needs by then. Without this the resident
+        //process leaked one string per delete.
         IntPtr text = SendString(
             SendGet(GetClass("NSString"), Selector("alloc")),
             Selector("initWithUTF8String:"),
             absolute);
 
-        return text == IntPtr.Zero
-            ? IntPtr.Zero
-            : SendPointer(GetClass("NSURL"), Selector("fileURLWithPath:"), text);
+        if (text == IntPtr.Zero)
+            return false;
+
+        try
+        {
+            IntPtr url = SendPointer(GetClass("NSURL"), Selector("fileURLWithPath:"), text);
+
+            if (url == IntPtr.Zero)
+                return false;
+
+            IntPtr manager = SendGet(GetClass("NSFileManager"), Selector("defaultManager"));
+
+            return SendTrash(
+                manager,
+                Selector("trashItemAtURL:resultingItemURL:error:"),
+                url,
+                IntPtr.Zero,
+                IntPtr.Zero);
+        }
+        finally
+        {
+            SendGet(text, Selector("release"));
+        }
     }
 
     private const string Objc = "/usr/lib/libobjc.A.dylib";
@@ -126,8 +132,14 @@ public sealed partial class FinderTrash(ILog log) : ITrash
     [LibraryImport(Objc, EntryPoint = "objc_msgSend", StringMarshalling = StringMarshalling.Utf8)]
     private static partial IntPtr SendString(IntPtr receiver, IntPtr selector, string argument);
 
+    /// <summary>
+    /// <c>I1</c>, not <c>Bool</c>. Objective-C's <c>BOOL</c> is a signed char returned in the low
+    /// byte of <c>x0</c> with the upper bits undefined, while <c>UnmanagedType.Bool</c> reads a
+    /// four-byte Win32 <c>BOOL</c> — so a failed trash could be read as success, leaving the file
+    /// where it was while the caller reported it gone.
+    /// </summary>
     [LibraryImport(Objc, EntryPoint = "objc_msgSend")]
-    [return: MarshalAs(UnmanagedType.Bool)]
+    [return: MarshalAs(UnmanagedType.I1)]
     private static partial bool SendTrash(
         IntPtr receiver,
         IntPtr selector,

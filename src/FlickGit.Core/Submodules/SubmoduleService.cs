@@ -3,6 +3,7 @@ using FlickGit.Diff;
 using FlickGit.Git;
 using FlickGit.Models;
 using FlickGit.Repositories;
+using static FlickGit.Git.GitPathspec;
 
 namespace FlickGit.Submodules;
 
@@ -258,7 +259,7 @@ public sealed class SubmoduleService(IGitProcessRunner git, RepositoryService re
         List<string> args =
         [
             "diff", "HEAD", "--name-only", "-z", "--ignore-submodules=none", .. GitDiffFlags.ReadSafe, "--",
-            .. paths,
+            .. paths.Select(Literal),
         ];
 
         GitResult result = await git.ReadAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);

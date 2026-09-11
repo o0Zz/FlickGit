@@ -58,6 +58,12 @@ public sealed class FileLog : ILog, IDisposable
 
     public void Error(string message) => Write("ERR", message);
 
+    /// <summary>
+    /// UTF-8 with no BOM. <c>Encoding.UTF8</c> emits a preamble when it creates the file, so every
+    /// rotation put three bytes at the top of the new log.
+    /// </summary>
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
     private void Write(string level, string message)
     {
         if (_disabled)
@@ -70,7 +76,7 @@ public sealed class FileLog : ILog, IDisposable
             try
             {
                 Rotate();
-                File.AppendAllText(_path, line, Encoding.UTF8);
+                File.AppendAllText(_path, line, Utf8NoBom);
             }
             catch (Exception)
             {

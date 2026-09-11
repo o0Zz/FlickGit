@@ -70,11 +70,16 @@ public sealed class FinderFolder(ILog log)
             if (process is null)
                 return null;
 
-            //Read before waiting. osascript's output is one short line and could not fill a pipe, but
-            //the order is the same rule GitProcessRunner keeps and getting it wrong here would be a
-            //deadlock nobody could reproduce.
-            string output = process.StandardOutput.ReadToEnd();
-            string error = process.StandardError.ReadToEnd();
+            //Both pipes drained at once, which is the rule GitProcessRunner keeps and the comment
+            //here used to claim while doing the opposite: a sequential ReadToEnd blocks on stdout
+            //until EOF while stderr fills its own buffer. It runs before WaitForExit, so the
+            //timeout below could not have rescued it -- and osascript writes the Automation-consent
+            //refusal to stderr, which is the case that would have hung.
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+
+            string output = outputTask.GetAwaiter().GetResult();
+            string error = errorTask.GetAwaiter().GetResult();
 
             if (!process.WaitForExit(Timeout))
             {

@@ -48,7 +48,6 @@ namespace FlickGit.App.Mac;
 public sealed class MacWindowVerbs(
     CommitViewModel commit,
     PaletteViewModel palette,
-    RepositoryService repositories,
     HistoryService history,
     DiffService diffs,
     SwitchService switches,
@@ -479,8 +478,6 @@ public sealed class MacWindowVerbs(
     /// </summary>
     public VerbResult Terminal(VerbOutput output, string? path)
     {
-        _ = repositories;
-
         try
         {
             using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo

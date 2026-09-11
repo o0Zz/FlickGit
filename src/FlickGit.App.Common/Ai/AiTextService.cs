@@ -8,6 +8,7 @@ using FlickGit.Diagnostics;
 using FlickGit.History;
 using FlickGit.Logging;
 using FlickGit.Models;
+using FlickGit.Secrets;
 
 namespace FlickGit.App.Ai;
 
@@ -271,8 +272,13 @@ public sealed class AiTextService(
         }
         catch (Exception ex)
         {
-            log.Error($"Generation failed: {ex}");
-            return Failed(ex.Message, count: true);
+            //Redacted, and the message rather than the whole exception: this is the one catch
+            //that sees an exception Core did not build, so nothing upstream has been through the
+            //detector.
+            string reason = SecretDetector.Redact(ex.Message);
+
+            log.Error($"Generation failed: {reason}");
+            return Failed(reason, count: true);
         }
     }
 

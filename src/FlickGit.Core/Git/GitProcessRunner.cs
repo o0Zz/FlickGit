@@ -3,6 +3,7 @@ using System.Text;
 using FlickGit.Diagnostics;
 using FlickGit.Logging;
 using FlickGit.Models;
+using FlickGit.Secrets;
 
 namespace FlickGit.Git;
 
@@ -147,6 +148,11 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         //carriage-return redraws into a pipe nobody renders.
         startInfo.Environment["GIT_FLUSH"] = "1";
 
+        //See NeedsStableMessages. Not set for every command on purpose: this makes Git answer in
+        //English, and Git's own words are what the user is shown when a command fails.
+        if (NeedsStableMessages(args))
+            startInfo.Environment["LC_ALL"] = "C";
+
         long startedAt = Stopwatch.GetTimestamp();
 
         using var process = new Process { StartInfo = startInfo };
@@ -195,6 +201,24 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         catch (OperationCanceledException)
         {
             KillTree(process);
+
+            //Drained before unwinding. The process is dead by now so these complete at once, and
+            //without them `using var process` disposes the streams underneath two in-flight reads
+            //-- which is an unobserved ObjectDisposedException, and the one place in this method
+            //that did not finish what it started.
+            try
+            {
+                await Task.WhenAll(
+                    (Task?)stdoutTask ?? Task.CompletedTask,
+                    (Task?)stdoutBytesTask ?? Task.CompletedTask,
+                    stderrTask).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                //Whatever the reads report while the tree is being killed is not the failure the
+                //caller is being told about, which is the cancellation already unwinding.
+            }
+
             throw;
         }
 
@@ -213,7 +237,7 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         timings?.Record($"git {commandName}", duration);
 
         if (result.ExitCode != 0)
-            log.Warn($"git {commandName} failed ({result.ExitCode}): {Truncate(stderr)}");
+            log.Warn($"git {commandName} failed ({result.ExitCode}): {Sanitise(commandName, stderr)}");
 
         return result;
     }
@@ -328,6 +352,24 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         }
     }
 
+    /// <summary>
+    /// Whether this command's stderr is read by us as well as shown to the user.
+    ///
+    /// Five places match Git's refusal on its wording, because there is no machine-readable form
+    /// of it -- <c>git branch -d</c> exits 1 for every failure it has, so "not fully merged" is the
+    /// only thing that separates "offer to force" from "report and stop". Unpinned, a Git with a
+    /// translation installed answers in the user's language, every one of those probes returns
+    /// false, and the second question silently never appears -- and a bare repository is reported
+    /// as not a repository at all. That is not hypothetical on macOS, where Terminal sets LANG
+    /// from the system region by default.
+    ///
+    /// Scoped to these commands rather than set globally, because the cost of pinning is that the
+    /// user is shown English: worth paying where we have to read the message, not everywhere.
+    /// The readers are BranchService, RepositoryService, SubmoduleService and WorktreeService.
+    /// </summary>
+    private static bool NeedsStableMessages(IReadOnlyList<string> args) =>
+        args.Count > 0 && args[0] is "branch" or "rev-parse" or "submodule" or "worktree" or "rm";
+
     private void KillTree(Process process)
     {
         try
@@ -343,9 +385,24 @@ public sealed class GitProcessRunner(GitExecutable git, ILog log, OperationTimin
         }
     }
 
-    private static string Truncate(string text)
+    /// <summary>
+    /// What a failed command's stderr may contribute to the log.
+    ///
+    /// Two rules, both from CLAUDE.md's "Logging", and neither of them held before: never a
+    /// credential, and never file contents. <c>git apply</c> and <c>git diff</c> echo the lines
+    /// they were searching for -- so on a hunk that no longer applies, the user's own source went
+    /// into the log. Only their first line is kept, which carries the error and the path and
+    /// nothing of the file. Everything else goes through the same detector the AI payload uses,
+    /// because a remote URL with a token in it reaches stderr from any command touching a remote.
+    /// </summary>
+    private static string Sanitise(string commandName, string stderr)
     {
-        string single = text.Replace("\r", " ").Replace("\n", " ").Trim();
+        string text = commandName is "apply" or "diff" ? stderr.Split('\n', 2)[0] : stderr;
+        string single = SecretDetector.Redact(text)
+            .Replace("\r", " ")
+            .Replace("\n", " ")
+            .Trim();
+
         return single.Length <= 400 ? single : single[..400] + "…";
     }
 }

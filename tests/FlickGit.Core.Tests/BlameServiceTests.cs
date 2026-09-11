@@ -46,6 +46,10 @@ public class BlameServiceTests
     /// In scope under the safety rules: the path is passed after <c>--</c> so a file whose name
     /// looks like a revision is still read as a file, and the revision is passed as its own argument
     /// rather than spliced into the path.
+    ///
+    /// It also carries <c>:(literal)</c>, which <c>--</c> alone does not give: after the separator
+    /// Git still reads <c>*?[]</c> as wildcards, so blaming <c>report[final].xlsx</c> would show the
+    /// contents of <c>reportf.xlsx</c> under the clicked file's name.
     /// </summary>
     [Fact]
     public async Task TheRequestNamesTheRevisionAndSeparatesThePath()
@@ -56,7 +60,7 @@ public class BlameServiceTests
 
         string[] args = Assert.Single(git.Invocations).Args;
 
-        Assert.Equal(["blame", "--porcelain", "HEAD~3", "--", "src/Gateway.cs"], args);
+        Assert.Equal(["blame", "--porcelain", "HEAD~3", "--", ":(literal)src/Gateway.cs"], args);
     }
 
     /// <summary>

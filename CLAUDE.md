@@ -111,10 +111,12 @@ would hide.
 - **The sequences** — `CommitFlow` (stage, switch, verify, commit, push) and `PullRequestFlow` (push,
   then create).
 - **The safety rules.** A blocked switch changes nothing; a stash restores only the one it created; a
-  diverged push is refused; `add -A` never appears in an argument list; `git rm` always carries
-  `--cached` and never `-f`, so no removal can reach the working tree; `branch -D` never appears
-  unless force was asked for; untracked and secret-matching files are not staged by default; every
-  read carries `--no-optional-locks`.
+  diverged push is refused; `add -A` never appears in an argument list; `TrackingService`'s `git rm`
+  always carries `--cached` and never `-f`, so the Add, Remove and Delete vector cannot reach the
+  working tree — `SubmoduleService` is the one deliberate exception, where `deinit` then a forced
+  `git rm` is the documented removal and Git's own refusal is what gates the force; `branch -D`
+  never appears unless force was asked for; untracked and secret-matching files are not staged by
+  default; every read carries `--no-optional-locks`.
 - **The working tree.** Encoding, BOM and line-ending round trips, line reverting, and the one value
   that may ever be written to a file.
 - **What may leave the machine** — the AI payload builder, and the provider streams read a few bytes

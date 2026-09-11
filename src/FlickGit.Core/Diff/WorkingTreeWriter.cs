@@ -445,7 +445,6 @@ public sealed class WorkingTreeWriter
 /// <summary>Why a save was refused. Each one has a different remedy in the UI.</summary>
 public enum SaveRefusal
 {
-    None,
     Binary,
     OutsideRepository,
     ReparsePoint,

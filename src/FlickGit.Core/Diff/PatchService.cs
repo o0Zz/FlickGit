@@ -64,11 +64,9 @@ public sealed class PatchService(IGitProcessRunner git, RepositoryService reposi
 
         if (!result.Succeeded)
         {
-            //Logged at warning rather than error: a patch that no longer applies is an ordinary race
-            //with an IDE saving in the background, not a fault in the product.
-            log.Warn($"git apply --cached failed ({result.ExitCode}): {result.StdErr.Trim()}");
-
-
+            //Not logged here. GitProcessRunner already records every non-zero exit, and it is the
+            //one place that can do it safely: `git apply` echoes the lines it was searching for,
+            //so a second copy of the whole stderr is the user's own source in the log file.
             return PatchResult.Failed(
                 result.StdErr.Trim() is { Length: > 0 } stderr ? stderr : result.StdOut.Trim());
         }

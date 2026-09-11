@@ -33,6 +33,14 @@ public partial class ConsolePane : UserControl
     private ConsoleSession? _session;
 
     /// <summary>
+    /// Cancels the wait for conhost's window. Without it, closing the commit window while conhost
+    /// was slow to appear left the hunt running to its five-second timeout and then assigning a
+    /// window handle on a session <see cref="Stop"/> had already torn down -- a reparent against a
+    /// container that no longer exists.
+    /// </summary>
+    private CancellationTokenSource? _starting;
+
+    /// <summary>
     /// The log, handed down by the window rather than injected: this control is constructed by XAML.
     /// The same route <see cref="CommitWindow.KeepAlive"/> takes.
     /// </summary>
@@ -41,7 +49,7 @@ public partial class ConsolePane : UserControl
     /// <summary>True while keystrokes are going to the shell rather than to WPF.</summary>
     public bool IsConsoleFocused { get; private set; }
 
-    public bool IsRunning => _session?.IsRunning == true;
+    private bool IsRunning => _session?.IsRunning == true;
 
     /// <summary>The user asked to come back to WPF. The window decides where the caret lands.</summary>
     public event Action? EscapeRequested;
@@ -77,7 +85,23 @@ public partial class ConsolePane : UserControl
 
         Say(Strings.Get("console.starting"), failed: false);
 
-        string? failure = await _session.StartAsync(Host.Container, workingDirectory).ConfigureAwait(true);
+        _starting?.Dispose();
+        _starting = new CancellationTokenSource();
+
+        string? failure;
+
+        try
+        {
+            failure = await _session
+                .StartAsync(Host.Container, workingDirectory, _starting.Token)
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            //Stop() ran while conhost was still being waited for. Nothing to report: the pane is
+            //being torn down, and Stop has already said what the strip should say.
+            return;
+        }
 
         if (failure is null)
         {
@@ -112,6 +136,10 @@ public partial class ConsolePane : UserControl
     {
         _resizeDebounce.Stop();
         ReleaseFocus();
+
+        //Before the session, so a start still waiting for conhost unwinds rather than finishing
+        //against the container this call is about to invalidate.
+        _starting?.Cancel();
 
         _session?.Stop();
 

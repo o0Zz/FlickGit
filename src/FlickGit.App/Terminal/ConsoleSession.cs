@@ -45,7 +45,7 @@ namespace FlickGit.App.Terminal;
 /// <c>powershell.exe</c> would be left holding a directory handle on the user's repository, which is
 /// enough to make a later <c>git switch</c> fail for reasons nobody could see.
 /// </summary>
-internal sealed partial class ConsoleSession(ILog log) : IDisposable
+internal sealed partial class ConsoleSession(ILog log)
 {
     /// <summary>
     /// The shell, as a constant rather than a setting -- Hard Requirement 2, and nobody has asked for a
@@ -59,8 +59,6 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
 
     /// <summary>How long to wait for conhost to create its window. Measured at 188 ms; this is slack.</summary>
     private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(5);
-
-    private readonly ILog _log = log;
 
     private nint _job;
     private nint _process;
@@ -79,7 +77,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     private uint _attachedThread;
 
     /// <summary>The reparented console window, or 0 when nothing is running.</summary>
-    public nint WindowHandle { get; private set; }
+    private nint WindowHandle { get; set; }
 
     public bool IsRunning => WindowHandle != 0 && IsWindow(WindowHandle);
 
@@ -88,7 +86,10 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     /// <paramref name="container"/>.
     /// </summary>
     /// <returns>Null on success, or a sentence saying what went wrong.</returns>
-    public async Task<string?> StartAsync(nint container, string workingDirectory)
+    public async Task<string?> StartAsync(
+        nint container,
+        string workingDirectory,
+        CancellationToken cancellationToken)
     {
         if (container == 0)
             return Strings.Get("console.failed");
@@ -101,24 +102,24 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
             // Not recoverable, and not worth half-running: without the job there is no way to identify
             // our own window and no guarantee the shell dies with us.
             int error = Marshal.GetLastWin32Error();
-            _log.Error($"Console pane: could not create the job object (Windows error {error}).");
+            log.Error($"Console pane: could not create the job object (Windows error {error}).");
             return Strings.Get("console.failed");
         }
 
         if (!Launch(workingDirectory, out int pid))
         {
             int error = Marshal.GetLastWin32Error();
-            _log.Error($"Console pane: CreateProcessW failed for '{ShellCommandLine}' (Windows error {error}).");
+            log.Error($"Console pane: CreateProcessW failed for '{ShellCommandLine}' (Windows error {error}).");
             Stop();
             return Strings.Get("console.failed");
         }
 
-        _log.Debug($"Console pane: started {ShellCommandLine} as pid {pid} in {workingDirectory}");
+        log.Debug($"Console pane: started {ShellCommandLine} as pid {pid} in {workingDirectory}");
 
-        nint window = await FindMyWindowAsync().ConfigureAwait(true);
+        nint window = await FindMyWindowAsync(cancellationToken).ConfigureAwait(true);
         if (window == 0)
         {
-            _log.Error("Console pane: no console window appeared. The Windows console host may be unavailable.");
+            log.Error("Console pane: no console window appeared. The Windows console host may be unavailable.");
             Stop();
             return Strings.Get("console.failed");
         }
@@ -180,7 +181,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         _hostProcessId = pid;
 
         if (!AssignProcessToJobObject(_job, _process))
-            _log.Error($"Console pane: AssignProcessToJobObject failed (Windows error {Marshal.GetLastWin32Error()}).");
+            log.Error($"Console pane: AssignProcessToJobObject failed (Windows error {Marshal.GetLastWin32Error()}).");
 
         ResumeThread(_thread);
         return true;
@@ -193,7 +194,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     /// job membership test is the only one that cannot be fooled by pid reuse, and it is what stops a
     /// stranger's console -- there are routinely a dozen on a desktop -- being adopted into our window.
     /// </summary>
-    private async Task<nint> FindMyWindowAsync()
+    private async Task<nint> FindMyWindowAsync(CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
 
@@ -201,7 +202,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         {
             if (HasExited())
             {
-                _log.Error("Console pane: the console host exited before it made a window.");
+                log.Error("Console pane: the console host exited before it made a window.");
                 return 0;
             }
 
@@ -217,7 +218,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
                     return window;
             }
 
-            await Task.Delay(25).ConfigureAwait(true);
+            await Task.Delay(25, cancellationToken).ConfigureAwait(true);
         }
 
         return 0;
@@ -253,7 +254,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
             // 5 is ERROR_ACCESS_DENIED, and here it means the container was created without
             // DPI_HOSTING_BEHAVIOR_MIXED -- see ConsoleHost.BuildWindowCore, which is the only place
             // that can be wrong about this.
-            _log.Error($"Console pane: SetParent failed (Windows error {error}).");
+            log.Error($"Console pane: SetParent failed (Windows error {error}).");
             return false;
         }
 
@@ -332,7 +333,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         SetFocus(WindowHandle);
 
         if (GetFocus() != WindowHandle)
-            _log.Debug($"Console pane: SetFocus was refused (Windows error {Marshal.GetLastWin32Error()}).");
+            log.Debug($"Console pane: SetFocus was refused (Windows error {Marshal.GetLastWin32Error()}).");
     }
 
     /// <summary>
@@ -369,7 +370,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
             AttachThreadInput(self, thread, false);
         }
 
-        _log.Error("Console pane: no thread of the console host would accept focus for its window.");
+        log.Error("Console pane: no thread of the console host would accept focus for its window.");
         return false;
     }
 
@@ -440,8 +441,6 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         _windowThread = 0;
         _hostProcessId = 0;
     }
-
-    public void Dispose() => Stop();
 
     private bool HasExited() =>
         _process == 0 || (GetExitCodeProcess(_process, out uint code) && code != StillActive);

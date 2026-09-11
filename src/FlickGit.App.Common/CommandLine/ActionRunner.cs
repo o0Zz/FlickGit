@@ -6,6 +6,7 @@ using FlickGit.Cli;
 using FlickGit.Git;
 using FlickGit.Logging;
 using FlickGit.Models;
+using FlickGit.Secrets;
 
 namespace FlickGit.App.CommandLine;
 
@@ -110,7 +111,11 @@ public sealed class ActionRunner(
                     return Outcome.Ok(result.StdOut);
 
                 //Git's own words: never paraphrased, never generic.
-                log.Warn($"Action '{action.Id}' failed: git {string.Join(' ', args)} -> {result.ExitCode}");
+                //Redacted: these arguments come from the user's own actions.json, and a remote URL
+                //with a token in it is a perfectly ordinary thing to have written there.
+                string vector = SecretDetector.Redact(string.Join(' ', args));
+
+                log.Warn($"Action '{action.Id}' failed: git {vector} -> {result.ExitCode}");
                 notifier.Show(action.Label, result.StdErr.Trim() is { Length: > 0 } text ? text : result.StdOut.Trim());
                 return Outcome.Failed;
             }

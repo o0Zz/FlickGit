@@ -1,4 +1,6 @@
-﻿using FlickGit.App.Localization;
+﻿using System.IO;
+using FlickGit.Ipc;
+using FlickGit.App.Localization;
 using FlickGit.App.Resident;
 using FlickGit.App.Settings;
 using FlickGit.Ai;
@@ -26,7 +28,6 @@ public sealed class EnvironmentVerbs(
     ShellIntegration shell,
     OverlayIntegration overlay,
     Autostart autostart,
-    ResidentService resident,
     TriggerService trigger,
     AiConfiguration ai,
     PromptStore prompts,
@@ -151,7 +152,7 @@ public sealed class EnvironmentVerbs(
         output.Line($"context menu     {(shell.IsInstalled() ? "installed" : "not installed")}");
         output.Line($"folder overlay   {DescribeOverlay()}");
         output.Line($"start at logon   {(autostart.IsEnabled() ? "enabled" : "disabled")}");
-        output.Line($"resident service {(resident.IsRunning() ? "running" : "not running")}");
+        output.Line($"resident service {(PipeExists() ? "running" : "not running")}");
         output.Line($"trigger          {trigger.Describe()}");
         output.Line($"palette          {trigger.DescribePalette()}");
         output.Line($"palette roots    {DescribeScanRoots()}");
@@ -200,6 +201,29 @@ public sealed class EnvironmentVerbs(
             ? $"installed, {where}"
             : $"ORPHANED -- {where}, but nothing is registered for it under HKCU. " +
               "Run `flick uninstall-overlay` as administrator to remove it.";
+    }
+
+    /// <summary>
+    /// Whether a resident service is listening -- the first thing to rule out when `diag doctor` is
+    /// asked why something is slow.
+    ///
+    /// The pipe is looked for as a file rather than connected to. Named pipes live in a
+    /// file-system-like namespace, so this is a cheap existence check; asking to connect would
+    /// consume the single server instance and race with a real request arriving at the same moment.
+    /// The pipe is also the right thing to test rather than a process name, because the pipe is what
+    /// the stub actually needs and a process that is running but failed to open one is not a
+    /// resident service in any sense that helps.
+    /// </summary>
+    private static bool PipeExists()
+    {
+        try
+        {
+            return File.Exists(IpcProtocol.LocalPipePath());
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     /// <summary>
