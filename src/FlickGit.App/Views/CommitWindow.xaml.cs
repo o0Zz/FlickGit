@@ -121,7 +121,9 @@ public partial class CommitWindow : Window
         //message box, Tab, a collapsed element handing focus on, an activation that restores WPF's own
         //focus. WPF raises this only when an element of this window really has the Win32 focus, which is
         //exactly the moment the console does not, so the pane can stop guessing.
-        GotKeyboardFocus += (_, _) => Console.ReleaseFocus();
+        //Focus landing on the console's own host is the console *taking* the keyboard, not losing
+        //it, so the pane is asked rather than told.
+        GotKeyboardFocus += (_, e) => Console.NoteWpfFocus(e.NewFocus);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

@@ -38,6 +38,14 @@ internal sealed partial class ConsoleHost : HwndHost
     /// <summary>The escape gesture was pressed while the console had focus.</summary>
     public event Action? EscapeRequested;
 
+    /// <summary>
+    /// The container took Win32 focus, and the console below it now needs to be handed the
+    /// keyboard. <see cref="HwndHost"/> focuses the handle it was given whenever the element
+    /// receives WPF keyboard focus, and the handle it was given is this container rather than the
+    /// console.
+    /// </summary>
+    public event Action? FocusReceived;
+
     protected override HandleRef BuildWindowCore(HandleRef hwndParent)
     {
         // Since Windows 10 1803 a window may host children of a different DPI awareness context only if
@@ -86,6 +94,14 @@ internal sealed partial class ConsoleHost : HwndHost
                 int button = (int)(wParam & 0xFFFF);
                 if (button is WmLButtonDown or WmRButtonDown or WmMButtonDown)
                     ClickedIn?.Invoke();
+                break;
+
+            // HwndHost puts Win32 focus on this container when the element gets WPF keyboard focus,
+            // which is the half that makes WPF stop competing for the keyboard. It is not the half
+            // the user wants, though -- a 'static' window renders nothing and eats every key -- so
+            // the focus is passed straight down to the console.
+            case WmSetFocus:
+                FocusReceived?.Invoke();
                 break;
 
             // WM_HOTKEY is delivered to the registering thread whatever has focus, which is what makes
@@ -148,6 +164,7 @@ internal sealed partial class ConsoleHost : HwndHost
 
     // ---- Win32 ----------------------------------------------------------------------------------
 
+    private const int WmSetFocus = 0x0007;
     private const int WmParentNotify = 0x0210;
     private const int WmHotkey = 0x0312;
     private const int WmLButtonDown = 0x0201;

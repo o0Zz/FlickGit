@@ -66,7 +66,16 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     private nint _process;
     private nint _thread;
 
-    /// <summary>The console's UI thread while our input queues are joined, or 0.</summary>
+    /// <summary>The console host, so its threads can be enumerated. 0 when nothing is running.</summary>
+    private int _hostProcessId;
+
+    /// <summary>
+    /// The thread that really owns the console window, once <see cref="Focus"/> has found it, or 0.
+    /// Not what <c>GetWindowThreadProcessId</c> answers -- see <see cref="Focus"/>.
+    /// </summary>
+    private uint _windowThread;
+
+    /// <summary><see cref="_windowThread"/> while our input queue is joined to it, or 0.</summary>
     private uint _attachedThread;
 
     /// <summary>The reparented console window, or 0 when nothing is running.</summary>
@@ -168,6 +177,7 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         _process = information.Process;
         _thread = information.Thread;
         pid = information.ProcessId;
+        _hostProcessId = pid;
 
         if (!AssignProcessToJobObject(_job, _process))
             _log.Error($"Console pane: AssignProcessToJobObject failed (Windows error {Marshal.GetLastWin32Error()}).");
@@ -288,47 +298,111 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
     /// Moves keyboard focus into the console.
     ///
     /// The console belongs to another process with its own input queue, so a plain <c>SetFocus</c> from
-    /// here is refused: a thread may only focus a window on its own queue.
+    /// here is refused: a thread may only focus a window on its own queue, and the way onto the
+    /// console's queue is <c>AttachThreadInput</c>.
+    ///
+    /// <b>Which thread to attach to is the whole difficulty, because Windows lies about it.</b> For a
+    /// console window <c>GetWindowThreadProcessId</c> reports the console's <i>client</i> -- here the
+    /// shell -- rather than conhost, which created the window and whose thread actually owns it. That
+    /// is a deliberate compatibility fiction for code that expects <c>GetConsoleWindow</c> to belong to
+    /// the console application. Attaching to the reported thread succeeds, since the thread exists,
+    /// and <c>SetFocus</c> then fails with <c>ERROR_ACCESS_DENIED</c> every time, since it is still not
+    /// the window's queue. Measured on build 26200: the reported thread owned no windows at all, and
+    /// focus took the moment the join was moved to conhost's window thread.
+    ///
+    /// There is no call that answers honestly, so the owner is found by trying: each thread of the
+    /// conhost we launched is joined in turn and <c>SetFocus</c> is asked to prove it, and the first
+    /// thread it takes on is kept for the life of the shell. A few syscalls, once.
     ///
     /// <b>The attach is held, not wrapped around the call.</b> Detaching splits the queues again and
     /// each thread's focus reverts to its own window, so a detach in a <c>finally</c> undoes the very
-    /// <c>SetFocus</c> it looks like it is protecting. The symptom is specific and was seen: the console
-    /// takes the keyboard the first time and refuses it every time after, because from then on our
-    /// thread is asking to focus a window it does not share a queue with. It stays attached until
-    /// <see cref="Blur"/>.
+    /// <c>SetFocus</c> it looks like it is protecting. It stays attached until <see cref="Blur"/>.
     /// </summary>
     public void Focus()
     {
         if (!IsRunning)
             return;
 
-        uint target = GetWindowThreadProcessId(WindowHandle, out _);
-        uint self = GetCurrentThreadId();
+        if (_attachedThread == 0 && !Join())
+            return;
 
-        if (_attachedThread == 0 && target != self)
-        {
-            if (AttachThreadInput(self, target, true))
-            {
-                _attachedThread = target;
-                _log.Debug($"Console pane: joined our input queue to console thread {target}.");
-            }
-            else
-            {
-                _log.Debug($"Console pane: AttachThreadInput failed (Windows error {Marshal.GetLastWin32Error()}).");
-            }
-        }
-        else
-        {
-            _log.Debug($"Console pane: already joined to thread {_attachedThread} (console thread {target}, ours {self}).");
-        }
+        if (GetFocus() == WindowHandle)
+            return;
 
         SetFocus(WindowHandle);
+        int error = Marshal.GetLastWin32Error();
 
-        nint focused = GetFocus();
-        if (focused != WindowHandle)
-            _log.Debug($"Console pane: focus did not take -- it is 0x{focused:X}, wanted 0x{WindowHandle:X}.");
-        else
-            _log.Debug($"Console pane: focus is on the console (0x{focused:X}).");
+        nint keyboardFocus = QueueFocus(GetForegroundWindow());
+        _log.Debug(
+            $"Console pane: after SetFocus -- GetFocus=0x{GetFocus():X} (wanted 0x{WindowHandle:X}, " +
+            $"error {error}), foreground=0x{GetForegroundWindow():X}, that queue's focus=0x{keyboardFocus:X}.");
+    }
+
+    /// <summary>
+    /// Joins our input queue to the thread that owns the console window, finding that thread the first
+    /// time. Returns false, with the queues left as they were, when no thread of the host will take
+    /// the focus -- which means the console is not one we can drive, and typing into it is not on.
+    /// </summary>
+    private bool Join()
+    {
+        uint self = GetCurrentThreadId();
+
+        if (_windowThread != 0)
+        {
+            if (!AttachThreadInput(self, _windowThread, true))
+                return false;
+
+            _attachedThread = _windowThread;
+            return true;
+        }
+
+        foreach (uint thread in HostThreads())
+        {
+            if (thread == self || !AttachThreadInput(self, thread, true))
+                continue;
+
+            SetFocus(WindowHandle);
+            if (GetFocus() == WindowHandle)
+            {
+                _windowThread = thread;
+                _attachedThread = thread;
+                _log.Debug($"Console pane: the console window is owned by thread {thread}.");
+                return true;
+            }
+
+            AttachThreadInput(self, thread, false);
+        }
+
+        _log.Error("Console pane: no thread of the console host would accept focus for its window.");
+        return false;
+    }
+
+    /// <summary>The threads of the console host we launched, or nothing if it has already gone.</summary>
+    private IEnumerable<uint> HostThreads()
+    {
+        Process host;
+        try
+        {
+            host = Process.GetProcessById(_hostProcessId);
+        }
+        catch (ArgumentException)
+        {
+            yield break;
+        }
+
+        using (host)
+        {
+            foreach (ProcessThread thread in host.Threads)
+                yield return (uint)thread.Id;
+        }
+    }
+    /// <summary>The window the foreground queue currently routes keystrokes to -- what the user's
+    /// typing actually reaches, as opposed to GetFocus which answers only about our own queue.</summary>
+    private static nint QueueFocus(nint foreground)
+    {
+        var info = new GuiThreadInfo { Size = Marshal.SizeOf<GuiThreadInfo>() };
+        uint thread = GetWindowThreadProcessId(foreground, out _);
+        return GetGUIThreadInfo(thread, ref info) ? info.Focus : 0;
     }
 
     /// <summary>
@@ -375,6 +449,8 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
         }
 
         WindowHandle = 0;
+        _windowThread = 0;
+        _hostProcessId = 0;
     }
 
     public void Dispose() => Stop();
@@ -434,6 +510,15 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
 
     private const uint GaRoot = 2;
     private const uint GwOwner = 4;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        public int Size;
+        public int Flags;
+        public nint Active, Focus, Capture, MenuOwner, MoveSize, Caret;
+        public int CaretLeft, CaretTop, CaretRight, CaretBottom;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct StartupInfo
@@ -563,11 +648,18 @@ internal sealed partial class ConsoleSession(ILog log) : IDisposable
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool AttachThreadInput(uint attachTo, uint attachFrom, [MarshalAs(UnmanagedType.Bool)] bool attach);
+    private static partial bool AttachThreadInput(uint thread, uint attachTo, [MarshalAs(UnmanagedType.Bool)] bool attach);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     private static partial nint SetFocus(nint handle);
 
     [LibraryImport("user32.dll")]
     private static partial nint GetFocus();
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
 }

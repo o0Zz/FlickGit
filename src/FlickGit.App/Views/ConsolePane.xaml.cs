@@ -58,6 +58,7 @@ public partial class ConsolePane : UserControl
 
         Host.ClickedIn += OnClickedIn;
         Host.EscapeRequested += OnEscapePressed;
+        Host.FocusReceived += TakeKeyboard;
 
         SizeChanged += (_, _) =>
         {
@@ -117,7 +118,18 @@ public partial class ConsolePane : UserControl
         Say(Strings.Get("console.hint"), failed: false);
     }
 
-    /// <summary>Puts the caret in the shell, and arms the one gesture that can bring it back.</summary>
+    /// <summary>
+    /// Puts the caret in the shell, and arms the one gesture that can bring it back.
+    ///
+    /// Two halves, and both are needed. The Win32 half -- joining the queue of the thread that really
+    /// owns the console window and calling <c>SetFocus</c> -- is <see cref="ConsoleSession.Focus"/>.
+    /// The WPF half is here: WPF's own focus model has to move too, or it fights. While WPF believes one
+    /// of its elements holds the keyboard it acts on that belief and restores Win32 focus to its own
+    /// window at the next opportunity. Focusing the <see cref="HwndHost"/> element is what makes the
+    /// two models agree: WPF records the host as its focused element and stops competing, and the
+    /// host's <c>WM_SETFOCUS</c> carries the keyboard the rest of the way down through
+    /// <see cref="TakeKeyboard"/>.
+    /// </summary>
     public void FocusConsole()
     {
         if (!IsRunning)
@@ -126,10 +138,43 @@ public partial class ConsolePane : UserControl
             return;
         }
 
-        (Log ?? NullLog.Instance).Debug("Console pane: FocusConsole.");
+        // Raises WM_SETFOCUS, and so TakeKeyboard -- but not when the host already holds WPF focus,
+        // which is why the call below is not left to the event. Both paths are idempotent.
+        Host.Focus();
+        TakeKeyboard();
+    }
+
+    /// <summary>
+    /// Hands the keyboard to the shell and arms the way back out. Reached from
+    /// <see cref="FocusConsole"/> and from the host's <c>WM_SETFOCUS</c>, so focus arriving by a route
+    /// this pane did not initiate -- WPF restoring its last focused element when the window is
+    /// activated, above all -- lands the caret in the console rather than on an invisible container.
+    /// </summary>
+    private void TakeKeyboard()
+    {
+        if (!IsRunning)
+            return;
+
         _session!.Focus();
         IsConsoleFocused = true;
         Host.ClaimEscape();
+    }
+
+    /// <summary>
+    /// WPF keyboard focus landed on <paramref name="newFocus"/>. Anything but the console's own host
+    /// means the keyboard has genuinely left the shell, whatever route it took -- a click in the file
+    /// list, the diff or the message box, Tab, a collapsed element handing focus on.
+    ///
+    /// This is what keeps <see cref="IsConsoleFocused"/> an observation rather than a guess, and the
+    /// guess had a specific cost: Ctrl+` is one gesture over two mechanisms, a WPF binding going in and
+    /// a <c>RegisterHotKey</c> coming out, and only one is armed at a time. Left saying "focused" after
+    /// the caret had come back to WPF it armed the wrong one, so Ctrl+` fired the exit path for a
+    /// console the user was not in -- which looks exactly like the key doing nothing at all.
+    /// </summary>
+    public void NoteWpfFocus(object? newFocus)
+    {
+        if (!ReferenceEquals(newFocus, Host))
+            ReleaseFocus();
     }
 
     /// <summary>Gives up the escape hotkey and the "console has focus" state, without moving the caret.</summary>
