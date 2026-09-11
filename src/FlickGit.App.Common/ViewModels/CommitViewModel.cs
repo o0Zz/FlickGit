@@ -722,6 +722,12 @@ public sealed class CommitViewModel : ObservableObject
     /// </summary>
     public void Adopt(RepositoryStatus status)
     {
+        //Every cached diff was computed against the tree as it was before this status was read, and
+        //the cache is keyed by path, not content -- so a file edited outside the window, or a HEAD
+        //moved by the aborted switch that also lands here, would come back from it unchanged while
+        //the counts beside it said otherwise. The prefetch below refills the top five.
+        _diffs.Clear();
+
         //The tick boxes the user already set, kept across a refresh.
         //
         //Keyed by the path *and* whether the row was untracked, because since Del untracks rather than
