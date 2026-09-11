@@ -590,11 +590,14 @@ public partial class CommitWindow : Window
         if (_viewModel?.Repository is not { } repository)
             return;
 
+        //The block stops being a fixed message strip and becomes the flexible region, the message
+        //inside it becomes the fixed strip, and the console takes the flexible row. So the files /
+        //message splitter above now grows the console when dragged, and the console's own splitter
+        //still trims the message against it.
+        LowerRow.Height = new GridLength(1, GridUnitType.Star);
+        LowerRow.MinHeight = 188;   // message 104 + splitter 4 + console 80
+        MessageRow.Height = new GridLength(104);
         ConsoleSplitterRow.Height = new GridLength(4);
-        //A star rather than a fixed strip, so opening the console splits the flexible space with the
-        //file list and the diff instead of carving a fixed 220 px out of them. The splitter below the
-        //message can only trade against that message row, which is 28 px of travel -- so a generous
-        //default and the maximise button are what actually make the pane a usable size.
         ConsoleRow.Height = new GridLength(1, GridUnitType.Star);
         ConsoleRow.MinHeight = 80;
         ConsoleSplitter.Visibility = Visibility.Visible;
@@ -632,6 +635,12 @@ public partial class CommitWindow : Window
         ConsoleRow.MinHeight = 0;
         ConsoleSplitter.Visibility = Visibility.Collapsed;
         ConsoleToggleButton.Content = "^";
+
+        //Back to a fixed message strip: the block is just the message again, and the splitter above
+        //trades against it directly.
+        LowerRow.Height = new GridLength(104);
+        LowerRow.MinHeight = 76;
+        MessageRow.Height = new GridLength(1, GridUnitType.Star);
 
         Console.ReleaseFocus();
     }

@@ -16,13 +16,9 @@
                            Height="*" MinHeight="160" />   <!-- 2 files | diff -->
             <RowDefinition x:Name="MessageSplitterRow"
                            Height="4" />                   <!-- 3 splitter -->
-            <RowDefinition x:Name="MessageRow"
-                           Height="104" MinHeight="76" />  <!-- 4 commit message -->
-            <RowDefinition x:Name="ConsoleSplitterRow"
-                           Height="0" />                   <!-- 5 console splitter -->
-            <RowDefinition x:Name="ConsoleRow"
-                           Height="0" MinHeight="0" />     <!-- 6 console -->
-            <RowDefinition Height="Auto" />                <!-- 7 footer -->
+            <RowDefinition x:Name="LowerRow"
+                           Height="104" MinHeight="76" /> <!-- 4 message + console -->
+            <RowDefinition Height="Auto" />                <!-- 5 footer -->
         </Grid.RowDefinitions>
 
         <!-- Header: repository, branch, ahead/behind. The repository name is shown even
@@ -375,8 +371,20 @@
                       Background="{StaticResource Border}"
                       ResizeBehavior="PreviousAndNext" />
 
+        <!-- Message + console block. The splitter above (row 3) resizes the files list against
+             this whole block. Closed, the block is just the message, so that splitter grows the
+             message as before; open, the message is a fixed strip and the console is the flexible
+             row, so the same splitter grows the console instead. That is the only way to give the
+             console real height; its own splitter has barely any travel against the message. -->
+        <Grid Grid.Row="4" x:Name="LowerGrid">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="MessageRow" Height="*" MinHeight="76" />
+                <RowDefinition x:Name="ConsoleSplitterRow" Height="0" />
+                <RowDefinition x:Name="ConsoleRow" Height="0" MinHeight="0" />
+            </Grid.RowDefinitions>
+
         <!-- Commit message -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="0"
                 Padding="14,10">
             <Grid>
                 <Grid.RowDefinitions>
@@ -434,7 +442,7 @@
              pre-warmed at logon for every user. Collapsed by height rather than by Visibility: a
              hosted HWND is destroyed when its element unloads, and that would orphan the console. -->
         <GridSplitter x:Name="ConsoleSplitter"
-                      Grid.Row="5"
+                      Grid.Row="1"
                       Height="4"
                       Visibility="Collapsed"
                       HorizontalAlignment="Stretch"
@@ -442,9 +450,11 @@
                       ResizeBehavior="PreviousAndNext" />
 
         <views:ConsolePane x:Name="Console"
-                           Grid.Row="6"
+                           Grid.Row="2"
                            Visibility="Collapsed" />
-        <Border Grid.Row="7"
+        </Grid>
+
+        <Border Grid.Row="5"
                 Background="{StaticResource SurfaceAlt}"
                 BorderBrush="{StaticResource Border}"
                 BorderThickness="0,1,0,0"
