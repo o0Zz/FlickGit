@@ -163,16 +163,27 @@ internal sealed partial class ConsoleSession(ILog log)
 
         var information = default(ProcessInformation);
 
-        fixed (char* commandLine = command)
-        fixed (char* directory = workingDirectory)
+        nint environment = UserEnvironment();
+
+        try
         {
-            if (!CreateProcessW(
-                    null, commandLine, 0, 0, false,
-                    CreateNewConsole | CreateSuspended,
-                    0, directory, &startup, &information))
+            fixed (char* commandLine = command)
+            fixed (char* directory = workingDirectory)
             {
-                return false;
+                if (!CreateProcessW(
+                        null, commandLine, 0, 0, false,
+                        CreateNewConsole | CreateSuspended
+                            | (environment == 0 ? 0 : CreateUnicodeEnvironment),
+                        environment, directory, &startup, &information))
+                {
+                    return false;
+                }
             }
+        }
+        finally
+        {
+            if (environment != 0)
+                DestroyEnvironmentBlock(environment);
         }
 
         _process = information.Process;
@@ -185,6 +196,52 @@ internal sealed partial class ConsoleSession(ILog log)
 
         ResumeThread(_thread);
         return true;
+    }
+
+    /// <summary>
+    /// The environment the shell is given, built here rather than inherited from this process.
+    ///
+    /// <b>Passing NULL to <c>CreateProcessW</c> hands the child whatever block this process was
+    /// started with, and that is decided by whoever launched the resident service.</b> Started by
+    /// the MSI's custom action it is msiexec's block, which carries the <i>machine</i> PATH and
+    /// none of <c>HKCU\Environment</c>'s — measured on a real install as 51 entries against the
+    /// 76 a shell gets, with every user-scoped tool directory missing. So `claude`, anything under
+    /// <c>%APPDATA%\npm</c>, cargo, pyenv, scoop and the dotnet tools were all "not recognized" in
+    /// the pane while working in every other terminal on the machine.
+    ///
+    /// <c>CreateEnvironmentBlock</c> with <c>bInherit: false</c> builds the block from the
+    /// registry the way a fresh logon does — system and user merged and expanded — so the pane
+    /// answers like the user's own shell. Doing it per launch rather than once also settles the
+    /// second half of the problem: a resident service holds a PATH snapshot, so a tool installed
+    /// after login would otherwise stay invisible until FlickGit was restarted.
+    ///
+    /// Returns 0 when the block cannot be built, and the caller then passes NULL as before. A pane
+    /// with the old environment is worth having; no pane is not.
+    /// </summary>
+    private nint UserEnvironment()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), TokenQuery, out nint token))
+        {
+            log.Warn($"Console pane: OpenProcessToken failed (Windows error {Marshal.GetLastWin32Error()}); "
+                + "the shell will inherit this process's environment.");
+
+            return 0;
+        }
+
+        try
+        {
+            if (CreateEnvironmentBlock(out nint block, token, inherit: false))
+                return block;
+
+            log.Warn($"Console pane: CreateEnvironmentBlock failed (Windows error {Marshal.GetLastWin32Error()}); "
+                + "the shell will inherit this process's environment.");
+
+            return 0;
+        }
+        finally
+        {
+            CloseHandle(token);
+        }
     }
 
     /// <summary>
@@ -464,6 +521,8 @@ internal sealed partial class ConsoleSession(ILog log)
     // ---- Win32 ----------------------------------------------------------------------------------
 
     private const uint CreateNewConsole = 0x00000010;
+    private const uint CreateUnicodeEnvironment = 0x00000400;
+    private const uint TokenQuery = 0x0008;
     private const uint CreateSuspended = 0x00000004;
     private const int StartfUseShowWindow = 0x00000001;
     private const short SwHide = 0;
@@ -580,6 +639,28 @@ internal sealed partial class ConsoleSession(ILog log)
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool AssignProcessToJobObject(nint job, nint process);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial nint GetCurrentProcess();
+
+    [LibraryImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool OpenProcessToken(nint process, uint desiredAccess, out nint token);
+
+    /// <param name="inherit">
+    /// False, always. True would start from this process's block and merge the user's variables
+    /// into it, which keeps the stale PATH this exists to replace.
+    /// </param>
+    [LibraryImport("userenv.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CreateEnvironmentBlock(
+        out nint environment,
+        nint token,
+        [MarshalAs(UnmanagedType.Bool)] bool inherit);
+
+    [LibraryImport("userenv.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool DestroyEnvironmentBlock(nint environment);
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
