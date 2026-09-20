@@ -23,11 +23,17 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     public const string PrimaryBranchKey = "flickgit.primaryBranch";
 
     /// <summary>
-    /// The remembered answer to "create an upstream for this branch?". Here rather than in
+    /// Standing consent to "create an upstream for this branch?". Here rather than in
     /// <c>settings.json</c> because it <i>is</i> a fact about this repository -- a user who publishes
     /// freely to their own fork may not want to on a shared origin.
+    ///
+    /// <b>Consent only: the key records a yes and never a no.</b> It used to record either answer,
+    /// and a declined dialog therefore became a standing policy -- after which Push on a branch with
+    /// no upstream did nothing at all, with no dialog, no message and no way back except this
+    /// window. Cancelling a dialog cancels that push; it is not an answer about the repository, and
+    /// the button saying <i>Cancel</i> is what promises so.
     /// </summary>
-    public const string UpstreamAnswerKey = "flickgit.allowUpstreamCreation";
+    public const string UpstreamConsentKey = "flickgit.allowUpstreamCreation";
 
     /// <summary>
     /// Which branch a pull request proposes into, when it is not the primary one.
@@ -83,7 +89,7 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
             EffectiveEmail: email.Succeeded ? NullIfEmpty(email.StdOut) : null,
             Remotes: RemotesFrom(entries),
             PrimaryBranch: Value(entries, PrimaryBranchKey),
-            AllowUpstreamCreation: ParseBool(Entry(entries, UpstreamAnswerKey)),
+            UpstreamConsentGiven: ParseBool(Entry(entries, UpstreamConsentKey)) == true,
             CurrentBranch: branch,
             TrackedRemote: branch is null ? null : Value(entries, $"branch.{branch}.remote"));
     }
@@ -152,18 +158,22 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         return value is null ? null : NullIfEmpty(value);
     }
 
-    public async Task<bool?> ReadUpstreamAnswerAsync(RepositoryInfo repository, CancellationToken cancellationToken)
+    /// <summary>
+    /// Whether this repository has already consented. Anything but a stored <c>true</c> is "ask" --
+    /// including a <c>false</c> left behind by an older build, which is how such a repository
+    /// heals itself the next time the user pushes.
+    /// </summary>
+    public async Task<bool> HasUpstreamConsentAsync(RepositoryInfo repository, CancellationToken cancellationToken)
     {
-        string? value = await GetAsync(repository, UpstreamAnswerKey, cancellationToken).ConfigureAwait(false);
-        return value is null ? null : ParseBool(new ConfigEntry(UpstreamAnswerKey, value));
+        string? value = await GetAsync(repository, UpstreamConsentKey, cancellationToken).ConfigureAwait(false);
+        return value is not null && ParseBool(new ConfigEntry(UpstreamConsentKey, value)) == true;
     }
 
-    /// <summary>Remembers the answer, either way. A user who said no is not asked again.</summary>
-    public Task<ConfigOutcome> WriteUpstreamAnswerAsync(
+    /// <summary>Remembers the yes. There is no spelling of this that writes a no.</summary>
+    public Task<ConfigOutcome> RememberUpstreamConsentAsync(
         RepositoryInfo repository,
-        bool allowed,
         CancellationToken cancellationToken) =>
-        WriteAsync(repository, UpstreamAnswerKey, allowed ? "true" : "false", cancellationToken);
+        WriteAsync(repository, UpstreamConsentKey, "true", cancellationToken);
 
     /// <summary>Git's "you tried to unset an option which does not exist".</summary>
     private const int NothingToUnset = 5;
@@ -260,7 +270,7 @@ public sealed record GitRemote(string Name, string FetchUrl, string? PushUrl);
 
 /// <param name="LocalName">Set in this repository's own config, or null when inherited.</param>
 /// <param name="EffectiveName">Who a commit would be attributed to, wherever that came from.</param>
-/// <param name="AllowUpstreamCreation">The remembered upstream answer, or null when never asked.</param>
+/// <param name="UpstreamConsentGiven">True once this repository has agreed to create upstreams.</param>
 /// <param name="CurrentBranch">Null on a detached HEAD.</param>
 /// <param name="TrackedRemote">The remote the current branch pushes to, or null with no upstream.</param>
 public sealed record RepositoryConfig(
@@ -270,7 +280,7 @@ public sealed record RepositoryConfig(
     string? EffectiveEmail,
     IReadOnlyList<GitRemote> Remotes,
     string? PrimaryBranch,
-    bool? AllowUpstreamCreation,
+    bool UpstreamConsentGiven,
     string? CurrentBranch,
     string? TrackedRemote)
 {

@@ -719,7 +719,10 @@ message. After success show the short hash, optionally close, optionally offer P
 
 Guardrails, checked **before** executing:
 
-- **No upstream:** ask once, remember per repository (`flickgit.allowUpstreamCreation`).
+- **No upstream:** ask once, and remember **the consent only**, per repository
+  (`flickgit.allowUpstreamCreation`). A cancel cancels that push and is never written: a
+  remembered refusal turned Push on an unpublished branch into a silent no-op, with no dialog
+  and no message, and the button says *Cancel* rather than *Never*.
 - **Behind the remote:** offer `pull --rebase --autostash` then push as a single button. Do not push and
   let it fail.
 - **Diverged, or push would require force: stop.** Never offer force-push from any surface.

@@ -13,6 +13,11 @@ namespace FlickGit.App.CommandLine;
 /// requires it to be asked once per repository and the answer remembered; a second copy of that
 /// logic in the popup would be a second place for "once" to stop meaning once.
 ///
+/// <b>What is remembered is the consent, never a refusal</b> — see
+/// <see cref="RepositoryConfigService.UpstreamConsentKey"/>. So every surface that can push an
+/// unpublished branch asks again after a cancel, and none of them can silently decline on the
+/// user's behalf.
+///
 /// The dialog itself arrives as a callback, so nothing here constructs a window: the popup owns a
 /// different one from the commit window, and a guardrail asked from the wrong owner appears behind
 /// the surface that asked it.
@@ -39,8 +44,8 @@ public sealed class UpstreamConsent(RepositoryConfigService config)
                 Strings.Get("common.cancel")).ConfigureAwait(true);
         }
 
-        if (await config.ReadUpstreamAnswerAsync(repository, CancellationToken.None).ConfigureAwait(true) is { } remembered)
-            return remembered;
+        if (await config.HasUpstreamConsentAsync(repository, CancellationToken.None).ConfigureAwait(true))
+            return true;
 
         bool allow = await ask(
             Strings.Get("push.upstream.title"),
@@ -48,9 +53,15 @@ public sealed class UpstreamConsent(RepositoryConfigService config)
             Strings.Get("push.upstream.yes"),
             Strings.Get("common.cancel")).ConfigureAwait(true);
 
-        //Remembered either way, in the repository's own config. A user who said no once should not be
-        //asked again on every commit.
-        await config.WriteUpstreamAnswerAsync(repository, allow, CancellationToken.None).ConfigureAwait(true);
+        //Only the yes is remembered, and that asymmetry is the whole of the rule. A remembered no
+        //turned Push on an unpublished branch into a silent no-op: the plan says SetUpstream, this
+        //answered false without showing anything, and the verb exited on the user's behalf with no
+        //dialog and no message. Nothing in the product may do nothing quietly, so the negative
+        //answer cancels this push and leaves the repository unchanged -- which is what the button
+        //labelled Cancel already said it would do.
+        if (allow)
+            await config.RememberUpstreamConsentAsync(repository, CancellationToken.None).ConfigureAwait(true);
+
         return allow;
     }
 }

@@ -146,7 +146,7 @@ public class RepositoryConfigTests
         Assert.Equal("main", config.CurrentBranch);
         Assert.Equal("origin", config.TrackedRemote);
         Assert.Equal("develop", config.PrimaryBranch);
-        Assert.False(config.AllowUpstreamCreation);
+        Assert.False(config.UpstreamConsentGiven);
 
         //Every one of the four is a read, so every one carries --no-optional-locks.
         Assert.All(git.Invocations, invocation => Assert.True(invocation.ReadOnly));
@@ -195,7 +195,7 @@ public class RepositoryConfigTests
         var config = new RepositoryConfigService(git);
 
         await config.WriteAsync(Repo, RepositoryConfigService.UserEmailKey, "me@example.com", CancellationToken.None);
-        await config.WriteUpstreamAnswerAsync(Repo, allowed: true, CancellationToken.None);
+        await config.RememberUpstreamConsentAsync(Repo, CancellationToken.None);
 
         Assert.All(git.Invocations, invocation => Assert.Contains("--local", invocation.Args));
         Assert.True(git.NeverCalledWith("--global"));

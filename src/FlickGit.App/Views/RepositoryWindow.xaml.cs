@@ -147,16 +147,13 @@ public partial class RepositoryWindow : ReloadableWindow
         RemoteUrlBox.Clear();
 
         PrimaryBranchBox.Text = config.PrimaryBranch ?? string.Empty;
-        UpstreamAnswerText.Text = config.AllowUpstreamCreation switch
-        {
-            true => Strings.Get("repo.upstream.allowed"),
-            false => Strings.Get("repo.upstream.refused"),
-            null => Strings.Get("repo.upstream.unasked"),
-        };
+        UpstreamAnswerText.Text = Strings.Get(
+            config.UpstreamConsentGiven ? "repo.upstream.allowed" : "repo.upstream.unasked");
 
-        //Nothing to reset when it was never asked, and a button that does nothing is worse than one
-        //that is not there.
-        AskAgainButton.IsEnabled = config.AllowUpstreamCreation is not null;
+        //Nothing to reset until consent was given, and a button that does nothing is worse than one
+        //that is not there. Two states rather than three, because a refusal is no longer something
+        //the key can hold -- see RepositoryConfigService.UpstreamConsentKey.
+        AskAgainButton.IsEnabled = config.UpstreamConsentGiven;
 
         StatusText.Text = _configured.Count == 0
             ? Strings.Get("repo.remote.none")
@@ -316,13 +313,13 @@ public partial class RepositoryWindow : ReloadableWindow
         });
     }
 
-    /// <summary>Forgets the remembered upstream answer. Immediate: it is a reset, not an edit.</summary>
+    /// <summary>Forgets the remembered consent. Immediate: it is a reset, not an edit.</summary>
     private async void OnAskAgain(object sender, RoutedEventArgs e)
     {
         await RunBusyAsync(async () =>
         {
             ConfigOutcome outcome = await _config
-                .UnsetAsync(_repository, RepositoryConfigService.UpstreamAnswerKey, CancellationToken.None)
+                .UnsetAsync(_repository, RepositoryConfigService.UpstreamConsentKey, CancellationToken.None)
                 .ConfigureAwait(true);
 
             if (!outcome.Succeeded)
@@ -455,7 +452,7 @@ public partial class RepositoryWindow : ReloadableWindow
         //Re-derived rather than restored. The command that just ran is very likely to have changed
         //both things these buttons depend on — which remotes exist, and which row is selected — so
         //putting them back the way they were is how a Remove button survives the removal.
-        AskAgainButton.IsEnabled = _current?.AllowUpstreamCreation is not null;
+        AskAgainButton.IsEnabled = _current?.UpstreamConsentGiven == true;
         UpdateRemoteButtons();
     }
 

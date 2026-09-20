@@ -744,9 +744,8 @@ repo.remote.confirm.yes = Remove
 repo.section.defaults = FLICKGIT, FOR THIS REPOSITORY
 repo.primarybranch = Primary branch
 repo.primarybranch.hint = Empty resolves it from origin/HEAD, then main, then master. The pull request target and Back to the primary branch both read it.
-repo.upstream.unasked = FlickGit has not asked yet whether a new branch may create an upstream here.
+repo.upstream.unasked = FlickGit will ask before a new branch creates an upstream here.
 repo.upstream.allowed = A new branch may create an upstream here.
-repo.upstream.refused = A new branch may not create an upstream here.
 repo.upstream.askagain = Ask again
 repo.upstream.reset = FlickGit will ask again the next time you push a new branch.
 repo.detached = HEAD is detached, so no branch is tracking a remote.
@@ -758,7 +757,8 @@ push.button = Push
 push.success = Pushed {0} to {1}.
 push.upstream.title = Create an upstream branch?
 # {0} branch, {1} remote
-push.upstream.ask = {0} has no upstream. Push it to {1} and track it from now on?\nThis is remembered for this repository.
+push.upstream.ask = {0} has no upstream. Push it to {1} and track it from now on?
+Saying yes is remembered for this repository.
 push.upstream.yes = Push and track
 push.pullfirst.title = Behind the remote
 # {0} branch, {1} upstream
