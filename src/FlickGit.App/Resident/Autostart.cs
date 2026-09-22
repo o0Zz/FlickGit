@@ -1,6 +1,5 @@
-using System.Diagnostics;
-using System.IO;
-using System.Text;
+﻿using System.IO;
+using System.Runtime.InteropServices;
 using FlickGit.App.Settings;
 using FlickGit.Logging;
 
@@ -13,11 +12,9 @@ namespace FlickGit.App.Resident;
 /// Task at logon with a 30–60 s delay, so the tool never appears in boot-impact measurements." The
 /// Run key has no delay, so a tray utility would be charged for slowing down every logon.
 ///
-/// The task is defined by <b>XML</b>, not by <c>schtasks</c> command-line switches. That is not a
-/// stylistic choice: <c>/TR</c> takes the program and its arguments as one string, so a path
-/// containing a space has to be quoted inside a value that is itself being quoted — exactly the
-/// nested-quoting problem this codebase refuses to have anywhere else. The XML has separate
-/// <c>&lt;Command&gt;</c> and <c>&lt;Arguments&gt;</c> elements and no ambiguity.
+/// The task is defined by <b>XML</b>, handed to the Task Scheduler's COM API. The XML has separate
+/// <c>&lt;Command&gt;</c> and <c>&lt;Arguments&gt;</c> elements, so a path containing a space needs
+/// no nested quoting; <see cref="RootFolder"/> says why it is not <c>schtasks.exe</c>.
 ///
 /// Everything here is per-user and needs no elevation.
 /// </summary>
@@ -38,11 +35,25 @@ public sealed class Autostart(ILog log) : IAutostart
     /// </summary>
     private const string LogonDelay = "PT45S";
 
+    /// <summary><c>TASK_CREATE_OR_UPDATE</c>.</summary>
+    private const int CreateOrUpdate = 6;
+
+    /// <summary><c>TASK_LOGON_INTERACTIVE_TOKEN</c>, matching the XML's principal.</summary>
+    private const int InteractiveToken = 3;
+
     public bool IsEnabled()
     {
-        //Query by exact name. An exit code is the whole answer, so nothing is parsed.
-        (int exitCode, _, _) = RunSchtasks(["/Query", "/TN", TaskName]);
-        return exitCode == 0;
+        try
+        {
+            RootFolder().GetTask(TaskName);
+            return true;
+        }
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException)
+        {
+            //ERROR_FILE_NOT_FOUND is the ordinary answer here, and any other failure to read the
+            //task is equally "not registered" as far as a checkbox is concerned.
+            return false;
+        }
     }
 
     /// <summary>Registers the task, replacing any previous definition.</summary>
@@ -53,40 +64,19 @@ public sealed class Autostart(ILog log) : IAutostart
         if (exePath is null || !File.Exists(exePath))
             return (false, "FlickGit.exe could not be located, so no logon task was registered.");
 
-        string xmlPath = Path.Combine(Path.GetTempPath(), $"flickgit-autostart-{Guid.NewGuid():N}.xml");
-
         try
         {
-            //UTF-16 with a BOM: schtasks /XML refuses a UTF-8 file, which is the kind of thing that
-            //produces a completely unrelated error message.
-            File.WriteAllText(xmlPath, BuildXml(exePath!), new UnicodeEncoding(bigEndian: false, byteOrderMark: true));
-
-            //  /F replaces an existing definition, so this is idempotent and doubles as "repair".
-            (int exitCode, _, string error) = RunSchtasks(["/Create", "/TN", TaskName, "/XML", xmlPath, "/F"]);
-
-            if (exitCode != 0)
-            {
-                log.Warn($"Autostart registration failed ({exitCode}): {error}");
-                return (false, $"The logon task could not be registered:\n\n{error.Trim()}");
-            }
+            //TASK_CREATE_OR_UPDATE replaces an existing definition, so this is idempotent and doubles
+            //as "repair". The principal comes from the XML: no user id and no password here.
+            RootFolder().RegisterTask(TaskName, BuildXml(exePath), CreateOrUpdate, null, null, InteractiveToken, null);
 
             log.Info("Autostart enabled.");
             return (true, $"FlickGit will start {LogonDelay[2..^1]} seconds after you log on.");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or ArgumentException)
         {
+            log.Warn($"Autostart registration failed: {ex.Message}");
             return (false, $"The logon task could not be registered:\n\n{ex.Message}");
-        }
-        finally
-        {
-            try
-            {
-                File.Delete(xmlPath);
-            }
-            catch (Exception)
-            {
-                //A temp file left in %TEMP% is not worth reporting over.
-            }
         }
     }
 
@@ -95,16 +85,36 @@ public sealed class Autostart(ILog log) : IAutostart
         if (!IsEnabled())
             return (true, "FlickGit was not set to start at logon.");
 
-        (int exitCode, _, string error) = RunSchtasks(["/Delete", "/TN", TaskName, "/F"]);
-
-        if (exitCode != 0)
+        try
         {
-            log.Warn($"Autostart removal failed ({exitCode}): {error}");
-            return (false, $"The logon task could not be removed:\n\n{error.Trim()}");
+            RootFolder().DeleteTask(TaskName, 0);
+        }
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException)
+        {
+            log.Warn($"Autostart removal failed: {ex.Message}");
+            return (false, $"The logon task could not be removed:\n\n{ex.Message}");
         }
 
         log.Info("Autostart disabled.");
         return (true, "FlickGit will no longer start at logon.");
+    }
+
+    /// <summary>
+    /// The Task Scheduler's root folder, through its own COM API.
+    ///
+    /// Not <c>schtasks.exe</c>. An unsigned binary spawning <c>schtasks /Create /XML %TEMP%\... /F</c>
+    /// is the textbook command line of malware installing persistence, and Defender's behavioural
+    /// model quarantined both executables on an install that did it
+    /// (<c>Behavior:Win32/Persistence.A!ml</c>).
+    /// The API takes the same XML as a string: no child process, no temp file, and the task that
+    /// results is identical.
+    /// </summary>
+    private static dynamic RootFolder()
+    {
+        Type type = Type.GetTypeFromProgID("Schedule.Service", throwOnError: true)!;
+        dynamic service = Activator.CreateInstance(type)!;
+        service.Connect();
+        return service.GetFolder("\\");
     }
 
     /// <summary>
@@ -117,7 +127,7 @@ public sealed class Autostart(ILog log) : IAutostart
     private static string BuildXml(string exePath)
     {
         //Escaped, not interpolated raw. Both values come from outside this file -- the install path and
-        //the Windows account name -- and an `&` in either produces XML that schtasks /XML refuses,
+        //the Windows account name -- and an `&` in either produces XML the Task Scheduler refuses,
         //which reads to the user as autostart simply not working.
         string command = Escape(exePath);
         string user = Escape(System.Security.Principal.WindowsIdentity.GetCurrent().Name);
@@ -175,37 +185,4 @@ public sealed class Autostart(ILog log) : IAutostart
     }
 
     private static string Escape(string value) => System.Security.SecurityElement.Escape(value) ?? value;
-
-    private (int ExitCode, string Output, string Error) RunSchtasks(string[] args)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "schtasks.exe",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-
-        //ArgumentList, as everywhere else in this codebase. The task name and the XML path both go
-        //through it untouched.
-        foreach (string arg in args)
-            startInfo.ArgumentList.Add(arg);
-
-        try
-        {
-            using Process process = Process.Start(startInfo)!;
-
-            string output = process.StandardOutput.ReadToEnd();
-            string error = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-
-            return (process.ExitCode, output, error);
-        }
-        catch (Exception ex)
-        {
-            log.Warn($"schtasks could not be started: {ex.Message}");
-            return (-1, string.Empty, ex.Message);
-        }
-    }
 }

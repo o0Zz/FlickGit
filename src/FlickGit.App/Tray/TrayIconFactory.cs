@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -139,8 +139,45 @@ public static class TrayIconFactory
         if (File.Exists(iconPath))
             icon.IconSource = new System.Windows.Media.Imaging.BitmapImage(new Uri(iconPath, UriKind.Absolute));
 
-        icon.ForceCreate();
+        CreateWhenTaskbarIsReady(icon);
         return icon;
+    }
+
+    /// <summary>
+    /// How long to keep trying before giving up.
+    ///
+    /// Generous on purpose: the installer starts this process the moment Explorer is back, and a
+    /// tray icon that fails to appear fails silently until the next logon.
+    /// </summary>
+    private static readonly TimeSpan TaskbarTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Creates the icon, retrying while the notification area is not ready.
+    ///
+    /// <c>Shell_NotifyIcon</c> fails for a second or two after Explorer starts -- and the installer
+    /// restarts Explorer immediately before starting FlickGit. Waiting for <c>Shell_TrayWnd</c> is
+    /// not enough, measured: the window exists before it accepts icons. So the call that fails is
+    /// the probe. The wait used to be a <c>Start-Sleep</c> in a hidden PowerShell launching this exe,
+    /// which is a dropper's command line; here it costs nothing in the ordinary case, where the
+    /// taskbar has been up for as long as the user has been logged on. Blocking the UI thread is
+    /// harmless, because no window exists yet.
+    /// </summary>
+    private static void CreateWhenTaskbarIsReady(TaskbarIcon icon)
+    {
+        long deadline = Environment.TickCount64 + (long)TaskbarTimeout.TotalMilliseconds;
+
+        while (true)
+        {
+            try
+            {
+                icon.ForceCreate();
+                return;
+            }
+            catch (InvalidOperationException) when (Environment.TickCount64 < deadline)
+            {
+                Thread.Sleep(500);
+            }
+        }
     }
 
     private static MenuItem MenuItem(string header, Action action, bool isDefault = false)

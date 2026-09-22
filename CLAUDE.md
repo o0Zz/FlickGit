@@ -1540,9 +1540,12 @@ The sequence *is* the package. Each of these is a bug if got wrong, and each is 
 `MSIFASTINSTALL` is **7**, whose bit 2 skips the free-space walk that costs an SMB timeout per
 unreachable mapped drive; `install-shell` is **deferred**, since an immediate action after
 `InstallFiles` still runs before any file exists; **every deferred action is `Impersonate="yes"`** or it
-runs as SYSTEM and registers the menu into the wrong hive; the starts are immediate via `Start-Process`,
-because MSI waits for an exe action to exit; **FlickGit starts five seconds after Explorer**, because
-`Shell_NotifyIcon` fails while the notification area does not exist; nothing runs twice during an
+runs as SYSTEM and registers the menu into the wrong hive; the starts are immediate, Explorer via
+`Start-Process` and FlickGit as `asyncNoWait`, because MSI waits for an exe action to exit; **FlickGit
+retries its tray icon until the taskbar accepts it**, because `Shell_NotifyIcon` fails while the notification area does not
+exist; **nothing launches or registers our unsigned exes through a hidden PowerShell or
+`schtasks.exe`** — the logon task goes through the Task Scheduler COM API — because that is the command
+line Defender's behavioural model quarantines as persistence; nothing runs twice during an
 upgrade (`NOT UPGRADINGPRODUCTCODE`); the kills use `SystemFolder` as their working directory, since
 `INSTALLFOLDER` may not exist; and **`install-shell` is the only action allowed to fail the install.**
 

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 
 <!--
   The FlickGit installer.
@@ -176,10 +176,10 @@
          into SYSTEM's registry hive and report success.
 
       4. THE STARTS ARE IMMEDIATE, because nothing can be sequenced after InstallFinalize inside
-         the script, and they go through Start-Process because MSI *waits* for an exe action to
-         exit. A deferred action that ran FlickGit.exe directly would hang the installer until
-         the user quit the tray icon. They are also not simultaneous — FlickGit cannot be started
-         the instant Explorer is, and StartFlickGit below says why.
+         the script. MSI *waits* for an exe action to exit, so Explorer goes through
+         Start-Process and FlickGit is asyncNoWait; either run plainly would hang the installer
+         until the user quit it. FlickGit waits for the taskbar itself, and StartFlickGit below
+         says why.
 
       5. NOTHING RUNS TWICE DURING AN UPGRADE. MajorUpgrade removes the old product inside this
          transaction, which runs the old package's sequence too — so without NOT
@@ -287,26 +287,21 @@
                   Execute="immediate"
                   Return="ignore" />
 
-    <!-- Started only once the shell is back, and the wait is not padding.
+    <!-- FlickGit.exe directly, asyncNoWait so MSI does not wait for the tray process to exit.
 
-         The resident service's first act is to add its tray icon, and Shell_NotifyIcon fails while
-         the notification area does not exist yet — which is the state Explorer is in for a second
-         or two after it starts. Launched immediately after StartExplorer, FlickGit died on
-         `TryCreate failed` on every install: no tray icon, no pipe, no resident service, and an
-         installer that had reported success.
+         Not through a hidden PowerShell that sleeps and then Start-Process-es an unsigned exe out
+         of %LOCALAPPDATA%: that is a dropper's command line, and Defender's behavioural model
+         quarantined FlickGit.exe and flick.exe on an install that did it
+         (Behavior:Win32/Persistence.A!ml).
 
-         So the taskbar is given time to appear. Explorer itself is already running by now —
-         StartExplorer above is synchronous, so MSI waited for it — which is why this is a plain
-         delay and not a poll for the process. The five seconds are a guess, and a generous one on
-         purpose: the failure it avoids is silent, and lasts until the next logon.
-
-         It cannot grow much longer either way. CustomAction.Target holds 255 characters, and ICE03
-         is what says so — which is why the check that caught it is not in the suppression list. -->
+         The wait that PowerShell provided is still needed — Shell_NotifyIcon fails until the
+         notification area exists, and Explorer has only just been restarted — so FlickGit retries
+         the tray icon itself (TrayIconFactory.CreateWhenTaskbarIsReady). -->
     <CustomAction Id="StartFlickGit"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -WindowStyle Hidden -Command &quot;Start-Sleep -Seconds 5; Start-Process -FilePath '[INSTALLFOLDER]FlickGit.exe'&quot;"
+                  ExeCommand="&quot;[INSTALLFOLDER]FlickGit.exe&quot;"
                   Execute="immediate"
-                  Return="ignore" />
+                  Return="asyncNoWait" />
 
     <InstallExecuteSequence>
       <Custom Action="StopFlickGit" Before="StopExplorer" Condition="NOT UPGRADINGPRODUCTCODE" />
