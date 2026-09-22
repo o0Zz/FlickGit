@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using FlickGit.App.Ai;
@@ -95,6 +96,15 @@ public partial class LogWindow : Window
     /// </summary>
     private IReadOnlyList<GitFileChange> _files = [];
 
+    /// <summary>
+    /// What the search box holds, split into words. Empty when the box is, which is the filter's
+    /// "everything passes" case rather than a flag beside it.
+    ///
+    /// Every word has to match, which is what makes a second word narrow rather than widen -- the
+    /// only reading of "search these two words" that gets shorter as the user types.
+    /// </summary>
+    private string[] _terms = [];
+
     private CancellationTokenSource? _inFlight;
     private int _generation;
     private bool _endOfHistory;
@@ -151,8 +161,17 @@ public partial class LogWindow : Window
         PagingText.Text = Strings.Get("log.loading");
         RangeText.Text = Strings.Get("log.select.prompt");
         MetaText.Text = Strings.Get("log.hint");
+        SearchHint.Text = Strings.Get("log.search.hint");
+        SearchBox.ToolTip = Strings.Get("log.search.tip");
 
         CommitList.ItemsSource = _commits;
+
+        //The search filters the *view*; _commits itself stays whole. That is what keeps the gap
+        //disclosure honest -- see CurrentRange, which hands the unfiltered list to
+        //CommitRange.Resolve -- and it is also why the rows are not rebuilt per keystroke: a
+        //reassigned ItemsSource drops the scroll position and every virtualised container.
+        CollectionViewSource.GetDefaultView(_commits).Filter = row => Matches((CommitRow)row);
+
         Diff.SetTypography(settings.DiffFontFamily, settings.DiffFontSize);
         Diff.Show(null, isLoading: false);
 
@@ -170,6 +189,20 @@ public partial class LogWindow : Window
             Key = Key.S,
             Modifiers = ModifierKeys.Control,
             Command = new Infrastructure.RelayCommand(() => OnSavePatch(this, new RoutedEventArgs())),
+        });
+
+        //Ctrl+F reaches the search box only when the diff pane has not already taken the key: the
+        //pane claims it in its own preview handler and marks it handled, so KeyDown never bubbles
+        //this far while the caret is in a file. Ctrl+F in a diff still finds inside that diff.
+        InputBindings.Add(new KeyBinding
+        {
+            Key = Key.F,
+            Modifiers = ModifierKeys.Control,
+            Command = new Infrastructure.RelayCommand(() =>
+            {
+                SearchBox.Focus();
+                SearchBox.SelectAll();
+            }),
         });
     }
 
@@ -189,10 +222,16 @@ public partial class LogWindow : Window
 
         try
         {
+            //Named rather than re-tested below, because by then _commits has grown and the question
+            //"was this the first page" can no longer be asked of it. The search box made that matter:
+            //a filter that hides every row empties the selection, so "nothing is selected" stopped
+            //meaning "nothing has been read yet".
+            bool firstPage = _commits.Count == 0;
+
             //Started before the page and awaited after it, so the two processes overlap. Only on the first
             //page -- history does not grow while the window is open, and "Load more" numbers its rows from
             //the same total.
-            Task<int>? counting = _commits.Count == 0
+            Task<int>? counting = firstPage
                 ? _history.GetCommitCountAsync(_repository, _scope, CancellationToken.None)
                 : null;
 
@@ -221,20 +260,20 @@ public partial class LogWindow : Window
                 return;
             }
 
-            LoadedText.Text = Strings.Get("log.loaded", _commits.Count);
-            PagingText.Text = _endOfHistory ? Strings.Get("log.end") : Strings.Get("log.loaded", _commits.Count);
+            UpdatePaging();
 
             //The first page selects its newest commit, so the window opens showing something rather than a
             //prompt over three empty panes.
-            if (CommitList.SelectedItems.Count == 0)
+            if (firstPage && CommitList.SelectedItems.Count == 0)
             {
                 CommitList.SelectedIndex = 0;
 
                 //And the list takes the keyboard, because a selected row nothing can move is a window
-                //that has to be clicked before the arrow keys do anything. The guard above makes this the
-                //first page only: a later "load more" must not pull focus back out of wherever the user
-                //has put it. AppWindow.Present has already shown and arranged the window by now, so
-                //Focus lands rather than being dropped on an unarranged element.
+                //that has to be clicked before the arrow keys do anything. First page only: a later
+                //"load more" must not pull focus back out of wherever the user has put it -- the search
+                //box above, most of the time, since an empty result is the usual reason to press it.
+                //AppWindow.Present has already shown and arranged the window by now, so Focus lands
+                //rather than being dropped on an unarranged element.
                 CommitList.Focus();
             }
         }
@@ -256,6 +295,92 @@ public partial class LogWindow : Window
     }
 
     private async void OnLoadMore(object sender, RoutedEventArgs e) => await LoadPageAsync().ConfigureAwait(true);
+
+    /// <summary>
+    /// Re-applies the filter. Undebounced, and it can be: the predicate is a substring test over a
+    /// string built when the row was, so a keystroke costs one pass over the commits already read --
+    /// and the Git work behind a selection that changed as a result is already held back by
+    /// <see cref="_settle"/>.
+    /// </summary>
+    private void OnSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        //Untrimmed, unlike the words: a box holding only spaces is not empty, and the hint must not
+        //sit under a caret that has moved off it.
+        SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        _terms = SearchBox.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+        CollectionViewSource.GetDefaultView(_commits).Refresh();
+
+        UpdatePaging();
+    }
+
+    /// <summary>
+    /// Esc empties the box before it closes the window -- the diff pane's find-bar rule, for the same
+    /// reason: the first Esc undoes the search, the second leaves. An empty box is left unhandled, so
+    /// the Close button's <c>IsCancel</c> still gets it.
+    ///
+    /// Down and Up move the selection with the caret still in the box, which is the gesture every
+    /// other filter box in the product has.
+    /// </summary>
+    private void OnSearchKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && SearchBox.Text.Length > 0)
+        {
+            SearchBox.Clear();
+            e.Handled = true;
+            return;
+        }
+
+        FilterList.RouteArrows(CommitList, e);
+    }
+
+    /// <summary>
+    /// Whether a row survives the search. Every word has to appear somewhere in the row, in any
+    /// order, ignoring case.
+    ///
+    /// Plain substring matching rather than <c>FuzzyMatcher</c>, which the branch and tag pickers
+    /// use: a subsequence score over a branch <i>name</i> is a good guess at what the user meant, and
+    /// over a paragraph of prose it matches nearly every commit -- the opposite of filtering.
+    /// </summary>
+    private bool Matches(CommitRow row) =>
+        _terms.Length == 0 ||
+        Array.TrueForAll(_terms, term => row.Haystack.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The band under the commit list: how much history has been read, or -- while the search box has
+    /// something in it -- how much of that history the search matched.
+    ///
+    /// <b>The second sentence is the honest half of a client-side search.</b> The box filters the
+    /// commits that have been read, not the repository, so a history still paging says which number
+    /// was searched and leaves "Load more" as the way to reach further back. Reporting a bare "no
+    /// results" over a history two hundred commits deep would be this window saying a commit does not
+    /// exist because it has not looked at it yet.
+    ///
+    /// Silent on an empty history, whose own wording is already in the band and is the truer sentence.
+    /// </summary>
+    private void UpdatePaging()
+    {
+        if (_commits.Count == 0)
+            return;
+
+        LoadedText.Text = Strings.Get("log.loaded", _commits.Count);
+
+        if (_terms.Length == 0)
+        {
+            PagingText.Text = _endOfHistory ? Strings.Get("log.end") : Strings.Get("log.loaded", _commits.Count);
+            return;
+        }
+
+        //Items is the filtered view, so this is exactly the rows on screen.
+        int matched = CommitList.Items.Count;
+
+        PagingText.Text = matched > 0
+            ? Strings.Get("log.search.matches", matched, _commits.Count)
+            : _endOfHistory
+                ? Strings.Get("log.search.none.end")
+                : Strings.Get("log.search.none", _commits.Count);
+    }
 
     private void OnCommitSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -660,6 +785,16 @@ public partial class LogWindow : Window
         string Date,
         string Refs)
     {
+        /// <summary>
+        /// Everything the search box looks in, joined once when the row is built rather than rebuilt
+        /// per keystroke: the whole message body included, the author, the date as the row spells it,
+        /// the full hash -- which covers the abbreviated one, being its prefix -- and the refs.
+        ///
+        /// Newline-separated so a typed word cannot match across two fields, which would let the end
+        /// of an author and the start of a subject read as one string.
+        /// </summary>
+        public string Haystack { get; } = string.Join('\n', Commit.Sha, Commit.Message, Commit.Author, Date, Refs);
+
         public string Tooltip => Revision.Length == 0
             ? $"{Commit.Sha}\n{Commit.Author} · {Commit.When.LocalDateTime:F}"
             : $"{Commit.Sha}\n{Strings.Get("log.revision", Revision)}\n{Commit.Author} · {Commit.When.LocalDateTime:F}";

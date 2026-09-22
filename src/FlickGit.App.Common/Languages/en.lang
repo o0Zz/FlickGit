@@ -627,6 +627,22 @@ log.empty.file = No commit has touched this file.
 log.failed = The history could not be read.
 log.select.prompt = Select a commit to see what it changed.
 log.hint = Select several commits to see their combined diff.
+
+# ---- the search box, top right ----
+# It filters the commits already read, not the repository. A message search cannot be handed to
+# `git log --grep` without breaking the gap disclosure below it: the gap is counted by position in
+# the list the window was given, and a commit hidden by a search still contributes its changes to
+# the diff between two commits that are not hidden. So the band under the list says how far the
+# search actually reached, and Load more is how it reaches further back.
+log.search.hint = Search commits…
+log.search.tip = Filters the commits loaded below by message, author, date, hash or ref. Every word has to match.
+# {0} matching commits, {1} commits read so far
+log.search.matches = {0} of {1} loaded commits match
+# {0} commits read so far. Nothing matched and there is more history left to read.
+log.search.none = No match in the {0} commits loaded — load more to search further back.
+# Nothing matched and the whole history has been read.
+log.search.none.end = No commit in this history matches.
+
 # {0} the commit's own number in the branch's history — how many commits it has behind
 # it, itself included. Shown in the list and in the row's tooltip, because a build stamps that
 # number into its version as the revision.

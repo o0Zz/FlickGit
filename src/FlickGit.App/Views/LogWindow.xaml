@@ -28,6 +28,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <TextBlock x:Name="RepositoryText" Style="{StaticResource HeaderTitle}" VerticalAlignment="Center" />
@@ -49,6 +50,40 @@
                            VerticalAlignment="Center"
                            FontSize="11"
                            Style="{StaticResource Muted}" />
+
+                <!-- The search box. It filters the rows below; it does not ask Git anything.
+
+                     That is the design rather than a shortcut. A grep passed to `git log` would
+                     search the whole history, but a list holding only the matching commits breaks
+                     the gap disclosure underneath it: CommitRange counts what the user skipped by
+                     *position* in the list it was handed, and a commit hidden by a message search
+                     still contributes its changes to the diff between two commits that are not.
+                     Filtering the view alone keeps the whole list going to CommitRange.Resolve, so
+                     "including N you did not select" stays true with rows hidden. The price is that
+                     the search reaches only the history read so far, which the paging band states. -->
+                <Border Grid.Column="3"
+                        Width="240"
+                        Margin="14,0,0,0"
+                        Background="{StaticResource SurfaceSunken}"
+                        BorderBrush="{StaticResource Border}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="7,3">
+                    <Grid>
+                        <TextBlock x:Name="SearchHint"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Style="{StaticResource Muted}" />
+
+                        <TextBox x:Name="SearchBox"
+                                 BorderThickness="0"
+                                 Padding="0"
+                                 Background="Transparent"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="OnSearchChanged"
+                                 PreviewKeyDown="OnSearchKeyDown" />
+                    </Grid>
+                </Border>
             </Grid>
         </Border>
 
