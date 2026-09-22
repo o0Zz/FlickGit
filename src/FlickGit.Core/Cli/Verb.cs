@@ -382,7 +382,7 @@ public sealed record Verb(VerbKind Kind, string? Path, string? Argument, string?
           flick tag <path> [name]             tag picker when omitted, else creates it
           flick stash <path> [message]        stash window when omitted, else stashes your changes
           flick status <path>
-          flick log <path>                    commit history; multi-select for a combined diff
+          flick log <path>                    commit history; a file scopes it to that file
           flick blame <file>                  who last touched each line, and what was there before
           flick add <path>...                 stage files or folders, tracking what is new
           flick rm <path>...                  stop tracking files or folders; they stay on disk

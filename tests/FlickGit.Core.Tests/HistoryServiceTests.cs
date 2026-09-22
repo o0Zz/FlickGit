@@ -48,7 +48,7 @@ public class HistoryServiceTests
             .Returns(["diff", "--numstat"], Stream("156\t203\t", "src/LegacyPool.cs", "src/PgBouncerPool.cs"));
 
         IReadOnlyList<GitFileChange> files = await new HistoryService(git)
-            .GetFilesAsync(Repository, Range().BaseSpec, Range().TipSpec, CancellationToken.None);
+            .GetFilesAsync(Repository, Range().BaseSpec, Range().TipSpec, relativePath: null, CancellationToken.None);
 
         GitFileChange file = Assert.Single(files);
 
@@ -71,7 +71,7 @@ public class HistoryServiceTests
     {
         var git = new FakeGitRunner().Returns(["log"], string.Empty);
 
-        await new HistoryService(git).GetPageAsync(Repository, skip: 0, CancellationToken.None);
+        await new HistoryService(git).GetPageAsync(Repository, skip: 0, relativePath: null, CancellationToken.None);
 
         string[] args = Assert.Single(git.Invocations).Args;
 
@@ -96,11 +96,68 @@ public class HistoryServiceTests
 
         var history = new HistoryService(git);
 
-        await history.GetPageAsync(Repository, skip: 0, CancellationToken.None);
-        await history.GetFilesAsync(Repository, Range().BaseSpec, Range().TipSpec, CancellationToken.None);
-        await history.SavePatchAsync(Repository, Range(), @"C:\dev\range.patch", CancellationToken.None);
+        await history.GetPageAsync(Repository, skip: 0, relativePath: null, CancellationToken.None);
+        await history.GetFilesAsync(Repository, Range().BaseSpec, Range().TipSpec, relativePath: null, CancellationToken.None);
+        await history.SavePatchAsync(Repository, Range(), @"C:\dev\range.patch", relativePath: null, CancellationToken.None);
 
         Assert.NotEmpty(git.Invocations);
         Assert.All(git.Invocations, i => Assert.True(i.ReadOnly));
+    }
+
+    /// <summary>
+    /// In scope under the safety rules, on the bullet the pathspec rules sit on: a path is passed as
+    /// a pathspec Git cannot glob, so <c>report[final].xlsx</c> cannot be read as a pattern matching
+    /// <c>reportf.xlsx</c> instead — and the <c>--</c> before it is what stops a file called
+    /// <c>main</c> being taken for a revision.
+    ///
+    /// One test rather than four, because the behaviour is that the scope reaches <b>every</b> read
+    /// together. Scoped commit list over an unscoped diff, and the window's gap disclosure becomes a
+    /// lie: it counts the commits the user skipped in the list it was handed, while the diff below it
+    /// holds everything those commits touched. That is the one failure the log window must not have,
+    /// so the all-or-nothing part is the part worth pinning.
+    /// </summary>
+    [Fact]
+    public async Task ScopingTheLogToOneFileReachesEveryReadAsAPathspecThatCannotGlob()
+    {
+        const string Path = "src/report[final].cs";
+
+        var git = new FakeGitRunner()
+            .Returns(["log"], string.Empty)
+            .Returns(["rev-list"], "42")
+            .Returns(["diff"], string.Empty);
+
+        var history = new HistoryService(git);
+
+        await history.GetPageAsync(Repository, skip: 0, Path, CancellationToken.None);
+        await history.GetCommitCountAsync(Repository, Path, CancellationToken.None);
+        await history.GetFilesAsync(Repository, Range().BaseSpec, Range().TipSpec, Path, CancellationToken.None);
+        await history.SavePatchAsync(Repository, Range(), @"C:\dev\range.patch", Path, CancellationToken.None);
+
+        //Four calls, five processes: the file list is two diffs in parallel.
+        Assert.Equal(5, git.Invocations.Count);
+
+        Assert.All(git.Invocations, i =>
+        {
+            Assert.Equal(["--", ":(literal)" + Path], i.Args[^2..]);
+
+            //The separator is last but one, so nothing the caller appended can land after it and be
+            //read as a second path.
+            Assert.Equal("--", i.Args[^2]);
+        });
+    }
+
+    /// <summary>
+    /// The other half of the rule above: unscoped, nothing is appended at all. Without this the
+    /// scoped assertion would still pass against a service that always sent a pathspec — an empty
+    /// one, which matches nothing and would empty the window.
+    /// </summary>
+    [Fact]
+    public async Task AnUnscopedLogSendsNoPathspecAtAll()
+    {
+        var git = new FakeGitRunner().Returns(["log"], string.Empty);
+
+        await new HistoryService(git).GetPageAsync(Repository, skip: 0, relativePath: null, CancellationToken.None);
+
+        Assert.DoesNotContain("--", Assert.Single(git.Invocations).Args);
     }
 }

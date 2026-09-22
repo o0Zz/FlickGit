@@ -393,12 +393,14 @@ submodule.commit = Committen…
 
 # ---- Log-Fenster ----
 log.title = Log — {0}
+log.title.file = Log — {0} — {1}
 log.files.header = Geänderte Dateien
 log.loaded = {0} Commits geladen
 log.loadmore = {0} weitere laden
 log.loading = Historie wird gelesen…
 log.end = Das ist die gesamte Historie.
 log.empty = Dieses Repository hat noch keine Commits.
+log.empty.file = Kein Commit hat diese Datei berührt.
 log.failed = Die Historie konnte nicht gelesen werden.
 log.select.prompt = Wählen Sie einen Commit, um zu sehen, was er geändert hat.
 log.hint = Wählen Sie mehrere Commits, um ihren kombinierten Diff zu sehen.

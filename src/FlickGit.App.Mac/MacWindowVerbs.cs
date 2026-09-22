@@ -308,10 +308,20 @@ public sealed class MacWindowVerbs(
             return VerbResult.Stay();
         });
 
-    public Task<VerbResult> LogAsync(RepositoryInfo repository) =>
+    /// <summary>
+    /// The log window. A clicked <b>file</b> scopes it to that file, the way the Windows front end
+    /// does -- the scoping itself is <see cref="HistoryService"/>'s, so both windows get it from Core
+    /// and neither can disagree about what a scoped log shows.
+    /// </summary>
+    public Task<VerbResult> LogAsync(RepositoryInfo repository, string? path) =>
         Dispatcher.UIThread.InvokeAsync(() =>
         {
-            new LogWindow(repository, history, diffs, aiText, blame, settings, timings, log).Show();
+            string? scope = path is { Length: > 0 } given
+                            && !System.IO.Directory.Exists(System.IO.Path.GetFullPath(given))
+                ? repository.Relative(System.IO.Path.GetFullPath(given))
+                : null;
+
+            new LogWindow(repository, scope, history, diffs, aiText, blame, settings, timings, log).Show();
 
             //GetTask, because InvokeAsync over a *synchronous* lambda hands back a
             //DispatcherOperation rather than a Task. The async overloads above unwrap themselves.
@@ -339,9 +349,7 @@ public sealed class MacWindowVerbs(
             //Git speaks repository-relative paths with forward slashes, whatever the Finder handed
             //over. Harmless on macOS, where the separator already is one, and kept because the path
             //may have come over the socket from anywhere.
-            string relative = System.IO.Path
-                .GetRelativePath(repository.Root, full)
-                .Replace('\\', '/');
+            string relative = repository.Relative(full);
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
 

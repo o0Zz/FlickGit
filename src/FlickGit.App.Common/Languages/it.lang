@@ -393,12 +393,14 @@ submodule.commit = Committa…
 
 # ---- finestra del log ----
 log.title = Log — {0}
+log.title.file = Log — {0} — {1}
 log.files.header = File modificati
 log.loaded = {0} commit caricati
 log.loadmore = Carica altri {0}
 log.loading = Lettura della cronologia…
 log.end = Questa è tutta la cronologia.
 log.empty = Questo repository non ha ancora commit.
+log.empty.file = Nessun commit ha toccato questo file.
 log.failed = Non è stato possibile leggere la cronologia.
 log.select.prompt = Seleziona un commit per vedere che cosa ha cambiato.
 log.hint = Seleziona più commit per vedere il loro diff combinato.

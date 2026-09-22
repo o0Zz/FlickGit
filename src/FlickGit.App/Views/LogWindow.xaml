@@ -32,10 +32,15 @@
 
                 <TextBlock x:Name="RepositoryText" Style="{StaticResource HeaderTitle}" VerticalAlignment="Center" />
 
-                <TextBlock x:Name="BranchText"
+                <!-- The path this window is scoped to, collapsed when it is the whole repository.
+                     Monospaced because it is a path: the reader is matching it against one they
+                     right-clicked, and a proportional font makes that harder than it needs to be. -->
+                <TextBlock x:Name="ScopeText"
                            Grid.Column="1"
                            VerticalAlignment="Center"
                            Margin="12,0"
+                           Visibility="Collapsed"
+                           TextTrimming="CharacterEllipsis"
                            FontFamily="Cascadia Mono, Consolas, Courier New"
                            Style="{StaticResource Muted}" />
 

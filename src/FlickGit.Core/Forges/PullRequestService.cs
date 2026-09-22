@@ -152,7 +152,7 @@ public sealed class PullRequestService(
         string mergeBase = await MergeBaseAsync(repository, remoteRef, cancellationToken).ConfigureAwait(false);
 
         IReadOnlyList<GitFileChange> files = mergeBase.Length > 0
-            ? await history.GetFilesAsync(repository, mergeBase, "HEAD", cancellationToken).ConfigureAwait(false)
+            ? await history.GetFilesAsync(repository, mergeBase, "HEAD", relativePath: null, cancellationToken).ConfigureAwait(false)
             : [];
 
         return new PullRequestSummary(mergeBase, await commits.ConfigureAwait(false), files);

@@ -49,6 +49,18 @@ public partial class LogWindow : Window
     private const int PrefetchCount = 5;
 
     private readonly RepositoryInfo _repository;
+
+    /// <summary>
+    /// The one file this window is about, repository-relative, or null for the whole repository.
+    ///
+    /// Readonly and passed to every <see cref="HistoryService"/> call the window makes, which is the
+    /// point: the commit list, the file list, the diff and the patch are scoped together or not at
+    /// all. Filtered above and unfiltered below, the gap disclosure would under-report -- it counts
+    /// what the user skipped in the list it was given, and the diff would be of everything those
+    /// commits touched.
+    /// </summary>
+    private readonly string? _scope;
+
     private readonly HistoryService _history;
     private readonly DiffService _diffs;
     private readonly BlameService _blame;
@@ -88,8 +100,13 @@ public partial class LogWindow : Window
     private bool _endOfHistory;
     private bool _loading;
 
+    /// <param name="relativePath">
+    /// Scopes the window to one file. Null opens the whole repository, which is what every caller
+    /// but the Explorer file menu passes.
+    /// </param>
     public LogWindow(
         RepositoryInfo repository,
+        string? relativePath,
         HistoryService history,
         DiffService diffs,
         BlameService blame,
@@ -101,6 +118,7 @@ public partial class LogWindow : Window
         InitializeComponent();
 
         _repository = repository;
+        _scope = relativePath;
         _history = history;
         _diffs = diffs;
         _blame = blame;
@@ -109,8 +127,21 @@ public partial class LogWindow : Window
         _timings = timings;
         _log = log;
 
-        Title = Strings.Get("log.title", repository.Name);
+        //GetFileName works on the forward-slashed relative path: on Windows `/` is an alternate
+        //directory separator, which is why BlameWindow titles itself the same way.
+        Title = _scope is { Length: > 0 } scope
+            ? Strings.Get("log.title.file", Path.GetFileName(scope), repository.Name)
+            : Strings.Get("log.title", repository.Name);
+
         RepositoryText.Text = repository.Name;
+
+        if (_scope is { Length: > 0 } shown)
+        {
+            ScopeText.Text = shown;
+            ScopeText.ToolTip = shown;
+            ScopeText.Visibility = Visibility.Visible;
+        }
+
         FilesHeader.Text = Strings.Get("log.files.header");
         LoadMoreButton.Content = Strings.Get("log.loadmore", HistoryService.PageSize);
         BlameFileItem.Header = Strings.Get("log.blame");
@@ -162,11 +193,11 @@ public partial class LogWindow : Window
             //page -- history does not grow while the window is open, and "Load more" numbers its rows from
             //the same total.
             Task<int>? counting = _commits.Count == 0
-                ? _history.GetCommitCountAsync(_repository, CancellationToken.None)
+                ? _history.GetCommitCountAsync(_repository, _scope, CancellationToken.None)
                 : null;
 
             LogPage page = await _history
-                .GetPageAsync(_repository, _commits.Count, CancellationToken.None)
+                .GetPageAsync(_repository, _commits.Count, _scope, CancellationToken.None)
                 .ConfigureAwait(true);
 
             if (counting is not null)
@@ -181,8 +212,12 @@ public partial class LogWindow : Window
 
             if (_commits.Count == 0)
             {
-                PagingText.Text = Strings.Get("log.empty");
-                RangeText.Text = Strings.Get("log.empty");
+                //A scoped log with nothing in it is a file no commit has touched. The repository-wide
+                //wording would be a plain falsehood about a repository that has plenty of history.
+                string empty = Strings.Get(_scope is { Length: > 0 } ? "log.empty.file" : "log.empty");
+
+                PagingText.Text = empty;
+                RangeText.Text = empty;
                 return;
             }
 
@@ -319,7 +354,7 @@ public partial class LogWindow : Window
 
         try
         {
-            files = await _history.GetFilesAsync(_repository, range.BaseSpec, range.TipSpec, cancellation.Token).ConfigureAwait(true);
+            files = await _history.GetFilesAsync(_repository, range.BaseSpec, range.TipSpec, _scope, cancellation.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -498,7 +533,7 @@ public partial class LogWindow : Window
             //Git writes the file itself, so the patch never becomes a string here -- see
             //HistoryService.SavePatchAsync for why that is the whole point.
             GitResult result = await _history
-                .SavePatchAsync(_repository, range, dialog.FileName, CancellationToken.None)
+                .SavePatchAsync(_repository, range, dialog.FileName, _scope, CancellationToken.None)
                 .ConfigureAwait(true);
 
             if (!result.Succeeded)

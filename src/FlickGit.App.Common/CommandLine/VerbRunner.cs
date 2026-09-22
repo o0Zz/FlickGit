@@ -204,7 +204,9 @@ public sealed class VerbRunner(
             VerbKind.PullRebase => await windowVerbs.PullAsync(repository!).ConfigureAwait(true),
 
             VerbKind.Back => await windowVerbs.BackAsync(repository!).ConfigureAwait(true),
-            VerbKind.Log => await windowVerbs.LogAsync(repository!).ConfigureAwait(true),
+            //`verb.Path` again, for the same reason as Blame below: a clicked file scopes the window,
+            //and a folder is the whole repository.
+            VerbKind.Log => await windowVerbs.LogAsync(repository!, verb.Path).ConfigureAwait(true),
             VerbKind.Repo => windowVerbs.Repo(repository!),
             VerbKind.Submodule => windowVerbs.Submodules(repository!),
             VerbKind.PullRequest => await windowVerbs.PullRequestAsync(repository!).ConfigureAwait(true),

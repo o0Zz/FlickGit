@@ -46,5 +46,22 @@ public sealed record RepositoryInfo(
     public static RepositoryInfo None { get; } =
         new(string.Empty, string.Empty, HasSubmodules: false, IsBare: false, GitDirectory: string.Empty);
 
+    /// <summary>
+    /// <paramref name="fullPath"/> as Git spells it: relative to <see cref="Root"/>, forward slashes,
+    /// whatever Explorer handed over.
+    ///
+    /// Here rather than beside each caller because there are four of them -- blame, the file log, and
+    /// the three selection verbs -- and the second half is the half that is easy to leave out. A
+    /// back-slashed path reaches Git as a single path component on the platforms that do not treat
+    /// <c>\</c> as a separator, which is nothing on Windows until the same string is handed to a
+    /// pathspec that a copy of this walked through correctly.
+    ///
+    /// Note that the root itself comes back as <c>"."</c>, which is a path inside no repository. A
+    /// caller for which the root is not a legitimate argument refuses it by name first, the way
+    /// <c>RepositoryVerbs.PathIn</c> does, so the message says which folder it was.
+    /// </summary>
+    public string Relative(string fullPath) =>
+        Path.GetRelativePath(Root, fullPath).Replace('\\', '/');
+
     public override string ToString() => Root;
 }

@@ -105,10 +105,10 @@ public sealed class StashService(
         //Concurrent, for the reason DiffService gives for its two sides: these are process starts,
         //and this list sits on the click-to-painted budget.
         Task<IReadOnlyList<GitFileChange>> trackedTask =
-            history.GetFilesAsync(repository, tracked.BaseSpec, tracked.TipSpec, cancellationToken);
+            history.GetFilesAsync(repository, tracked.BaseSpec, tracked.TipSpec, relativePath: null, cancellationToken);
 
         Task<IReadOnlyList<GitFileChange>>? untrackedTask = stash.UntrackedRange is { } untracked
-            ? history.GetFilesAsync(repository, untracked.BaseSpec, untracked.TipSpec, cancellationToken)
+            ? history.GetFilesAsync(repository, untracked.BaseSpec, untracked.TipSpec, relativePath: null, cancellationToken)
             : null;
 
         var changes = new List<StashChange>();

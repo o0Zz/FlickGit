@@ -30,7 +30,7 @@ public sealed class UnavailableVerbs : IWindowVerbs
 
     public Task<VerbResult> PaletteAsync() => Task.FromResult(Refuse("palette"));
 
-    public Task<VerbResult> LogAsync(RepositoryInfo repository) => Task.FromResult(Refuse("log"));
+    public Task<VerbResult> LogAsync(RepositoryInfo repository, string? path) => Task.FromResult(Refuse("log"));
 
     public Task<VerbResult> BlameAsync(VerbOutput output, RepositoryInfo repository, string path) =>
         Task.FromResult(Refuse("blame"));

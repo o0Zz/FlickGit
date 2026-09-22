@@ -15,6 +15,12 @@ namespace FlickGit.History;
 /// <see cref="IGitProcessRunner.ReadAsync"/>, which is what makes that mechanical rather than a
 /// promise -- and the one thing here that creates anything, <see cref="SavePatchAsync"/>, writes
 /// at a path the user named in a dialog, outside the repository.
+///
+/// <b>Four of the five reads take a <c>relativePath</c>, and they take it together.</b> The log
+/// window is either scoped to one file or it is not: a filtered commit list over an unfiltered diff
+/// makes the gap disclosure lie, because <see cref="CommitRange.Resolve"/> counts what the user
+/// skipped from the list it was handed. A commit that never touched the file contributes nothing to
+/// a path-scoped diff and so is not a gap -- which is true exactly while the diff is scoped too.
 /// </summary>
 public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timings = null)
 {
@@ -38,6 +44,21 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
     /// </summary>
     private static readonly string[] DiffFlags = [.. GitDiffFlags.ReadSafe, "-M"];
 
+    /// <summary>
+    /// The trailing <c>-- :(literal)&lt;path&gt;</c>, or nothing at all when the read is not scoped.
+    ///
+    /// The <c>--</c> is what stops a file called <c>main</c> being read as a revision, and the magic
+    /// prefix is what stops <c>report[final].xlsx</c> matching <c>reportf.xlsx</c> instead. Built
+    /// here rather than by the caller so the pathspec never crosses out of Core: the window hands
+    /// over a plain repository-relative path and cannot get the quoting wrong.
+    /// </summary>
+    private static string[] Scope(string? relativePath) =>
+        relativePath is { Length: > 0 } path ? ["--", GitPathspec.Literal(path)] : [];
+
+    /// <param name="relativePath">
+    /// Repository-relative, forward slashes, as Git spells a path -- see
+    /// <see cref="RepositoryInfo.Relative"/>. Null for the whole repository.
+    /// </param>
     /// <param name="skip">
     /// How many commits to pass over. <c>--skip</c> rather than a "start from the last sha I saw"
     /// cursor, which is wrong twice: <c>&lt;sha&gt;^</c> does not resolve when the last row of a page
@@ -47,6 +68,7 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
     public async Task<LogPage> GetPageAsync(
         RepositoryInfo repository,
         int skip,
+        string? relativePath,
         CancellationToken cancellationToken)
     {
         long startedAt = Stopwatch.GetTimestamp();
@@ -69,6 +91,9 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
             args.Add($"--skip={skip}");
 
         args.Add("--format=" + CommitLogParser.Format);
+
+        //Last, because everything after `--` is a path.
+        args.AddRange(Scope(relativePath));
 
         GitResult result = await git.ReadAsync(repository.Root, args, cancellationToken).ConfigureAwait(false);
 
@@ -97,13 +122,19 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
     ///
     /// Zero when there is nothing to count: an unborn HEAD exits non-zero, and the window shows no
     /// number rather than a wrong one.
+    ///
+    /// Scoped by <paramref name="relativePath"/> along with everything else, and it has to be: the
+    /// rows count down from this by their position in the list, so a count of the whole history over
+    /// a list holding only one file's commits numbers the top row after commits that are not in it.
+    /// Scoped, the column keeps meaning what the row is -- the Nth change to this file.
     /// </summary>
     public async Task<int> GetCommitCountAsync(
         RepositoryInfo repository,
+        string? relativePath,
         CancellationToken cancellationToken)
     {
         GitResult result = await git
-            .ReadAsync(repository.Root, ["rev-list", "--count", "HEAD"], cancellationToken)
+            .ReadAsync(repository.Root, ["rev-list", "--count", "HEAD", .. Scope(relativePath)], cancellationToken)
             .ConfigureAwait(false);
 
         return result.Succeeded && int.TryParse(result.StdOut.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int count)
@@ -118,22 +149,26 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
     /// rename cannot key differently in the two streams.
     /// </summary>
     /// <param name="baseSpec">The left side. A bare object id, never revision syntax.</param>
+    /// <param name="relativePath">Scopes both reads, or null for every file the range touched.</param>
     public async Task<IReadOnlyList<GitFileChange>> GetFilesAsync(
         RepositoryInfo repository,
         string baseSpec,
         string tipSpec,
+        string? relativePath,
         CancellationToken cancellationToken)
     {
         long startedAt = Stopwatch.GetTimestamp();
 
+        string[] scope = Scope(relativePath);
+
         Task<GitResult> namesTask = git.ReadAsync(
             repository.Root,
-            ["diff", "--name-status", "-z", .. DiffFlags, baseSpec, tipSpec],
+            ["diff", "--name-status", "-z", .. DiffFlags, baseSpec, tipSpec, .. scope],
             cancellationToken);
 
         Task<GitResult> countsTask = git.ReadAsync(
             repository.Root,
-            ["diff", "--numstat", "-z", .. DiffFlags, baseSpec, tipSpec],
+            ["diff", "--numstat", "-z", .. DiffFlags, baseSpec, tipSpec, .. scope],
             cancellationToken);
 
         GitResult names = await namesTask.ConfigureAwait(false);
@@ -232,6 +267,7 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
         RepositoryInfo repository,
         CommitRange range,
         string destinationPath,
+        string? relativePath,
         CancellationToken cancellationToken) =>
         git.ReadAsync(
             repository.Root,
@@ -247,6 +283,10 @@ public sealed class HistoryService(IGitProcessRunner git, OperationTimings? timi
 
                 range.BaseSpec,
                 range.TipSpec,
+
+                //The patch is the file list the window showed, so it carries the same scope. Unscoped here,
+                //the button would hand somebody a patch of everything under a window titled after one file.
+                .. Scope(relativePath),
             ],
             cancellationToken);
 }

@@ -99,12 +99,20 @@ public sealed class WindowVerbs(
     ///
     /// No bare-repository guard, unlike <see cref="CommitAsync"/>: a bare repository has no working
     /// tree but it does have history, and this is the one window that can show it.
+    ///
+    /// <b>A file scopes the window to it.</b> The same test <see cref="BlameAsync"/> makes, without
+    /// the refusal that follows it there: a folder is a legitimate argument here and is what every
+    /// caller before the file menu passed, so <c>null</c> is the whole repository.
     /// </summary>
-    public async Task<VerbResult> LogAsync(RepositoryInfo repository)
+    public async Task<VerbResult> LogAsync(RepositoryInfo repository, string? path)
     {
+        string? scope = path is { Length: > 0 } given && !Directory.Exists(Path.GetFullPath(given))
+            ? repository.Relative(Path.GetFullPath(given))
+            : null;
+
         var clock = Stopwatch.StartNew();
 
-        var window = new LogWindow(repository, history, diffs, blame, ai, settings, timings, log);
+        var window = new LogWindow(repository, scope, history, diffs, blame, ai, settings, timings, log);
 
         AppWindow.Present(window);
 
@@ -133,7 +141,7 @@ public sealed class WindowVerbs(
         }
 
         //Git speaks repository-relative paths with forward slashes, whatever Explorer handed over.
-        string relative = Path.GetRelativePath(repository.Root, full).Replace('\\', '/');
+        string relative = repository.Relative(full);
 
         var clock = Stopwatch.StartNew();
 

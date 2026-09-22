@@ -47,6 +47,13 @@ internal sealed class LogWindow : Window
     private readonly ILog _log;
     private readonly RepositoryInfo _repository;
 
+    /// <summary>
+    /// The one file this window is about, repository-relative, or null for the whole repository.
+    /// Passed to every <see cref="HistoryService"/> call together, for the reason that class's own
+    /// summary gives: scoped above and unscoped below, the gap disclosure under-reports.
+    /// </summary>
+    private readonly string? _scope;
+
     private readonly ListBox _commits = new() { SelectionMode = SelectionMode.Multiple };
     private readonly ListBox _files = new();
     private readonly DiffPane _pane = new();
@@ -114,8 +121,12 @@ internal sealed class LogWindow : Window
     /// <summary>Guards against a second page being asked for while the first is still arriving.</summary>
     private bool _loading;
 
+    /// <param name="relativePath">
+    /// Scopes the window to one file. Null opens the whole repository.
+    /// </param>
     public LogWindow(
         RepositoryInfo repository,
+        string? relativePath,
         HistoryService history,
         DiffService diffs,
         AiTextService ai,
@@ -125,6 +136,7 @@ internal sealed class LogWindow : Window
         ILog log)
     {
         _repository = repository;
+        _scope = relativePath;
         _history = history;
         _diffs = diffs;
         _ai = ai;
@@ -133,7 +145,10 @@ internal sealed class LogWindow : Window
         _timings = timings;
         _log = log;
 
-        Title = Strings.Get("log.title", repository.Name);
+        Title = _scope is { Length: > 0 } scope
+            ? Strings.Get("log.title.file", System.IO.Path.GetFileName(scope), repository.Name)
+            : Strings.Get("log.title", repository.Name);
+
         Width = 1100;
         Height = 760;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -287,7 +302,7 @@ internal sealed class LogWindow : Window
         try
         {
             GitResult result = await _history
-                .SavePatchAsync(_repository, range, path, CancellationToken.None)
+                .SavePatchAsync(_repository, range, path, _scope, CancellationToken.None)
                 .ConfigureAwait(true);
 
             if (!result.Succeeded)
@@ -432,7 +447,7 @@ internal sealed class LogWindow : Window
         try
         {
             LogPage page = await _history
-                .GetPageAsync(_repository, _page.Count, CancellationToken.None)
+                .GetPageAsync(_repository, _page.Count, _scope, CancellationToken.None)
                 .ConfigureAwait(true);
 
             foreach (LogCommit commit in page.Commits)
@@ -441,7 +456,7 @@ internal sealed class LogWindow : Window
             _endOfHistory = !page.HasMore;
 
             _paging.Text = _page.Count == 0
-                ? Strings.Get("log.empty")
+                ? Strings.Get(_scope is { Length: > 0 } ? "log.empty.file" : "log.empty")
                 : _endOfHistory
                     ? Strings.Get("log.end")
                     : Strings.Get("log.loaded", _page.Count);
@@ -518,7 +533,7 @@ internal sealed class LogWindow : Window
         try
         {
             files = await _history
-                .GetFilesAsync(_repository, range.BaseSpec, range.TipSpec, cancellation.Token)
+                .GetFilesAsync(_repository, range.BaseSpec, range.TipSpec, _scope, cancellation.Token)
                 .ConfigureAwait(true);
         }
         catch (OperationCanceledException)

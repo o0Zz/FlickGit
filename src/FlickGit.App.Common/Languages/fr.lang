@@ -393,12 +393,14 @@ submodule.commit = Committer…
 
 # ---- fenêtre du journal ----
 log.title = Journal — {0}
+log.title.file = Journal — {0} — {1}
 log.files.header = Fichiers modifiés
 log.loaded = {0} commits chargés
 log.loadmore = En charger {0} de plus
 log.loading = Lecture de l'historique…
 log.end = C'est tout l'historique.
 log.empty = Ce dépôt n'a encore aucun commit.
+log.empty.file = Aucun commit n'a touché ce fichier.
 log.failed = L'historique n'a pas pu être lu.
 log.select.prompt = Sélectionnez un commit pour voir ce qu'il a changé.
 log.hint = Sélectionnez plusieurs commits pour voir leur diff combiné.

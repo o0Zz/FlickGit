@@ -342,7 +342,13 @@ public sealed class ActionCatalog
 
         //Everything else, in the submenu. Log first: the most-reached, and still not a root entry because
         //the three root entries are the three the user *performs* all day.
-        new("log", VerbKind.Log, 105, ActionSurfaces.All, "log.ico", InMore: true, NeedsRepository: true),
+        //
+        //File as well as All, and it is one entry rather than two: a built-in's id is its verb, so the
+        //same click, the same label and the same code path answer both -- `flick log` scopes itself to a
+        //file and shows the whole repository for a folder. Sorting at 105 puts it under Blame on a file,
+        //which is the other entry that answers a question about history rather than changing anything.
+        new("log", VerbKind.Log, 105, ActionSurfaces.All | ActionSurfaces.File, "log.ico",
+            InMore: true, NeedsRepository: true),
 
         //Read what is there. File only: blaming a folder is not a thing, which is the example
         //ActionSurfaces.File's own doc gives for why the two clicks are separate surfaces.

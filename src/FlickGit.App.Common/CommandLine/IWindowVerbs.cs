@@ -19,7 +19,12 @@ public interface IWindowVerbs
 
     Task<VerbResult> PaletteAsync();
 
-    Task<VerbResult> LogAsync(RepositoryInfo repository);
+    /// <param name="path">
+    /// What was clicked. A file scopes the window to it; a folder -- including the repository root,
+    /// and the working directory the CLI falls back to -- opens the whole history, which is every
+    /// caller that existed before the file menu grew the entry.
+    /// </param>
+    Task<VerbResult> LogAsync(RepositoryInfo repository, string? path);
 
     Task<VerbResult> BlameAsync(VerbOutput output, RepositoryInfo repository, string path);
 

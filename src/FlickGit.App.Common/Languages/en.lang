@@ -611,6 +611,8 @@ submodule.commit = Commit…
 
 # {0} repository name
 log.title = Log — {0}
+# {0} file name, {1} repository name. The window scoped to one file, from a right-click on it.
+log.title.file = Log — {0} — {1}
 log.files.header = Changed files
 # {0} number of commits read so far
 log.loaded = {0} commits loaded
@@ -619,6 +621,9 @@ log.loadmore = Load {0} more
 log.loading = Reading history…
 log.end = That is the whole history.
 log.empty = This repository has no commits yet.
+# Its own wording, because the repository-wide one would be false: a scoped log with nothing in it
+# is a file no commit has touched, not a repository with no history.
+log.empty.file = No commit has touched this file.
 log.failed = The history could not be read.
 log.select.prompt = Select a commit to see what it changed.
 log.hint = Select several commits to see their combined diff.

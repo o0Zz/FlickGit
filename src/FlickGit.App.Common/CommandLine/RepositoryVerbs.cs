@@ -644,7 +644,7 @@ public sealed class RepositoryVerbs(
             return null;
         }
 
-        string relative = Path.GetRelativePath(repository.Root, full).Replace('\\', '/');
+        string relative = repository.Relative(full);
 
         if (WorkingTreeWriter.ResolveInsideRepository(repository.Root, relative) is null)
         {

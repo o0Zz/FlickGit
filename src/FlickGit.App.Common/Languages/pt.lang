@@ -393,12 +393,14 @@ submodule.commit = Committar…
 
 # ---- janela do histórico ----
 log.title = Histórico — {0}
+log.title.file = Histórico — {0} — {1}
 log.files.header = Ficheiros alterados
 log.loaded = {0} commits carregados
 log.loadmore = Carregar mais {0}
 log.loading = A ler o histórico…
 log.end = Este é todo o histórico.
 log.empty = Este repositório ainda não tem commits.
+log.empty.file = Nenhum commit tocou neste ficheiro.
 log.failed = Não foi possível ler o histórico.
 log.select.prompt = Selecione um commit para ver o que alterou.
 log.hint = Selecione vários commits para ver o seu diff combinado.

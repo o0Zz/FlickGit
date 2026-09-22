@@ -401,7 +401,7 @@ flick tag <path> [name]              tag window when omitted; creates and pushes
 flick stash <path> [message]         stash window when omitted; stashes the working tree when named
 flick submodule <path>               submodules: add, remove, initialise
 flick status <path>
-flick log <path>                     commit history; multi-select for a combined diff
+flick log <path>                     commit history; a file scopes it to that file
 flick blame <file>                   who last touched each line, and what came before
 flick add <path>...                  stage files or folders, tracking what is new
 flick rm <path>...                   stop tracking files or folders; the files stay on disk
@@ -990,6 +990,23 @@ split is bounded at the field count. `tformat` appends a newline after every rec
 fields. **Paging is `--skip`**, never a last-sha cursor: `<sha>^` does not resolve at a root commit, and
 at a merge it silently switches the walk to the first-parent line.
 
+**A right-clicked file opens this same window scoped to it**, and there is no second entry for that —
+a built-in's id is its verb, so `Show log…` on a file and on a folder are one label over one code
+path, and `flick log <file>` scopes itself while `flick log <folder>` does not. `WindowVerbs` makes
+the same `Directory.Exists` test `blame` makes, without the refusal that follows it there.
+
+**The scope reaches every read the window makes, or none of them**, which is a safety rule rather
+than tidiness. The gap disclosure counts what the user skipped *in the list it was handed*; filter
+the commit list and leave the diff, the file list or the patch unfiltered, and the window reports a
+gap of nothing while showing whole commits nobody selected. Scoped throughout, the number stays true
+— a commit that never touched the file contributes nothing to a path-scoped diff, so it is not a gap.
+So `GetPageAsync`, `GetCommitCountAsync`, `GetFilesAsync` and `SavePatchAsync` all take the path
+together, and a test asserts each carries `--` and `:(literal)<path>` — the separator so a file
+called `main` is not read as a revision, the prefix so `report[final].cs` is not read as a pattern.
+The count is scoped for a second reason: rows number down from it by position, so an unscoped total
+over a scoped list numbers the top row after commits that are not in it. **No `--follow`** — renames
+end the walk, as blame's `-M`/`-C` omission already does.
+
 **Nothing in this window writes to the repository.** `HistoryService` reaches Git only through
 `ReadAsync`, and a test asserts every invocation is a read. No checkout, reset, revert, cherry-pick,
 rebase, amend, tag-at-commit or branch-from-here. Scope is `git log HEAD` with no branch picker.
@@ -1235,10 +1252,10 @@ public sealed record GitAction
 … the rest of the Explorer context menu …           A right-clicked FILE instead gets:
 ─────────────────────────────────────────
 Pull (rebase)         ← + submodule update           FlickGit  ▸  Blame…
-Commit / Push…        ← branch in the label                      Add
-Back to primary       ← switch, then pull                        Remove from Git
-FlickGit            ▸                                            Delete
-      ├── Show log…          ├── Pull request…
+Commit / Push…        ← branch in the label                      Show log…
+Back to primary       ← switch, then pull                        Add
+FlickGit            ▸                                            Remove from Git
+      ├── Show log…          ├── Pull request…                   Delete
       ├── Branches…          ├── Repository settings…
       ├── Tags…              ├── Clone…
       ├── Submodules…        ├── Fetch (prune)
