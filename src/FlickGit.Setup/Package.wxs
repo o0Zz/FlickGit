@@ -140,14 +140,20 @@
 
     <!-- One shortcut, for the resident service. No arguments: FlickGit.exe with none is the tray
          verb. Nothing else in the product is worth a Start-menu entry — the whole point is that
-         the surfaces are Explorer's context menu and a hotkey. -->
+         the surfaces are Explorer's context menu and a hotkey.
+
+         No Icon attribute, deliberately. With one, the .lnk names a copy Windows Installer keeps
+         under %APPDATA%\Microsoft\Installer\{ProductCode}\, and the taskbar draws every FlickGit
+         window with the icon of the shortcut whose target matches the running exe - not the
+         window's own. When that copy goes missing the taskbar button is a blank page while the
+         title bar still shows the F. Without it the shortcut takes the icon embedded in
+         FlickGit.exe, which lives exactly as long as the exe does. -->
     <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="*">
       <Shortcut Id="FlickGitShortcut"
                 Name="FlickGit"
                 Description="Fast Git actions from Windows Explorer"
                 Target="[INSTALLFOLDER]FlickGit.exe"
-                WorkingDirectory="INSTALLFOLDER"
-                Icon="FlickGit.ico" />
+                WorkingDirectory="INSTALLFOLDER" />
 
       <!-- A per-user component needs an HKCU key path; a shortcut cannot be one. -->
       <RegistryValue Root="HKCU" Key="Software\o0Zz\FlickGit" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
