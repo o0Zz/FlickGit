@@ -1352,9 +1352,9 @@ is one function they all call (`AiEndpoint.StreamAsync`) and what differs is exa
 
 | Provider | Model | Notes |
 |---|---|---|
-| **Anthropic** (default) | `claude-haiku-4-5-20251001` | extended thinking **not** enabled |
-| **OpenAI** | `gpt-5.6-luna` | `reasoning: { "effort": "none" }` |
-| **GitHub Copilot** | `gpt-4.1` | undocumented API; see below |
+| **Anthropic** (default) | `claude-opus-5-5` | thinking cannot be disabled: effort `low`, `max_tokens` + 2048 for it, `fallbacks: "default"` |
+| **OpenAI** | `gpt-6-luna` | `reasoning: { "effort": "none" }` |
+| **GitHub Copilot** | `gpt-5.3-codex` | GitHub's base model; undocumented API; see below |
 | **Ollama** (local) | `aiModel`, **no default** | nothing leaves the machine |
 
 The task is short-output summarisation and does not benefit from reasoning: pick the fastest tier and
@@ -1657,7 +1657,7 @@ Every one of these must be measurable and surfaced by `flick diag timings`.
 | Click → rendered diff (prefetched)         | 80 ms  | 200 ms     |
 | Click → rendered diff (cold)               | 250 ms | 600 ms     |
 | Re-diff after edit, 2,000-line file        | 120 ms | 300 ms     |
-| AI first token (Haiku 4.5, capped diff)    | 400 ms | 1.5 s      |
+| AI first token (Opus 5.5 low, capped diff) | 400 ms | 1.5 s      |
 | AI complete message                        | 800 ms | 3 s        |
 | AI request timeout (silence, not total)    | —      | 8 s        |
 | AI description / changelog first token     | 600 ms | 2 s        |

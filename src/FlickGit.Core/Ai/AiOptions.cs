@@ -28,7 +28,9 @@ public enum AiProvider
 /// reference, so <c>FlickGit.Core</c> keeps knowing nothing about where settings live.
 /// </summary>
 /// <param name="Model">The model id. Empty means the provider's default.</param>
-/// <param name="ReasoningEffort">OpenAI only. <c>none</c> is the latency baseline.</param>
+/// <param name="ReasoningEffort">
+/// OpenAI, and Copilot's Responses-API models. <c>none</c> is the latency baseline.
+/// </param>
 /// <param name="MaxDiffBytes">
 /// Above it the payload becomes a summary plus the first lines of each file's hunks.
 /// </param>
@@ -107,13 +109,18 @@ public sealed record AiOptions(
         ? Model
         : Provider switch
         {
-            AiProvider.Anthropic => "claude-haiku-4-5-20251001",
-            AiProvider.OpenAi => "gpt-5.6-luna",
+            //The current Opus, at effort "low" -- see AnthropicGenerator, which also sizes max_tokens for
+            //the thinking this model cannot be told to skip.
+            AiProvider.Anthropic => "claude-opus-5-5",
 
-            //Copilot's base model, which every plan includes and which spends no premium request. A faster
-            //tier exists, but a default that 404s on some subscriptions is worse than a slower one that works
-            //on all of them.
-            AiProvider.Copilot => "gpt-4.1",
+            //OpenAI's efficient tier, taking reasoning effort "none" -- its lowest time to first token.
+            AiProvider.OpenAi => "gpt-6-luna",
+
+            //GitHub's designated base and LTS model: on every paid plan, and switched on automatically for
+            //every Business and Enterprise account, where the larger models wait for an admin's policy or
+            //a higher plan. gpt-4.1, the previous default, is hidden from Copilot's picker and ignored the
+            //changelog's format and grouping rules. With reasoning at "none" it answers as fast as Sonnet.
+            AiProvider.Copilot => "gpt-5.3-codex",
 
             //Ollama has no default, deliberately: the set of models is whatever the user has pulled onto
             //their own disk, so *any* guess 404s for most people -- with an error about a model they never

@@ -15,15 +15,24 @@ namespace FlickGit.Ai;
 /// <param name="MaxTokens">The runaway guard, not the length control.</param>
 /// <param name="System">The system prompt.</param>
 /// <param name="Messages">One user message: the payload.</param>
+/// <param name="OutputConfig">The effort. Null for a model that refuses the field.</param>
+/// <param name="Fallbacks">
+/// <c>"default"</c>: a classifier refusal is re-run server-side on the model Anthropic routes that
+/// category to. Null alongside <paramref name="OutputConfig"/>.
+/// </param>
 internal sealed record AnthropicRequest(
     [property: JsonPropertyName("model")] string Model,
     [property: JsonPropertyName("max_tokens")] int MaxTokens,
     [property: JsonPropertyName("system")] string System,
-    [property: JsonPropertyName("messages")] AnthropicMessage[] Messages)
+    [property: JsonPropertyName("messages")] AnthropicMessage[] Messages,
+    [property: JsonPropertyName("output_config")] AnthropicOutputConfig? OutputConfig,
+    [property: JsonPropertyName("fallbacks")] string? Fallbacks)
 {
     [JsonPropertyName("stream")]
     public bool Stream => true;
 }
+
+internal sealed record AnthropicOutputConfig([property: JsonPropertyName("effort")] string Effort);
 
 internal sealed record AnthropicMessage(
     [property: JsonPropertyName("role")] string Role,

@@ -8,13 +8,15 @@ using FlickGit.Secrets;
 namespace FlickGit.Ai;
 
 /// <summary>
-/// GitHub Copilot's chat endpoint, streamed, on the user's existing subscription.
+/// GitHub Copilot, streamed, on the user's existing subscription.
 ///
-/// The wire format is OpenAI's Chat Completions — <c>choices[0].delta.content</c>, not the Responses
-/// API's <c>response.output_text.delta</c> — so this is a third frame reader rather than a reuse of
-/// <see cref="OpenAiGenerator"/>'s. That is also why there is no shared base class here
-/// either: what these three providers have in common is <see cref="AiEndpoint.StreamAsync"/>, and what
-/// differs is exactly the four arguments it takes.
+/// <b>Two wire formats, chosen by the model</b>, because Copilot serves each family on one API and
+/// refuses the other with <c>unsupported_api_for_model</c>: the GPT-5 and GPT-6 lines — the default
+/// among them — answer only on the Responses API, and Claude, Gemini and the GPT-4 line only on Chat
+/// Completions. Both are OpenAI's shapes, so the request records are the ones
+/// <see cref="OpenAiGenerator"/> uses and <see cref="CopilotRequest"/>. There is still no shared base
+/// class: what the providers have in common is <see cref="AiEndpoint.StreamAsync"/>, and what differs
+/// is exactly the arguments it takes.
 ///
 /// The one thing unique to this provider is that <b>the stored credential is not what gets sent</b>.
 /// The GitHub token buys a short-lived Copilot token from <see cref="CopilotToken"/>, and only that
@@ -26,7 +28,22 @@ public sealed class CopilotGenerator(
     CopilotToken tokens,
     ILog log) : IAiGenerator
 {
-    private const string Endpoint = "https://api.githubcopilot.com/chat/completions";
+    private const string ChatEndpoint = "https://api.githubcopilot.com/chat/completions";
+
+    private const string ResponsesEndpoint = "https://api.githubcopilot.com/responses";
+
+    /// <summary>
+    /// Whether Copilot serves this model on Chat Completions rather than the Responses API.
+    ///
+    /// A prefix rule, read off Copilot's own <c>/models</c> list (each entry's
+    /// <c>supported_endpoints</c>) rather than asked of it per request, which would put a round trip
+    /// in front of every first token. A model the rule gets wrong is refused by Copilot with a message
+    /// naming the API, not answered wrongly.
+    /// </summary>
+    internal static bool SpeaksChatCompletions(string model) =>
+        model.StartsWith("claude-", StringComparison.Ordinal)
+        || model.StartsWith("gemini-", StringComparison.Ordinal)
+        || model.StartsWith("gpt-4", StringComparison.Ordinal);
 
     /// <summary>
     /// An async iterator rather than a straight delegation, unlike the other two generators: the token
@@ -40,15 +57,27 @@ public sealed class CopilotGenerator(
     {
         string token = await tokens.ReadAsync(cancellationToken).ConfigureAwait(false);
 
-        string json = JsonSerializer.Serialize(
-            new CopilotRequest(
-                options.ResolvedModel,
-                [
-                    new CopilotMessage("system", prompt.System),
-                    new CopilotMessage("user", prompt.User),
-                ],
-                prompt.MaxTokens),
-            AiJson.Default.CopilotRequest);
+        string model = options.ResolvedModel;
+        bool chat = SpeaksChatCompletions(model);
+
+        string json = chat
+            ? JsonSerializer.Serialize(
+                new CopilotRequest(
+                    model,
+                    [
+                        new CopilotMessage("system", prompt.System),
+                        new CopilotMessage("user", prompt.User),
+                    ],
+                    prompt.MaxTokens),
+                AiJson.Default.CopilotRequest)
+            : JsonSerializer.Serialize(
+                new OpenAiRequest(
+                    model,
+                    prompt.System,
+                    prompt.User,
+                    prompt.MaxTokens,
+                    new OpenAiReasoning(options.ReasoningEffort.Length > 0 ? options.ReasoningEffort : "none")),
+                AiJson.Default.OpenAiRequest);
 
         bool completed = false;
 
@@ -58,12 +87,12 @@ public sealed class CopilotGenerator(
                 .StreamAsync(
                     http,
                     "Copilot",
-                    Endpoint,
+                    chat ? ChatEndpoint : ResponsesEndpoint,
                     json,
                     request => Authorise(request, token),
                     AiFraming.ServerSentEvents,
                     options.Silence,
-                    Read,
+                    chat ? ReadChat : ReadResponses,
                     cancellationToken)
                 .ConfigureAwait(false))
             {
@@ -103,7 +132,7 @@ public sealed class CopilotGenerator(
     /// <c>finish_reason</c> with an empty delta. <c>[DONE]</c> never reaches here — the endpoint
     /// recognises it, the same as for OpenAI.
     /// </summary>
-    private string? Read(string frame)
+    private string? ReadChat(string frame)
     {
         try
         {
@@ -115,6 +144,29 @@ public sealed class CopilotGenerator(
             //An empty `choices` is ordinary rather than a fault: the first frame of a Copilot stream
             //usually carries only content-filter results.
             return parsed?.Choices is [{ Delta.Content: { Length: > 0 } text }, ..] ? text : null;
+        }
+        catch (JsonException ex)
+        {
+            log.Debug($"Unparseable Copilot frame ignored: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The Responses API, read exactly as <see cref="OpenAiGenerator"/> reads it: the text is
+    /// <c>response.output_text.delta</c>, and Copilot's own extra frames -- a closing
+    /// <c>copilot_usage</c> among them -- carry no text and are ignored with the rest.
+    /// </summary>
+    private string? ReadResponses(string frame)
+    {
+        try
+        {
+            OpenAiEvent? parsed = JsonSerializer.Deserialize(frame, AiJson.Default.OpenAiEvent);
+
+            if (parsed?.Type is "response.failed" or "error")
+                throw new AiUnavailableException(SecretDetector.Redact(parsed.Error?.Message ?? "Copilot returned an error."));
+
+            return parsed?.Type == "response.output_text.delta" ? parsed.Delta : null;
         }
         catch (JsonException ex)
         {
@@ -149,7 +201,8 @@ public sealed class CopilotGenerator(
             return new AiProbe(false, clock.Elapsed, ex.Message);
         }
 
-        AiProbe probe = await AiEndpoint.ProbeAsync(http, Endpoint, cancellationToken).ConfigureAwait(false);
+        string endpoint = SpeaksChatCompletions(options.ResolvedModel) ? ChatEndpoint : ResponsesEndpoint;
+        AiProbe probe = await AiEndpoint.ProbeAsync(http, endpoint, cancellationToken).ConfigureAwait(false);
 
         //The caller's number is "how long before this provider can answer", which is both round
         //trips rather than only the second one.

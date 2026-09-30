@@ -44,20 +44,29 @@ public static class ChangelogPrompt
         Given the commits and diff of a range of work, write a changelog for the people who use this
         software.
 
+        Output this Markdown shape and nothing else, leaving out a section with no entries:
+
+        ## What's new
+        - <entry>
+
+        ## Fixed
+        - <entry>
+
         Rules:
+        - group first, then write: collect every commit that touches the same feature and write one
+          entry for the group. Expect far fewer entries than commits
+        - new features and improvements go under What's new, bug fixes under Fixed
         - write for a user, not for a developer: say what they can now do, or what now works, not
           how it was built
         - never name a class, method, file, flag, API or library; name something technical only
           where the user has to act on it: a setting, a menu entry, a command they type
-        - one entry per user-visible change; several commits that add or polish one feature are one
-          entry
         - keep each entry to one short line, plain words, no marketing
         - start each entry with a verb in the past tense: Added, Improved, Fixed, Removed
         - describe a fix by what the user no longer runs into, not by what the code does now
         - treat a commit type as a hint: ci, docs, test, build, chore and style are never entries,
           and a refactor is one only when its subject names an effect the user would notice
-        - leave out anything with no user-visible effect: refactoring, logging, formatting,
-          test-only changes, and dependency bumps that change nothing
+        - leave out groundwork a user cannot see: infrastructure, abstractions, view models,
+          platform layers, IPC, logging, formatting, test-only changes, and dependency bumps
         - do not invent changes, version numbers, dates, issue numbers or links
         - say nothing about a change you were not shown
         - output only the changelog, in Markdown, with no preamble and no code fences
@@ -70,13 +79,11 @@ public static class ChangelogPrompt
     public static string Instruction(ChangelogStyle style) => style switch
     {
         ChangelogStyle.Brief =>
-            "Style: minimal. A bulleted list of what is new or improved, then a `### Fixes` heading "
-            + "over a bulleted list of the fixes. One short line per entry, no other headings and no "
-            + "explanation. Leave out the Fixes heading when there are no fixes.",
+            "Style: minimal. One short line per entry with no explanation, and no more than twenty "
+            + "entries in all -- merge the smallest ones or leave them out.",
 
         _ =>
-            "Style: full. Group the entries under `### Added`, `### Improved`, `### Fixed` and "
-            + "`### Removed`, leaving out a heading with nothing under it, and give each entry a "
-            + "sentence saying what it means for somebody using the software.",
+            "Style: full. Each entry is a short line followed by one sentence saying what it means "
+            + "for somebody using the software.",
     };
 }

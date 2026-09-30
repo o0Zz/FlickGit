@@ -65,7 +65,16 @@ public class AiStreamTests
             data: {"type":"ping"}
 
             event: content_block_start
-            data: {"type":"content_block_start","index":0}
+            data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EqQB"}}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":1}
 
             event: content_block_delta
             data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"feat: add "}}
@@ -117,9 +126,9 @@ public class AiStreamTests
     }
 
     /// <summary>
-    /// Copilot speaks Chat Completions, which is a third wire format rather than a second: the text is
-    /// <c>choices[0].delta.content</c>, where OpenAI's Responses API puts it in
-    /// <c>response.output_text.delta</c>.
+    /// Copilot serves a Claude model on Chat Completions, which is a third wire format rather than a
+    /// second: the text is <c>choices[0].delta.content</c>, where the Responses API the default model
+    /// speaks puts it in <c>response.output_text.delta</c>.
     ///
     /// The two frames that carry no text are the ones a naive reader breaks on — an opening frame whose
     /// delta is only a role, and the content-filter frame whose <c>choices</c> is empty.
@@ -148,11 +157,12 @@ public class AiStreamTests
 
         var generator = new CopilotGenerator(
             http,
-            Options with { Provider = AiProvider.Copilot },
+            Options with { Provider = AiProvider.Copilot, Model = "claude-sonnet-5.5" },
             new CopilotToken(http, () => "gho_stored", NullLog.Instance),
             NullLog.Instance);
 
         Assert.Equal("feat: add Copilot support", await Collect(generator.GenerateAsync(Prompt, CancellationToken.None)));
+        Assert.Equal("/chat/completions", handler.CompletionPath);
     }
 
     /// <summary>
@@ -282,10 +292,17 @@ public class AiStreamTests
     [Fact]
     public async Task The_stored_GitHub_token_is_exchanged_and_never_sent_to_the_completion_endpoint()
     {
+        //The default model's Responses stream, closing with the usage frame only Copilot sends.
         const string transcript = """
-            data: {"choices":[{"index":0,"delta":{"content":"chore: tidy"}}]}
+            data: {"response":{"id":"resp_1"},"type":"response.created"}
 
-            data: [DONE]
+            data: {"content_index":0,"delta":"chore: ","item_id":"i1","type":"response.output_text.delta"}
+
+            data: {"content_index":0,"delta":"tidy","item_id":"i2","type":"response.output_text.delta"}
+
+            data: {"response":{"id":"resp_1"},"type":"response.completed"}
+
+            data: {"copilot_usage":{"token_details":[]}}
 
 
             """;
@@ -315,9 +332,11 @@ public class AiStreamTests
         //model name -- so it is pinned rather than left to be rediscovered.
         Assert.Equal("vscode-chat", handler.CompletionIntegrationId);
 
-        //The diff, and the runaway guard.
+        //The diff, the runaway guard, and reasoning off -- on the endpoint the default model speaks.
+        Assert.Equal("/responses", handler.CompletionPath);
         Assert.Contains("src/A.cs", handler.CompletionBody);
-        Assert.Contains("\"max_tokens\":150", handler.CompletionBody);
+        Assert.Contains("\"max_output_tokens\":150", handler.CompletionBody);
+        Assert.Contains("\"effort\":\"none\"", handler.CompletionBody);
         Assert.Contains("\"stream\":true", handler.CompletionBody);
     }
 
@@ -340,6 +359,8 @@ public class AiStreamTests
 
         public string CompletionBody { get; private set; } = string.Empty;
 
+        public string CompletionPath { get; private set; } = string.Empty;
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -355,6 +376,7 @@ public class AiStreamTests
             }
 
             CompletionAuthorization = authorization;
+            CompletionPath = request.RequestUri.AbsolutePath;
             CompletionIntegrationId = string.Join(' ', request.Headers.GetValues("Copilot-Integration-Id"));
             CompletionBody = await request.Content!.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
@@ -399,12 +421,19 @@ public class AiStreamTests
     /// <summary>
     /// The strongest single assertion in this file: what actually went over the wire.
     ///
-    /// In scope as <b>the safety rules</b> — it pins that the runaway guard is set, that extended
-    /// thinking is absent (on Haiku 4.5, omitting it <i>is</i> disabling it), and that the diff in
-    /// the body is the capped one rather than anything larger.
+    /// In scope as <b>the safety rules</b> — it pins that the runaway guard is set and leaves room for
+    /// thinking where the model cannot skip it, that no <c>thinking</c> field is ever sent, that effort
+    /// reaches only a model that accepts it (Haiku 4.5 answers it with a 400), and that the diff in the
+    /// body is the capped one rather than anything larger.
     /// </summary>
-    [Fact]
-    public async Task The_request_body_carries_the_guard_rails_and_no_thinking()
+    [Theory]
+    [InlineData("", "claude-opus-5-5", 150 + 2048, true)]
+    [InlineData("claude-haiku-4-5", "claude-haiku-4-5", 150, false)]
+    public async Task The_request_body_carries_the_guard_rails_and_no_thinking(
+        string configured,
+        string sent,
+        int maxTokens,
+        bool thinks)
     {
         const string transcript = """
             data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"chore: tidy"}}
@@ -415,18 +444,20 @@ public class AiStreamTests
         var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, transcript);
         using var http = new HttpClient(handler);
 
-        var generator = new AnthropicGenerator(http, Options, () => "sk-ant-test", NullLog.Instance);
+        var generator = new AnthropicGenerator(http, Options with { Model = configured }, () => "sk-ant-test", NullLog.Instance);
 
         await Collect(generator.GenerateAsync(Prompt, CancellationToken.None));
 
         string body = handler.SentBody ?? string.Empty;
 
-        Assert.Contains("\"max_tokens\":150", body);
+        Assert.Contains($"\"max_tokens\":{maxTokens}", body);
         Assert.Contains("\"stream\":true", body);
-        Assert.Contains("claude-haiku-4-5", body);
+        Assert.Contains($"\"model\":\"{sent}\"", body);
+        Assert.Equal(thinks, body.Contains("\"output_config\":{\"effort\":\"low\"}", StringComparison.Ordinal));
+        Assert.Equal(thinks, body.Contains("\"fallbacks\":\"default\"", StringComparison.Ordinal));
 
-        //Never enabled here. CLAUDE.md: "Extended thinking exists on the Haiku line -- do not
-        //enable it here."
+        //Never sent: disabling thinking is a 400 on Opus 5.5, and on Haiku omitting it is what
+        //disables it.
         Assert.DoesNotContain("thinking", body);
 
         //The payload, and only the payload.
