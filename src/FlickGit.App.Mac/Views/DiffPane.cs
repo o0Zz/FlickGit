@@ -253,6 +253,15 @@ internal sealed class DiffPane : UserControl
 
     private bool _isDirty;
 
+    //The editors' grid and its join, kept so an added or deleted file can hide the empty side.
+    private readonly Grid _panes;
+    private readonly GridSplitter _splitter;
+
+    //The split as the user last left it, kept while one side is hidden so the next modified file
+    //opens on the same ratio rather than snapping back to 50/50.
+    private GridLength _leftWidth = new(1, GridUnitType.Star);
+    private GridLength _rightWidth = new(1, GridUnitType.Star);
+
     /// <summary>True once the user has typed something that is not yet saved.</summary>
     public bool IsDirty
     {
@@ -343,7 +352,13 @@ internal sealed class DiffPane : UserControl
             },
         };
 
-        var panes = new Grid
+        _splitter = new GridSplitter
+        {
+            ResizeDirection = GridResizeDirection.Columns,
+            Background = Brush("Border"),
+        };
+
+        var panes = _panes = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("*,4,*,11"),
             Children =
@@ -353,13 +368,7 @@ internal sealed class DiffPane : UserControl
                 //The join, and the whole reason the split is not a fixed 50/50: dragging it gives the
                 //right pane room by taking it from the left, which is the only way to see a long line
                 //without scrolling.
-                Place(
-                    new GridSplitter
-                    {
-                        ResizeDirection = GridResizeDirection.Columns,
-                        Background = Brush("Border"),
-                    },
-                    column: 1),
+                Place(_splitter, column: 1),
 
                 Place(_right, column: 2),
 
@@ -694,6 +703,8 @@ internal sealed class DiffPane : UserControl
         _left.SyntaxHighlighting = patch;
         _right.SyntaxHighlighting = patch;
 
+        //One patch, one pane: the same text twice side by side says nothing the left one does not.
+        ShowSides(left: true, right: false);
         SetEditable(editable: false);
 
         _placeholder.IsVisible = false;
@@ -713,7 +724,15 @@ internal sealed class DiffPane : UserControl
 
         BuildDocuments(diff.Rows, preserveCaret: false);
 
-        SetEditable(diff.IsEditable);
+        //An added file has nothing on the left and a deleted one nothing on the right, and half the
+        //pane given to an empty editor says nothing -- so only the side with the file is shown.
+        //Decided here, on load, and not on each re-diff: the layout must not move under typing.
+        bool showLeft = diff.Left.Text.Length > 0 || diff.Right.Text.Length == 0;
+        bool showRight = diff.Right.Text.Length > 0 || diff.Left.Text.Length == 0;
+        ShowSides(showLeft, showRight);
+
+        //Nothing to edit in a pane that is not on screen, so its Save and hunk buttons go with it.
+        SetEditable(diff.IsEditable && showRight);
 
         //Not the top. A change three hundred lines down would open on a screenful of unchanged text,
         //and the user would have to hunt for the thing they clicked the file to see.
@@ -724,6 +743,30 @@ internal sealed class DiffPane : UserControl
         _stagedStrip.IsVisible = fileIsStaged && diff.IsEditable;
 
         _placeholder.IsVisible = false;
+    }
+
+    private void ShowSides(bool left, bool right)
+    {
+        ColumnDefinitions columns = _panes.ColumnDefinitions;
+
+        if (_left.IsVisible && _right.IsVisible)
+        {
+            _leftWidth = columns[0].Width;
+            _rightWidth = columns[2].Width;
+        }
+
+        bool both = left && right;
+        var fill = new GridLength(1, GridUnitType.Star);
+
+        columns[0].Width = left ? (both ? _leftWidth : fill) : new GridLength(0);
+        columns[1].Width = new GridLength(both ? 4 : 0);
+        columns[2].Width = right ? (both ? _rightWidth : fill) : new GridLength(0);
+
+        _left.IsVisible = left;
+        _right.IsVisible = right;
+        _splitter.IsVisible = both;
+        _leftLabel.IsVisible = left;
+        _rightLabel.IsVisible = right;
     }
 
     /// <summary>

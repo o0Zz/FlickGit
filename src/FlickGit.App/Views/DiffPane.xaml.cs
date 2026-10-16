@@ -119,6 +119,11 @@ public partial class DiffPane : UserControl
     private CancellationTokenSource? _rediffCancellation;
     private bool _isDirty;
 
+    //The split as the user last left it, kept while one side is hidden so the next modified file
+    //opens on the same ratio rather than snapping back to 50/50.
+    private GridLength _leftWidth = new(1, GridUnitType.Star);
+    private GridLength _rightWidth = new(1, GridUnitType.Star);
+
     public DiffPane()
     {
         InitializeComponent();
@@ -544,6 +549,8 @@ public partial class DiffPane : UserControl
 
         LeftEditor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("Patch");
 
+        //One patch, one pane: the right editor has nothing to say about a unified view.
+        ShowSides(left: true, right: false);
         SetEditable(editable: false);
         Placeholder.Visibility = Visibility.Collapsed;
         StagedStrip.Visibility = Visibility.Collapsed;
@@ -556,7 +563,15 @@ public partial class DiffPane : UserControl
     {
         BuildDocuments(diff.Rows, diff.Right.Text, preserveCaret: false);
 
-        SetEditable(diff.IsEditable);
+        //An added file has nothing on the left and a deleted one nothing on the right, and half the
+        //pane given to an empty editor says nothing -- so only the side with the file is shown.
+        //Decided here, on load, and not on each re-diff: the layout must not move under typing.
+        bool showLeft = diff.Left.Text.Length > 0 || diff.Right.Text.Length == 0;
+        bool showRight = diff.Right.Text.Length > 0 || diff.Left.Text.Length == 0;
+        ShowSides(showLeft, showRight);
+
+        //Nothing to edit in a pane that is not on screen, so its Save and hunk buttons go with it.
+        SetEditable(diff.IsEditable && showRight);
 
         //Not ScrollToHome. A change three hundred lines down would open on a screenful of unchanged
         //text, and the user would have to hunt for the thing they clicked the file to see.
@@ -568,6 +583,30 @@ public partial class DiffPane : UserControl
         StagedStrip.Visibility = fileIsStaged && diff.IsEditable ? Visibility.Visible : Visibility.Collapsed;
 
         Placeholder.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowSides(bool left, bool right)
+    {
+        bool wasBoth = LeftEditor.Visibility == Visibility.Visible && RightEditor.Visibility == Visibility.Visible;
+
+        if (wasBoth)
+        {
+            _leftWidth = LeftColumn.Width;
+            _rightWidth = RightColumn.Width;
+        }
+
+        bool both = left && right;
+        var fill = new GridLength(1, GridUnitType.Star);
+
+        LeftColumn.Width = left ? (both ? _leftWidth : fill) : new GridLength(0);
+        RightColumn.Width = right ? (both ? _rightWidth : fill) : new GridLength(0);
+        SplitterColumn.Width = new GridLength(both ? 4 : 0);
+
+        LeftEditor.Visibility = left ? Visibility.Visible : Visibility.Collapsed;
+        RightEditor.Visibility = right ? Visibility.Visible : Visibility.Collapsed;
+        Splitter.Visibility = both ? Visibility.Visible : Visibility.Collapsed;
+        LeftLabel.Visibility = left ? Visibility.Visible : Visibility.Collapsed;
+        RightLabel.Visibility = right ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void SetEditable(bool editable)

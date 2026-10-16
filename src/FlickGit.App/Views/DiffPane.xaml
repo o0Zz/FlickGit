@@ -209,9 +209,9 @@
 
         <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="4" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="LeftColumn" Width="*" />
+                <ColumnDefinition x:Name="SplitterColumn" Width="4" />
+                <ColumnDefinition x:Name="RightColumn" Width="*" />
                 <ColumnDefinition Width="11" />
             </Grid.ColumnDefinitions>
 
@@ -235,7 +235,8 @@
                  link between them, and the overview strip answers "where are the changes" better
                  than a band that only ever showed the rows already on screen. This is a control the
                  user acts on, not a decoration. -->
-            <GridSplitter Grid.Column="1"
+            <GridSplitter x:Name="Splitter"
+                          Grid.Column="1"
                           Width="4"
                           HorizontalAlignment="Stretch"
                           Background="{StaticResource Border}"
