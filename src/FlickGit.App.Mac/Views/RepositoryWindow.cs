@@ -56,6 +56,7 @@ public sealed class RepositoryWindow : ReloadableWindow
     private readonly Button _removeRemote = new() { MinWidth = 90, Classes = { "strip" }, IsEnabled = false };
 
     private readonly TextBox _primaryBranch = new() { Classes = { "mono" }, Width = 200 };
+    private readonly TextBox _protectedBranches = new() { Classes = { "mono" }, Width = 200, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBlock _upstreamAnswer = new() { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private readonly Button _askAgain = new() { MinWidth = 100, Classes = { "strip" } };
 
@@ -300,23 +301,29 @@ public sealed class RepositoryWindow : ReloadableWindow
         {
             Margin = new Thickness(0, 8, 0, 0),
             ColumnDefinitions = new ColumnDefinitions("Auto,200,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto"),
         };
 
         grid.Children.Add(Column(Label(Strings.Get("repo.primarybranch"), new Thickness(0, 0, 8, 0)), 0));
         grid.Children.Add(Column(_primaryBranch, 1));
-        grid.Children.Add(Column(
-            new TextBlock
-            {
-                Text = Strings.Get("repo.primarybranch.hint"),
-                Classes = { "muted", "small" },
-                Margin = new Thickness(10, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            2));
+        grid.Children.Add(Column(Hint("repo.primarybranch.hint", top: 0), 2));
+
+        grid.Children.Add(Row(Column(Label(Strings.Get("repo.protectedbranches"), new Thickness(0, 8, 8, 0)), 0), 1));
+        grid.Children.Add(Row(Column(_protectedBranches, 1), 1));
+        grid.Children.Add(Row(Column(Hint("repo.protectedbranches.hint", top: 8), 2), 1));
 
         return grid;
     }
+
+    private static TextBlock Hint(string key, double top) =>
+        new()
+        {
+            Text = Strings.Get(key),
+            Classes = { "muted", "small" },
+            Margin = new Thickness(10, top, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        };
 
     /// <summary>
     /// The first field the window is actually offering. The identity boxes when this repository sets
@@ -374,6 +381,7 @@ public sealed class RepositoryWindow : ReloadableWindow
         _remoteUrl.Text = string.Empty;
 
         _primaryBranch.Text = config.PrimaryBranch ?? string.Empty;
+        _protectedBranches.Text = config.ProtectedBranches ?? string.Empty;
         _upstreamAnswer.Text = Strings.Get(
             config.UpstreamConsentGiven ? "repo.upstream.allowed" : "repo.upstream.unasked");
 
@@ -613,6 +621,24 @@ public sealed class RepositoryWindow : ReloadableWindow
                 return;
             }
 
+            //Normalised to single spaces, so what is stored is what the window will show next time.
+            string protectedBranches = string.Join(' ', RepositoryConfigService.ParseBranchList(_protectedBranches.Text));
+
+            ConfigOutcome guarded = protectedBranches.Length == 0
+                ? await _config
+                    .UnsetAsync(_repository, RepositoryConfigService.ProtectedBranchesKey, CancellationToken.None)
+                    .ConfigureAwait(true)
+                : await _config
+                    .WriteAsync(_repository, RepositoryConfigService.ProtectedBranchesKey, protectedBranches, CancellationToken.None)
+                    .ConfigureAwait(true);
+
+            if (!guarded.Succeeded)
+            {
+                Report(Strings.Get("repo.protectedbranches"), guarded);
+
+                return;
+            }
+
             Close();
         });
     }
@@ -663,6 +689,7 @@ public sealed class RepositoryWindow : ReloadableWindow
         _remoteName.IsEnabled = !busy;
         _remoteUrl.IsEnabled = !busy;
         _primaryBranch.IsEnabled = !busy;
+        _protectedBranches.IsEnabled = !busy;
         _save.IsEnabled = !busy;
         _globalIdentity.IsEnabled = !busy;
         _repoIdentity.IsEnabled = !busy;

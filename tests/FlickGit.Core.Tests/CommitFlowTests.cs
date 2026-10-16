@@ -89,7 +89,8 @@ public sealed class CommitFlowTests : IDisposable
             .Returns(["for-each-ref"], stdout: "main\n")
             .Returns(["check-ref-format"])
             .Returns(["switch"])
-            .Returns(["push"]);
+            .Returns(["push"])
+            .Returns(["config", "--local", "--get"], exitCode: 1);   // no flickgit.* key set
 
     private CommitRequest Request(
         string? targetBranch = null,
@@ -147,6 +148,30 @@ public sealed class CommitFlowTests : IDisposable
         CommitFlowResult result = await Create(git).RunAsync(Request(), CancellationToken.None);
 
         Assert.Equal(CommitFlowOutcome.NothingToCommit, result.Outcome);
+        Assert.True(git.NeverCalledWith("commit"));
+    }
+
+    // ---- protected branches -------------------------------------------------------
+
+    /// <summary>
+    /// The safety rules: a commit that would land on a branch in <c>flickgit.protectedBranches</c>
+    /// changes nothing -- not the index, not the branch -- whichever surface asked for it.
+    /// </summary>
+    [Fact]
+    public async Task ACommitOntoAProtectedBranchStagesSwitchesAndCommitsNothing()
+    {
+        var git = HappyPath()
+            .Returns(["config", "--local", "--get", RepositoryConfigService.ProtectedBranchesKey], stdout: "main develop\n");
+
+        CommitFlowResult result = await Create(git).RunAsync(
+            Request(targetBranch: "develop") with { CurrentBranch = "feature/x", PathsToUnstage = ["src/excluded.cs"] },
+            CancellationToken.None);
+
+        Assert.Equal(CommitFlowOutcome.BranchProtected, result.Outcome);
+        Assert.Equal("develop", result.Branch);
+        Assert.True(git.NeverCalledWith("add"));
+        Assert.True(git.NeverCalledWith("restore"));
+        Assert.True(git.NeverCalledWith("switch"));
         Assert.True(git.NeverCalledWith("commit"));
     }
 

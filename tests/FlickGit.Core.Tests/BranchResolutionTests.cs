@@ -18,7 +18,7 @@ public class BranchResolutionTests
     [Fact]
     public void Empty_text_means_the_current_branch_and_no_switch()
     {
-        BranchResolution resolution = BranchResolution.Resolve(string.Empty, "main", Local);
+        BranchResolution resolution = BranchResolution.Resolve(string.Empty, "main", Local, []);
 
         Assert.Equal(BranchIntent.Empty, resolution.Intent);
         Assert.Equal("main", resolution.Branch);
@@ -34,7 +34,7 @@ public class BranchResolutionTests
     [Fact]
     public void The_current_branch_by_name_requires_no_change()
     {
-        BranchResolution resolution = BranchResolution.Resolve("main", "main", Local);
+        BranchResolution resolution = BranchResolution.Resolve("main", "main", Local, []);
 
         Assert.Equal(BranchIntent.Current, resolution.Intent);
         Assert.False(resolution.RequiresBranchChange);
@@ -43,7 +43,7 @@ public class BranchResolutionTests
     [Fact]
     public void A_known_local_branch_switches()
     {
-        BranchResolution resolution = BranchResolution.Resolve("fix/leak", "main", Local);
+        BranchResolution resolution = BranchResolution.Resolve("fix/leak", "main", Local, []);
 
         Assert.Equal(BranchIntent.ExistingBranch, resolution.Intent);
         Assert.True(resolution.RequiresBranchChange);
@@ -52,7 +52,7 @@ public class BranchResolutionTests
     [Fact]
     public void An_unknown_legal_name_creates()
     {
-        BranchResolution resolution = BranchResolution.Resolve("feature/new-thing", "main", Local);
+        BranchResolution resolution = BranchResolution.Resolve("feature/new-thing", "main", Local, []);
 
         Assert.Equal(BranchIntent.NewBranch, resolution.Intent);
         Assert.True(resolution.RequiresBranchChange);
@@ -70,7 +70,7 @@ public class BranchResolutionTests
     [InlineData("ends.lock")]
     public void An_illegal_ref_name_is_not_committable(string typed)
     {
-        BranchResolution resolution = BranchResolution.Resolve(typed, "main", Local);
+        BranchResolution resolution = BranchResolution.Resolve(typed, "main", Local, []);
 
         Assert.Equal(BranchIntent.Invalid, resolution.Intent);
         Assert.False(resolution.IsCommittable);
@@ -84,16 +84,31 @@ public class BranchResolutionTests
     [Fact]
     public void Branch_names_are_case_sensitive()
     {
-        BranchResolution resolution = BranchResolution.Resolve("Main", "main", Local);
+        BranchResolution resolution = BranchResolution.Resolve("Main", "main", Local, []);
 
         Assert.Equal(BranchIntent.NewBranch, resolution.Intent);
         Assert.Equal("Main", resolution.Branch);
+    }
+
+    /// <summary>
+    /// A branch in <c>flickgit.protectedBranches</c> is not committable, whichever way the box
+    /// reaches it -- left empty on it, or named outright -- so the buttons are off before Enter.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("main")]
+    public void A_protected_branch_is_not_committable(string typed)
+    {
+        BranchResolution resolution = BranchResolution.Resolve(typed, "main", Local, ["main"]);
+
+        Assert.Equal(BranchIntent.Protected, resolution.Intent);
+        Assert.False(resolution.IsCommittable);
     }
 
     /// <summary>Whitespace is trimmed, so a trailing space does not create a second branch.</summary>
     [Fact]
     public void Surrounding_whitespace_is_trimmed()
     {
-        Assert.Equal(BranchIntent.Current, BranchResolution.Resolve("  main  ", "main", Local).Intent);
+        Assert.Equal(BranchIntent.Current, BranchResolution.Resolve("  main  ", "main", Local, []).Intent);
     }
 }

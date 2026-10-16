@@ -17,6 +17,12 @@ public enum BranchIntent
 
     /// <summary>Empty. Treated as "the current branch" but shown as nothing.</summary>
     Empty,
+
+    /// <summary>
+    /// The commit would land on a branch listed in <c>flickgit.protectedBranches</c>. No command runs;
+    /// typing a new branch name is the way forward.
+    /// </summary>
+    Protected,
 }
 
 /// <summary>
@@ -41,15 +47,33 @@ public enum BranchIntent
 public sealed record BranchResolution(BranchIntent Intent, string Branch)
 {
     /// <summary>True when committing is possible at all.</summary>
-    public bool IsCommittable => Intent is not BranchIntent.Invalid;
+    public bool IsCommittable => Intent is not (BranchIntent.Invalid or BranchIntent.Protected);
 
     /// <summary>True when a switch or a create has to happen before the commit.</summary>
     public bool RequiresBranchChange => Intent is BranchIntent.ExistingBranch or BranchIntent.NewBranch;
 
     /// <summary>
     /// Resolves the typed text against the current branch and the known local branches.
+    ///
+    /// A protected branch wins over every other answer, including a new name: a local branch created
+    /// under a protected name would push straight into the branch the list exists to keep out of.
     /// </summary>
     public static BranchResolution Resolve(
+        string? typed,
+        string? currentBranch,
+        IEnumerable<string> localBranches,
+        IReadOnlyCollection<string> protectedBranches)
+    {
+        BranchResolution resolved = Resolve(typed, currentBranch, localBranches);
+
+        return resolved.Branch.Length > 0
+               && resolved.Intent is not BranchIntent.Invalid
+               && protectedBranches.Contains(resolved.Branch, StringComparer.Ordinal)
+            ? resolved with { Intent = BranchIntent.Protected }
+            : resolved;
+    }
+
+    private static BranchResolution Resolve(
         string? typed,
         string? currentBranch,
         IEnumerable<string> localBranches)

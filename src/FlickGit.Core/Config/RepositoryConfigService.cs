@@ -55,6 +55,16 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
     public const string ForgeKindKey = "flickgit.forge";
 
     /// <summary>
+    /// Branches FlickGit will not commit on -- the ones the forge only accepts through a pull request.
+    ///
+    /// <b>One value, space-separated</b> (<c>main develop</c>), rather than a multi-valued key: a space
+    /// is illegal in a ref name, so the split is exact, and one value is one write and one unset from
+    /// the repository window, like every other key here. Exact names, no patterns. Unset protects
+    /// nothing; there is no default, because a refusal the user did not ask for is a bug report.
+    /// </summary>
+    public const string ProtectedBranchesKey = "flickgit.protectedBranches";
+
+    /// <summary>
     /// Everything the repository window shows, from four parallel reads. The effective identity needs
     /// its own calls: <c>--local</c> answers "does this repository override it" and the plain form
     /// answers "who would a commit be attributed to". Both are needed to tell an override from an
@@ -89,6 +99,7 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
             EffectiveEmail: email.Succeeded ? NullIfEmpty(email.StdOut) : null,
             Remotes: RemotesFrom(entries),
             PrimaryBranch: Value(entries, PrimaryBranchKey),
+            ProtectedBranches: Value(entries, ProtectedBranchesKey),
             UpstreamConsentGiven: ParseBool(Entry(entries, UpstreamConsentKey)) == true,
             CurrentBranch: branch,
             TrackedRemote: branch is null ? null : Value(entries, $"branch.{branch}.remote"));
@@ -151,6 +162,16 @@ public sealed class RepositoryConfigService(IGitProcessRunner git)
         string? value = await GetAsync(repository, PullRequestTargetKey, cancellationToken).ConfigureAwait(false);
         return value is null ? null : NullIfEmpty(value);
     }
+
+    /// <summary>Uncached, for the reason <see cref="ReadPullRequestTargetAsync"/> is.</summary>
+    public async Task<IReadOnlyList<string>> ReadProtectedBranchesAsync(
+        RepositoryInfo repository,
+        CancellationToken cancellationToken) =>
+        ParseBranchList(await GetAsync(repository, ProtectedBranchesKey, cancellationToken).ConfigureAwait(false));
+
+    /// <summary>Splits <see cref="ProtectedBranchesKey"/>'s value on whitespace, which no ref name contains.</summary>
+    public static IReadOnlyList<string> ParseBranchList(string? value) =>
+        value is null ? [] : value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
     public async Task<string?> ReadForgeKindAsync(RepositoryInfo repository, CancellationToken cancellationToken)
     {
@@ -280,6 +301,7 @@ public sealed record RepositoryConfig(
     string? EffectiveEmail,
     IReadOnlyList<GitRemote> Remotes,
     string? PrimaryBranch,
+    string? ProtectedBranches,
     bool UpstreamConsentGiven,
     string? CurrentBranch,
     string? TrackedRemote)

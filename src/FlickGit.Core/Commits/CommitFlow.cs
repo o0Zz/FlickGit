@@ -35,6 +35,22 @@ public sealed class CommitFlow(
     {
         RepositoryInfo repository = request.Repository;
 
+        //0. Refuse a protected branch before anything else, so the refusal leaves even the index alone.
+        //Read here rather than trusted from the window, which read the list when it opened: the user may
+        //have protected the branch since, and the command line must not be a way round it either.
+        if ((request.TargetBranch ?? request.CurrentBranch) is { Length: > 0 } landing)
+        {
+            IReadOnlyList<string> protectedBranches = await branches
+                .ReadProtectedBranchesAsync(repository, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (protectedBranches.Contains(landing, StringComparer.Ordinal))
+            {
+                log.Info($"Commit refused: {landing} is protected in {repository.Root}.");
+                return new CommitFlowResult(CommitFlowOutcome.BranchProtected) { Branch = landing };
+            }
+        }
+
         //1. Stage the selection, and take back out of the index anything the user unticked. `git commit`
         //commits the index, so an unticked-but-staged file would otherwise be committed anyway.
         if (request.PathsToUnstage.Count > 0)
@@ -257,6 +273,12 @@ public sealed record CommitRequest
     /// </summary>
     public bool IsUnborn { get; init; }
 
+    /// <summary>
+    /// The branch checked out when the status was read; null on a detached HEAD. What a null
+    /// <see cref="TargetBranch"/> commits onto, and so what the protected-branch check reads.
+    /// </summary>
+    public string? CurrentBranch { get; init; }
+
     /// <summary>Null to stay on the branch already checked out -- the normal case, and no Git call.</summary>
     public string? TargetBranch { get; init; }
 
@@ -319,6 +341,7 @@ public sealed record CommitRequest
             //`git restore --staged` resolves HEAD, and a clone of an empty remote has none.
             IsUnborn = status.IsUnborn,
 
+            CurrentBranch = status.Branch,
             TargetBranch = targetBranch,
             CreateBranch = createBranch,
             Push = push,
@@ -348,6 +371,12 @@ public enum CommitFlowOutcome
 
     /// <summary>Git would reject the branch name. Nothing was created.</summary>
     InvalidBranchName,
+
+    /// <summary>
+    /// The commit would land on a branch in <c>flickgit.protectedBranches</c>. Nothing was staged,
+    /// switched or committed.
+    /// </summary>
+    BranchProtected,
 
     /// <summary>Git refused the switch because of local changes. Nothing was modified or discarded.</summary>
     SwitchRefused,

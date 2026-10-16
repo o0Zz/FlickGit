@@ -4,7 +4,7 @@ using FlickGit.Commits;
 namespace FlickGit.App.CommandLine;
 
 /// <summary>
-/// Turns a <see cref="CommitFlowResult"/> into the words a user reads. Nine outcomes to phrase.
+/// Turns a <see cref="CommitFlowResult"/> into the words a user reads.
 ///
 /// <b>Two callers, and the second is the point.</b> <c>CommitViewModel</c> puts
 /// <see cref="SuccessText"/> in the window's footer and <c>App.xaml.cs</c> puts it in the tray
@@ -64,6 +64,11 @@ public static class CommitOutcomeReporter
 
         CommitFlowOutcome.InvalidBranchName =>
             new Report(Strings.Get("branch.label"), result.Detail ?? string.Empty),
+
+        //Reached only when the list changed after the window read it: otherwise the ComboBox already said
+        //so and the button was off.
+        CommitFlowOutcome.BranchProtected =>
+            new Report(Strings.Get("branch.label"), Strings.Get("branch.protected.refused", result.Branch ?? string.Empty)),
 
         //Nothing was modified or discarded. The stash path is offered in the Switch branch window,
         //never taken on the user's behalf here.

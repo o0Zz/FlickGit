@@ -19,6 +19,7 @@ internal static class BranchHintText
         BranchIntent.ExistingBranch => Strings.Get("branch.willswitch"),
         BranchIntent.NewBranch => Strings.Get("branch.willcreate"),
         BranchIntent.Invalid => Strings.Get("branch.invalid"),
+        BranchIntent.Protected => Strings.Get("branch.protected"),
         _ => string.Empty,
     };
 }

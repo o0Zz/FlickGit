@@ -83,6 +83,9 @@ The tick boxes decide the commit — nothing else does.
 - The **branch box** is an editable combo. Leave it alone to commit where you are, type an
   existing branch to switch first, or type a new name to create it. The hint beside it says
   which, before you press anything.
+- A branch listed under **Protected branches** in `flick repo` — the ones your server only takes
+  through a pull request — is refused: the hint turns red and Commit is off. Type a new branch name
+  and the commit goes there instead; **Pull request…** then opens the request.
 - **Right-click a row for Edit**, which opens the file in the program set under
   **Settings ▸ Editor** — Notepad with none set. Select several rows and it opens all of them; the
   menu item says how many. Nothing is asked and nothing changes, so **F5** is how the list picks up
@@ -546,7 +549,8 @@ Everything this window does not show lives in four files, in
 
 Two more live in the repository's own `.git/config`, because they are facts about that repository
 rather than about you: `flickgit.pullRequestTarget` and `flickgit.forge` (see **Pull requests**),
-alongside `flickgit.primaryBranch` and `flickgit.allowUpstreamCreation`.
+alongside `flickgit.primaryBranch`, `flickgit.protectedBranches` (space-separated) and
+`flickgit.allowUpstreamCreation`.
 
 `settings.json` and `actions.json` are read at startup, so restart FlickGit after editing either
 one; the prompt files are read on every generation and need nothing. `flick diag doctor` shows

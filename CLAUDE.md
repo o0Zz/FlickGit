@@ -752,6 +752,14 @@ typed value is new              → check-ref-format, switch -c, commit, push -u
 switch the reviewed diff was computed against the old HEAD, so refresh and recompute before committing,
 and abort if any selected file changed as a result.
 
+**Protected branches** — `flickgit.protectedBranches`, one space-separated value of exact names, set
+from `flick repo`. A branch the forge only accepts through a pull request would otherwise take the
+commit and refuse the push, after the message is written. The ComboBox resolves such a branch to
+`Protected` and Commit is off, so the way forward is typing a new name — which the box already turns
+into `switch -c`, commit, `push -u`. `CommitFlow` re-reads the key as **step 0, before staging**, so a
+refusal leaves even the index alone and no surface is a way round it. No default and no forge query:
+the list means exactly what the user typed.
+
 ## Conflicts
 
 The one state where the way forward is not the Commit button, so the commit window grows a
@@ -1130,7 +1138,7 @@ tool created in this operation. **Do not implement credential handling** — sho
 `git credential-manager`.
 
 **Repository settings** (`flick repo`) — the identity this repository commits as, its remotes and their
-URLs, and FlickGit's four per-repository keys. One `config --local --list -z` gives all of it, so
+URLs, and FlickGit's five per-repository keys. One `config --local --list -z` gives all of it, so
 `git remote -v` is never parsed. `config --list` lower-cases the section and the final component and
 leaves the subsection alone, so match keys case-insensitively and remote names never; `config --unset`
 exits **5** when the key was not there, which is success here. Remote edits apply per button; the
@@ -1139,7 +1147,7 @@ network, no credentials, no global config, no `git init`.
 
 **Per-repository keys** live in the repository's own `.git/config`, not `settings.json`, so they cannot
 go stale when the repository moves and are not committed: `flickgit.primaryBranch`,
-`flickgit.allowUpstreamCreation`, `flickgit.pullRequestTarget`, `flickgit.forge`.
+`flickgit.protectedBranches`, `flickgit.allowUpstreamCreation`, `flickgit.pullRequestTarget`, `flickgit.forge`.
 
 ## The Explorer trigger
 

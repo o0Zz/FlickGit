@@ -210,11 +210,13 @@ public sealed partial class CommitWindow : Window
     {
         BranchIntent intent = _viewModel.BranchResolution.Intent;
 
-        BranchHint.FontWeight = intent == BranchIntent.Invalid ? FontWeight.SemiBold : FontWeight.Normal;
+        bool refused = intent is BranchIntent.Invalid or BranchIntent.Protected;
+
+        BranchHint.FontWeight = refused ? FontWeight.SemiBold : FontWeight.Normal;
 
         BranchHint.Foreground = intent switch
         {
-            BranchIntent.Invalid => Resource("DangerText"),
+            BranchIntent.Invalid or BranchIntent.Protected => Resource("DangerText"),
             BranchIntent.NewBranch => Resource("Accent"),
             _ => Resource("TextMuted"),
         };

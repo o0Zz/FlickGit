@@ -70,9 +70,14 @@
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
                                 <Style.Triggers>
-                                    <!-- An invalid ref name is the one hint that has to shout: it
-                                         is the only state where Commit is disabled. -->
+                                    <!-- An invalid ref name and a protected branch are the hints
+                                         that have to shout: they are the states where Commit is
+                                         disabled. -->
                                     <DataTrigger Binding="{Binding BranchResolution.Intent}" Value="Invalid">
+                                        <Setter Property="Foreground" Value="{StaticResource DangerText}" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding BranchResolution.Intent}" Value="Protected">
                                         <Setter Property="Foreground" Value="{StaticResource DangerText}" />
                                         <Setter Property="FontWeight" Value="SemiBold" />
                                     </DataTrigger>

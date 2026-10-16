@@ -75,6 +75,8 @@ public partial class RepositoryWindow : ReloadableWindow
         DefaultsSection.Text = Strings.Get("repo.section.defaults");
         PrimaryBranchLabel.Text = Strings.Get("repo.primarybranch");
         PrimaryBranchHint.Text = Strings.Get("repo.primarybranch.hint");
+        ProtectedBranchesLabel.Text = Strings.Get("repo.protectedbranches");
+        ProtectedBranchesHint.Text = Strings.Get("repo.protectedbranches.hint");
         AskAgainButton.Content = Strings.Get("repo.upstream.askagain");
 
         SaveButton.Content = Strings.Get("repo.save");
@@ -147,6 +149,7 @@ public partial class RepositoryWindow : ReloadableWindow
         RemoteUrlBox.Clear();
 
         PrimaryBranchBox.Text = config.PrimaryBranch ?? string.Empty;
+        ProtectedBranchesBox.Text = config.ProtectedBranches ?? string.Empty;
         UpstreamAnswerText.Text = Strings.Get(
             config.UpstreamConsentGiven ? "repo.upstream.allowed" : "repo.upstream.unasked");
 
@@ -385,6 +388,23 @@ public partial class RepositoryWindow : ReloadableWindow
                 return;
             }
 
+            //Normalised to single spaces, so what is stored is what the window will show next time.
+            string protectedBranches = string.Join(' ', RepositoryConfigService.ParseBranchList(ProtectedBranchesBox.Text));
+
+            ConfigOutcome guarded = protectedBranches.Length == 0
+                ? await _config
+                    .UnsetAsync(_repository, RepositoryConfigService.ProtectedBranchesKey, CancellationToken.None)
+                    .ConfigureAwait(true)
+                : await _config
+                    .WriteAsync(_repository, RepositoryConfigService.ProtectedBranchesKey, protectedBranches, CancellationToken.None)
+                    .ConfigureAwait(true);
+
+            if (!guarded.Succeeded)
+            {
+                Report(Strings.Get("repo.protectedbranches"), guarded);
+                return;
+            }
+
             Close();
         });
     }
@@ -435,6 +455,7 @@ public partial class RepositoryWindow : ReloadableWindow
         RemoteNameBox.IsEnabled = !busy;
         RemoteUrlBox.IsEnabled = !busy;
         PrimaryBranchBox.IsEnabled = !busy;
+        ProtectedBranchesBox.IsEnabled = !busy;
         SaveButton.IsEnabled = !busy;
         GlobalIdentityRadio.IsEnabled = !busy;
         RepoIdentityRadio.IsEnabled = !busy;

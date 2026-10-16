@@ -48,6 +48,7 @@ public sealed class CommitViewModel : ObservableObject
     private string _message = string.Empty;
     private string _branchInput = string.Empty;
     private BranchResolution _branchResolution = new(BranchIntent.Empty, string.Empty);
+    private IReadOnlyList<string> _protectedBranches = [];
     private bool _isBusy;
     private string? _statusText;
 
@@ -262,7 +263,7 @@ public sealed class CommitViewModel : ObservableObject
 
             //Resolved on every keystroke with no Git call: the branch list is already in memory and name
             //validity is an offline check.
-            BranchResolution = BranchResolution.Resolve(value, CurrentBranch, Branches);
+            BranchResolution = BranchResolution.Resolve(value, CurrentBranch, Branches, _protectedBranches);
             RaiseCommandStates();
         }
     }
@@ -673,6 +674,7 @@ public sealed class CommitViewModel : ObservableObject
         Repository = repository;
         _currentStatus = null;
         Branches.Clear();
+        _protectedBranches = [];
 
         Message = string.Empty;
         BranchInput = string.Empty;
@@ -774,7 +776,7 @@ public sealed class CommitViewModel : ObservableObject
         if (_branchInput.Length == 0 && status.Branch is { Length: > 0 } branch)
             BranchInput = branch;
         else
-            BranchResolution = BranchResolution.Resolve(_branchInput, status.Branch, Branches);
+            BranchResolution = BranchResolution.Resolve(_branchInput, status.Branch, Branches, _protectedBranches);
 
         Raise(nameof(CurrentBranch));
         Raise(nameof(SummaryText));
@@ -1993,17 +1995,24 @@ public sealed class CommitViewModel : ObservableObject
     {
         try
         {
-            IReadOnlyList<string> branches = await _branches
-                .ListLocalBranchesAsync(_repository, _currentStatus?.Branch, CancellationToken.None)
-                .ConfigureAwait(true);
+            //Started together: the protected list is one `config --get` and has no reason to queue behind
+            //the branch listing.
+            Task<IReadOnlyList<string>> branchesTask = _branches
+                .ListLocalBranchesAsync(_repository, _currentStatus?.Branch, CancellationToken.None);
+            Task<IReadOnlyList<string>> protectedTask = _branches
+                .ReadProtectedBranchesAsync(_repository, CancellationToken.None);
+
+            IReadOnlyList<string> branches = await branchesTask.ConfigureAwait(true);
+            _protectedBranches = await protectedTask.ConfigureAwait(true);
 
             Branches.Clear();
             foreach (string branch in branches)
                 Branches.Add(branch);
 
-            //Re-resolved now the list is known: until it arrived, an existing branch would have been
-            //reported as a new one.
-            BranchResolution = BranchResolution.Resolve(_branchInput, CurrentBranch, Branches);
+            //Re-resolved now both lists are known: until they arrived, an existing branch would have been
+            //reported as a new one, and a protected one as committable. CommitFlow checks again anyway.
+            BranchResolution = BranchResolution.Resolve(_branchInput, CurrentBranch, Branches, _protectedBranches);
+            RaiseCommandStates();
         }
         catch (Exception ex)
         {

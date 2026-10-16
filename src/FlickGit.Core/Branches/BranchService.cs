@@ -46,6 +46,16 @@ public sealed class BranchService(IGitProcessRunner git, RepositoryConfigService
     }
 
     /// <summary>
+    /// The branches this repository will not take a commit on -- see
+    /// <see cref="RepositoryConfigService.ProtectedBranchesKey"/>. Here beside the branch list
+    /// because the commit window and <c>CommitFlow</c> already hold this service and not that one.
+    /// </summary>
+    public Task<IReadOnlyList<string>> ReadProtectedBranchesAsync(
+        RepositoryInfo repository,
+        CancellationToken cancellationToken) =>
+        config.ReadProtectedBranchesAsync(repository, cancellationToken);
+
+    /// <summary>
     /// Which branch this repository treats as primary. Its one caller is the pull-request target.
     ///
     /// Order: this repository's own <c>flickgit.primaryBranch</c>, the user's setting, the remote's

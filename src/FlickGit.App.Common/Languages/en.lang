@@ -342,6 +342,9 @@ branch.current = current
 branch.willswitch = existing — will switch
 branch.willcreate = new — will be created
 branch.invalid = not a valid branch name
+branch.protected = protected — type a new branch name
+# {0} branch name
+branch.protected.refused = {0} is protected in this repository.\n\nNothing was staged or committed. Type a new branch name to commit there, then open a pull request.
 # {0} branch name
 branch.switched = Switched to {0}.
 # {0} newline-separated file list
@@ -765,6 +768,8 @@ repo.remote.confirm.yes = Remove
 repo.section.defaults = FLICKGIT, FOR THIS REPOSITORY
 repo.primarybranch = Primary branch
 repo.primarybranch.hint = Empty resolves it from origin/HEAD, then main, then master. The pull request target and Back to the primary branch both read it.
+repo.protectedbranches = Protected branches
+repo.protectedbranches.hint = Space-separated. FlickGit refuses to commit on these; type a new branch name in the commit window instead.
 repo.upstream.unasked = FlickGit will ask before a new branch creates an upstream here.
 repo.upstream.allowed = A new branch may create an upstream here.
 repo.upstream.askagain = Ask again
