@@ -222,6 +222,7 @@ conflict.failed = {0} konnte nicht gelöst werden.
 pull.title = Pull (Rebase) — {0}
 pull.success = Pull erfolgreich abgeschlossen.
 pull.conflict = Der Rebase wurde wegen Konflikten angehalten.
+pull.conflict.open = Konflikte lösen…
 pull.failed = Der Pull wurde nicht abgeschlossen.
 pull.cancelled = Abgebrochen. Es wurde nichts zurückgenommen — prüfen Sie `git status`, bevor Sie es erneut versuchen: ein Rebase kann teilweise angewendet sein, und --autostash kann Ihre Änderungen im Stash zurückgelassen haben.
 pull.submodule.failed = Der Pull hat funktioniert, aber die Submodule sind veraltet.

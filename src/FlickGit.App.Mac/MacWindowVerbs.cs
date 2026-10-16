@@ -108,6 +108,16 @@ public sealed class MacWindowVerbs(
         });
 
     /// <summary>
+    /// A rebase stopped on conflicts: hand the user to the commit window, whose resolution bar is
+    /// where they are resolved. Nothing is opened until they ask -- the failure stays on screen with
+    /// Git's own words, and the button is the way to look.
+    /// </summary>
+    private void OfferConflicts(ProgressWindow window, RepositoryInfo repository) =>
+        window.Offer(
+            Strings.Get("pull.conflict.open"),
+            () => _ = CommitAsync(VerbOutput.Direct(notifier, dialogs), repository));
+
+    /// <summary>
     /// `flick pull-rebase` — the first of the three root menu entries.
     ///
     /// <b>The window's own token, not None.</b> Its Cancel button and Esc have to reach the git
@@ -146,6 +156,9 @@ public sealed class MacWindowVerbs(
                     outcome.StoppedOnConflict ? Strings.Get("pull.conflict") : Strings.Get("pull.failed"),
                     outcome.GitError ?? string.Empty,
                     outcome.Suggestion);
+
+                if (outcome.StoppedOnConflict)
+                    OfferConflicts(window, repository);
 
                 //The window stays open with the reason on it, so the exit code is remembered rather
                 //than acted on.
@@ -275,6 +288,9 @@ public sealed class MacWindowVerbs(
                         result.StoppedOnConflict ? Strings.Get("pull.conflict") : Strings.Get("pull.failed"),
                         result.Detail ?? string.Empty,
                         result.Suggestion);
+
+                    if (result.StoppedOnConflict)
+                        OfferConflicts(window, repository);
 
                     return VerbResult.Stay(ExitCodes.GitError);
             }

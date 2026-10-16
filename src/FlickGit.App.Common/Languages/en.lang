@@ -310,6 +310,8 @@ conflict.failed = {0} could not be resolved.
 pull.title = Pull (rebase) — {0}
 pull.success = Pull completed successfully.
 pull.conflict = Rebase stopped because of conflicts.
+# Beside Close when a pull stopped on conflicts. Opens the commit window, where they are resolved.
+pull.conflict.open = Resolve conflicts…
 pull.failed = The pull did not complete.
 pull.cancelled = Stopped. Nothing was undone, so check `git status` before trying again: a rebase may be part-applied, and --autostash may have left your changes in the stash list.
 pull.submodule.failed = The pull succeeded, but the submodules are stale.

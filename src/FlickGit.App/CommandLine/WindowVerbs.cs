@@ -226,6 +226,9 @@ public sealed class WindowVerbs(
                 outcome.GitError ?? string.Empty,
                 outcome.Suggestion);
 
+            if (outcome.StoppedOnConflict)
+                OfferConflicts(window, repository);
+
             //The window stays open with the reason on it, so the exit code is remembered rather than acted on.
             return VerbResult.Stay(ExitCodes.GitError);
         }
@@ -250,6 +253,14 @@ public sealed class WindowVerbs(
         window.Succeed(Strings.Get("pull.success"));
         return VerbResult.Stay();
     }
+
+    /// <summary>
+    /// A rebase stopped on conflicts: hand the user to the commit window, whose resolution bar is where
+    /// they are resolved. Nothing is opened until they ask -- the failure stays on screen with Git's
+    /// own words, and the button is the way to look.
+    /// </summary>
+    private void OfferConflicts(ProgressWindow window, RepositoryInfo repository) =>
+        window.Offer(Strings.Get("pull.conflict.open"), () => _ = commitWindow.ShowAsync(repository));
 
     /// <summary>
     /// `flick back` — switch to the primary branch, then pull there. The third root entry.
@@ -356,6 +367,9 @@ public sealed class WindowVerbs(
                     result.StoppedOnConflict ? Strings.Get("pull.conflict") : Strings.Get("pull.failed"),
                     result.Detail ?? string.Empty,
                     result.Suggestion);
+
+                if (result.StoppedOnConflict)
+                    OfferConflicts(window, repository);
 
                 return VerbResult.Stay(ExitCodes.GitError);
         }

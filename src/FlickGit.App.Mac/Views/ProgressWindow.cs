@@ -45,9 +45,13 @@ public sealed class ProgressWindow : Window
         FontSize = 11.5,
     };
 
-    private readonly Button _close = new() { MinWidth = 110, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly Button _close = new() { MinWidth = 110 };
+
+    //Shown only by Offer: the way from a stopped rebase to the files it stopped on.
+    private readonly Button _offer = new() { MinWidth = 110, IsVisible = false };
 
     private bool _finished;
+    private Action? _offerAction;
 
     public ProgressWindow(string title)
     {
@@ -61,6 +65,11 @@ public sealed class ProgressWindow : Window
         //both Esc and Enter through the whole life of the window.
         _close.Content = Strings.Get("common.cancel");
         _close.Click += (_, _) => OnCloseRequested();
+        _offer.Click += (_, _) =>
+        {
+            Close();
+            _offerAction?.Invoke();
+        };
 
         Content = new StackPanel
         {
@@ -72,7 +81,13 @@ public sealed class ProgressWindow : Window
                 new ItemsControl { ItemsSource = _steps, ItemTemplate = StepTemplate() },
                 _result,
                 _detail,
-                _close,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Spacing = 8,
+                    Children = { _offer, _close },
+                },
             },
         };
     }
@@ -134,6 +149,23 @@ public sealed class ProgressWindow : Window
             _steps[^1].Fail();
 
         Finish(message, Resource("DangerText"), detail: null);
+    }
+
+    /// <summary>
+    /// A second button beside Close, after the outcome is on screen: closes this window and runs
+    /// <paramref name="action"/>. Used when a pull stops on conflicts, so the way to them is one click
+    /// rather than a trip back to the Finder. It takes Enter from Close, since opening a window is
+    /// harmless and looking is what the user came back for.
+    /// </summary>
+    public void Offer(string label, Action action)
+    {
+        _offerAction = action;
+
+        _offer.Content = label;
+        _offer.IsVisible = true;
+        _close.IsDefault = false;
+        _offer.IsDefault = true;
+        _offer.Focus();
     }
 
     private void CompleteAll()

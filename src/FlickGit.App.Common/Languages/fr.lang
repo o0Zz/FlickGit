@@ -222,6 +222,7 @@ conflict.failed = {0} n'a pas pu être résolu.
 pull.title = Pull (rebase) — {0}
 pull.success = Pull terminé.
 pull.conflict = Le rebase s'est arrêté à cause de conflits.
+pull.conflict.open = Résoudre les conflits…
 pull.failed = Le pull ne s'est pas terminé.
 pull.cancelled = Arrêté. Rien n'a été annulé : vérifiez `git status` avant de réessayer, un rebase peut être partiellement appliqué et --autostash peut avoir laissé vos modifications dans le stash.
 pull.submodule.failed = Le pull a réussi, mais les sous-modules ne sont pas à jour.

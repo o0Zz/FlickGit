@@ -70,12 +70,18 @@
                  is still running this button kills the running rebase — and Enter must never
                  be the key that does that, least of all a keystroke queued before the window painted.
                  Esc asking for it is a deliberate gesture; Enter is habit. -->
-            <Button x:Name="CloseButton"
-                    Style="{StaticResource PrimaryButton}"
-                    HorizontalAlignment="Right"
-                    Margin="0,16,0,0"
-                    IsCancel="True"
-                    Click="OnClose" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <!-- Shown only by Offer: the way from a stopped rebase to the files it stopped on. -->
+                <Button x:Name="OfferButton"
+                        Visibility="Collapsed"
+                        Margin="0,0,8,0"
+                        Click="OnOffer" />
+
+                <Button x:Name="CloseButton"
+                        Style="{StaticResource PrimaryButton}"
+                        IsCancel="True"
+                        Click="OnClose" />
+            </StackPanel>
         </StackPanel>
     </Border>
 </Window>

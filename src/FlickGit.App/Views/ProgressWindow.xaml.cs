@@ -21,6 +21,7 @@ public partial class ProgressWindow : Window
     private readonly CancellationTokenSource _cancellation = new();
 
     private bool _finished;
+    private Action? _offer;
 
     public ProgressWindow(string title)
     {
@@ -79,6 +80,29 @@ public partial class ProgressWindow : Window
 
         string detail = suggestion is { Length: > 0 } ? $"{gitError}\n\n{suggestion}" : gitError;
         Finish(message, (Brush)FindResource("DangerText"), detail);
+    }
+
+    /// <summary>
+    /// A second button beside Close, after the outcome is on screen: closes this window and runs
+    /// <paramref name="action"/>. Used when a pull stops on conflicts, so the way to them is one click
+    /// rather than a trip back to Explorer. It takes Enter from Close, since opening a window is
+    /// harmless and looking is what the user came back for.
+    /// </summary>
+    public void Offer(string label, Action action)
+    {
+        _offer = action;
+
+        OfferButton.Content = label;
+        OfferButton.Visibility = Visibility.Visible;
+        CloseButton.IsDefault = false;
+        OfferButton.IsDefault = true;
+        OfferButton.Focus();
+    }
+
+    private void OnOffer(object sender, RoutedEventArgs e)
+    {
+        Close();
+        _offer?.Invoke();
     }
 
     private void CompleteAll()
