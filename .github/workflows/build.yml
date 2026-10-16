@@ -36,12 +36,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '9.0.x'
 
@@ -144,7 +144,7 @@ jobs:
           }
 
       - name: Upload the installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FlickGit-${{ steps.version.outputs.version }}-installer
           path: ${{ env.msi }}
@@ -153,7 +153,7 @@ jobs:
       # The staging directory itself rather than the zip: GitHub is going to zip whatever this
       # points at, so uploading the .zip would make the portable build an archive inside an archive.
       - name: Upload the portable build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FlickGit-${{ steps.version.outputs.version }}-portable
           path: ${{ env.STAGING }}
@@ -163,7 +163,7 @@ jobs:
       # one that works without touching Explorer or the registry at all.
       - name: Draft GitHub Release
         if: env.IS_TAG == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           name: ${{ github.ref_name }}
@@ -193,12 +193,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 9.0.x
 
@@ -313,7 +313,7 @@ jobs:
           "$GITHUB_WORKSPACE/$FLICK" status .
 
       - name: Upload the app bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FlickGit-macos
           path: artifacts/mac/FlickGit.app
