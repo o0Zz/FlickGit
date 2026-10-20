@@ -217,6 +217,7 @@ conflict.done = {0} gelöst
 conflict.done.many = {0} Dateien gelöst
 conflict.partial = {0} Dateien wurden vor dieser gelöst.
 conflict.failed = {0} konnte nicht gelöst werden.
+conflict.saved.markers = Gespeichert. Es sind noch Konfliktmarker vorhanden, die Datei ist also nicht gelöst: entfernen und erneut speichern, oder Rechtsklick > Als gelöst markieren.
 
 # ---- Pull ----
 pull.title = Pull (Rebase) — {0}

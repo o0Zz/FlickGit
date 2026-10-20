@@ -305,6 +305,8 @@ conflict.done.many = Resolved {0} files
 conflict.partial = {0} files were resolved before this one.
 # {0} the path
 conflict.failed = {0} could not be resolved.
+# Saving a conflicted file that still has a conflict marker in it
+conflict.saved.markers = Saved. Conflict markers remain, so it is still unresolved: remove them and save again, or right-click > Mark resolved.
 
 # ---- pull ----
 pull.title = Pull (rebase) — {0}

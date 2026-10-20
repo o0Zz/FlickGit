@@ -217,6 +217,7 @@ conflict.done = {0} résolu
 conflict.done.many = {0} fichiers résolus
 conflict.partial = {0} fichiers ont été résolus avant celui-ci.
 conflict.failed = {0} n'a pas pu être résolu.
+conflict.saved.markers = Enregistré. Il reste des marqueurs de conflit, le fichier n'est donc pas résolu : retirez-les et enregistrez à nouveau, ou clic droit > Marquer comme résolu.
 
 # ---- pull ----
 pull.title = Pull (rebase) — {0}

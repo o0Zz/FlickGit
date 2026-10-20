@@ -217,6 +217,7 @@ conflict.done = {0} resolvido
 conflict.done.many = {0} ficheiros resolvidos
 conflict.partial = {0} ficheiros foram resolvidos antes deste.
 conflict.failed = Não foi possível resolver {0}.
+conflict.saved.markers = Guardado. Ainda há marcadores de conflito, por isso continua por resolver: remova-os e guarde novamente, ou clique direito > Marcar como resolvido.
 
 # ---- pull ----
 pull.title = Pull (rebase) — {0}

@@ -1677,6 +1677,8 @@ public sealed class CommitViewModel : ObservableObject
         if (_currentDiff is null || _selectedFile is null)
             return SaveOutcome.Refused(SaveRefusal.Missing, "No file is open.");
 
+        FileChangeItem file = _selectedFile;
+
         SaveOutcome outcome = await _writer.SaveAsync(
             _repository.Root,
             _currentDiff.Path,
@@ -1700,6 +1702,12 @@ public sealed class CommitViewModel : ObservableObject
         //of those rows against the file now on disk, which `git apply` refuses whole.
         SideBySideDiff current = _currentDiff;
         FileText saved = outcome.Saved!;
+
+        //Before the re-diff, so selecting another row while it computes cannot skip the resolution.
+        StatusText = file.IsConflicted
+            ? await ResolveSavedFileAsync(file, saved.Text).ConfigureAwait(true)
+            : Strings.Get("edit.saved");
+
         bool wordLevel = current.RenderMode == DiffRenderMode.SideBySideWithWordDiff;
 
         IReadOnlyList<DiffRow> rows = await Task
@@ -1716,11 +1724,40 @@ public sealed class CommitViewModel : ObservableObject
         //scratch -- throwing away the caret, the scroll position and the undo history of a pane already
         //showing exactly this text. MarkSaved is the path written for a save.
         _currentDiff = current with { Right = saved, Rows = rows };
-        StatusText = Strings.Get("edit.saved");
 
         _ = RefreshSelectedFileCountsAsync();
 
         return outcome;
+    }
+
+    /// <summary>
+    /// A save of a conflicted file is the hand-edit resolution, so it records itself — once no marker
+    /// is left. With one left the file stays unmerged and the footer says so: a Ctrl+S half-way
+    /// through must not become the answer. <i>Mark resolved</i> remains for a file whose markers are
+    /// meant to be there.
+    ///
+    /// The row is not ticked, as with <see cref="ResolveSelectedFilesAsync"/>.
+    /// </summary>
+    /// <returns>The footer's sentence.</returns>
+    private async Task<string> ResolveSavedFileAsync(FileChangeItem file, string text)
+    {
+        if (ConflictMarkers.Remain(text))
+            return Strings.Get("conflict.saved.markers");
+
+        ConflictResult result = await _conflicts
+            .MarkResolvedAsync(_repository, file.Path, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        if (!result.Succeeded)
+        {
+            RaiseError(
+                Strings.Get("conflict.title"),
+                Strings.Get("conflict.failed", file.Path) + "\n\n" + (result.Error ?? string.Empty));
+
+            return Strings.Get("edit.saved");
+        }
+
+        return Strings.Get("conflict.done", file.Path);
     }
 
     /// <summary>
@@ -1774,6 +1811,9 @@ public sealed class CommitViewModel : ObservableObject
 
             Raise(nameof(SummaryText));
             RaiseCommandStates();
+
+            //A save can resolve a conflict, and the strip counts what is left.
+            RaiseMergeState();
         }
         catch (Exception ex)
         {

@@ -798,8 +798,12 @@ the step without advancing the rebase. Abort asks in its own words with **Enter 
 Delete and Revert there is no Recycle Bin underneath it, and a stash has more of a reflog than a
 resolution does.
 
-**The diff pane stays editable on a conflicted file** — taking the markers out and pressing *Mark
-resolved* is one of the two ways out, so it is a resolution surface rather than something to lock.
+**The diff pane stays editable on a conflicted file** — taking the markers out and saving is one of the
+two ways out, so it is a resolution surface rather than something to lock. **A save resolves only when
+no marker line is left** (`ConflictMarkers.Remain`): a Ctrl+S half-way through must not become the
+answer. The check errs towards *still conflicted*, and *Mark resolved* — which checks nothing — is
+the way past a file whose markers are meant to be there. This is also the only visible way out of a
+`stash pop` conflict, which has no operation in progress and so no resolution bar.
 
 **A delete/modify conflict is the stated limit.** Recording "take the deletion" needs `git rm --force` on
 an unmerged path, so those rows are offered only what can honestly work and the user is pointed at the

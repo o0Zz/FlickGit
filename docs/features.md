@@ -127,8 +127,8 @@ The right-hand half of the commit window, and the lower half of the Log and Stas
   elsewhere; right is the working tree.
 - **The right pane is editable** in the commit window: a live editor over the file on disk.
   Read-only for binary files, oversized files, and anywhere a revision range is shown. A
-  **conflicted file is deliberately editable** — taking the markers out and pressing *Mark resolved*
-  is one of the two ways out.
+  **conflicted file is deliberately editable** — taking the markers out and saving marks it resolved,
+  once no conflict marker is left; *Mark resolved* covers a file whose markers are meant to be there.
 - The header names the comparison. A **staged-file strip** appears when you edit a file that is
   already staged, with a one-click **Restage**.
 - Opens on the first change with three lines of context above, not on line 1.
